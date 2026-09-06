@@ -1,8 +1,10 @@
 name: Nightly
 
-# The complete, UNSHARDED random-order proof. ci/random-order shards on pull
-# requests, which cannot observe cross-shard ordering interactions; this job
-# restores that coverage every night. It holds no publication authority.
+# Nightly proofs. random-order-full is the complete unsharded ordering proof
+# (ci/random-order shards on pull requests and cannot observe cross-shard
+# interactions). stale-spec-deferrals is a warn-only scan of live spec
+# prose that still defers current capability to a closed issue. Neither
+# job holds publication authority.
 on:
   schedule:
     - cron: '0 5 * * *'
@@ -79,3 +81,30 @@ jobs:
           path: build/logs
           if-no-files-found: warn
           retention-days: 30
+
+  stale-spec-deferrals:
+    name: nightly/stale-spec-deferrals
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      # Warn-only: live spec prose that still defers current capability to a
+      # closed issue. Not a merge gate; issue state moves when the other
+      # ticket closes, so pull-request preflight is the wrong trigger.
+      # Findings print GitHub warning annotations and the script exits 0.
+      # Config or lookup failures still fail this job (exit 2).
+      - name: Warn on live spec deferrals to closed issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: php bin/check-stale-spec-deferrals

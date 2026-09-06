@@ -11,6 +11,10 @@
 # fixture changes, and base-branch commits never produce false positives, and a
 # spec can no longer be "freshened" by an unrelated one-character edit.
 #
+# This script cannot see a live spec whose stated dependency closed *elsewhere*
+# (no diff ever touches that spec). That class is bin/check-stale-spec-deferrals,
+# a nightly warn-only scan — not a preflight gate, and not invoked from here.
+#
 # Usage: tools/drift-detector.sh [--include-worktree] [<base-ref>|<N>]
 #   --include-worktree  Include staged, unstaged, and untracked files. A commit
 #                       acknowledgement never covers a later worktree change;
