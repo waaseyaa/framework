@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyRequest;
+use Waaseyaa\SiteContract\Generation\ArtifactApplyRequestParser;
 use Waaseyaa\SiteContract\Generation\ArtifactPlan;
 use Waaseyaa\SiteContract\Generation\ComposerProviderRegistration;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
@@ -23,6 +24,7 @@ use Waaseyaa\SiteContract\Generation\GenerationUnitDisposition;
  * consumer's own hand-rolled `json_decode` walk.
  */
 #[CoversClass(ArtifactApplyRequest::class)]
+#[CoversClass(ArtifactApplyRequestParser::class)]
 final class ArtifactApplyRequestDecodingTest extends TestCase
 {
     private const string STATE_DIGEST = 'b1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
