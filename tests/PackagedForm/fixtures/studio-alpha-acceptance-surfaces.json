@@ -1,0 +1,72 @@
+{
+    "issue": "#2789",
+    "title": "Studio-alpha packaged acceptance",
+    "note": "The ordered surfaces this harness proves against ONE serial, stateful, artifact-installed consumer. `live` surfaces are asserted on every run. A `reserved` surface names a proof that is deliberately not yet asserted and why; a reserved surface may never be silently dropped, and the harness prints the whole roster so a reader sees what was NOT proved alongside what was.",
+    "surfaces": [
+        {
+            "id": "artifact-binding",
+            "state": "live",
+            "summary": "Every installed waaseyaa/* arrives as extracted archive bytes from the local artifact repository sealed from the exact candidate commit: no path repository, no VCS repository, no symlink into the checkout, no registry lookup for those names."
+        },
+        {
+            "id": "install-and-verify",
+            "state": "live",
+            "summary": "The governed installation phase completes and the shipped verification command reports the site contract healthy from installed bytes."
+        },
+        {
+            "id": "no-dev-fallback-account",
+            "state": "live",
+            "summary": "WAASEYAA_DEV_FALLBACK_ACCOUNT is absent from the generated environment and unset in the harness process, so no denial can be masked by a fallback identity."
+        },
+        {
+            "id": "seeded-identities",
+            "state": "live",
+            "summary": "A real administrator identity is seeded through the shipped installer, and a real unprivileged identity is seeded through the shipped user:create and actually signs in — the denial proof runs as that identity, so a denial is a policy decision rather than an absent session."
+        },
+        {
+            "id": "process-lifecycle",
+            "state": "live",
+            "summary": "The artifact-installed backend and the artifact-installed admin bundle run as two separately controlled processes, each with its own reserved free port, pid, bounded readiness probe and retained log, under one idempotent root-owned teardown."
+        },
+        {
+            "id": "browser-operation",
+            "state": "live",
+            "summary": "A real browser loads the admin bundle served from vendor/waaseyaa/admin-surface/dist by its own process, authenticates with the seeded identity, and performs an admin-visible operation against the artifact-installed backend with no route mocking, no fixture interception, and no source or API substitution; only the Playwright executable comes from the checkout's pinned toolchain."
+        },
+        {
+            "id": "concealed-not-found",
+            "state": "live",
+            "summary": "A view-denied resource and a missing resource return the same typed ENTITY_NOT_FOUND 404: identical status, title, code, detail and full document bytes."
+        },
+        {
+            "id": "hand-extension",
+            "state": "live",
+            "summary": "make:content-type publishes a seeded generation unit through the shared custody, recording ownership and its provider registration, and the extension is visible to the running application."
+        },
+        {
+            "id": "observation-then-restoration",
+            "state": "live",
+            "summary": "Destructive probes run only after a snapshot of the consumer's governed state, and the snapshot is restored and re-verified afterwards."
+        },
+        {
+            "id": "interrupted-apply-recovery",
+            "state": "live",
+            "summary": "site:apply --interrupt-after-journal under an explicit development environment abandons publication after its journal is durable, and the next ordinary later-process apply recovers the interrupted transaction before completing."
+        },
+        {
+            "id": "additive-upgrade",
+            "state": "live",
+            "summary": "An additive regeneration of the root site unit publishes through the same authority without disturbing the hand extension."
+        },
+        {
+            "id": "unauthorized-set-delta-refusal",
+            "state": "live",
+            "summary": "A plan that would evolve a frozen unit's artifact set is refused GEN011_UNAUTHORIZED_SET_DELTA and writes nothing."
+        },
+        {
+            "id": "final-restoration",
+            "state": "live",
+            "summary": "After every probe the consumer verifies healthy again from installed bytes, proving the harness left the candidate in a governed state rather than a wreck it stopped measuring."
+        }
+    ]
+}

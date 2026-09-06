@@ -1,0 +1,420 @@
+#!/usr/bin/env bash
+
+# Studio-alpha packaged acceptance (#2789).
+#
+# ONE disposable consumer, installed from the EXACT candidate sealed into a
+# local Composer artifact repository, driven serially through the whole
+# Studio-alpha story: install, verify, seed real identities, serve, operate the
+# admin surface in a real browser, prove the concealed 404 against a real
+# unprivileged identity, extend by hand, interrupt a publication and recover it
+# in a later process, upgrade additively, refuse an unauthorized set delta
+# without writing, and end verified.
+#
+# It is stateful on purpose. Each phase inherits the consumer the previous
+# phase left behind, because that is the only way to prove the story holds
+# together; a per-phase fresh consumer would prove twelve unrelated things.
+#
+# Two processes, both owned by this script:
+#
+#   - the artifact-installed PHP backend, and
+#   - the artifact-installed admin bundle, served by its own Node process from
+#     `vendor/waaseyaa/admin-surface/dist`.
+#
+# The browser targets the admin process, which forwards host API prefixes to
+# the backend so one origin carries the real session cookie. `waaseyaa/admin-
+# surface` ships a PRERENDERED Nuxt build and no Nitro entry, so serving those
+# installed bytes IS running the installed admin package; there is no Nuxt dev
+# server in a packaged consumer to start, and starting one from
+# `packages/admin` would substitute checkout source for the sealed artifact —
+# exactly what this harness exists to refuse.
+#
+# What it must never do, and why:
+#
+#   - No path repository, VCS repository or symlink into the checkout. The
+#     seal is the subject: `check-split-artifact-acceptance` owns that boundary
+#     and this harness reuses its engine rather than growing a second sealing
+#     authority.
+#   - No mocked route, stubbed host payload, or substituted API in the browser
+#     proof. `packages/admin/e2e` mocks deliberately to test SPA behaviour in
+#     isolation; a mock here would make the acceptance run a test of itself.
+#     The checkout supplies only the pinned Playwright executable; the spec and
+#     config bytes are the repository's own, copied verbatim.
+#   - No WAASEYAA_DEV_FALLBACK_ACCOUNT. A fallback identity masks denials, so
+#     the concealed-404 surface would pass vacuously.
+#
+# Usage: check-studio-alpha-acceptance [--allow-dirty] [--keep]
+#   --allow-dirty  Seal HEAD with a dirty worktree. Local iteration only; CI
+#                  must never pass it, because the seal would then prove bytes
+#                  that are not the bytes under review.
+#   --keep         Keep the work directory for inspection. Process teardown
+#                  still runs; only the directory removal is skipped.
+
+set -euo pipefail
+
+allow_dirty=false
+keep_work=false
+for argument in "$@"; do
+    case "$argument" in
+        --allow-dirty) allow_dirty=true ;;
+        --keep) keep_work=true ;;
+        *) echo "Unknown argument: $argument" >&2; exit 2 ;;
+    esac
+done
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+seal_engine="$root/tests/PackagedForm/split-artifact-acceptance.php"
+engine="$root/tests/PackagedForm/studio-alpha-acceptance.php"
+fixtures="$root/tests/PackagedForm/fixtures"
+
+# A dev fallback account masks the denial the concealed-404 surface exists to
+# observe. Refuse to run rather than emit a green result that proves less.
+if [[ -n "${WAASEYAA_DEV_FALLBACK_ACCOUNT:-}" ]]; then
+    echo 'WAASEYAA_DEV_FALLBACK_ACCOUNT is set in this environment; the acceptance run would prove less than it appears to.' >&2
+    exit 1
+fi
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+# Composer 2.8.x cannot download a LOCAL artifact dist on PHP 8.5 (see
+# check-split-artifact-acceptance for the TypeError this surfaces as).
+composer_version="$("$composer_bin" --version --no-interaction 2>/dev/null \
+    | sed -n 's/^Composer version \([0-9][0-9.]*\).*/\1/p' | head -1)"
+composer_major="${composer_version%%.*}"
+composer_minor="$(printf '%s' "$composer_version" | cut -d . -f 2)"
+if [[ -z "$composer_version" ]] || [[ "$composer_major" -lt 2 ]] || { [[ "$composer_major" -eq 2 ]] && [[ "$composer_minor" -lt 9 ]]; }; then
+    echo "Composer >= 2.9 is required (found ${composer_version:-unknown})." >&2
+    exit 1
+fi
+
+if [[ ! -d "$root/packages/admin/node_modules/@playwright/test" ]]; then
+    echo 'The repository-pinned Playwright toolchain is not installed.' >&2
+    echo 'Run: npm ci --prefix packages/admin' >&2
+    exit 1
+fi
+command -v node >/dev/null || { echo 'node is required to serve the installed admin bundle.' >&2; exit 1; }
+command -v curl >/dev/null || { echo 'curl is required for bounded readiness probes.' >&2; exit 1; }
+
+if [[ "$allow_dirty" != true && -n "$("$root/bin/git" -C "$root" status --porcelain=v1)" ]]; then
+    echo 'Studio-alpha acceptance seals HEAD and refuses a dirty worktree.' >&2
+    echo 'Commit the change, or pass --allow-dirty for local iteration only.' >&2
+    exit 1
+fi
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-studio-alpha.XXXXXX")"
+backend_pid=''
+admin_pid=''
+teardown_done=false
+
+# Teardown is owned by this root script, runs on every exit path, is safe to
+# run twice, and must never change the exit status: a failed cleanup that
+# masked a real RED would be worse than a leaked directory (#2870).
+cleanup() {
+    local status=$?
+    if [[ "$teardown_done" == true ]]; then
+        return "$status"
+    fi
+    teardown_done=true
+    for pid in "$admin_pid" "$backend_pid"; do
+        [[ -n "$pid" ]] || continue
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+        fi
+    done
+    if [[ "$status" -ne 0 ]]; then
+        echo
+        echo "== Retained diagnostics ($work)"
+        for log in "$work"/*.out "$work"/*.log; do
+            [[ -f "$log" ]] || continue
+            echo "--- ${log##*/} (tail)"
+            tail -25 "$log" || true
+        done
+    fi
+    if [[ "$keep_work" == true || "$status" -ne 0 ]]; then
+        echo "Work directory retained for evidence: $work" >&2
+    else
+        rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+    fi
+    return "$status"
+}
+trap cleanup EXIT
+
+# A fixed port silently collides with anything already listening — including a
+# previous run's orphan — and the collision presents as a product failure. Bind
+# a real socket to claim each port, or say so and stop.
+free_port() {
+    node -e '
+        import("node:net").then(({ default: net }) => {
+            const server = net.createServer();
+            server.on("error", () => { process.exit(1); });
+            server.listen(0, "127.0.0.1", () => {
+                const { port } = server.address();
+                server.close(() => { console.log(port); });
+            });
+        });
+    ' 2>/dev/null
+}
+
+artifacts="$work/artifacts"
+seal="$work/seal.json"
+consumer="$work/consumer"
+snapshot="$work/snapshot"
+version="$(tr -d '[:space:]' < "$root/VERSION")"
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+backend_port="${STUDIO_ALPHA_BACKEND_PORT:-$(free_port)}"
+admin_port="${STUDIO_ALPHA_ADMIN_PORT:-$(free_port)}"
+if [[ -z "$backend_port" || -z "$admin_port" || "$backend_port" == "$admin_port" ]]; then
+    echo 'Could not reserve two distinct free ports for the backend and admin processes.' >&2
+    exit 1
+fi
+backend_url="http://127.0.0.1:${backend_port}"
+admin_url="http://127.0.0.1:${admin_port}"
+
+admin_user='admin'
+admin_password='studio-alpha-acceptance-admin'
+reader_user='studio-reader'
+reader_password='studio-alpha-acceptance-reader'
+
+run_waaseyaa() {
+    local label="$1"
+    shift
+    ( cd "$consumer" && php vendor/bin/waaseyaa "$@" ) >"$work/${label}.out" 2>&1
+}
+
+# Bounded readiness: poll a real HTTP response, and stop early if the process
+# died, so a crashed server is reported as a crash rather than a timeout.
+await_ready() {
+    local label="$1" url="$2" pid="$3"
+    for _ in $(seq 1 80); do
+        if curl -fsS -o /dev/null "$url" 2>/dev/null; then
+            return 0
+        fi
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "The ${label} process exited during startup." >&2
+
+            return 1
+        fi
+        sleep 0.25
+    done
+    echo "The ${label} process did not become ready at ${url} within the bounded window." >&2
+
+    return 1
+}
+
+echo "== Phase 1/13: sealing the candidate into a local artifact repository"
+php "$seal_engine" seal "$root" "$artifacts" "$seal" "$version"
+
+repository="$(php -r 'echo json_encode(["type" => "artifact", "url" => $argv[1], "only" => ["waaseyaa/*"]], JSON_UNESCAPED_SLASHES);' "$artifacts")"
+
+echo "== Phase 2/13: create-project and install from archive bytes"
+"$composer_bin" create-project waaseyaa/waaseyaa "$consumer" \
+    --repository="$repository" \
+    --stability=dev \
+    --no-install --no-scripts --no-interaction --no-progress >"$work/create-project.out" 2>&1 \
+    || { tail -60 "$work/create-project.out" >&2; exit 1; }
+
+rm -f "$consumer/composer.lock"
+"$composer_bin" config --working-dir="$consumer" repositories.waaseyaa-artifacts "$repository"
+"$composer_bin" install --working-dir="$consumer" \
+    --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer-install.out" 2>&1 \
+    || { tail -80 "$work/composer-install.out" >&2; exit 1; }
+"$composer_bin" run-script --working-dir="$consumer" post-create-project-cmd >"$work/post-create.out" 2>&1 \
+    || { cat "$work/post-create.out" >&2; exit 1; }
+
+# Overrides only; the generated .env is otherwise the one a real consumer
+# receives. The skeleton ships WAASEYAA_DEV_FALLBACK_ACCOUNT=true as a
+# documented convenience for `composer run dev` under APP_ENV=local — which is
+# exactly the shape this consumer would otherwise have — so the harness REMOVES
+# the line rather than trusting a comment about when it applies. A fallback
+# identity would answer the concealed-404 probe as an administrator and the
+# surface would pass while proving nothing.
+php -r '
+$path = $argv[1];
+$lines = file($path, FILE_IGNORE_NEW_LINES);
+$kept = array_values(array_filter(
+    $lines,
+    static fn(string $line): bool => preg_match("/^\s*WAASEYAA_DEV_FALLBACK_ACCOUNT\s*=/", $line) !== 1,
+));
+file_put_contents($path, implode("\n", $kept) . "\n");
+' "$consumer/.env"
+{
+    printf '\nAPP_ENV=local\n'
+    printf 'APP_DEBUG=false\n'
+} >> "$consumer/.env"
+
+echo "== Phase 3/13: environment hygiene and exact artifact binding"
+php "$engine" assert env-hygiene "$consumer"
+php "$engine" assert artifact-binding "$seal" "$consumer" "$candidate"
+
+echo "== Phase 4/13: governed site contract, installation and verification"
+cat >"$consumer/site-seed.yaml" <<'YAML'
+schema: waaseyaa.site-seed
+version: 1
+application:
+  id: studio_alpha
+  name: Studio Alpha
+  canonical_origin:
+    config_key: APP_ORIGIN
+content_types:
+  - id: page
+    canonical_route: '/{slug}'
+YAML
+run_waaseyaa site-init site:init --preset=minimal --answers=site-seed.yaml --yes \
+    || { cat "$work/site-init.out" >&2; echo 'site:init failed on the artifact consumer.' >&2; exit 1; }
+run_waaseyaa install-init install:init \
+    || { cat "$work/install-init.out" >&2; echo 'The governed installation phase failed.' >&2; exit 1; }
+grep -Fq 'Installation is complete.' "$work/install-init.out"
+run_waaseyaa site-doctor site:doctor --strict \
+    || { cat "$work/site-doctor.out" >&2; echo 'The shipped verification command reports an unhealthy site.' >&2; exit 1; }
+
+echo "== Phase 5/13: seeding real privileged and unprivileged identities"
+run_waaseyaa install install --site-name='Studio Alpha' \
+    --admin-email='admin@studio-alpha.test' --admin-password="$admin_password" \
+    || { cat "$work/install.out" >&2; echo 'Seeding the administrator identity failed.' >&2; exit 1; }
+run_waaseyaa user-create user:create "$reader_user" \
+    --email='reader@studio-alpha.test' --password="$reader_password" \
+    || { cat "$work/user-create.out" >&2; echo 'Seeding the unprivileged identity failed.' >&2; exit 1; }
+
+echo "== Phase 6/13: backend and installed-admin process startup"
+( cd "$consumer" && exec php -S "127.0.0.1:${backend_port}" -t public public/index.php ) >"$work/backend.log" 2>&1 &
+backend_pid=$!
+await_ready 'backend' "${backend_url}/admin/" "$backend_pid" || exit 1
+echo "    backend ready at ${backend_url} (pid ${backend_pid})"
+
+admin_dist="$consumer/vendor/waaseyaa/admin-surface/dist"
+test -f "$admin_dist/index.html" \
+    || { echo "The artifact-installed admin bundle is missing at ${admin_dist}." >&2; exit 1; }
+cp "$fixtures/studio-alpha-admin-server.mjs" "$work/studio-alpha-admin-server.mjs"
+node "$work/studio-alpha-admin-server.mjs" "$admin_dist" "$admin_port" "$backend_url" >"$work/admin-server.log" 2>&1 &
+admin_pid=$!
+await_ready 'installed admin' "${admin_url}/admin/" "$admin_pid" || exit 1
+echo "    installed admin bundle ready at ${admin_url} (pid ${admin_pid})"
+
+echo "== Phase 7/13: hand extension through the seeded generation unit"
+run_waaseyaa make-content-type make:content-type story --fields='title:string,body:text' \
+    || { cat "$work/make-content-type.out" >&2; echo 'make:content-type failed on the artifact consumer.' >&2; exit 1; }
+php "$engine" assert ownership "$consumer" 'scaffold:content-type:story' \
+    'src/Entity/Story.php,src/Provider/StoryServiceProvider.php'
+run_waaseyaa schema-sync schema:sync \
+    || { cat "$work/schema-sync.out" >&2; echo 'schema:sync failed for the hand extension.' >&2; exit 1; }
+
+echo "== Phase 8/13: admin-visible browser operation (no mocks)"
+browser_status=0
+(
+    cd "$root/packages/admin" \
+        && STUDIO_ALPHA_BASE_URL="$admin_url" \
+           STUDIO_ALPHA_ADMIN_USER="$admin_user" \
+           STUDIO_ALPHA_ADMIN_PASSWORD="$admin_password" \
+           STUDIO_ALPHA_PW_REPORT="$work/playwright-report.json" \
+           npx playwright test --config="$fixtures/studio-alpha-playwright.config.ts"
+) >"$work/browser.out" 2>&1 || browser_status=$?
+if [[ "$browser_status" -ne 0 ]]; then
+    tail -40 "$work/browser.out" >&2
+    echo 'The admin-visible browser proof failed against the artifact-installed consumer.' >&2
+    exit 1
+fi
+
+echo "== Phase 9/13: typed concealed 404 for a real denied and a missing read"
+run_waaseyaa entity-create entity:create node --field title='Concealed draft' --field status=0 \
+    || { cat "$work/entity-create.out" >&2; echo 'Could not seed an unpublished resource.' >&2; exit 1; }
+denied_id="$(grep -Eo '[0-9]+' "$work/entity-create.out" | tail -1)"
+if [[ -z "$denied_id" ]]; then
+    cat "$work/entity-create.out" >&2
+    echo 'Could not determine the seeded unpublished resource id.' >&2
+    exit 1
+fi
+php "$engine" assert concealed-404 "$backend_url" node "$denied_id" 999999 \
+    "$reader_user" "$reader_password"
+
+echo "== Phase 10/13: snapshot before destructive probes"
+php "$engine" snapshot "$consumer" "$snapshot"
+
+echo "== Phase 11/13: interrupted publication and later-process recovery"
+cp "$fixtures/studio-alpha-generation-probe.php" "$consumer/studio-alpha-generation-probe.php"
+# An additive manifest change gives the interrupted publication real work to
+# do: without it the apply would be a no-op and the recovery proof vacuous.
+cp "$consumer/.waaseyaa/site.yaml" "$work/site.yaml.upgrade"
+php -r '
+$path = $argv[1];
+$manifest = (string) file_get_contents($path);
+$added = "content_types:\n  - {id: dispatch, canonical_route: \x27/dispatch/{slug}\x27}";
+$upgraded = preg_replace("/^content_types:/m", $added, $manifest, 1);
+if ($upgraded === null || $upgraded === $manifest) {
+    fwrite(STDERR, "Could not compose an additive manifest upgrade.\n");
+    exit(1);
+}
+file_put_contents($path, $upgraded);
+' "$work/site.yaml.upgrade"
+
+( cd "$consumer" && php studio-alpha-generation-probe.php emit-request "$work/site.yaml.upgrade" "$work/upgrade-request.json" ) \
+    >"$work/emit-request.out" 2>&1 \
+    || { cat "$work/emit-request.out" >&2; echo 'Could not emit a reviewed apply request from installed bytes.' >&2; exit 1; }
+
+interrupt_status=0
+( cd "$consumer" && APP_ENV=development php vendor/bin/waaseyaa site:apply \
+    --request="$work/upgrade-request.json" --interrupt-after-journal --json ) \
+    >"$work/site-apply-interrupt.out" 2>&1 || interrupt_status=$?
+# The stable evidence is the envelope and the journal, not the number: the
+# console normalizes handler exit codes, so the harness records what the
+# process actually reported and asserts the run did not succeed.
+if [[ "$interrupt_status" -eq 0 ]]; then
+    cat "$work/site-apply-interrupt.out" >&2
+    echo 'The development interruption seam reported success; it must abandon the publication.' >&2
+    exit 1
+fi
+php "$engine" assert interruption-envelope "$work/site-apply-interrupt.out"
+test -f "$consumer/.waaseyaa/site-init.transaction.json" \
+    || { echo 'The interrupted publication left no durable journal to recover.' >&2; exit 1; }
+echo "    interruption reported exit ${interrupt_status} and retained its durable journal"
+
+( cd "$consumer" && php vendor/bin/waaseyaa site:apply --request="$work/upgrade-request.json" --json ) \
+    >"$work/site-apply-recover.out" 2>&1 \
+    || { cat "$work/site-apply-recover.out" >&2; echo 'The later-process apply did not complete.' >&2; exit 1; }
+php "$engine" assert recovery-envelope "$work/site-apply-recover.out"
+test ! -f "$consumer/.waaseyaa/site-init.transaction.json" \
+    || { echo 'The recovering apply left the interrupted journal in place.' >&2; exit 1; }
+echo '    interrupted-apply-recovery OK: journal recovered by the next ordinary apply'
+
+echo "== Phase 12/13: additive upgrade landed, unauthorized set delta refused with no writes"
+grep -Fq 'dispatch' "$consumer/.waaseyaa/site.yaml" \
+    || { echo 'The additive upgrade did not reach the published manifest.' >&2; exit 1; }
+
+php "$engine" snapshot "$consumer" "$work/pre-gen011" >/dev/null
+( cd "$consumer" && php studio-alpha-generation-probe.php emit-set-delta "$consumer/.waaseyaa/site.yaml" "$work/set-delta-request.json" ) \
+    >"$work/emit-set-delta.out" 2>&1 \
+    || { cat "$work/emit-set-delta.out" >&2; echo 'Could not emit the unauthorized set-delta request.' >&2; exit 1; }
+delta_status=0
+( cd "$consumer" && php vendor/bin/waaseyaa site:apply --request="$work/set-delta-request.json" --json ) \
+    >"$work/site-apply-gen011.out" 2>&1 || delta_status=$?
+if [[ "$delta_status" -eq 0 ]]; then
+    cat "$work/site-apply-gen011.out" >&2
+    echo 'An unauthorized set delta was published instead of refused.' >&2
+    exit 1
+fi
+grep -Fq 'GEN011_UNAUTHORIZED_SET_DELTA' "$work/site-apply-gen011.out" \
+    || { cat "$work/site-apply-gen011.out" >&2; echo 'The refusal did not carry GEN011_UNAUTHORIZED_SET_DELTA.' >&2; exit 1; }
+php "$engine" assert unchanged "$consumer" "$work/pre-gen011"
+echo '    unauthorized-set-delta-refusal OK: refused with zero writes'
+
+echo "== Phase 13/13: restoration, final verification and seeded negative controls"
+rm -f "$consumer/studio-alpha-generation-probe.php"
+php "$engine" restore "$consumer" "$snapshot"
+php "$engine" assert restored "$consumer" "$snapshot"
+run_waaseyaa site-doctor-final site:doctor --strict \
+    || { cat "$work/site-doctor-final.out" >&2; echo 'The consumer is not verifiable after the probes.' >&2; exit 1; }
+php "$engine" self-test "$consumer" "$snapshot"
+
+echo
+echo "Studio-alpha acceptance surfaces (#2789):"
+php "$engine" surfaces
+echo
+printf 'Candidate: %s\nSealed version: %s\nBackend: %s (pid %s)\nInstalled admin: %s (pid %s)\n' \
+    "$candidate" "$version" "$backend_url" "$backend_pid" "$admin_url" "$admin_pid"
+printf 'Studio-alpha acceptance passed. This harness created no tag and published nothing.\n'
