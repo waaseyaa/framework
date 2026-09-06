@@ -2217,6 +2217,8 @@ Authoritative contracts: `docs/specs/bundle-scoped-storage.md §Drift diagnostic
 
 `AbstractKernel::buildHandlerContainer()` composes the CLI handler container from the booted provider list and returns a `KernelHandlerContainer` instance (`packages/foundation/src/Kernel/KernelHandlerContainer.php`), a named PSR-11 `ContainerInterface` implementation that replaced the inline anonymous class. Among its kernel-owned bindings it registers `Waaseyaa\User\RoleRepository` via `RoleRepository::fromProviders($this->providers)`, which scans every provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and flattens their `Role` contributions into an id-keyed registry. This is a kernel-owned service mirroring the `HealthChecker` composition pattern above: a type no single provider binds, assembled once by the kernel and made injectable into class-based command handlers. It lets role-aware handlers such as the `user:assign-role` handler (`Waaseyaa\CLI\Handler\UserAssignRoleHandler`) resolve a role to its registered permissions and stamp the union onto a user. See `docs/specs/access-control.md §Roles` for the role-to-permission model.
 
+**Permission catalogue composition (#2788).** The sibling capability `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface` (`permissions(): array<string, array{title, description}>`) feeds the same pattern one step earlier, at boot rather than at container build: immediately after `bootProviders()`, `AbstractKernel::composePermissionCatalogue()` calls `Waaseyaa\Access\PermissionHandler::fromProviders($this->providers, $this->manifest->permissions)`, which unions the compiled manifest's `extra.waaseyaa.permissions` entries with every contributing provider and fails closed (`LogicException`) on a duplicate or empty id, then `RoleRepository::fromProviders($this->providers)->assertPermissionsCatalogued($catalogue)`. Any `ProvidesRolesInterface` role granting a permission the catalogue does not declare aborts boot with a `RuntimeException` naming every offending `(role, permission)` pair and the role-providing classes. The composed instance is kernel-owned, exposed as `permissionCatalogue()` (a `LogicException` before boot), and bound in `buildHandlerContainer()` as `Waaseyaa\Access\PermissionHandlerInterface`, so `permission:list` and any catalogue-aware handler resolve the same instance the boot validation ran against. Contract detail: `docs/specs/access-control.md §Permission Handler`.
+
 ## Strict audit ledger port (`Waaseyaa\Foundation\Audit`, #2177 F4)
 
 A fail-closed reserve/finalize audit contract, deliberately the opposite of `waaseyaa/audit`'s `AuditWriterInterface`.
@@ -2616,6 +2618,7 @@ EnvLoader::load(.env) once per process through Symfony Dotenv
   → loadAppEntityTypes()     // reads config/entity-types.php
   → validateContentTypes()   // DiagnosticEmitter check
   → bootProviders()          // calls boot() on all registered providers
+  → composePermissionCatalogue() // one PermissionHandler from manifest permissions + ProvidesPermissionsInterface; uncatalogued role grants fail boot (#2788)
   → discoverAccessPolicies() // AccessPolicyRegistry
   → bootKnowledgeExtensionRunner() // plugin discovery for knowledge tooling extensions
   → $this->booted = true
