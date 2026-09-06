@@ -12,5 +12,6 @@ ai-agent wayfinding  # Trail-tool source remains an optional Wayfinding integrat
 api oidc  # Client administration must not install OIDC for every API consumer.
 cli ai-agent  # AI console integration must not install Agent for every CLI consumer.
 cli ai-tools  # Local MCP console integration must not install AI Tools for every CLI consumer.
+cli mcp  # Registry-manifest console integration must not install MCP for every CLI consumer.
 cli oidc  # OIDC console integration must not install OIDC for every CLI consumer.
 routing oidc  # Issuer integration must not install OIDC for every routing consumer.

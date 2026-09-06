@@ -142,6 +142,10 @@
         },
         {
             "type": "path",
+            "url": "../mcp"
+        },
+        {
+            "type": "path",
             "url": "../oidc"
         },
         {
@@ -192,6 +196,7 @@
         "ext-pcntl": "Required for clean SIGINT handling in --watch mode",
         "waaseyaa/ai-agent": "Provides the optional ai:* operator commands",
         "waaseyaa/ai-tools": "Provides the transport-neutral tool registry and dispatch contracts used by optional mcp:serve",
+        "waaseyaa/mcp": "Provides the optional mcp:registry-manifest command that emits official Registry server.json",
         "waaseyaa/oidc": "Provides the optional oidc:* operator commands"
     },
     "require-dev": {
@@ -199,6 +204,7 @@
         "waaseyaa/ai-agent": "^0.1.0-alpha.300",
         "waaseyaa/ai-tools": "^0.1.0-alpha.300",
         "waaseyaa/api": "^0.1.0-alpha.300",
+        "waaseyaa/mcp": "^0.1.0-alpha.300",
         "waaseyaa/node": "^0.1.0-alpha.300",
         "waaseyaa/oidc": "^0.1.0-alpha.300",
         "waaseyaa/relationship": "^0.1.0-alpha.300",
@@ -229,6 +235,7 @@
                 "Waaseyaa\\CLI\\CliServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\McpRegistryServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\McpStdioServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BearerTokenServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",

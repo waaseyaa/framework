@@ -1,6 +1,11 @@
 # MCP Endpoint
 
 <!-- Spec reviewed 2026-09-05 - #2637: StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES is 1 MiB, matching BodySizeLimitMiddleware. mcp.transport.max_request_bytes above an enabled kernel body_size_limit.max_bytes fails closed at McpServiceProvider wiring so the advertised cap is reachable. Disabling the kernel control leaves the MCP setting as the effective ceiling. security-defaults.md records the same interaction. Acceptance: StreamableHttpTransportGuardTest::advertisedDefaultMatchesTheKernelBodyLimit and McpServiceProviderTest transport-size cases. -->
+<!-- Spec reviewed 2026-09-05 - #2638: `mcp:registry-manifest` emits official
+Registry `server.json` to stdout from the existing `McpRegistryManifest`
+binding. Publication, namespace authentication, and preview-schema
+revalidation stay out of scope. The 2026-08-29 note below still records that
+nothing exposed the emitter; this entry supersedes that remaining gap. -->
 <!-- Spec reviewed 2026-09-05 - #2636 resources/list opaque AEAD pagination:
 ApplicationMaster sealing plus ContentResourceListCursorCodec claim expiry;
 Search catalogue resumes via SearchCatalogueScanPosition. #2638 MCP Registry
@@ -126,6 +131,7 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/McpImplementationInfo.php` | Shared implementation name/version projected by every MCP discovery response |
 | `src/Registry/McpRegistryManifest.php` | Generates the official, schema-pinned deployment `server.json` artifact |
+| `packages/cli/src/Command/Mcp/McpRegistryManifestCommand.php` | `mcp:registry-manifest` — writes that artifact to stdout (#2638) |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
 | `src/Auth/ScopedMcpAuthInterface.php` / `src/Auth/ScopedPrincipal.php` | Scope-aware auth contract: account + explicit token scopes (#2177 F3) |
 | `src/Auth/DurableBearerTokenAuth.php` | Production write-tier auth over the durable `Waaseyaa\Auth\Token\Bearer` store (#2177 F3) |
@@ -1271,13 +1277,12 @@ does not derive it from the request Host, invent a default deployment, or
 publish a Composer package as an unsupported Registry package type. Official
 submission remains blocked until the URL is publicly reachable, namespace
 ownership is authenticated, the framework release exists, and the preview
-schema is revalidated at submission time. A framework-neutral manifest service
-is available to applications, but nothing exposes its output: the emitter is
-container-bound with no route and no command, which #2638 tracks. The layer
-obstacle that blocked the adapter is gone — #2207 landed
-`Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface`,
-which `PackageManifestCompiler` detects by string constant precisely so a
-provider can contribute commands without importing the Layer 6 CLI package.
+schema is revalidated at submission time. A framework-neutral manifest service is available to applications, and
+`mcp:registry-manifest` writes its `server.json` to stdout so a deployment
+can inspect or submit the artifact by hand. The command lives in
+`waaseyaa/cli` (`McpRegistryServiceProvider`), gated on `waaseyaa/mcp` via
+`RequiresOptionalPackagesInterface` — Layer 4 still does not import Layer 6
+command types. Official submission remains a separate, out-of-band step.
 
 ## MCP Feature Scope
 
