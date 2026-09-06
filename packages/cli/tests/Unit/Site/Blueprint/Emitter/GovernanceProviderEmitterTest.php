@@ -7,7 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Site\Blueprint\Emitter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\PermissionHandler;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\GovernanceProviderEmitter;
+use Waaseyaa\CLI\Site\Blueprint\Emitter\PermissionCatalogueEmitter;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintRole;
@@ -90,6 +93,50 @@ final class GovernanceProviderEmitterTest extends TestCase
             self::assertSame(['view article'], $viewer->permissions);
         } finally {
             unlink($file);
+        }
+    }
+
+    /**
+     * #2788 G1 closed: the generated provider contributes the generated
+     * catalogue's `seed()` through the shared `ProvidesPermissionsInterface`
+     * capability, so the kernel's boot-time catalogue knows every blueprint
+     * permission and `RoleRepository::assertPermissionsCatalogued()` accepts
+     * every generated role grant.
+     */
+    #[Test]
+    public function theGeneratedProviderContributesTheGeneratedCatalogueSeedThroughTheSharedCapability(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new GovernanceProviderEmitter()->emit($manifest->applicationBlueprint, $manifest);
+        $catalogueSource = new PermissionCatalogueEmitter()->emit($manifest->applicationBlueprint, $manifest)->artifacts[0]->content;
+
+        $namespace = 'Waaseyaa\\CLI\\Tests\\BlueprintGovernanceCatalogue' . bin2hex(random_bytes(4));
+        $providerSource = str_replace(
+            ['namespace App\\Provider;', 'use App\\Workflow\\EditorialWorkflowDefinition;', 'App\\Access\\ApplicationBlueprintPermissions'],
+            ['namespace ' . $namespace . ';', 'use ' . $namespace . '\\EditorialWorkflowDefinition;', $namespace . '\\ApplicationBlueprintPermissions'],
+            $emission->artifacts[0]->content,
+        );
+        $catalogueSource = str_replace('namespace App\\Access;', 'namespace ' . $namespace . ';', $catalogueSource);
+
+        $dir = sys_get_temp_dir() . '/waaseyaa_governance_catalogue_' . bin2hex(random_bytes(8));
+        mkdir($dir, 0o700, true);
+        file_put_contents($dir . '/ApplicationBlueprintPermissions.php', $catalogueSource);
+        file_put_contents($dir . '/Provider.php', $providerSource);
+        try {
+            require $dir . '/ApplicationBlueprintPermissions.php';
+            require $dir . '/Provider.php';
+            $class = $namespace . '\\ApplicationBlueprintGovernanceServiceProvider';
+            $provider = new $class();
+            self::assertInstanceOf(ProvidesPermissionsInterface::class, $provider);
+
+            $catalogueClass = $namespace . '\\ApplicationBlueprintPermissions';
+            self::assertSame($catalogueClass::seed(), $provider->permissions());
+
+            $catalogue = PermissionHandler::fromProviders([$provider]);
+            self::assertSame(['edit article', 'use editorial transition publish', 'view article'], array_keys($catalogue->getPermissions()));
+            RoleRepository::fromProviders([$provider])->assertPermissionsCatalogued($catalogue);
+        } finally {
+            new \Symfony\Component\Filesystem\Filesystem()->remove($dir);
         }
     }
 

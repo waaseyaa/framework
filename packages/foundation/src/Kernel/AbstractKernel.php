@@ -104,6 +104,7 @@ abstract class AbstractKernel
     private readonly bool $rebuildLoggerFromConfig;
     private ?SecretResolverRegistry $secretResolverRegistry = null;
     private ?\Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface $healthChecker = null;
+    private ?\Waaseyaa\Access\PermissionHandlerInterface $permissionCatalogue = null;
     protected MigrationLoader $migrationLoader;
     protected MigrationRepository $migrationRepository;
 
@@ -249,6 +250,7 @@ abstract class AbstractKernel
         if (!$this->restrictedDiscoveryOnly) {
             $this->composeApplicationMasterRekeyOwners();
             $this->bootProviders();
+            $this->composePermissionCatalogue();
             $this->discoverAccessPolicies();
             $this->installFieldReadRuntime();
             $this->bootScheduleEntries();
@@ -766,6 +768,52 @@ abstract class AbstractKernel
         new ProviderRegistry($this->logger)->boot($this->providers);
     }
 
+    /**
+     * Compose the one permission catalogue and validate every provider-declared
+     * role against it (#2788 G1).
+     *
+     * The catalogue unions the compiled manifest's `extra.waaseyaa.permissions`
+     * entries with every provider implementing `ProvidesPermissionsInterface`
+     * (duplicate ids fail closed). A role contributed through
+     * `ProvidesRolesInterface` that grants a permission outside that catalogue
+     * is a hard boot failure: `user:assign-role` stamps role permissions onto
+     * accounts as opaque strings, so an uncatalogued grant would otherwise
+     * become live authority nothing declared.
+     */
+    private function composePermissionCatalogue(): void
+    {
+        try {
+            $catalogue = \Waaseyaa\Access\PermissionHandler::fromProviders($this->providers, $this->manifest->permissions);
+            \Waaseyaa\User\RoleRepository::fromProviders($this->providers)->assertPermissionsCatalogued($catalogue);
+        } catch (\LogicException $exception) {
+            $owners = [];
+            foreach ($this->providers as $provider) {
+                if ($provider instanceof \Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface) {
+                    $owners[] = $provider::class;
+                }
+            }
+            throw new \RuntimeException(sprintf(
+                'Permission catalogue validation failed: %s Role providers: %s.',
+                $exception->getMessage(),
+                $owners === [] ? '(none)' : implode(', ', $owners),
+            ), previous: $exception);
+        }
+        $this->permissionCatalogue = $catalogue;
+    }
+
+    /**
+     * The kernel-owned permission catalogue composed at boot; served through
+     * the handler container as `PermissionHandlerInterface`.
+     */
+    public function permissionCatalogue(): \Waaseyaa\Access\PermissionHandlerInterface
+    {
+        if ($this->permissionCatalogue === null) {
+            throw new \LogicException('The permission catalogue is composed during boot; call after boot.');
+        }
+
+        return $this->permissionCatalogue;
+    }
+
     /** Freeze the complete active owner graph before any provider boot hook executes. */
     private function composeApplicationMasterRekeyOwners(): void
     {
@@ -1268,6 +1316,12 @@ abstract class AbstractKernel
             // UserAssignRoleHandler) can stamp role permissions onto a user.
             \Waaseyaa\User\RoleRepository::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => \Waaseyaa\User\RoleRepository::fromProviders($providers),
+
+            // The one permission catalogue composed at boot (#2788 G1), so
+            // `permission:list` and any catalogue-aware handler read the same
+            // instance the role validation ran against.
+            \Waaseyaa\Access\PermissionHandlerInterface::class =>
+                static fn(\Psr\Container\ContainerInterface $c) => $kernel->permissionCatalogue(),
 
             // Kernel-owned services not bound by any provider.
             \Waaseyaa\Access\Context\AccountContextInterface::class =>

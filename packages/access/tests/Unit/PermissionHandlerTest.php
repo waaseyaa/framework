@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Access\Tests\Unit;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\PermissionHandler;
 use Waaseyaa\Access\PermissionHandlerInterface;
-use PHPUnit\Framework\TestCase;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 
 /**
  * @covers \Waaseyaa\Access\PermissionHandler
@@ -91,5 +92,72 @@ class PermissionHandlerTest extends TestCase
         $this->assertCount(1, $permissions);
         $this->assertSame('Create Article (updated)', $permissions['create article']['title']);
         $this->assertSame('Updated', $permissions['create article']['description']);
+    }
+
+    // -- fromProviders(): the shared boot-time catalogue authority (#2788 G1) --
+
+    public function testFromProvidersComposesDeclaredEntriesAndProviderContributions(): void
+    {
+        $handler = PermissionHandler::fromProviders(
+            [$this->provider(['view article' => ['title' => 'View articles', 'description' => 'Read articles.']])],
+            ['administer groups' => ['title' => 'Administer groups']],
+        );
+
+        $this->assertInstanceOf(PermissionHandlerInterface::class, $handler);
+        $this->assertTrue($handler->hasPermission('administer groups'));
+        $this->assertTrue($handler->hasPermission('view article'));
+        $this->assertSame('', $handler->getPermissions()['administer groups']['description']);
+        $this->assertSame('Read articles.', $handler->getPermissions()['view article']['description']);
+    }
+
+    public function testFromProvidersIgnoresProvidersWithoutTheCapability(): void
+    {
+        $handler = PermissionHandler::fromProviders([new \stdClass()]);
+
+        $this->assertSame([], $handler->getPermissions());
+    }
+
+    public function testFromProvidersFailsClosedOnAProviderDuplicatingAnotherProvider(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Permission "view article" is declared more than once');
+
+        PermissionHandler::fromProviders([
+            $this->provider(['view article' => ['title' => 'View', 'description' => '']]),
+            $this->provider(['view article' => ['title' => 'View again', 'description' => '']]),
+        ]);
+    }
+
+    public function testFromProvidersFailsClosedOnAProviderDuplicatingADeclaredEntry(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Permission "administer groups" is declared more than once');
+
+        PermissionHandler::fromProviders(
+            [$this->provider(['administer groups' => ['title' => 'Again', 'description' => '']])],
+            ['administer groups' => ['title' => 'Administer groups']],
+        );
+    }
+
+    public function testFromProvidersRefusesAnEmptyPermissionId(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('empty permission id');
+
+        PermissionHandler::fromProviders([$this->provider(['' => ['title' => 'Blank', 'description' => '']])]);
+    }
+
+    /** @param array<string, array{title: string, description: string}> $permissions */
+    private function provider(array $permissions): ProvidesPermissionsInterface
+    {
+        return new class ($permissions) implements ProvidesPermissionsInterface {
+            /** @param array<string, array{title: string, description: string}> $permissions */
+            public function __construct(private readonly array $permissions) {}
+
+            public function permissions(): array
+            {
+                return $this->permissions;
+            }
+        };
     }
 }
