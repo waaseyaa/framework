@@ -19,12 +19,12 @@ declare(strict_types=1);
  * guard reads the repo's own committed composer.json / composer.lock and the
  * generated vendor/composer/* files — nothing here is published or run in CI.
  *
- * Two independent freshness checks, each mapped to its exact fix:
- *   1. Every package locked in composer.lock is present in
- *      vendor/composer/installed.json        → fix: composer install
- *   2. Every PSR-4 namespace declared in the root composer.json
- *      (autoload + autoload-dev) is present in
- *      vendor/composer/autoload_psr4.php      → fix: composer dump-autoload
+ * The freshness checks themselves live in bin/lib/vendor-freshness.php
+ * (#2926) so the gate scripts that dereference locked packages — the
+ * delivery-agent ledger gate, surface parity, and bin/check-pr-preflight —
+ * share one precondition instead of each discovering staleness as a PHP
+ * fatal or a misreported repository defect. That library documents every
+ * check and the fix each maps to (composer install / composer dump-autoload).
  *
  * The root is the repo root by default, overridable via the ROOT_DIR env var
  * (same convention as bin/check-composer-policy) so the guard is fixture-
@@ -32,122 +32,28 @@ declare(strict_types=1);
  *
  * This script is intentionally DEPENDENCY-FREE: it must run correctly even
  * when the application autoloader is broken, so it never requires
- * vendor/autoload.php — only plain file reads and a require of the generated
- * autoload_psr4.php array map.
+ * vendor/autoload.php.
  *
  * Exit codes: 0 = fresh (let phpunit run), 1 = stale (fail fast).
  */
+
+require __DIR__ . '/lib/vendor-freshness.php';
 
 $repoRoot = dirname(__DIR__);
 $envRoot = getenv('ROOT_DIR');
 $root = is_string($envRoot) && $envRoot !== '' ? $envRoot : $repoRoot;
 $root = rtrim(str_replace('\\', '/', $root), '/');
 
-/**
- * Emit a single clear failure block naming the fix, then exit non-zero.
- */
-$stale = static function (string $what, string $detail, string $fix): never {
+$problem = vendor_freshness_problem($root);
+if ($problem !== null) {
     fwrite(STDERR, "\n");
-    fwrite(STDERR, "[check-vendor-fresh] Local vendor/ is STALE — {$what}.\n");
-    fwrite(STDERR, "  {$detail}\n");
+    fwrite(STDERR, "[check-vendor-fresh] Local vendor/ is STALE — {$problem['what']}.\n");
+    fwrite(STDERR, "  {$problem['detail']}\n");
     fwrite(STDERR, "  Without this, the Unit suite fails with cryptic \"Class ... not found\" errors.\n");
-    fwrite(STDERR, "  Fix:  {$fix}\n");
+    fwrite(STDERR, "  Fix:  {$problem['fix']}\n");
     fwrite(STDERR, "  (Local developer guard only — CI installs fresh and is unaffected.)\n");
     fwrite(STDERR, "\n");
     exit(1);
-};
-
-/**
- * @return array<string, mixed>
- */
-$readJson = static function (string $path) use ($stale): array {
-    if (!is_file($path)) {
-        $stale(
-            'vendor/ is not installed',
-            sprintf('Missing %s.', $path),
-            'composer install',
-        );
-    }
-    $raw = file_get_contents($path);
-    if ($raw === false) {
-        $stale('vendor/ is unreadable', sprintf('Could not read %s.', $path), 'composer install');
-    }
-    try {
-        /** @var array<string, mixed> $data */
-        $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-    } catch (\JsonException $e) {
-        $stale('vendor/ metadata is corrupt', sprintf('%s: %s', $path, $e->getMessage()), 'composer install');
-    }
-
-    return $data;
-};
-
-// Guard 0 — vendor present at all. A missing autoloader means nothing is
-// installed; bail immediately with the install fix.
-if (!is_file("{$root}/vendor/autoload.php")) {
-    $stale(
-        'vendor/ is not installed',
-        'vendor/autoload.php does not exist.',
-        'composer install',
-    );
-}
-
-// Guard 1 — every locked package is installed.
-$lock = $readJson("{$root}/composer.lock");
-$installed = $readJson("{$root}/vendor/composer/installed.json");
-
-// composer 2 always writes installed.json as {"packages": [...]}.
-$installedPackages = $installed['packages'] ?? null;
-$installedPackages = is_array($installedPackages) ? $installedPackages : [];
-$installedNames = array_column($installedPackages, 'name');
-
-$lockedNames = array_merge(
-    array_column($lock['packages'] ?? [], 'name'),
-    array_column($lock['packages-dev'] ?? [], 'name'),
-);
-
-$missingPackages = array_values(array_diff($lockedNames, $installedNames));
-if ($missingPackages !== []) {
-    $sample = implode(', ', array_slice($missingPackages, 0, 5));
-    $stale(
-        sprintf('%d locked package(s) not installed', count($missingPackages)),
-        sprintf('e.g. %s — composer.lock has them but vendor/ does not (un-installed path-repo or new dependency).', $sample),
-        'composer install',
-    );
-}
-
-// Guard 2 — every PSR-4 namespace declared in the root composer.json
-// (autoload + autoload-dev) is present in the dumped autoloader. Catches an
-// edited-but-not-re-dumped root autoload map (the historical CLI\Testing case).
-$composer = $readJson("{$root}/composer.json");
-$declaredNamespaces = array_merge(
-    array_keys($composer['autoload']['psr-4'] ?? []),
-    array_keys($composer['autoload-dev']['psr-4'] ?? []),
-);
-
-$autoloadMapPath = "{$root}/vendor/composer/autoload_psr4.php";
-if (!is_file($autoloadMapPath)) {
-    $stale(
-        'the autoloader is not generated',
-        'vendor/composer/autoload_psr4.php does not exist.',
-        'composer dump-autoload',
-    );
-}
-
-/** @var array<string, mixed> $psr4 */
-$psr4 = require $autoloadMapPath;
-$missingNamespaces = array_values(array_filter(
-    $declaredNamespaces,
-    static fn(string $ns): bool => !isset($psr4[$ns]),
-));
-
-if ($missingNamespaces !== []) {
-    $sample = implode(', ', array_slice($missingNamespaces, 0, 5));
-    $stale(
-        sprintf('%d declared PSR-4 namespace(s) missing from the autoloader', count($missingNamespaces)),
-        sprintf('e.g. %s — composer.json declares them but the dumped autoloader does not.', $sample),
-        'composer dump-autoload',
-    );
 }
 
 fwrite(STDOUT, "[check-vendor-fresh] OK — vendor/ is in sync with composer.lock and composer.json.\n");

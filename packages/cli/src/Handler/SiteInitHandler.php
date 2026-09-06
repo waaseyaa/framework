@@ -19,7 +19,9 @@ use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyResult;
 use Waaseyaa\SiteContract\Generation\ArtifactStatus;
 use Waaseyaa\SiteContract\Generation\ChangeReceipt;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
+use Waaseyaa\SiteContract\Generation\GeneratorFeatureNegotiation;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /** @api */
@@ -72,6 +74,7 @@ final readonly class SiteInitHandler
             }
 
             $manifest = new SiteManifestParser()->parse($yaml, $answers !== '' ? $answers : '<interactive>');
+            GeneratorFeatureNegotiation::assert($manifest, SiteArtifactRendererFactory::advertisedGeneratorFeatures(), 'site:init');
             $site = SiteArtifactRendererFactory::create()->render($manifest);
             $service = new SiteInitializationService($projectRoot);
             if ($dryRun) {
@@ -126,6 +129,21 @@ final readonly class SiteInitHandler
         } catch (SiteManifestValidationException $exception) {
             $violation = $exception->violations[0];
             $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json);
+        } catch (GenerationRefusalException $exception) {
+            // R2-3: only the negotiation refusal this handler itself raises
+            // (source 'site:init', immediately above) gets the widened coded
+            // envelope. `SiteInitializationService`'s own GEN0xx refusals
+            // (source 'generation', e.g. GEN010_UNIT_PATH_CONFLICT from
+            // `prepareUnitPlan()`) are a `GenerationRefusalException` too —
+            // it extends `\RuntimeException` — and fall through to the
+            // uncoded `writeError()` path below unchanged, so a blueprint-
+            // free manifest's existing engine-refusal envelope stays exactly
+            // as it was before this handler learned about negotiation.
+            if ($exception->source === 'site:init') {
+                $this->writeCodedError($io, $exception, $json);
+            } else {
+                $this->writeError($io, $exception->getMessage(), $json);
+            }
         } catch (SiteInitializationExecutionException $exception) {
             $this->writeError($io, $exception->getMessage(), $json, $exception->receipts, $exception->applyResult);
         } catch (SiteInitializationCollisionException|SiteInitializationLockedException|\InvalidArgumentException|\RuntimeException $exception) {
@@ -162,6 +180,29 @@ final readonly class SiteInitHandler
             return;
         }
         $io->error($message);
+    }
+
+    /**
+     * A coded refusal (e.g. `GEN007_UNSUPPORTED_DECLARATION` from generator
+     * feature negotiation) widens the `errors` entry to carry `code`,
+     * `pointer` and `message` from {@see GenerationRefusalException::toArray()}
+     * instead of `message` alone. The envelope's other members are unchanged
+     * from an uncoded refusal: `evaluation`, `result` and `receipts` stay
+     * `null`/`null`/`[]`, since a coded refusal at this boundary precedes
+     * every render, lock, journal and write, identically in dry-run and apply.
+     */
+    private function writeCodedError(SymfonyCommandIO $io, GenerationRefusalException $exception, bool $json): void
+    {
+        if ($json) {
+            $io->writeln(CanonicalJson::encode(['evaluation' => null, 'result' => null, 'receipts' => [], 'errors' => $exception->toArray()]));
+
+            return;
+        }
+        $violation = $exception->violations[0];
+        $location = $violation->path ?? $violation->pointer;
+        $io->error($location === null
+            ? sprintf('%s: %s', $violation->code->value, $violation->message)
+            : sprintf('%s at %s: %s', $violation->code->value, $location, $violation->message));
     }
 
     private function resolveAnswerPath(string $answers, string $projectRoot): string
