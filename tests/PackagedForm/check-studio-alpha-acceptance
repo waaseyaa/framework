@@ -275,9 +275,9 @@ run_waaseyaa site-doctor site:doctor --strict \
     || { cat "$work/site-doctor.out" >&2; echo 'The shipped verification command reports an unhealthy site.' >&2; exit 1; }
 
 echo "== Phase 5/13: seeding real privileged and unprivileged identities"
-run_waaseyaa install install --site-name='Studio Alpha' \
-    --admin-email='admin@studio-alpha.test' --admin-password="$admin_password" \
-    || { cat "$work/install.out" >&2; echo 'Seeding the administrator identity failed.' >&2; exit 1; }
+run_waaseyaa admin-create user:create "$admin_user" \
+    --email='admin@studio-alpha.test' --password="$admin_password" --role=administrator \
+    || { cat "$work/admin-create.out" >&2; echo 'Seeding the administrator identity failed.' >&2; exit 1; }
 run_waaseyaa user-create user:create "$reader_user" \
     --email='reader@studio-alpha.test' --password="$reader_password" \
     || { cat "$work/user-create.out" >&2; echo 'Seeding the unprivileged identity failed.' >&2; exit 1; }

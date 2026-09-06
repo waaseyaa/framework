@@ -21,7 +21,7 @@
         {
             "id": "seeded-identities",
             "state": "live",
-            "summary": "A real administrator identity is seeded through the shipped installer, and a real unprivileged identity is seeded through the shipped user:create and actually signs in — the denial proof runs as that identity, so a denial is a policy decision rather than an absent session."
+            "summary": "A real administrator identity and a real unprivileged identity are seeded through the shipped user:create command, and the unprivileged identity actually signs in — the denial proof runs as that identity, so a denial is a policy decision rather than an absent session."
         },
         {
             "id": "process-lifecycle",

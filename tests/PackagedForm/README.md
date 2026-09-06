@@ -90,8 +90,8 @@ proves committed bytes, not the working tree.
 (#2789). It reuses `split-artifact-acceptance.php seal` rather than growing a
 second sealing authority, then drives ONE disposable artifact-installed
 consumer serially through install, verification, seeded real identities (a
-privileged one through the shipped installer and an unprivileged one through
-`user:create`, which actually signs in so the denial it proves is a policy
+privileged one and an unprivileged one through `user:create`, which actually
+signs in so the denial it proves is a policy
 decision), two separately controlled processes — the installed PHP backend and
 the installed `vendor/waaseyaa/admin-surface/dist` bundle served by its own
 Node process — a real no-mock Playwright operation against that bundle, the
