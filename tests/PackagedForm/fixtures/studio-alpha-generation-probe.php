@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
+use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyRequest;
 use Waaseyaa\SiteContract\Generation\ArtifactPlan;
@@ -38,7 +39,7 @@ if (!in_array($mode, ['emit-request', 'emit-set-delta'], true) || $manifestPath 
 }
 
 $manifest = new SiteManifestParser()->parse((string) file_get_contents($manifestPath), $manifestPath);
-$site = new SiteArtifactRenderer()->render($manifest);
+$site = SiteArtifactRendererFactory::create()->render($manifest);
 
 /** The root unit exactly as the shipped initializer composes it. */
 $rootPlan = static fn(string $generatorFqcn, ArtifactSetEvolution $evolution): ArtifactPlan => new ArtifactPlan(
