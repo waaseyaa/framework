@@ -430,7 +430,16 @@ final class PackageManifestCompiler
                     $knownMissing = $data[self::KNOWN_MISSING_PROVIDERS_KEY] ?? [];
                     unset($data[self::MANIFEST_INPUTS_FP_KEY], $data[self::KNOWN_MISSING_PROVIDERS_KEY]);
 
-                    if ($cachedFp !== null && $cachedFp !== $this->computeManifestInputsFingerprint()) {
+                    // Cache custody (#2788): a cache is trusted — and its
+                    // byte-identical cached-root re-merge exemption in
+                    // mergeRootWaaseyaaIntoManifest() is permitted — only
+                    // when a VALID string fingerprint exactly matches the
+                    // current inputs. A legacy or incomplete cache without
+                    // one is stale by definition and recompiles through the
+                    // fail-closed admission, so a package-owned permission
+                    // the root now also declares is refused as a collision
+                    // rather than read back as unchanged root ownership.
+                    if (!is_string($cachedFp) || $cachedFp !== $this->computeManifestInputsFingerprint()) {
                         return $this->compileValidateAndCache($cachePath);
                     }
 

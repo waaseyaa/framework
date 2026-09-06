@@ -61,7 +61,10 @@ final class ManifestBootstrapperTest extends TestCase
 
         // A STALE compiled cache carrying a sentinel that exists ONLY in the cache
         // (a permission — a data field load() does not class-validate, unlike
-        // providers). No fingerprint key -> load() trusts the cache as-is.
+        // providers). It carries a VALID fingerprint matching the current
+        // inputs, which is the only condition under which load() trusts a
+        // cache (#2788 cache custody: a missing or non-string fingerprint is
+        // stale and recompiles).
         $staleManifest = [
             'providers' => [],
             'migrations' => [],
@@ -76,6 +79,13 @@ final class ManifestBootstrapperTest extends TestCase
             'agent_tools' => [],
             'agent_definitions' => [],
             'schedule_entries' => [],
+            '_manifest_inputs_fp' => hash('xxh128', implode("\0", [
+                (string) file_get_contents($this->tempDir . '/composer.json'),
+                (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
+                '',
+                '',
+                '',
+            ])),
         ];
         file_put_contents(
             $this->tempDir . '/storage/framework/packages.php',

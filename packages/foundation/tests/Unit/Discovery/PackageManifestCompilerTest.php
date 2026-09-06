@@ -503,6 +503,10 @@ final class PackageManifestCompilerTest extends TestCase
         $storagePath = $this->tempDir . '/storage';
         mkdir($storagePath . '/framework', 0o755, true);
 
+        // A cache is trusted only with a VALID fingerprint that matches the
+        // current inputs (#2788 cache custody); this temp root has no
+        // composer.json, installed.json or autoload dumps, so every input is
+        // the empty string.
         $data = [
             'providers' => [\stdClass::class],
             'migrations' => [],
@@ -510,6 +514,7 @@ final class PackageManifestCompilerTest extends TestCase
             'middleware' => [],
             'permissions' => [],
             'policies' => [],
+            '_manifest_inputs_fp' => hash('xxh128', implode("\0", ['', '', '', '', ''])),
         ];
 
         file_put_contents(
@@ -1431,7 +1436,7 @@ final class PackageManifestCompilerTest extends TestCase
         $this->writeInstalled([]);
         file_put_contents($this->tempDir . '/composer.json', json_encode([
             'name' => 'test/root',
-            'extra' => ['waaseyaa' => ['permissions' => ['just a list entry']]],
+            'extra' => ['waaseyaa' => ['permissions' => 'read the blog']],
         ], JSON_THROW_ON_ERROR));
 
         try {
@@ -1439,8 +1444,93 @@ final class PackageManifestCompilerTest extends TestCase
             $this->fail('Expected a MalformedPermissionManifestException.');
         } catch (MalformedPermissionManifestException $exception) {
             $this->assertStringContainsString('root composer.json (extra.waaseyaa)', $exception->getMessage());
-            $this->assertStringContainsString('invalid permission id', $exception->getMessage());
+            $this->assertStringContainsString('must be an object', $exception->getMessage());
         }
+    }
+
+    /**
+     * #2788 final follow-up: cache custody. The byte-identical cached-root
+     * re-merge exemption is only safe once a VALID fingerprint proved the cache
+     * was compiled from exactly the current inputs. A legacy or incomplete
+     * cache (no fingerprint, or a non-string one) carrying a package-owned
+     * permission that the root now also declares must recompile — and refuse
+     * as a package/root collision — never be read as unchanged root ownership.
+     *
+     * @return iterable<string, array{0: mixed}>
+     */
+    public static function invalidCacheFingerprints(): iterable
+    {
+        yield 'missing fingerprint' => [null];
+        yield 'non-string fingerprint' => [42];
+        yield 'array fingerprint' => [['stale']];
+    }
+
+    /** @param mixed $fingerprint */
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidCacheFingerprints')]
+    public function load_treats_a_cache_without_a_valid_fingerprint_as_stale_and_recompiles_through_collision_refusal(mixed $fingerprint): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]],
+        ], JSON_THROW_ON_ERROR));
+        $this->writeLegacyCache(['access content' => ['title' => 'Access published content']], $fingerprint);
+
+        $this->expectException(PermissionManifestCollisionException::class);
+        $this->expectExceptionMessage('waaseyaa/node');
+        (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->load();
+    }
+
+    /** A valid, exactly matching fingerprint keeps cache reuse and unchanged-root idempotency. */
+    #[Test]
+    public function load_reuses_a_cache_whose_fingerprint_matches_and_remerges_the_unchanged_root_idempotently(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['operate the root' => ['title' => 'Operate the root']]]],
+        ], JSON_THROW_ON_ERROR));
+        $storage = $this->tempDir . '/storage';
+
+        // load() compiles and writes the cache on a cold storage directory.
+        (new PackageManifestCompiler($this->tempDir, $storage))->load();
+        $cached = require $storage . '/framework/packages.php';
+        $this->assertIsString($cached['_manifest_inputs_fp']);
+        $cachedMtime = filemtime($storage . '/framework/packages.php');
+
+        $loaded = (new PackageManifestCompiler($this->tempDir, $storage))->load();
+
+        $this->assertSame(
+            ['access content' => ['title' => 'Access published content'], 'operate the root' => ['title' => 'Operate the root']],
+            $loaded->permissions,
+        );
+        clearstatcache(true, $storage . '/framework/packages.php');
+        $this->assertSame($cachedMtime, filemtime($storage . '/framework/packages.php'), 'a matching fingerprint reuses the cache without rewriting it');
+        $this->assertSame($cached, require $storage . '/framework/packages.php');
+    }
+
+    /** @param array<string, mixed> $permissions */
+    private function writeLegacyCache(array $permissions, mixed $fingerprint): void
+    {
+        $storage = $this->tempDir . '/storage';
+        mkdir($storage . '/framework', 0o755, true);
+        $data = [
+            'providers' => [],
+            'migrations' => [],
+            'field_types' => [],
+            'middleware' => [],
+            'permissions' => $permissions,
+            'policies' => [],
+        ];
+        if ($fingerprint !== null) {
+            $data['_manifest_inputs_fp'] = $fingerprint;
+        }
+        file_put_contents($storage . '/framework/packages.php', '<?php return ' . var_export($data, true) . ';' . "\n");
     }
 
     /** @return iterable<string, array{0: mixed, 1: string}> */
