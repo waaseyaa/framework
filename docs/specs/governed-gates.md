@@ -1,5 +1,10 @@
 # Governed Gates: Preflight, Refresh, and Recorded-Artifact Identity
 
+<!-- Spec reviewed 2026-09-05 - #2641: bin/check-stale-spec-deferrals is a
+nightly warn-only scan of live spec deferrals to closed issues. It must not
+enter tools/preflight-gates.json: issue state changes elsewhere, and
+resolution needs network or an injected snapshot. -->
+
 Status: LIVE (introduced by #2400)
 Related: `docs/specs/workflow.md` (workflow rules), `docs/specs/s1-schema-authority.md` (DDL roster
 semantics), `docs/governance/m11-steady-state-conformance-loop.md` (governed-change loop)
@@ -29,7 +34,12 @@ e2e) and the hosted FrankenPHP worker-runtime lane (`ci/frankenphp-worker`,
 remain the long half of verification. Local preflight does not download or
 execute FrankenPHP; missing the binary on a developer laptop must not become a
 skip inside the hosted job. The preflight's job is that the long half never
-discovers what the fast half could have said in seconds.
+discovers what the fast half could have said in seconds. The nightly
+warn-only stale-spec-deferral scan (`bin/check-stale-spec-deferrals`,
+`.github/workflows/nightly.yml` job `nightly/stale-spec-deferrals`) is also
+**not** a preflight gate: it needs GitHub issue state (or an injected
+snapshot), and the drift appears when an issue closes elsewhere rather than
+when a pull request lands.
 
 Profiles:
 
@@ -268,6 +278,7 @@ the mechanism fails loudly before the first write instead of silently.
 |---|---|
 | Preflight command | `bin/check-pr-preflight` |
 | Repository-root hygiene gate | `bin/check-repo-root-hygiene` (§7), `tests/bootstrap.php` + `tests/Support/TempDirGuard.php` (TMPDIR guard), `tests/Architecture/CheckRepoRootHygieneGateTest.php`, `tests/Architecture/PhpunitTempDirGuardTest.php` |
+| Nightly stale-spec deferrals (warn-only, not preflight) | `bin/check-stale-spec-deferrals`, `tools/stale-spec-deferrals-baseline.txt`, `.github/workflows/nightly.yml` job `nightly/stale-spec-deferrals` |
 | PHPUnit skip policy | `bin/check-phpunit-skip-policy`, `tools/phpunit-skip-policy.json`, `docs/specs/phpunit-skip-governance.md` |
 | Gate manifest | `tools/preflight-gates.json` |
 | Vendor-freshness precondition | `bin/lib/vendor-freshness.php` (shared library, `VENDOR_FRESHNESS_EXIT_CODE`), `bin/check-vendor-fresh` (standalone local guard); callers `bin/check-pr-preflight`, `bin/check-delivery-agent-events`, `tools/check-surface-parity.php`, `bin/generate-surface-map`; proofs `tests/Architecture/VendorFreshnessPreconditionTest.php`, `tests/Architecture/SurfaceDeclarationEnvironmentFaultTest.php`, `tests/Integration/Policy/CheckVendorFreshTest.php` |

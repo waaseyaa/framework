@@ -1,0 +1,11 @@
+# Allowlist: live spec deferrals that still point at a closed issue
+# Format: <relative-path-from-repo-root>:<line>  # <mandatory-exemption-reason>
+#
+# Rules:
+# - One entry per remaining warn-only finding (path:line sorted ascending).
+# - Every entry MUST have an inline comment explaining the exemption.
+# - An entry WITHOUT a comment fails the checker with "Incomplete baseline entries".
+# - This file is warn-only inventory, not a merge gate. Drive it toward zero
+#   by rewriting the prose, then delete the entry.
+# - Do not add docs/history/plans or kitty-specs paths; those trees are never scanned.
+#
