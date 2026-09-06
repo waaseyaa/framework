@@ -39,13 +39,19 @@ final class DeliveryAgentEventTimingCompletenessTest extends TestCase
     }
 
     #[Test]
-    public function null_elapsed_ms_never_triggers_the_rule(): void
+    public function future_review_and_repair_completions_require_elapsed_ms(): void
     {
         $review = $this->event('11111111-1111-4111-8111-111111111111', 'substantive_review_issued', occurredAt: '2026-09-05T00:10:00Z');
         $repair = $this->event('22222222-2222-4222-8222-222222222222', 'repair_completed', occurredAt: '2026-09-05T00:20:00Z');
 
-        self::assertSame([], delivery_agent_elapsed_ms_errors($review, []));
-        self::assertSame([], delivery_agent_elapsed_ms_errors($repair, []));
+        self::assertSame(
+            ['event 11111111-1111-4111-8111-111111111111: substantive_review_issued requires elapsed_ms derived from its review_started event'],
+            delivery_agent_elapsed_ms_errors($review, []),
+        );
+        self::assertSame(
+            ['event 22222222-2222-4222-8222-222222222222: repair_completed requires elapsed_ms derived from its repair_started event'],
+            delivery_agent_elapsed_ms_errors($repair, []),
+        );
     }
 
     #[Test]

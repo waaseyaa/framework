@@ -25,7 +25,9 @@ to `bin/lib/delivery-agent-event-set.php` and call it from
 `validateEventSemantics()` call in the batch cross-validation loop, so it runs
 against replayed batch events only.
 
-Rule (only when `elapsed_ms !== null`):
+Rule: batch-sourced `substantive_review_issued` and `repair_completed` events
+must populate `elapsed_ms`; every such event is prospective because accepted
+`main` contains no batch files. For each populated duration:
 
 1. Required authoritative start type by completion type:
    `substantive_review_issued` → `review_started`;
@@ -44,12 +46,13 @@ Rule (only when `elapsed_ms !== null`):
    milliseconds) must be non-negative and must equal the declared
    `elapsed_ms` exactly.
 
-Any violation fails the whole ledger/batch validation (fail closed). A `null`
-`elapsed_ms` never triggers the rule, so all historical rows — including the
-one existing non-null legacy value at ledger line 10 (PR 2872, causation to a
-`substantive_review_issued` rather than a `repair_started` event, because that
-workflow variant never recorded a separate repair-start event) — are
-unaffected: they live in the frozen v1 file, which this rule never inspects.
+Any violation, including a missing duration on either terminal event type,
+fails the whole ledger/batch validation. Historical rows — including null
+durations and the one existing non-null legacy value at ledger line 10 (PR
+2872, causation to a `substantive_review_issued` rather than a
+`repair_started` event, because that workflow variant never recorded a separate
+repair-start event) — remain unaffected: they live in the frozen v1 file, which
+this rule never inspects.
 
 ## Boundaries
 
@@ -62,9 +65,9 @@ time, PR events, or queue state.
 ## Proof plan
 
 Direct unit tests call `delivery_agent_elapsed_ms_errors()` against
-constructed event maps: null `elapsed_ms` no-ops; non-timing event types
-no-op; correct review and repair matches compute cleanly (including a
-cross-head-SHA repair match); missing/unknown causation fails closed;
+constructed event maps: target terminal events with null `elapsed_ms` fail
+closed; non-timing event types no-op; correct review and repair matches compute
+cleanly (including a cross-head-SHA repair match); missing/unknown causation fails closed;
 wrong start type fails for both review and repair; cross-PR and
 cross-head-SHA (review only) identity mismatches fail; missing `occurred_at`
 on either side fails; inverted timestamps fail; a mismatched declared value

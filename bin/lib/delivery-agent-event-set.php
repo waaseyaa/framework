@@ -469,10 +469,6 @@ function delivery_agent_parse_v1_ledger_events(string $contents): array
  */
 function delivery_agent_elapsed_ms_errors(array $event, array $eventsById): array
 {
-    $elapsedMs = $event['elapsed_ms'] ?? null;
-    if ($elapsedMs === null) {
-        return [];
-    }
     $requiredStart = match ($event['event_type'] ?? null) {
         'substantive_review_issued' => 'review_started',
         'repair_completed' => 'repair_started',
@@ -482,6 +478,15 @@ function delivery_agent_elapsed_ms_errors(array $event, array $eventsById): arra
         return [];
     }
     $id = (string) ($event['event_id'] ?? '(unknown)');
+    $elapsedMs = $event['elapsed_ms'] ?? null;
+    if ($elapsedMs === null) {
+        return [sprintf(
+            'event %s: %s requires elapsed_ms derived from its %s event',
+            $id,
+            (string) $event['event_type'],
+            $requiredStart,
+        )];
+    }
     $causeId = $event['causation_event_id'] ?? null;
     if (!is_string($causeId) || $causeId === '') {
         return ["event {$id}: elapsed_ms requires a causation_event_id naming its {$requiredStart} start event"];
