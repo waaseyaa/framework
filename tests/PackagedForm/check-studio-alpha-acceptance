@@ -109,6 +109,8 @@ fi
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-studio-alpha.XXXXXX")"
 backend_pid=''
 admin_pid=''
+browser_config="$root/packages/admin/studio-alpha-playwright.config.ts"
+browser_spec="$root/packages/admin/studio-alpha-admin.spec.ts"
 teardown_done=false
 
 # Teardown is owned by this root script, runs on every exit path, is safe to
@@ -120,6 +122,7 @@ cleanup() {
         return "$status"
     fi
     teardown_done=true
+    rm -f -- "$browser_config" "$browser_spec"
     for pid in "$admin_pid" "$backend_pid"; do
         [[ -n "$pid" ]] || continue
         if kill -0 "$pid" 2>/dev/null; then
@@ -307,14 +310,21 @@ run_waaseyaa schema-sync schema:sync \
 
 echo "== Phase 8/13: admin-visible browser operation (no mocks)"
 browser_status=0
+if [[ -e "$browser_config" || -e "$browser_spec" ]]; then
+    echo 'Studio-alpha Playwright scratch files already exist in packages/admin.' >&2
+    exit 1
+fi
+cp "$fixtures/studio-alpha-playwright.config.ts" "$browser_config"
+cp "$fixtures/studio-alpha-admin.spec.ts" "$browser_spec"
 (
     cd "$root/packages/admin" \
         && STUDIO_ALPHA_BASE_URL="$admin_url" \
            STUDIO_ALPHA_ADMIN_USER="$admin_user" \
            STUDIO_ALPHA_ADMIN_PASSWORD="$admin_password" \
            STUDIO_ALPHA_PW_REPORT="$work/playwright-report.json" \
-           npx playwright test --config="$fixtures/studio-alpha-playwright.config.ts"
+           npx playwright test --config="$browser_config"
 ) >"$work/browser.out" 2>&1 || browser_status=$?
+rm -f -- "$browser_config" "$browser_spec"
 if [[ "$browser_status" -ne 0 ]]; then
     tail -40 "$work/browser.out" >&2
     echo 'The admin-visible browser proof failed against the artifact-installed consumer.' >&2
