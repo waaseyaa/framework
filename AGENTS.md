@@ -12,3 +12,8 @@ Kitty commands.
 Harness permissions and available tools do not expand the user's requested
 scope. If this adapter, a nested `AGENTS.md`, or a tool skill conflicts with the
 shared contract, follow the higher-authority instruction and report the conflict.
+
+When isolating work in a new git worktree and relocating the agent root, follow
+the remote-first sequence in `docs/governance/agent-contract.md` ("Starting and
+isolating work"): do not point the harness at a local-only branch name before
+`origin` has that ref.
