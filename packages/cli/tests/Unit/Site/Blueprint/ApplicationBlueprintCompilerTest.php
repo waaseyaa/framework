@@ -29,6 +29,7 @@ use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(ApplicationBlueprintCompiler::class)]
+#[CoversClass(ApplicationBlueprintCompilerFactory::class)]
 final class ApplicationBlueprintCompilerTest extends TestCase
 {
     #[Test]
@@ -118,17 +119,17 @@ final class ApplicationBlueprintCompilerTest extends TestCase
     /**
      * #2788 (01E) is additive-only per its own emitter roster (decision (f)):
      * it must never edit `ApplicationBlueprintCompiler.php` itself. Pins the
-     * exact byte content the 01D-1 review round left the file in
-     * (commit 58c89ba6b, "fix(#2787): reserve die and eval as emitted class
-     * names") so an accidental edit fails loudly here instead of only
-     * showing up as an unexplained diff in review.
+     * exact byte content accepted main carries after 01D-2 (main
+     * `d64a825fc`, PR #2937 merge) so an accidental edit fails loudly here
+     * instead of only showing up as an unexplained diff in review. Re-pin
+     * only when a #2787 slice legitimately changes the compiler.
      */
     #[Test]
     public function theCompilerFileIsByteIdenticalToThe01D1Baseline(): void
     {
         $path = \dirname(__DIR__, 4) . '/src/Site/Blueprint/ApplicationBlueprintCompiler.php';
         self::assertSame(
-            '75c2dc34a01d17c290a7e594c7406543bbe29ddb9719cb9938aed410bd5e5b24',
+            '815319f5f260ed28b1c4d7ee48e750ab1cf2326ba64cf77ec72215458d8032a7',
             hash('sha256', (string) file_get_contents($path)),
             'ApplicationBlueprintCompiler.php must not be edited by an additive emitter slice.',
         );

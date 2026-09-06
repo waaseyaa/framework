@@ -22,10 +22,9 @@ use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
  * governance-provider and governance-checks emitters here without editing
  * the compiler; 01D-3 appends fixtures the same way.
  *
- * Referenced by no handler, handler-reachable factory or doctor path in
- * 01D-1 (`tests/Architecture/BlueprintCompilerActivationBoundaryTest.php`):
- * the compiler is unreachable from the CLI until 01D-2 wires it into
- * `site:init`/`site:doctor`.
+ * `site:init` uses this root after generator-feature negotiation; strict
+ * `site:doctor` uses the same composition to verify applied artifacts. Both
+ * paths leave approval and project observation to the execution authority.
  *
  * @api
  */
