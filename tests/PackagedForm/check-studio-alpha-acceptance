@@ -228,8 +228,22 @@ rm -f "$consumer/composer.lock"
 "$composer_bin" run-script --working-dir="$consumer" post-create-project-cmd >"$work/post-create.out" 2>&1 \
     || { cat "$work/post-create.out" >&2; exit 1; }
 
-# Overrides only, and deliberately NOT a fallback account: the generated .env
-# is otherwise the one a real consumer receives.
+# Overrides only; the generated .env is otherwise the one a real consumer
+# receives. The skeleton ships WAASEYAA_DEV_FALLBACK_ACCOUNT=true as a
+# documented convenience for `composer run dev` under APP_ENV=local — which is
+# exactly the shape this consumer would otherwise have — so the harness REMOVES
+# the line rather than trusting a comment about when it applies. A fallback
+# identity would answer the concealed-404 probe as an administrator and the
+# surface would pass while proving nothing.
+php -r '
+$path = $argv[1];
+$lines = file($path, FILE_IGNORE_NEW_LINES);
+$kept = array_values(array_filter(
+    $lines,
+    static fn(string $line): bool => preg_match("/^\s*WAASEYAA_DEV_FALLBACK_ACCOUNT\s*=/", $line) !== 1,
+));
+file_put_contents($path, implode("\n", $kept) . "\n");
+' "$consumer/.env"
 {
     printf '\nAPP_ENV=local\n'
     printf 'APP_DEBUG=false\n'
