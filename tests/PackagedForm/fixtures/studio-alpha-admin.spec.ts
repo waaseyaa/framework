@@ -31,6 +31,7 @@ async function signIn(page: Page): Promise<void> {
   await page.fill('#login-username', username)
   await page.fill('#login-password', password)
   await page.click('button[type="submit"]')
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 })
 }
 
 test('the installed admin bundle boots from the packaged backend', async ({ page }) => {
@@ -49,16 +50,14 @@ test('the installed admin bundle boots from the packaged backend', async ({ page
 test('a seeded identity signs in and performs an admin-visible operation', async ({ page }) => {
   await signIn(page)
 
-  // Landing anywhere other than /login is the SPA's own success signal.
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 })
-
   // The admin-visible operation: the catalog the host actually computed for
   // this identity, rendered by the bundle. Both halves have to be real for
   // this to pass — the session cookie, and the host's own catalog payload.
   const session = await page.request.get('/admin/_surface/session')
   expect(session.status(), 'the seeded identity must resolve a real session').toBe(200)
   const payload = await session.json()
-  expect(payload?.account?.name ?? payload?.account?.username).toBe(username)
+  expect(payload?.account?.id, 'the session must identify the seeded administrator').toBe('1')
+  expect(payload?.account?.name, 'the host must expose its bounded admin display name').toBe('Admin')
 
   const catalog = await page.request.get('/admin/_surface/catalog')
   expect(catalog.status()).toBe(200)
