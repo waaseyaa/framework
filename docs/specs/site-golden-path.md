@@ -2,6 +2,7 @@
 
 <!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->
 
+<!-- Spec reviewed 2026-09-06 - #2789, ADR-025 D-6.5: the apply request is now decodable by the contract that defines it (`ArtifactApplyRequest::fromArray()`/`fromCanonicalJson()`, strict and byte-exact), and `site:apply` installs D-6.5's second process on the boot-free seam. Digest verification is unchanged and stays with the execution authority under its lock. See "Initialization" below and cli-kernel.md "Reviewed apply". -->
 <!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets land the declarative half only - activating a declared capability in the canonical lifecycle is the pre-existing gap tracked by #2857, decided by #2845/#2846. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
@@ -104,7 +105,15 @@ runtime-negotiation roster separate from authored `capabilities` and recipe
 capability references. An older closed parser rejects the unknown section, and
 a newer parser refuses dry-run rendering or publication when the installed
 generator cohort does not advertise that exact feature. No cohort may silently
-ignore a blueprint.
+ignore a blueprint. Negotiation is `site:init`'s first act after parsing:
+`GeneratorFeatureNegotiation::assert()` compares the manifest's required
+tokens with the roster the installed root compilers advertise
+(`SiteArtifactRendererFactory::advertisedGeneratorFeatures()`), and a missing
+token is `GEN007_UNSUPPORTED_DECLARATION` at `/application_blueprint`
+(ADR-025 D-5) before any render, lock, journal or write, identically in
+dry-run and apply, with no change receipt. In activated 01D-2 the closed
+feature roster advertises the blueprint compiler token; no other additive
+compiler is implied or admitted.
 
 The manifest document remains byte/digest stable when the section is absent,
 but the generated `.waaseyaa/site.schema.json` necessarily changes when the
@@ -114,8 +123,11 @@ changed-managed-bytes upgrade path: rebind
 `site:init`. This is not the unrecoverable changed-artifact-set case. Until the
 rebind, strict doctor, generated verification, and the generated architecture
 test are red; today's `SITE010_GENERATED_ARTIFACT_DRIFT` wording classifies the
-mismatch as substitution. #2787 owns the decision and test for distinguishing
-this reviewed schema-upgrade case.
+mismatch as artifact drift. 01D-2 retains the `SITE010` family for schema
+changes and invalid applied evidence. A dependency upgrade requires review and
+manifest lock rebinding; for a blueprint, the changed manifest digest also
+requires a new matching approval. Strict verification never repairs either
+condition implicitly.
 
 Authored YAML contains the proposal, never mutation authority. The canonical
 blueprint digest covers its fixed schema id, contract version, and complete
@@ -123,24 +135,69 @@ payload; the section also participates in the full site-manifest digest. An
 approval or rejection receipt is separate request evidence that binds the
 decision and claimed actor identifier to both exact digests. That binding
 prevents transfer after proposal/context drift; actor authenticity is only as
-strong as the higher-layer decision mechanism. Only a matching approval may
-enter apply. A proposal needs no approval to validate or dry-run.
+strong as the higher-layer decision mechanism. Parsing, validation,
+negotiation and pure compilation need no approval: the compiled plan is the
+approval-free review surface. Engine evaluation of a plan under the blueprint
+compiler — `site:init --dry-run` and apply alike — requires an `approved`
+receipt matching the manifest re-parsed from the plan's own
+`.waaseyaa/site.yaml` row and is otherwise `GEN011_UNAUTHORIZED_SET_DELTA`
+(ADR-025 D-13 item 5). The receipt is a separate `--decision-receipt` input
+on every invocation, never a member of the apply request (#2787 01D-2).
 
-Lifecycle is derived rather than trusted from an authored state field:
-`proposed` has no matching decision, `approved` is the request-scoped state of a
-matching approval before publication, `applied` has the canonical approval and
-matching evidence in `.waaseyaa/generated.json`, `rejected` is request-scoped
-unless a higher layer retains its matching rejection, and
-`superseded` has applied evidence, or higher-layer retained decision evidence
-supplied with the request, for different bytes. The
-initializer extends the existing generated metadata and installs it last in
-the existing transaction; it does not create another generated artifact,
-approval authority, or transaction log. Receipt-aware rendering and strict
-verification are explicit #2787 changes: current generated metadata is a pure
-function of the manifest, while blueprint application makes the canonical
-approval receipt a second input. Blueprint-free output remains byte-identical.
-Strict verification re-derives state and fails closed on missing or mismatched
-evidence.
+The engine's closed additive roster admits exactly
+`Waaseyaa\SiteContract\Generation\SiteArtifactRenderer` and
+`Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler`. Both own the
+managed root `site`; no other additive or seeded compiler is enabled. The
+blueprint compiler is separate from the legacy renderer's recipe composition.
+The engine normalizes the typed receipt, checks the declared compiler and the
+embedded manifest's digest/version before lock creation or journal recovery,
+and repeats admission during locked preparation. A legacy renderer plan cannot
+carry blueprint content to bypass that check. Malformed CLI receipt documents
+normalize to `SITE050_DECISION_RECEIPT_INVALID`; structurally invalid engine
+receipts refuse with `GEN011_UNAUTHORIZED_SET_DELTA`.
+
+The existing metadata writer composes optional top-level
+`application_blueprint` evidence in `.waaseyaa/generated.json`: exactly
+`{generator_feature, decision_receipt}`, with the blueprint feature token and
+the canonical closed Approved receipt. A persisted blueprint manifest requires
+matching evidence before any unit update. The root remains implicit, without
+a `units[]` row or stored compiler FQCN. Blueprint-free metadata retains its
+existing bytes. Approved plain-to-blueprint additive growth is supported;
+blueprint-to-plain downgrade is refused, and non-root updates preserve evidence.
+
+Terminal blueprint change receipts identify their validated approval with
+`BlueprintDecisionReceipt::digest()`: SHA-256 of `canonicalJson()` without a
+newline. This identifies content and does not authenticate the claimed actor.
+An apply may supply another valid approval of the same manifest after preview;
+the later invocation records its own approval. Recovery and residue receipts
+have no authority to claim that later blueprint decision, so their decision ID
+is absent. The terminal new blueprint operation carries its validated decision
+and is caused by the preceding recovery receipt when present. Existing plain
+generation receipt context and recovery-only behavior remain compatible.
+
+`BlueprintAppliedEvidence` is the shared closed parser used by the engine and
+doctor. Matching durable evidence projects `Applied`, even when a current
+request rejects the same manifest. Otherwise a matching current decision
+projects `Approved` or `Rejected`; valid stale applied evidence projects
+`Superseded`; without either, the blueprint remains `Proposed`. Invalid evidence
+cannot be passed as proof. Strict doctor recompiles and verifies the complete
+artifact and registration projection using the existing execution authority's
+read-only evaluation. Missing, malformed, rejected, mismatched, or
+success-shaped evidence produces `SITE010_GENERATED_ARTIFACT_DRIFT`.
+
+The process boundary remains `site:init --json --answers <manifest.yaml>
+--decision-receipt <receipt.json> [--dry-run] [--yes]`, followed by
+`site:doctor --strict --format=json`. JSON preserves literal artifact bytes and
+the existing success/error envelopes. The console application retains its
+existing 0/success and 1/failure normalization of command-handler exit codes.
+Committed process fixtures cover planned, applied, no-change, unapproved and
+malformed-receipt outcomes; volatile receipt identifiers and issuance timestamps
+are normalized only in test snapshots, never in process output.
+
+The initializer installs composed evidence last in its existing transaction,
+alongside the artifact and registration changes. Artifact bytes remain a pure
+function of the manifest; approval evidence belongs to transaction-owned
+metadata (ADR-025 D-2.6, D-10.1).
 
 `waaseyaa.generated` remains version 1. Its optional
 `application_blueprint` evidence member is emitted only for an applied
@@ -152,6 +209,50 @@ AI systems are untrusted proposal producers. Provider names, prompts,
 transcripts, confidence, and repair metadata remain outside the contract. A
 human-authored proposal and an AI-proposed one pass through the same parser,
 validator, exact-digest decision boundary, initializer, and verifier.
+
+The blueprint compiler is
+`Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler`: a distinct root
+compiler with its own `generator.fqcn` that composes
+`SiteArtifactRenderer::render()` and pure emitters into the root `site`
+unit's `ArtifactPlan`, declaring `set_evolution: additive` purely (#2787
+01D-1; design in `docs/change-records/FW-SITE-BLUEPRINT-01.md`). 01D-2
+activates the execution and verification boundaries above under ADR-025 D-13.
+Governance emission, behavioural checks and fixture seeding are subsequent
+work packages.
+
+A compiled blueprint's governance is default deny (#2788, design in
+`docs/change-records/FW-SITE-BLUEPRINT-01.md` "Work package 01E"). The
+compiler emits, through the same factory roster and never a parallel
+authority: a permission catalogue naming every declared permission; one
+`#[PolicyAttribute]` access policy per entity that declares a policy,
+discovered and composed by the framework's own `AccessPolicyRegistry` and
+`EntityAccessHandler`, which starts every decision Neutral, returns Allowed
+only for a declared `(operation, permission, condition)` rule, never returns
+an entity-level Forbidden, and never inspects roles — while sealing the
+entity's authorization inputs at the field level through
+`FieldAccessPolicyInterface` (the `keys.owner` field is not editable once
+the entity is persisted and the `workflow_state` selector is never editable
+outside a transition); a workflow definition per declared workflow in the
+shipped `DefaultWorkflows` shape, seeded additively by a generated
+governance provider that also contributes the declared roles through
+`ProvidesRolesInterface` and the declared permissions through
+`ProvidesPermissionsInterface` (the kernel composes one permission catalogue
+from every such contribution plus `extra.waaseyaa.permissions`, binds it as
+`PermissionHandlerInterface`, and refuses to boot when a provider-declared
+role grants an uncatalogued permission); the authored
+`workflows.assignments` sync entry per binding; and companion tests for the
+declared checks, a default-deny test, and — whenever a policy is declared —
+a JSON:API companion that drives every entity through the real
+`JsonApiController` create, list, show, update and delete methods with
+allowed, denied and near-miss principals. A workflow-bound generated entity
+carries the `workflow_state` selector only; it never fabricates Node's
+`status` field. An entity without a policy is denied every operation;
+roles reach accounts only through `user:assign-role`; an `administrator`
+role id, an `ownership` or `workflow_state` condition on `create`, and a
+wildcard permission are refused before any artifact is produced. Generated
+types are not exposed on generic JSON:API routes by generation (exposure is
+the operator's `api.entity_type_allowlist` decision), and binding
+activation remains a verified `config:import`, not a boot-time write.
 
 ### Closed vocabulary (#2785)
 
@@ -332,6 +433,23 @@ Initialization is transactional:
 6. stage and publish through the existing durable journal, installing
    `.waaseyaa/generated.json` last and marking the journal committed only after
    every target is durable.
+
+Steps 5 and 6 are also reachable on their own, in a later process. `waaseyaa
+site:apply --request=PATH` (#2789) decodes a canonical
+`waaseyaa.artifact_apply_request` v1 document — the reviewed plan with its
+bytes, `plan_digest` and `project_state_digest` — and executes exactly those
+bytes through the same controlled apply. It compiles nothing, so a generator
+that names its target from a compile-time clock reading cannot produce a
+second, equally valid plan the operator never reviewed. Decoding is fail-closed
+on unknown, missing, duplicate or wrong-typed members, on an invalid nested
+plan, and on bytes that are not the canonical serialization of the document
+they decode to; refusals carry the shared `SITE0xx` codes and their JSON
+Pointer, before any lock, journal or write exists. The two digests stay the
+execution authority's `GEN005` check under its lock, so a request binds exactly
+one reviewed state: replaying an already-published request is refused, while
+re-evaluating the same plan against the state it will meet reports no changes.
+Like `site:init` and `site:doctor`, the command runs on the boot-free seam and
+opens no database. See [cli-kernel.md](cli-kernel.md) "Reviewed apply".
 
 The control-ignore artifact is part of this transaction. A fresh cancellation
 or successful rollback leaves no `.waaseyaa/.gitignore`; only the lock/control

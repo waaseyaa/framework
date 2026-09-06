@@ -11,6 +11,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
 
 final class PackageManifestCompiler
 {
+    /** Owner names used in permission-admission diagnostics (#2788). */
+    private const string ROOT_PERMISSION_OWNER = 'root composer.json (extra.waaseyaa)';
+    private const string CACHED_MANIFEST_OWNER = 'the cached package manifest';
+
     private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute';
     private const FORMATTER_ATTRIBUTE = 'Waaseyaa\\SSR\\Attribute\\AsFormatter';
 
@@ -91,6 +95,8 @@ final class PackageManifestCompiler
         $formatters = [];
         $middleware = [];
         $permissions = [];
+        /** @var array<string, string> $permissionOwners id => declaring package name */
+        $permissionOwners = [];
         $policies = [];
         $packageDeclarations = [];
         $attributeEntityTypes = [];
@@ -125,10 +131,12 @@ final class PackageManifestCompiler
                     $packageName = $package['name'] ?? 'unknown';
                     $migrations[$packageName] = self::validateMigrationsEntry($packageName, $extra['migrations']);
                 }
-                if (isset($extra['permissions']) && is_array($extra['permissions'])) {
-                    foreach ($extra['permissions'] as $permId => $permDef) {
-                        $permissions[$permId] = $permDef;
-                    }
+                if (array_key_exists('permissions', $extra)) {
+                    // One fail-closed admission for every source (#2788): the
+                    // root application is merged after this loop under the
+                    // same rule.
+                    $packageName = is_string($package['name'] ?? null) ? $package['name'] : 'unknown';
+                    $this->admitPermissionCatalogue($extra['permissions'], $packageName, $permissions, $permissionOwners);
                 }
             }
         }
@@ -143,8 +151,7 @@ final class PackageManifestCompiler
         // Read root composer.json for app-level providers and migrations.
         // Composer's installed.json excludes the root package, so app providers
         // and migrations declared in extra.waaseyaa must be read separately.
-        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, $migrations, onlyAppendMissingFromRoot: false);
-
+        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, $migrations, onlyAppendMissingFromRoot: false, permissionOwners: $permissionOwners);
 
         // Detect provider capability: ProvidesConsoleCommandsInterface
         // Uses string constant to avoid importing from Layer 6 (CLI package).
@@ -423,7 +430,16 @@ final class PackageManifestCompiler
                     $knownMissing = $data[self::KNOWN_MISSING_PROVIDERS_KEY] ?? [];
                     unset($data[self::MANIFEST_INPUTS_FP_KEY], $data[self::KNOWN_MISSING_PROVIDERS_KEY]);
 
-                    if ($cachedFp !== null && $cachedFp !== $this->computeManifestInputsFingerprint()) {
+                    // Cache custody (#2788): a cache is trusted — and its
+                    // byte-identical cached-root re-merge exemption in
+                    // mergeRootWaaseyaaIntoManifest() is permitted — only
+                    // when a VALID string fingerprint exactly matches the
+                    // current inputs. A legacy or incomplete cache without
+                    // one is stale by definition and recompiles through the
+                    // fail-closed admission, so a package-owned permission
+                    // the root now also declares is refused as a collision
+                    // rather than read back as unchanged root ownership.
+                    if (!is_string($cachedFp) || $cachedFp !== $this->computeManifestInputsFingerprint()) {
                         return $this->compileValidateAndCache($cachePath);
                     }
 
@@ -961,15 +977,26 @@ final class PackageManifestCompiler
     /**
      * Merge root extra.waaseyaa providers, permissions, and migrations.
      *
+     * Permissions: on a fresh compile (`$onlyAppendMissingFromRoot === false`)
+     * a root id that an installed package already owns is a
+     * {@see PermissionManifestCollisionException} — the root application never
+     * silently overrides a package's definition. On a cache reload the cached
+     * manifest already carries the root's own entries from that compile, so
+     * they are re-merged idempotently by appending only what is missing; a
+     * changed root declaration invalidates the cache fingerprint and recompiles
+     * through the fail-closed path.
+     *
      * @param list<string> $providers
-     * @param array<string, array{title: string, description?: string}> $permissions
+     * @param array<string, mixed> $permissions id => the author's definition verbatim, admitted through {@see self::admitPermissionCatalogue()}
      * @param array<string, string|list<string>> $migrations
+     * @param array<string, string> $permissionOwners id => declaring package name (fresh compile only)
      */
     private function mergeRootWaaseyaaIntoLists(
         array &$providers,
         array &$permissions,
         array &$migrations,
         bool $onlyAppendMissingFromRoot,
+        array $permissionOwners = [],
     ): void {
         $rootExtra = $this->readRootWaaseyaaExtra();
         if ($rootExtra === null) {
@@ -987,12 +1014,14 @@ final class PackageManifestCompiler
             }
         }
 
-        if (isset($rootExtra['permissions']) && is_array($rootExtra['permissions'])) {
-            foreach ($rootExtra['permissions'] as $permId => $permDef) {
-                if (is_string($permId) && is_array($permDef)) {
-                    $permissions[$permId] = $permDef;
-                }
-            }
+        if (array_key_exists('permissions', $rootExtra)) {
+            $this->admitPermissionCatalogue(
+                $rootExtra['permissions'],
+                self::ROOT_PERMISSION_OWNER,
+                $permissions,
+                $permissionOwners,
+                reloadingCache: $onlyAppendMissingFromRoot,
+            );
         }
 
         if (array_key_exists('migrations', $rootExtra)) {
@@ -1011,6 +1040,72 @@ final class PackageManifestCompiler
                     $rootExtra['migrations'],
                 );
             }
+        }
+    }
+
+    /**
+     * The single admission point for a manifest source's `extra.waaseyaa.permissions`
+     * catalogue (#2788). Every entry, from an installed package or the root
+     * application, on a fresh compile or a cache reload, passes the same
+     * fail-closed sequence:
+     *
+     *  1. the catalogue itself must be an object keyed by id
+     *     ({@see MalformedPermissionManifestException});
+     *  2. the id must satisfy {@see PermissionDefinitionShape::assertId()};
+     *  3. an id another source already owns is a
+     *     {@see PermissionManifestCollisionException} naming the existing owner
+     *     first — decided BEFORE the redeclared definition is inspected, so a
+     *     malformed redeclaration cannot bypass duplicate refusal;
+     *  4. the definition must satisfy {@see PermissionDefinitionShape::assertDefinition()}.
+     *
+     * On a cache reload (`$reloadingCache`) the cached manifest already carries
+     * the root application's own entries from the compile that produced it
+     * (every collision was refused then), so an id that is already present is
+     * re-merged idempotently only when its definition is byte-identical; a
+     * differing definition is refused as a collision against the cached
+     * manifest rather than silently overwritten. A changed root declaration
+     * also invalidates the cache fingerprint, so this path never admits what a
+     * fresh compile would refuse.
+     *
+     * @param array<string, mixed> $permissions id => the author's definition verbatim (validated shape, canonical bytes preserved), mutated
+     * @param array<string, string> $permissionOwners id => owner, mutated
+     */
+    private function admitPermissionCatalogue(
+        mixed $catalogue,
+        string $owner,
+        array &$permissions,
+        array &$permissionOwners,
+        bool $reloadingCache = false,
+    ): void {
+        if (!is_array($catalogue)) {
+            throw MalformedPermissionManifestException::catalogueNotAnObject($owner, $catalogue);
+        }
+
+        foreach ($catalogue as $rawId => $definition) {
+            try {
+                $id = PermissionDefinitionShape::assertId($rawId, $owner);
+            } catch (\LogicException $exception) {
+                throw new MalformedPermissionManifestException($exception->getMessage());
+            }
+
+            if ($reloadingCache && array_key_exists($id, $permissions)) {
+                if ($permissions[$id] !== $definition) {
+                    throw new PermissionManifestCollisionException($id, self::CACHED_MANIFEST_OWNER, $owner);
+                }
+                continue;
+            }
+            if (isset($permissionOwners[$id])) {
+                throw new PermissionManifestCollisionException($id, $permissionOwners[$id], $owner);
+            }
+
+            try {
+                PermissionDefinitionShape::assertDefinition($id, $definition, $owner);
+            } catch (\LogicException $exception) {
+                throw new MalformedPermissionManifestException($exception->getMessage());
+            }
+
+            $permissionOwners[$id] = $owner;
+            $permissions[$id] = $definition;
         }
     }
 

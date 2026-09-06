@@ -529,6 +529,10 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
             'packages/access/src/EntityAccessHandler.php',
             'packages/access/src/FieldReadGuard.php',
             'packages/access/src/Policy/PublishedContentStatusReader.php',
+            // #2788 (FW-SITE-BLUEPRINT-01E decision (f)): the one generic,
+            // L1 `@api` authorizationInput reader generated blueprint policies
+            // use instead of copying the bound-closure escape into consumer code.
+            'packages/access/src/Read/AuthorizationInputReader.php',
             'packages/ai-agent/src/Access/AgentRunAccessPolicy.php',
             'packages/attachment/src/Maintenance/AttachmentMaintenanceFieldReader.php',
             'packages/attachment/src/Policy/ParentDelegatedAccessPolicy.php',

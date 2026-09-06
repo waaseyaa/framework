@@ -28,6 +28,13 @@
             "occurrence": 1
         },
         {
+            "path": "bin/check-s1-schema-authority",
+            "pattern": "legacy_schema_method",
+            "class": "tooling-query",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
             "path": "bin/project-delivery-agent-events",
             "pattern": "ddl_sql",
             "class": "tooling-query",
@@ -217,6 +224,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/api/tests/Fixtures/DivergentWorkingCopyEntityRepository.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
             "path": "packages/api/tests/Fixtures/InMemoryEntityRepository.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",
@@ -385,6 +399,13 @@
             "occurrence": 3
         },
         {
+            "path": "packages/api/tests/Unit/JsonApiControllerDeniedNotFoundTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 4
+        },
+        {
             "path": "packages/api/tests/Unit/JsonApiControllerFieldAccessTest.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",
@@ -425,6 +446,20 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "occurrence": 1
+        },
+        {
+            "path": "packages/api/tests/Unit/JsonApiControllerWorkingCopyAuthorizationTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/api/tests/Unit/JsonApiControllerWorkingCopyAuthorizationTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
         },
         {
             "path": "packages/api/tests/Unit/JsonApiControllerWriteAllowlistTest.php",
@@ -1561,6 +1596,27 @@
             "occurrence": 1
         },
         {
+            "path": "packages/cli/src/Site/Blueprint/Emitter/GovernanceCheckEmitter.php",
+            "pattern": "legacy_schema_method",
+            "class": "tooling-generator",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Site/Blueprint/Emitter/GovernanceCheckEmitter.php",
+            "pattern": "legacy_schema_method",
+            "class": "tooling-generator",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/Site/Blueprint/Emitter/GovernanceCheckEmitter.php",
+            "pattern": "legacy_schema_method",
+            "class": "tooling-generator",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 3
+        },
+        {
             "path": "packages/cli/src/Site/Recipe/SubscriptionRecipe.php",
             "pattern": "ddl_sql",
             "class": "tooling-generator",
@@ -1580,6 +1636,34 @@
             "class": "tooling-generator",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 2
+        },
+        {
+            "path": "packages/cli/tests/Fixtures/Blueprint/expected/complete/tests/Blueprint/JsonApiGovernanceChecksTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Fixtures/Blueprint/expected/complete/tests/Blueprint/WorkflowTransitionChecksTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Fixtures/Blueprint/expected/complete/tests/Blueprint/WorkflowTransitionChecksTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/tests/Fixtures/Blueprint/expected/complete/tests/Blueprint/WorkflowTransitionChecksTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 3
         },
         {
             "path": "packages/cli/tests/Handler/AddRevisionsMigrationGeneratorTest.php",
@@ -11676,6 +11760,20 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Architecture/Fixtures/k1-cutover-self-test.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/Fixtures/k1-cutover-self-test.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
             "path": "tests/Architecture/K1BatchProvenanceDashboardTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -11684,6 +11782,20 @@
         },
         {
             "path": "tests/Architecture/K1BatchProvenanceDashboardTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Architecture/K1CutoverVerificationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/K1CutoverVerificationTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",

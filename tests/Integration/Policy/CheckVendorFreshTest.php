@@ -110,6 +110,46 @@ final class CheckVendorFreshTest extends TestCase
     }
 
     #[Test]
+    public function a_locked_package_installed_at_a_different_version_is_flagged_with_the_install_fix(): void
+    {
+        // Same package NAME on both sides, but vendor/ carries an older
+        // version than composer.lock — the #2926 "installed.json older than
+        // composer.lock" condition a name-only diff cannot see.
+        $root = $this->makeFixture(
+            lockedPackages: [['name' => 'opis/json-schema', 'version' => '2.6.0']],
+            installedPackages: [['name' => 'opis/json-schema', 'version' => '2.5.0']],
+            declaredNamespaces: [],
+            dumpedNamespaces: [],
+        );
+
+        [$exit, , $stderr] = $this->runScript($root);
+
+        self::assertSame(1, $exit, 'A version-mismatched locked package must fail fast.');
+        self::assertStringContainsString('composer install', $stderr);
+        self::assertStringContainsString('opis/json-schema', $stderr);
+        self::assertStringContainsString('2.6.0', $stderr);
+    }
+
+    #[Test]
+    public function a_locked_package_installed_from_a_different_reference_is_flagged_with_the_install_fix(): void
+    {
+        // Path-repo siblings are always dev-main; only the locked reference
+        // distinguishes one checkout's package bytes from another's.
+        $root = $this->makeFixture(
+            lockedPackages: [['name' => 'waaseyaa/cli', 'version' => 'dev-main', 'dist' => ['type' => 'path', 'reference' => 'aaaa']]],
+            installedPackages: [['name' => 'waaseyaa/cli', 'version' => 'dev-main', 'dist' => ['type' => 'path', 'reference' => 'ffff']]],
+            declaredNamespaces: [],
+            dumpedNamespaces: [],
+        );
+
+        [$exit, , $stderr] = $this->runScript($root);
+
+        self::assertSame(1, $exit, 'A reference-mismatched locked package must fail fast.');
+        self::assertStringContainsString('composer install', $stderr);
+        self::assertStringContainsString('waaseyaa/cli', $stderr);
+    }
+
+    #[Test]
     public function a_stale_autoload_dump_is_flagged_with_the_dump_fix(): void
     {
         // composer.json declares Waaseyaa\CLI\Testing\ but the dumped autoloader
@@ -148,8 +188,8 @@ final class CheckVendorFreshTest extends TestCase
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /**
-     * @param list<string> $lockedPackages
-     * @param list<string> $installedPackages
+     * @param list<string|array<string, mixed>> $lockedPackages package name, or a full lock/installed entry
+     * @param list<string|array<string, mixed>> $installedPackages
      * @param list<string> $declaredNamespaces
      * @param list<string> $dumpedNamespaces
      */
@@ -175,7 +215,7 @@ final class CheckVendorFreshTest extends TestCase
         file_put_contents(
             $base . '/composer.lock',
             json_encode([
-                'packages' => array_map(static fn(string $n): array => ['name' => $n], $lockedPackages),
+                'packages' => array_map(static fn(string|array $p): array => is_string($p) ? ['name' => $p] : $p, $lockedPackages),
                 'packages-dev' => [],
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
         );
@@ -186,7 +226,7 @@ final class CheckVendorFreshTest extends TestCase
             file_put_contents(
                 $base . '/vendor/composer/installed.json',
                 json_encode([
-                    'packages' => array_map(static fn(string $n): array => ['name' => $n], $installedPackages),
+                    'packages' => array_map(static fn(string|array $p): array => is_string($p) ? ['name' => $p] : $p, $installedPackages),
                     'dev' => true,
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
             );

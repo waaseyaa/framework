@@ -40,6 +40,24 @@ use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 final class JsonApiController
 {
     /**
+     * The stable machine-readable code of the concealed single-read boundary
+     * (#2789 phase 4).
+     *
+     * A single read answers a missing entity and a view-denied entity with one
+     * byte-identical document, so that this response cannot be used as an
+     * existence oracle. That is exactly why the code can exist: it is a
+     * property of the *boundary*, not of what happened behind it, and a client
+     * reading it learns only "no resource is addressable here" — the same thing
+     * the prose already said, in a form that survives translation and rewording.
+     *
+     * `ENTITY_NOT_FOUND` therefore says what the API asserts, not what the
+     * server knows. It is emitted only from {@see self::notFoundDocument()}; a
+     * caller that branched on the denial to add it would have reintroduced the
+     * oracle in the code member.
+     */
+    public const string CONCEALED_NOT_FOUND_CODE = 'ENTITY_NOT_FOUND';
+
+    /**
      * Credential keys that must never be queryable, even when stored as a raw `_data` key
      * with no FieldDefinition. Mirrors {@see ResourceSerializer::ALWAYS_INTERNAL_FIELDS}.
      *
@@ -1008,9 +1026,28 @@ final class JsonApiController
             $expectedRevisionId = $candidate;
         }
 
-        // Check update access.
+        // CW-v1 option-1 (#1920 PR-3, design §4): the PATCH TARGET is the
+        // WORKING COPY — `loadWorkingCopy()` returns the tip revision when the
+        // entity is disciplined and a draft exists, else it is exactly
+        // `$entity` above (mechanically safe for every undisciplined entity —
+        // pinned by a regression test). `$target` is what receives the
+        // attribute writes and what gets saved/serialized. `$repository` was
+        // already resolved above (C-22 WP3).
+        //
+        // #2788 (independent review, critical): the target is resolved BEFORE
+        // authorization, and both the entity-level `update` gate and the
+        // per-field `edit` gate below evaluate `$target` — never the
+        // `find()`-loaded published pointer. Access decisions are
+        // value-dependent (ownership, workflow state: a generated blueprint
+        // policy reads exactly those authorization inputs), so authorizing
+        // the published revision while writing a diverged tip revision let a
+        // stale published input grant or deny the wrong target. The 404 shape
+        // above is unchanged: identity resolution still runs on `$entity`.
+        $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+
+        // Check update access against the exact revision that will be mutated.
         if ($this->accessHandler !== null && $this->account !== null) {
-            $access = $this->accessHandler->check($entity, 'update', $this->account);
+            $access = $this->accessHandler->check($target, 'update', $this->account);
             if (!$access->isAllowed()) {
                 return $this->errorDocument(
                     JsonApiError::forbidden("Access denied for updating entity '{$id}'."),
@@ -1018,19 +1055,6 @@ final class JsonApiController
             }
         }
 
-        // CW-v1 option-1 (#1920 PR-3, design §4): the PATCH TARGET becomes
-        // the WORKING COPY — `loadWorkingCopy()` returns the tip revision
-        // when the entity is disciplined and a draft exists, else it is
-        // exactly `$entity` above (mechanically safe for every undisciplined
-        // entity — pinned by a regression test). The 404 shape and the
-        // entity/field-access GATES above and below intentionally still
-        // evaluate `$entity` (the `find()`-loaded, view/update-gated
-        // instance) — access decisions are type/bundle-scoped, not
-        // revision-scoped, so this is no behavior change (PR-3 report
-        // judgment note). `$target` is what receives the attribute writes
-        // and what gets saved/serialized. `$repository` was already resolved
-        // above (C-22 WP3).
-        $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
         if ($expectedMutation !== null) {
             if (!$target instanceof EntityBase) {
                 return $this->errorDocument(JsonApiError::unprocessable(
@@ -1085,13 +1109,15 @@ final class JsonApiController
         // transition can never be written back over the real current value.
         $attributes = self::stripEchoedKeys($attributes, $guardResult);
 
-        // Check field edit access for submitted attributes. Evaluated
-        // against $entity (type/bundle-scoped — see the judgment note
-        // above), not the working-copy $target.
+        // Check field edit access for submitted attributes against the same
+        // working-copy $target the entity-level gate evaluated (#2788): a
+        // field seal that depends on the revision's own inputs (an owner
+        // field on a persisted entity, an engine-owned workflow selector)
+        // must see the revision that is about to be written.
         if ($this->accessHandler !== null && $this->account !== null) {
             foreach (array_keys($attributes) as $fieldName) {
                 $fieldResult = $this->accessHandler->checkFieldAccess(
-                    $entity,
+                    $target,
                     (string) $fieldName,
                     'edit',
                     $this->account,
@@ -1629,11 +1655,21 @@ final class JsonApiController
      * Canonical single-read 404. Used for BOTH a nonexistent id and a
      * view-denied entity — byte-identical on purpose (FR-003 / NFR-002,
      * mission request-surface-hardening-01KTX7F2). Do not fork the message.
+     *
+     * The `code` is emitted from this one shared document, never from a branch
+     * on why we got here (#2789 phase 4), so it is identical in both worlds and
+     * discriminates nothing. It is scoped to this boundary: the mutation 404s
+     * (`update`, `destroy`) answer a denial with a plain 403 rather than
+     * concealing it, so they are not this contract and keep their codeless
+     * shape, as does the unknown-entity-type 404.
      */
     private function notFoundDocument(string $entityTypeId, int|string $id): JsonApiDocument
     {
         return $this->errorDocument(
-            JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
+            JsonApiError::notFound(
+                "Entity of type '{$entityTypeId}' with ID '{$id}' not found.",
+                code: self::CONCEALED_NOT_FOUND_CODE,
+            ),
         );
     }
 

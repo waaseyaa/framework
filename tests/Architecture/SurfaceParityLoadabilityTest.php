@@ -35,12 +35,25 @@ final class SurfaceParityLoadabilityTest extends TestCase
         $this->git(['add', '--all']);
         $this->git(['commit', '-m', 'fixture: surface baseline']);
         self::assertSame('false', trim($this->git(['rev-parse', '--is-shallow-repository'])));
-        $fs->copy(
-            $this->repoRoot . '/tools/check-surface-parity.php',
-            $this->fixtureRoot . '/tools/check-surface-parity.php',
-            true,
-        );
-        $fs->mkdir($this->fixtureRoot . '/vendor');
+        // The clone carries HEAD; the gate under test is the WORKING TREE's,
+        // so copy every file the gate executes (script, generator, tooling
+        // libraries, shared precondition) over the clone's committed copies.
+        foreach ([
+            'tools/check-surface-parity.php',
+            'bin/generate-surface-map',
+            'bin/lib/vendor-freshness.php',
+        ] as $path) {
+            $fs->copy($this->repoRoot . '/' . $path, $this->fixtureRoot . '/' . $path, true);
+        }
+        $fs->mirror($this->repoRoot . '/tools/lib', $this->fixtureRoot . '/tools/lib', null, ['override' => true]);
+        // A FRESH vendor/ relative to the clone's composer.lock: the gate's
+        // vendor-freshness precondition (#2926) reads these, and this fixture
+        // is about PSR-4 loadability, not staleness — so the metadata mirrors
+        // the real, in-sync install while the autoloader below stays synthetic.
+        $fs->mkdir($this->fixtureRoot . '/vendor/composer');
+        foreach (['vendor/composer/installed.json', 'vendor/composer/autoload_psr4.php'] as $path) {
+            $fs->copy($this->repoRoot . '/' . $path, $this->fixtureRoot . '/' . $path, true);
+        }
         $autoload = <<<'PHP'
             <?php
 

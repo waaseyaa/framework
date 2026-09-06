@@ -68,4 +68,10 @@ final readonly class BlueprintDecisionReceipt
     {
         return CanonicalJson::encode($this->toArray());
     }
+
+    /** SHA-256 of the canonical receipt bytes, without a trailing newline. */
+    public function digest(): string
+    {
+        return hash('sha256', $this->canonicalJson());
+    }
 }

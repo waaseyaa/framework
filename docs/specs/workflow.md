@@ -1,6 +1,7 @@
 # Workflow governance (forge-neutral change record + design-first)
 
 <!-- Spec reviewed 2026-08-12 - S1-FW-DB-01: workflow authority is forge-neutral. GitHub remains a current adapter and historical evidence locator; stable change records, exact Git objects, and signed evidence are portable authorities. -->
+<!-- Spec reviewed 2026-09-05 - #2641: live spec prose that still defers current capability to a closed issue is a nightly warn-only scan (`bin/check-stale-spec-deferrals`), not a PR-diff or preflight gate. `tools/drift-detector.sh` remains the PR-time coupling check. -->
 
 **Planning and execution** for substantive work follow the **design-first flow**: brainstorm → design/spec in `docs/specs/` → written plan → TDD implementation → code review → verification. Multi-candidate efforts are anchored by a stable, repository-portable **change record** that records scope, work-package breakdown, and descope decisions; every review candidate references it. **`docs/specs/`** remains the contract layer agents read from disk.
 
@@ -127,7 +128,7 @@ No per-commit full-suite or default preflight CI jobs are added by this policy.
 
 ## Drift Detection
 
-**Specs:** `tools/drift-detector.sh` and manual reads of `docs/specs/` — see [ops/observability/drift-detection.md](../../ops/observability/drift-detection.md).
+**Specs:** `tools/drift-detector.sh` and manual reads of `docs/specs/` — see [ops/observability/drift-detection.md](../../ops/observability/drift-detection.md). That detector is a PR-diff coupling check. Live spec prose that still defers current capability to an issue that closed *elsewhere* is a different drift class: `bin/check-stale-spec-deferrals` scans body prose only (skipping `<!-- Spec reviewed -->` blocks), flags `ISSUE-CLOSED` present/future-tense deferrals, and runs warn-only on the nightly schedule. It does not belong in `bin/check-pr-preflight`.
 
 **Gates:** the complete local/CI gate architecture — one preflight command mirroring CI's fast repo-state gates, one refresh command for governed recorded artifacts, pre-push parity, and semantic roster identity — is specified in [governed-gates.md](governed-gates.md). `php bin/check-pr-preflight` is the command; `tools/preflight-gates.json` is the roster.
 

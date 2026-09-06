@@ -1,5 +1,10 @@
 # CI random-order sharding and the rejected selection design
 
+<!-- Spec reviewed 2026-09-05 - #2641: nightly.yml gains a sibling
+warn-only stale-spec-deferrals job. The unsharded random-order proof,
+seed replay, concurrency, failure-only evidence, and no-publication
+authority contracts are unchanged. -->
+
 Status: LIVE. Anchor: #2404. The issue stays open — its original changed-package
 selection proposal was investigated, measured, and rejected; §3 preserves that
 investigation as architectural evidence rather than deleting it.
@@ -313,23 +318,40 @@ ci/random-order    needs: [prepare-random-order-plan, ci-random-order-shard]
 ### 7.2 `nightly.yml`
 
 Daily `schedule` (05:00 UTC) plus `workflow_dispatch` with an optional
-`seed` input for manual replay. One job, `nightly/random-order-full`, runs
-the complete **unsharded** `composer test:random` (`bin/test-random-order`'s
-plan-less path) against a fresh, independent `composer install` — this
-workflow does not consume `ci.yml`'s `vendor-archive`, since it is a
-separate scheduled run with no shared artifact to download. The seed is
-date-derived when not supplied and always logged, both as a workflow notice
-and as a self-contained banner written into the uploaded log itself, so a
-failure remains replayable even if the run's own step log has expired.
-`composer test:random`'s plan-less path runs three sequential PHPUnit
-processes (Unit, then Integration, then Architecture); a single
-`--log-junit` path would be silently overwritten by each process in turn, so
-the job instead captures full console output to a plain-text log
-(`build/logs/nightly-random-order.log`) via `tee` under `set -o pipefail`,
-not JUnit XML. The workflow declares its own `concurrency` group so
-overlapping nightlies do not stack, uploads that log as failure-only
-evidence, and holds **no deployment, release, split, or external-state
-authority** of any kind.
+`seed` input for manual replay. Two independent jobs share that schedule:
+
+- `nightly/random-order-full` runs the complete **unsharded**
+  `composer test:random` (`bin/test-random-order`'s plan-less path) against
+  a fresh, independent `composer install` — this workflow does not consume
+  `ci.yml`'s `vendor-archive`, since it is a separate scheduled run with no
+  shared artifact to download. The seed is date-derived when not supplied
+  and always logged, both as a workflow notice and as a self-contained
+  banner written into the uploaded log itself, so a failure remains
+  replayable even if the run's own step log has expired.
+  `composer test:random`'s plan-less path runs three sequential PHPUnit
+  processes (Unit, then Integration, then Architecture); a single
+  `--log-junit` path would be silently overwritten by each process in turn,
+  so the job instead captures full console output to a plain-text log
+  (`build/logs/nightly-random-order.log`) via `tee` under `set -o pipefail`,
+  not JUnit XML.
+- `nightly/stale-spec-deferrals` runs `php bin/check-stale-spec-deferrals`
+  as a **warn-only** scan of live `docs/specs/**/*.md` prose. It flags
+  present/future-tense capability deferrals whose GitHub issue has since
+  closed (`ISSUE-CLOSED` only; `PR-MERGED` is always fine). It skips
+  `<!-- Spec reviewed -->` blocks, fenced examples, past-tense narration,
+  positional after/once, `deferred to a follow-up PR (mission #N)`, and
+  provenance `uses after #N`. Findings print warning annotations and the
+  script exits 0; lookup or allowlist-config failures still fail the job.
+  This is not a preflight gate: the drift appears when an issue closes
+  *elsewhere*, resolution needs network or an injected snapshot, and
+  `docs/history/plans/` plus `kitty-specs/` are never scanned. Promote to
+  `--fail-on-findings` only once `tools/stale-spec-deferrals-baseline.txt`
+  stops growing.
+
+The workflow declares its own `concurrency` group so overlapping nightlies
+do not stack, uploads the random-order log as failure-only evidence, and
+holds **no deployment, release, split, or external-state authority** of any
+kind.
 
 ### 7.3 Dependency preparation — the single run-scoped artifact
 
@@ -504,7 +526,9 @@ Workflow shape (`tests/Architecture/CiSingleExecutionProofTest.php`,
   execution waits on the fast contracts, and both aggregators wait on their
   shards; both shard matrices wait for the single install authority
 - nightly is unsharded, complete, seed-overridable, concurrency-guarded,
-  uploads failure-only evidence, and holds no deployment authority
+  uploads failure-only evidence, and holds no deployment authority; a
+  sibling warn-only job scans live spec deferrals to closed issues without
+  narrowing or replacing the random-order proof
 
 ## 9. Evidence
 

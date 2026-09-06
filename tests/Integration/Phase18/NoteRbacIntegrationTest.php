@@ -213,7 +213,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $this->assertSame(404, $doc->statusCode);
         $array = $doc->toArray();
         $this->assertSame('404', $array['errors'][0]['status']);
-        $this->assertArrayNotHasKey('code', $array['errors'][0]);
+        $this->assertSame('ENTITY_NOT_FOUND', $array['errors'][0]['code']);
     }
 
     #[Test]
