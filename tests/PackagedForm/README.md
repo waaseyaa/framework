@@ -86,6 +86,33 @@ only the framework composition contract can have supplied), and
 exit code. Like `check-cli-ai-commands-optional`, it archives `HEAD`, so it
 proves committed bytes, not the working tree.
 
+`check-studio-alpha-acceptance` covers the Studio-alpha story end to end
+(#2789). It reuses `split-artifact-acceptance.php seal` rather than growing a
+second sealing authority, then drives ONE disposable artifact-installed
+consumer serially through install, verification, seeded real identities (a
+privileged one through the shipped installer and an unprivileged one through
+`user:create`, which actually signs in so the denial it proves is a policy
+decision), two separately controlled processes — the installed PHP backend and
+the installed `vendor/waaseyaa/admin-surface/dist` bundle served by its own
+Node process — a real no-mock Playwright operation against that bundle, the
+typed `ENTITY_NOT_FOUND` 404 for a denied and a missing read, hand extension
+through `make:content-type`, a snapshot, an interrupted publication recovered
+by a later process, an additive upgrade, a zero-write
+`GEN011_UNAUTHORIZED_SET_DELTA` refusal, and final restoration plus
+verification.
+
+`waaseyaa/admin-surface` ships a PRERENDERED Nuxt build with no Nitro entry, so
+serving those installed bytes *is* running the installed admin package; the
+harness starts no Nuxt dev server, because doing so would substitute checkout
+source for the sealed artifact. Only the Playwright executable comes from the
+repository's pinned toolchain (`npm ci --prefix packages/admin`); the spec and
+config bytes are the repository's own and no route is mocked. Both processes
+take reserved free ports, have their own pid, bounded readiness probe and
+retained log, and are torn down by one idempotent root-owned trap.
+`WAASEYAA_DEV_FALLBACK_ACCOUNT` must be unset — the harness refuses to start
+otherwise, because a fallback identity masks the denial it exists to observe.
+Three seeded negative controls run at the end.
+
 `check-cli-sync-rules` covers the package-owned rule boundary (#2832). It
 archives the candidate commit and installs copied packages into the accepted
 Content Pipeline direct profile (23 runtime and 5 development requirements),
