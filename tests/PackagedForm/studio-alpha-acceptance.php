@@ -23,7 +23,18 @@ declare(strict_types=1);
  *   studio-alpha-acceptance.php self-test CONSUMER DIR
  */
 
-const GOVERNED_STATE = ['.waaseyaa', 'src', 'composer.json', 'public'];
+const GOVERNED_STATE = [
+    '.waaseyaa',
+    'AGENTS.md',
+    'bin',
+    'config',
+    'composer.json',
+    'composer.site-recipes.json',
+    'public',
+    'src',
+    'templates',
+    'tests',
+];
 
 /** @param list<string> $argv */
 function main(array $argv): int
