@@ -224,6 +224,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/api/tests/Fixtures/DivergentWorkingCopyEntityRepository.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
             "path": "packages/api/tests/Fixtures/InMemoryEntityRepository.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",
@@ -432,6 +439,20 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "occurrence": 1
+        },
+        {
+            "path": "packages/api/tests/Unit/JsonApiControllerWorkingCopyAuthorizationTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/api/tests/Unit/JsonApiControllerWorkingCopyAuthorizationTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
         },
         {
             "path": "packages/api/tests/Unit/JsonApiControllerWriteAllowlistTest.php",
