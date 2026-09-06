@@ -133,7 +133,7 @@ function assertArtifactBinding(string $sealPath, string $consumer, string $candi
     if ($checked === 0) {
         return fail('No waaseyaa/* package is installed in the consumer.');
     }
-    foreach ($consumerRepositories($consumer) as $repository) {
+    foreach (consumerRepositories($consumer) as $repository) {
         $repositoryType = $repository['type'] ?? '';
         if (in_array($repositoryType, ['path', 'vcs', 'git'], true)) {
             return fail("The consumer declares a {$repositoryType} repository; the artifact repository must be the only source of waaseyaa/*.");
