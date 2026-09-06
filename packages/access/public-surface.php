@@ -43,6 +43,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Access\\ProtectedFieldReadPolicyInterface', 'disposition' => 'public', 'purpose' => 'Dedicated fail-closed Protected read policy; only explicit Allowed will release a value after activation'],
         ['fqcn' => 'Waaseyaa\\Access\\ProtectedReadPolicyProviderInterface', 'disposition' => 'public', 'purpose' => 'Additive companion through which a discovered legacy policy exposes its entity and field V2 read policies'],
         ['fqcn' => 'Waaseyaa\\Access\\Query\\QueryFieldReadRequest', 'disposition' => 'public', 'purpose' => 'Metadata-only query compiler input retaining exact fields/operations and an irreversible normalized-shape fingerprint'],
+        ['fqcn' => 'Waaseyaa\\Access\\Read\\AuthorizationInputReader', 'disposition' => 'public', 'purpose' => 'Generalizes the bound-closure authorizationInput read pattern to any entity, for generated access policies with no entity-specific reader class', 'ref' => '#2788'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserAuthorizationSnapshot', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserCredentialSnapshot', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserIdentityLookupInterface', 'disposition' => 'public', 'purpose' => 'Closed audited active-login, mail-only recovery, and mail-existence query boundary'],

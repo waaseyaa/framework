@@ -45,10 +45,14 @@ for rel in sorted(explicit_files):
     if not (root / rel).is_file():
         stale.append(rel)
 
+# A `*Test.php` under a package's `tests/Fixtures/` tree is recorded data — for
+# example the blueprint compiler's golden emitted companion tests, compared
+# byte-for-byte by a real test (#2788) — never a repository test a suite should
+# execute. Every other `packages/*/tests/**` test file must be selected.
 package_tests = sorted(
     path.relative_to(root).as_posix()
     for path in root.glob("packages/*/tests/**/*Test.php")
-    if path.is_file()
+    if path.is_file() and "/tests/Fixtures/" not in path.relative_to(root).as_posix()
 )
 
 def covered(rel: str) -> bool:

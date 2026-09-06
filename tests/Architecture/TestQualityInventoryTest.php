@@ -39,9 +39,10 @@ final class TestQualityInventoryTest extends TestCase
         // both classified as subprocess_polling. The ninth is #2913's
         // QualifyCandidateRunnerTest: a fixed 200ms micro-sleep call appears
         // only as a string literal inside disposable php -r concurrency-proof
-        // children, not a real wait/poll in the test's own code (see
-        // bin/test-quality-inventory).
-        self::assertCount(9, array_merge(
+        // children. The tenth is #2937's fixed 20ms fork-child delay used to
+        // prove that already-launched children are reaped. Neither is a retry
+        // loop (see bin/test-quality-inventory).
+        self::assertCount(10, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));

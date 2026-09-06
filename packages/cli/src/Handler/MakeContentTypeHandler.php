@@ -6,6 +6,12 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\Make\AbstractMakeHandler;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
+use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
+use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
+use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
+use Waaseyaa\CLI\Site\SiteInitializationService;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 
 /**
  * Scaffold a usable content type in one command (author-path FR-003):
@@ -20,21 +26,19 @@ use Waaseyaa\CLI\Command\SymfonyCommandIO;
  * `extra.waaseyaa.providers`. In dev the type is then discovered automatically
  * (no optimize:manifest); `waaseyaa schema:sync` materializes its table.
  *
+ * This handler validates input and reports; it writes nothing (#2789 phase 2).
+ * {@see ContentTypeScaffoldCompiler} turns the validated input into one
+ * immutable `ArtifactPlan`, and {@see SiteInitializationService} owns path
+ * containment, collision refusal, the provider merge, the durable journal,
+ * rollback, receipts and the two state digests. Publication therefore requires
+ * an initialized site: ownership of a non-root generation unit is recorded in
+ * `.waaseyaa/generated.json`, and there is no roster to record it in before
+ * `site:init` has run.
+ *
  * @api
  */
 final class MakeContentTypeHandler extends AbstractMakeHandler
 {
-    /** Field type => [phpType, default literal, explicitType?]. */
-    private const array TYPE_MAP = [
-        'string' => ['string', "''", false],
-        'text' => ['?string', 'null', true],
-        'integer' => ['?int', 'null', true],
-        'float' => ['?float', 'null', true],
-        'boolean' => ['bool', 'false', true],
-        'datetime' => ['?int', 'null', true],
-        'entity_reference' => ['?int', 'null', true],
-    ];
-
     public function __construct(
         private readonly ?string $projectRoot = null,
     ) {}
@@ -80,7 +84,7 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
             return 1;
         }
 
-        $labelField = $this->labelField($fields);
+        $labelField = ContentTypeScaffoldCompiler::labelField($fields);
         $providerClass = $className . 'ServiceProvider';
 
         $entityPath = $root . '/src/Entity/' . $className . '.php';
@@ -97,20 +101,36 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
         }
 
         try {
-            $this->writeFile($entityPath, $this->renderEntity($className, $typeId, $label, $labelField, $fields));
-            $this->writeFile($providerPath, $this->renderProvider($providerClass, $className));
-            $registered = $this->registerProvider($root . '/composer.json', 'App\\Provider\\' . $providerClass);
-        } catch (\RuntimeException $e) {
+            $plan = new ContentTypeScaffoldCompiler()->compile($name, $className, $fields);
+            // The single-invocation flow of ADR-025 D-6.5: compile, evaluate and
+            // apply happen once, in one process, through the same two-digest
+            // gate a transported plan passes. There is one publication engine.
+            $result = new SiteInitializationService($root)->initialize($plan);
+        } catch (
+            GenerationRefusalException
+            | SiteInitializationCollisionException
+            | SiteInitializationExecutionException
+            | SiteInitializationLockedException
+            | \InvalidArgumentException
+            | \RuntimeException $e
+        ) {
             $io->error($e->getMessage());
 
             return 1;
         }
 
-        $io->writeln(sprintf('Created entity:   %s', $entityPath));
-        $io->writeln(sprintf('Created provider: %s', $providerPath));
-        $io->writeln($registered
-            ? 'Registered provider in composer.json (extra.waaseyaa.providers).'
-            : 'Provider already registered in composer.json.');
+        if ($result->changedPaths === []) {
+            // A seeded unit is published once and is then the developer's:
+            // re-running cannot overwrite the edits that are the point of a
+            // scaffold, with or without --force.
+            $io->writeln(sprintf('Unchanged: %s is already published and is owned by you.', $plan->unitId));
+        } else {
+            $io->writeln(sprintf('Created entity:   %s', $entityPath));
+            $io->writeln(sprintf('Created provider: %s', $providerPath));
+            $io->writeln(in_array('composer.json', $result->changedPaths, true)
+                ? 'Registered provider in composer.json (extra.waaseyaa.providers).'
+                : 'Provider already registered in composer.json.');
+        }
         $io->writeln('');
         $io->writeln(sprintf('Next: run "waaseyaa schema:sync" to create the %s table, then create content with:', $typeId));
         $io->writeln(sprintf('  waaseyaa entity:create %s --field %s="…" --field status=1', $typeId, $labelField));
@@ -140,8 +160,8 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
             if ($fieldName === 'status') {
                 throw new \RuntimeException('"status" is reserved (added automatically as the published flag).');
             }
-            if (!isset(self::TYPE_MAP[$type])) {
-                throw new \RuntimeException(sprintf('Unknown field type "%s" for "%s". Allowed: %s.', $type, $fieldName, implode(', ', array_keys(self::TYPE_MAP))));
+            if (!isset(ContentTypeScaffoldCompiler::TYPE_MAP[$type])) {
+                throw new \RuntimeException(sprintf('Unknown field type "%s" for "%s". Allowed: %s.', $type, $fieldName, implode(', ', array_keys(ContentTypeScaffoldCompiler::TYPE_MAP))));
             }
             if ($type === 'entity_reference') {
                 if ($target === null || $target === '') {
@@ -149,8 +169,8 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
                 }
                 // $target is interpolated raw into a generated
                 // `settings: ['target_entity_type_id' => '...']` PHP attribute
-                // literal below — it needs a machine-name allowlist, or a quote
-                // here breaks out of that literal. Unicode-aware (a reference
+                // literal by the compiler — it needs a machine-name allowlist,
+                // or a quote here breaks out of that literal. Unicode-aware (a reference
                 // target may be an Indigenous-orthography entity-type id created
                 // by make:entity-type); the `u`+`D` flags keep it injection-safe
                 // (no quote/backslash/newline/`.`/`/` in `\p{L}\p{N}_`).
@@ -163,152 +183,5 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
         }
 
         return $fields;
-    }
-
-    /**
-     * @param list<array{name: string, type: string, target: ?string}> $fields
-     */
-    private function labelField(array $fields): string
-    {
-        foreach ($fields as $field) {
-            if ($field['type'] === 'string') {
-                return $field['name'];
-            }
-        }
-
-        return $fields[0]['name'];
-    }
-
-    /**
-     * @param list<array{name: string, type: string, target: ?string}> $fields
-     */
-    private function renderEntity(string $className, string $typeId, string $label, string $labelField, array $fields): string
-    {
-        $lines = [];
-        // Published flag first — make published content public-read by default.
-        $lines[] = "    #[Field(type: 'boolean', label: 'Published', default: true)]";
-        $lines[] = '    public bool $status = true;';
-        $lines[] = '';
-
-        foreach ($fields as $field) {
-            [$phpType, $default] = self::TYPE_MAP[$field['type']];
-            // $field['name']/['type']/['target'] are already allowlist-validated
-            // in parseFields(); $fieldLabel is derived from an already-validated
-            // name. Escape all of them anyway before they land in single-quoted
-            // attribute literals — escape-at-the-sink, independent of upstream
-            // validation (matches the ExtensionScaffoldHandler pattern).
-            // $field['name']/['type']/['target'] are already allowlist-validated
-            // in parseFields(); $fieldLabel is derived from an already-validated
-            // name. Escape all of them anyway before they land in single-quoted
-            // attribute literals — escape-at-the-sink, independent of upstream
-            // validation (matches the ExtensionScaffoldHandler pattern).
-            $fieldLabel = addslashes(ucwords(strtr($field['name'], '_', ' ')));
-            $attrArgs = "type: '{$field['type']}', label: '{$fieldLabel}'";
-            if ($field['type'] === 'entity_reference') {
-                $safeTarget = addslashes((string) $field['target']);
-                $attrArgs .= ", settings: ['target_entity_type_id' => '{$safeTarget}']";
-            }
-            $lines[] = "    #[Field({$attrArgs})]";
-            $lines[] = "    public {$phpType} \${$field['name']} = {$default};";
-            $lines[] = '';
-        }
-        $fieldBlock = rtrim(implode("\n", $lines));
-        $safeLabel = addslashes($label);
-        $safeLabelField = addslashes($labelField);
-
-        return <<<PHP
-            <?php
-
-            declare(strict_types=1);
-
-            namespace App\\Entity;
-
-            use Waaseyaa\\Entity\\Attribute\\ContentEntityKeys;
-            use Waaseyaa\\Entity\\Attribute\\ContentEntityType;
-            use Waaseyaa\\Entity\\Attribute\\Field;
-            use Waaseyaa\\Entity\\ContentEntityBase;
-
-            #[ContentEntityType(id: '{$typeId}', label: '{$safeLabel}')]
-            #[ContentEntityKeys(label: '{$safeLabelField}')]
-            final class {$className} extends ContentEntityBase
-            {
-            {$fieldBlock}
-            }
-
-            PHP;
-    }
-
-    private function renderProvider(string $providerClass, string $className): string
-    {
-        return <<<PHP
-            <?php
-
-            declare(strict_types=1);
-
-            namespace App\\Provider;
-
-            use App\\Entity\\{$className};
-            use Waaseyaa\\Entity\\EntityType;
-            use Waaseyaa\\Foundation\\ServiceProvider\\ServiceProvider;
-
-            final class {$providerClass} extends ServiceProvider
-            {
-                public function register(): void
-                {
-                    \$this->entityType(EntityType::fromClass({$className}::class, group: 'content'));
-                }
-            }
-
-            PHP;
-    }
-
-    private function writeFile(string $path, string $contents): void
-    {
-        $dir = \dirname($path);
-        if (!is_dir($dir) && !@mkdir($dir, 0o755, true) && !is_dir($dir)) {
-            throw new \RuntimeException(sprintf('Could not create directory: %s', $dir));
-        }
-        if (file_put_contents($path, $contents) === false) {
-            throw new \RuntimeException(sprintf('Could not write: %s', $path));
-        }
-    }
-
-    /**
-     * Add the provider FQCN to the app composer.json `extra.waaseyaa.providers`.
-     * Returns true if added, false if it was already present.
-     */
-    private function registerProvider(string $composerPath, string $fqcn): bool
-    {
-        if (!is_file($composerPath)) {
-            throw new \RuntimeException(sprintf('composer.json not found at %s — cannot register the provider.', $composerPath));
-        }
-
-        $raw = (string) file_get_contents($composerPath);
-        try {
-            /** @var array<string, mixed> $composer */
-            $composer = json_decode($raw, associative: true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            throw new \RuntimeException(sprintf('composer.json is not valid JSON: %s', $e->getMessage()));
-        }
-
-        $extra = \is_array($composer['extra'] ?? null) ? $composer['extra'] : [];
-        $waaseyaa = \is_array($extra['waaseyaa'] ?? null) ? $extra['waaseyaa'] : [];
-        $providers = \is_array($waaseyaa['providers'] ?? null) ? array_values($waaseyaa['providers']) : [];
-
-        if (\in_array($fqcn, $providers, true)) {
-            return false;
-        }
-
-        $providers[] = $fqcn;
-        $waaseyaa['providers'] = $providers;
-        $extra['waaseyaa'] = $waaseyaa;
-        $composer['extra'] = $extra;
-
-        $encoded = json_encode($composer, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR);
-        if (file_put_contents($composerPath, $encoded . "\n") === false) {
-            throw new \RuntimeException(sprintf('Could not update composer.json at %s', $composerPath));
-        }
-
-        return true;
     }
 }

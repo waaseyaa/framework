@@ -21,8 +21,8 @@ final class ApplicationBlueprintDigestTest extends TestCase
     private const string MINIMAL_MANIFEST_DIGEST = '771b389dd66274bebf91c89dc83da011245944eb5f3a7a51ef9393b404bf3a0f';
     private const string MINIMAL_BLUEPRINT_DIGEST = 'c8f97ac7c32cb0740f865c1264e2ca58bc361e299c24cad2d6c8d6ce8a78f922';
 
-    private const string COMPLETE_MANIFEST_DIGEST = '4bafce4382c9e6bf54be024e439fe2e584888f28a3ffb8f5185d91a0bc0bbafe';
-    private const string COMPLETE_BLUEPRINT_DIGEST = 'f2f0c68ed4e9977c53b65216a15994ff7aaee06f4e8592e3f0c3334a32afd369';
+    private const string COMPLETE_MANIFEST_DIGEST = '2f4885049037f5989e5ecb6862511a0324ee3f4b98622cd99da057b25a17841e';
+    private const string COMPLETE_BLUEPRINT_DIGEST = 'ac713ce50dbc3eec2a5fbc22cbccce3160986e19412646cb5950d642b06e0245';
 
     public function test_old_v1_fixture_digest_is_unchanged(): void
     {

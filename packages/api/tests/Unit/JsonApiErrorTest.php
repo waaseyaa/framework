@@ -78,6 +78,25 @@ final class JsonApiErrorTest extends TestCase
         $this->assertSame('404', $error->status);
         $this->assertSame('Not Found', $error->title);
         $this->assertSame('Entity not found.', $error->detail);
+        $this->assertSame('', $error->code, 'The default 404 stays codeless for every pre-existing caller.');
+        $this->assertArrayNotHasKey('code', $error->toArray());
+    }
+
+    #[Test]
+    public function notFoundFactoryEmitsAnOptOutCodeWhenOneIsDeclared(): void
+    {
+        // #2789 phase 4: opt-in only, mirroring conflict()/unprocessable(), so
+        // the concealed single-read boundary can publish a stable code without
+        // changing any other 404 byte.
+        $error = JsonApiError::notFound('Entity not found.', code: 'ENTITY_NOT_FOUND');
+
+        $this->assertSame('ENTITY_NOT_FOUND', $error->code);
+        $this->assertSame([
+            'status' => '404',
+            'title' => 'Not Found',
+            'code' => 'ENTITY_NOT_FOUND',
+            'detail' => 'Entity not found.',
+        ], $error->toArray());
     }
 
     #[Test]

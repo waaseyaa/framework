@@ -193,6 +193,15 @@ and execution timing remain unobservable.
      these endpoints as live are retained as a changelog record, not current state — see the
      "Workflow Transition Endpoints (CW-v1 WP-4)" section below for the shipped surface. -->
 
+<!-- Spec reviewed 2026-09-06 - #2788 (FW-SITE-BLUEPRINT-01E independent review, critical): `update()`
+     resolves its PATCH target (`loadWorkingCopy()`, else the `find()`-loaded entity) BEFORE
+     authorization, and both the entity-level `update` gate and the per-field `edit` gate evaluate that
+     exact target — never the published pointer. Access decisions are value-dependent (ownership,
+     workflow state: generated blueprint policies decide on those authorization inputs), so authorizing
+     the published revision while writing a diverged tip let a stale input grant or deny the wrong
+     revision. The 404/non-oracle shape, request validation order, revision-expectation semantics,
+     denial status/body contracts and non-revisionable updates are unchanged; nothing is hydrated or
+     saved before the two gates pass. Pinned by JsonApiControllerWorkingCopyAuthorizationTest. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-3 (#1920, design §4 "Surface pointer-awareness"):
      JSON:API becomes working-copy-aware on the write/edit surfaces. `show()` gains `?workingCopy=1`
      (serves `loadWorkingCopy()` to an account with entity UPDATE access, 403 otherwise — not an
@@ -202,8 +211,8 @@ and execution timing remain unobservable.
      the echo-tolerant write-allowlist comparison (`EntityWritePayloadGuard::evaluateForUpdate()`)
      now compares against the WORKING COPY's own `toArray()`, not the gate entity's, so a client that
      read the working copy and echoes ITS `revision_id` back is not spuriously refused. Entity/field
-     access gates are unchanged (still evaluated against the `find()`-loaded gate entity — type/bundle-
-     scoped, no behavior change). `WorkflowTransitionController`'s GET/POST now source the workflow
+     access gates were left on the `find()`-loaded gate entity at the time; #2788 (below) moved both
+     onto the working-copy target. `WorkflowTransitionController`'s GET/POST now source the workflow
      POSITION (`meta.workflow_state`, available transitions, the POST target) from `loadWorkingCopy()`
      too — the R8 view gate stays pinned to `find()`, byte-identical. See "GET single" and "PATCH —
      update" below (updated) and the new "Working-copy targeting (CW-v1 option-1 PR-3)" subsection.
@@ -485,7 +494,7 @@ final readonly class JsonApiError
     public function toArray(): array;
 
     // Static factories:
-    public static function notFound(string $detail = ''): self;      // 404
+    public static function notFound(string $detail = '', string $code = ''): self;      // 404 — code opt-in (#2789)
     public static function forbidden(string $detail = '', string $code = 'FORBIDDEN', array $meta = []): self;     // 403
     public static function unprocessable(string $detail = '', array $source = [], string $code = '', array $meta = []): self;  // 422
     public static function badRequest(string $detail = ''): self;    // 400
@@ -596,13 +605,32 @@ caller supplies tokens.
 
 | Operation | Denied check | Response |
 |---|---|---|
-| GET single (`show`) | `view` not allowed | **404 not-found shape (changed — C-001)** |
-| GET single, id does not exist | — | 404 not-found shape (unchanged; byte-identical to the denied case) |
+| GET single (`show`) | `view` not allowed | **404 not-found shape (changed — C-001), `code: ENTITY_NOT_FOUND`** |
+| GET single, id does not exist | — | 404 not-found shape, `code: ENTITY_NOT_FOUND` (byte-identical to the denied case) |
 | GET collection (`index`) | row-level filter | 200 with filtered `data[]` (unchanged; #1605 out of scope) |
 | POST (`store`) | `createAccess` not allowed | 403 forbidden (unchanged) |
 | PATCH (`update`) | `update` not allowed | 403 forbidden (unchanged) |
 | DELETE (`destroy`) | `delete` not allowed | 403 forbidden (unchanged) |
 | Field edit (store/update paths) | field forbidden | 403 forbidden (unchanged) |
+
+#### The concealed-boundary code (#2789)
+
+The single-read 404 carries the stable machine-readable code
+`ENTITY_NOT_FOUND` (`JsonApiController::CONCEALED_NOT_FOUND_CODE`), so a client
+can branch on this boundary without parsing prose. It does not weaken the
+non-oracle contract, because it is a property of the *boundary* rather than of
+what happened behind it: the code is emitted from the one shared
+`notFoundDocument()`, never from a branch on the denial, so for the same
+type/id a missing entity and a view-denied entity still return byte-identical
+status, title, code, detail and full document. A caller that added the code on
+the denial path instead would have reintroduced the oracle inside the `code`
+member.
+
+Its scope is exactly that boundary. `JsonApiError::notFound()` keeps its
+codeless default, so every other 404 is byte-identical to before: the unknown
+entity type (`"Unknown entity type: <type>."`), the translation 404s, and the
+mutation 404s in `update`/`destroy` — which answer a denial with a plain 403
+rather than concealing it, and so are not this contract.
 
 FR-003's scope is deliberately the single read only — there is no blanket 404-ing of the API. Residual, accepted: a mutation (PATCH/DELETE) against a view-denied-but-existing entity still 403s, signalling existence to *authenticated* callers only (all mutation routes carry `requireAuthentication()`). An unknown entity type on any operation keeps its pre-existing distinct 404 (`"Unknown entity type: <type>."`) — it reveals only that a *type* is unregistered, which the discovery surface governs.
 

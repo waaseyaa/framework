@@ -13,9 +13,12 @@ use PHPUnit\Framework\TestCase;
  * handler, no `GEN0xx` code is emitted by a path that cannot honour it, and no
  * entrypoint reaches a half-built engine."
  *
- * Slice 8 activates site:init and site:doctor only. Other entrypoints
- * remain barred until their command-specific migrations; preparation and
- * ownership readers remain inside the execution authority.
+ * Slice 8 activated site:init and site:doctor. #2789 adds exactly one further
+ * reviewed command migration — site:apply, ADR-025 D-6.5's second process —
+ * which transports a request and enters `apply()` and nothing else: it carries
+ * no compiler, no evaluation seam, and no ownership reader. Every other
+ * entrypoint remains barred until its own command-specific migration;
+ * preparation and ownership readers remain inside the execution authority.
  */
 #[CoversNothing]
 final class GenerationStagedActivationBoundaryTest extends TestCase
@@ -42,7 +45,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
     }
 
     #[Test]
-    public function onlySiteInitTransportsGenerationResults(): void
+    public function onlyTheMigratedSiteCommandsTransportGenerationResults(): void
     {
         $staged = '/\b(?:EvaluatedArtifactPlan|ArtifactApplyRequest|ArtifactApplyResult|ArtifactPlan|ChangeReceipt)\b/';
         $offenders = [];
@@ -56,14 +59,17 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         }
 
         self::assertSame(
-            ['packages/cli/src/Handler/SiteInitHandler.php'],
+            [
+                'packages/cli/src/Handler/SiteApplyHandler.php',
+                'packages/cli/src/Handler/SiteInitHandler.php',
+            ],
             $offenders,
             'Generation result transport requires a separately reviewed command migration.',
         );
     }
 
     #[Test]
-    public function onlySiteDoctorEntersUnitInspection(): void
+    public function onlyMigratedInspectionAndApplyCommandsEnterTheAuthoritySeams(): void
     {
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
@@ -81,14 +87,38 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             }
         }
 
-        self::assertSame(['packages/cli/src/Handler/SiteDoctorHandler.php'], $offenders, 'Only migrated doctor inspection may enter these seams.');
+        // #2789: `site:apply` enters exactly one of these seams — `apply()`,
+        // the transported-plan entry D-6.5 defines — and no other. It never
+        // evaluates, inspects units, or reads ownership: those stay the
+        // doctor's and the authority's.
+        self::assertSame(
+            [
+                'packages/cli/src/Handler/SiteApplyHandler.php',
+                'packages/cli/src/Handler/SiteDoctorHandler.php',
+            ],
+            $offenders,
+            'Only migrated doctor inspection and reviewed apply transport may enter these seams.',
+        );
     }
 
     #[Test]
-    public function theThrowingRefusalCarrierIsConfinedToTheExecutionAuthority(): void
+    public function theThrowingRefusalCarrierIsConfinedToTheExecutionAuthorityAndFeatureNegotiation(): void
     {
-        // Typed generation refusals belong to the existing authority.
-        // Command transport does not become a second admission engine.
+        // Typed generation refusals belong to the existing authority, plus
+        // FW-SITE-BLUEPRINT-01D's fail-closed generator-feature negotiation
+        // (decision (g)): `GeneratorFeatureNegotiation` is a second,
+        // deliberately reviewed call site for the SAME closed GEN0xx family
+        // (ADR-025 D-5 already reserves GEN007 "for the plan-compilation
+        // boundary"), not a second admission engine — it carries no plan,
+        // no evaluation, and no apply. `SiteInitHandler` only catches and
+        // relays the coded refusal into its existing JSON envelope, exactly
+        // as it already does for `SiteManifestValidationException`; it never
+        // constructs one. `ApplicationBlueprintCompiler` is a third,
+        // deliberately reviewed call site (review round 1, F3): before
+        // invoking any emitter it asserts every blueprint id headed for a
+        // PHP identifier position is one, reusing `GEN006_MALICIOUS_IDENTIFIER`
+        // — the same closed family, at the plan-compilation boundary
+        // `compile()` already owns, still carrying no evaluation or apply.
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
             if (str_starts_with($relative, self::REFUSAL_FAMILY_DIR)) {
@@ -99,10 +129,37 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             }
         }
 
+        // #2788 (FW-SITE-BLUEPRINT-01E): the blueprint emitters are the
+        // compiler's own pure functions, invoked only from `compile()` at the
+        // same plan-compilation boundary. Each raises the closed GEN006/GEN007
+        // family for a declaration the validator admits but the emitter cannot
+        // represent safely (an `administrator` role id, an ownership or
+        // workflow-state condition on `create`, a colliding generated
+        // identifier, a check on an unbound workflow, a reserved workflow
+        // field) — before any artifact exists, and still carrying no
+        // evaluation or apply. They are recorded here as reviewed call sites
+        // of that one family, not as a widening of the execution authority.
+        // #2789 phase 2: `make:content-type` publishes through the shared
+        // custody instead of writing files itself, so like `SiteInitHandler` it
+        // catches the coded refusal its own `initialize()` call may raise and
+        // relays the message to the operator. It never constructs one, and it
+        // carries no emitter, evaluation or apply of its own.
         self::assertSame(
-            ['packages/cli/src/Site/SiteInitializationService.php'],
+            [
+                'packages/cli/src/Handler/MakeContentTypeHandler.php',
+                'packages/cli/src/Handler/SiteInitHandler.php',
+                'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
+                'packages/cli/src/Site/Blueprint/Emitter/AccessPolicyEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/EntityClassEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/GovernanceCheckEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/GovernanceProviderEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/PermissionCatalogueEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/WorkflowDefinitionEmitter.php',
+                'packages/cli/src/Site/SiteInitializationService.php',
+                'packages/site-contract/src/Generation/GeneratorFeatureNegotiation.php',
+            ],
             $offenders,
-            'Coded generation refusals must stay in the execution authority.',
+            'Coded generation refusals must stay in the execution authority, the reviewed feature-negotiation boundary, or the compiler\'s own emitters.',
         );
     }
 

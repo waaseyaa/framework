@@ -29,7 +29,9 @@ account's permissions.
   Origin must be same-origin or appear in `mcp.transport.allowed_origins`;
   invalid origins return 403 before authentication or dispatch.
 - **Resource boundary:** request bodies are capped before authentication and
-  JSON decoding (`mcp.transport.max_request_bytes`, 10 MiB by default).
+  JSON decoding (`mcp.transport.max_request_bytes`, 1 MiB by default — the
+  same ceiling as `http_security.body_size_limit.max_bytes`). A configured MCP
+  cap above an enabled kernel body limit fails closed at wiring.
 - **Server card:** `GET /.well-known/mcp.json` (MCP discovery).
 - **Authentication:** the public read-only `/mcp` surface defaults to
   `PublicAnonymousAuth`. When durable bearer services are available, it also

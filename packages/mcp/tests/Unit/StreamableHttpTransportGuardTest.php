@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Foundation\Middleware\BodySizeLimitMiddleware;
 use Waaseyaa\Mcp\McpErrorCode;
 use Waaseyaa\Mcp\McpResponse;
 use Waaseyaa\Mcp\StreamableHttpRequestSnapshot;
@@ -22,6 +23,18 @@ final class StreamableHttpTransportGuardTest extends TestCase
     public function compliant_post_is_admitted(): void
     {
         self::assertNull(new StreamableHttpTransportGuard()->validate($this->post()));
+    }
+
+    #[Test]
+    public function advertisedDefaultMatchesTheKernelBodyLimit(): void
+    {
+        $kernelDefault = (new \ReflectionClass(BodySizeLimitMiddleware::class))
+            ->getConstructor()
+            ?->getParameters()[0]
+            ->getDefaultValue();
+
+        self::assertSame(1_048_576, $kernelDefault);
+        self::assertSame($kernelDefault, StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES);
     }
 
     #[Test]

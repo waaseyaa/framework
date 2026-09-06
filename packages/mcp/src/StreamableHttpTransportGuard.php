@@ -13,7 +13,7 @@ namespace Waaseyaa\Mcp;
  */
 final readonly class StreamableHttpTransportGuard
 {
-    public const int DEFAULT_MAX_REQUEST_BYTES = 10_485_760;
+    public const int DEFAULT_MAX_REQUEST_BYTES = 1_048_576;
 
     /** @var list<string> */
     private array $allowedOrigins;

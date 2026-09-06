@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-09-05 - #2637: StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES is 1 MiB, matching BodySizeLimitMiddleware. mcp.transport.max_request_bytes above an enabled kernel body_size_limit.max_bytes fails closed at McpServiceProvider wiring so the advertised cap is reachable. Disabling the kernel control leaves the MCP setting as the effective ceiling. security-defaults.md records the same interaction. Acceptance: StreamableHttpTransportGuardTest::advertisedDefaultMatchesTheKernelBodyLimit and McpServiceProviderTest transport-size cases. -->
 <!-- Spec reviewed 2026-08-29 - #2636/#2638 stale deferrals: two live-prose
 constraints deferred current capability to issues that had already closed, so
 this spec understated what is buildable. #2220's AEAD primitive landed as
@@ -257,8 +258,10 @@ The internal dispatch method processes requests in this order:
    `docs/specs/middleware-pipeline.md` "Route-declared refusal envelopes".
    Note that the effective size cap on these routes is the *lower* of
    `http_security.body_size_limit.max_bytes` (1 MiB default) and
-   `StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES` (10 MiB), and the
-   kernel's refusal reports its own cap in `error.data.max_request_bytes`.
+   `mcp.transport.max_request_bytes` (`StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES`,
+   also 1 MiB). Raising the MCP setting above an enabled kernel cap is refused
+   at provider wiring. The kernel's refusal reports its own cap in
+   `error.data.max_request_bytes`.
    The kernel fast path also requires a digit-only `Content-Length`
    (`/^\d+$/D`); a garbage header is not rewritten as `-31043`, so the
    guard can still answer `-32600` Invalid Content-Length.

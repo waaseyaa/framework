@@ -20,13 +20,14 @@ use Waaseyaa\Auth\Extension\RegistrationPolicyInterface;
 use Waaseyaa\Auth\Extension\RegistrationProfileHandlerInterface;
 use Waaseyaa\Auth\Extension\ValidatedRegistrationProfile;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\User\AuthMailPresentation;
 use Waaseyaa\User\Role;
 
 /** Executable downstream example: every supported auth extension slot. */
-final class AuthExtensionConsumerServiceProvider extends ServiceProvider implements ProvidesAuthExtensionsInterface, ProvidesRolesInterface
+final class AuthExtensionConsumerServiceProvider extends ServiceProvider implements ProvidesAuthExtensionsInterface, ProvidesRolesInterface, ProvidesPermissionsInterface
 {
     /** @var array<string, mixed>|null */
     public static ?array $storedProfile = null;
@@ -103,5 +104,11 @@ final class AuthExtensionConsumerServiceProvider extends ServiceProvider impleme
     public function roles(): iterable
     {
         yield new Role('member', 'Member', ['access consumer dashboard']);
+    }
+
+    /** Every role grant must be catalogued or the kernel refuses to boot (#2788 G1). */
+    public function permissions(): array
+    {
+        return ['access consumer dashboard' => ['title' => 'Access the consumer dashboard', 'description' => '']];
     }
 }

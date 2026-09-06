@@ -49,6 +49,32 @@ final class PhpunitPathsGateTest extends TestCase
         self::assertSame(0, $exitCode, $output);
     }
 
+    /**
+     * A golden `*Test.php` under a package's `tests/Fixtures/` tree is recorded
+     * generator OUTPUT compared byte-for-byte by a real test (#2788: the
+     * blueprint compiler's emitted companion tests), not a repository test
+     * that any suite should execute. The gate must classify it as data while a
+     * real unselected test beside it still fails closed.
+     */
+    #[Test]
+    public function it_ignores_golden_fixture_tests_but_still_reports_a_real_unselected_test(): void
+    {
+        mkdir($this->fixture . '/packages/example/tests/Fixtures/expected/tests/Blueprint', 0o755, true);
+        file_put_contents($this->fixture . '/packages/example/tests/Fixtures/expected/tests/Blueprint/GoldenTest.php', "<?php\n");
+        $this->writeConfig('<testsuite name="Unit"><directory>packages/*/tests/Unit</directory></testsuite>');
+
+        [$exitCode, $output] = $this->runGate();
+
+        self::assertSame(1, $exitCode);
+        self::assertStringContainsString('packages/example/tests/Feature/ExampleTest.php', $output);
+        self::assertStringNotContainsString('GoldenTest.php', $output);
+
+        $this->writeConfig('<testsuite name="Feature"><directory>packages/*/tests/Feature</directory></testsuite>');
+        [$exitCode, $output] = $this->runGate();
+
+        self::assertSame(0, $exitCode, $output);
+    }
+
     private function writeConfig(string $suite): void
     {
         file_put_contents(
