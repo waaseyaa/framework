@@ -26,6 +26,8 @@ The repository's split-artifact sealing path uses `git archive`, which honors `.
 
 Secret patterns intentionally re-admit `.env.example` and nested `.env.example` templates with later `-export-ignore` attributes. The proof requires those templates and `docs/specs/live.md` to remain present while representative secret, MCP, agent-adapter, storage, and operator-state files are absent.
 
+Root-local agent adapter export patterns are anchored to the repository root. Canonical package resources such as `packages/foundation/.claude/rules/` and the matching `skeleton/.claude/rules/` templates remain distributable; they are shipped inputs, not machine-local adapter state. Both Git and Composer archive proofs require these resources while rejecting root `.claude/` content.
+
 ### 3. Surface renderers
 
 | Surface | Target | Format |
