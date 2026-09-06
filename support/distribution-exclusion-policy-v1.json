@@ -1,0 +1,190 @@
+{
+    "schema_version": 1,
+    "_comment": "Canonical exclusion policy for Docker build context, deploy rsync, and git/composer export (#2648). bin/check-distribution-exclusion verifies rendered outputs; edit this file, then run the gate with --render to refresh surfaces.",
+    "composer_export": {
+        "mechanism": "gitattributes",
+        "rationale": "The repository's split-artifact sealing path uses git archive, which honors .gitattributes export-ignore (#2649). The gate independently executes composer archive and proves that it applies the same attributes for this repository shape, so composer.json archive.exclude is not a second policy authority.",
+        "target": ".gitattributes",
+        "section_begin": "# distribution-exclusion-policy export-ignore BEGIN (#2648)",
+        "section_end": "# distribution-exclusion-policy export-ignore END (#2648)"
+    },
+    "approved_docs": {
+        "guard_paths": [
+            "docs/",
+            "docs/specs/"
+        ],
+        "forbidden_patterns": {
+            "composer_export": [
+                "docs/",
+                "docs/**",
+                "*.md",
+                "**/*.md"
+            ],
+            "deploy_rsync": [
+                "docs/",
+                "docs/**",
+                "*.md"
+            ]
+        }
+    },
+    "categories": {
+        "secrets": {
+            "description": "Generated credentials and local composer overrides",
+            "dockerignore": {
+                "include": [
+                    ".env",
+                    ".env.*",
+                    "**/.env",
+                    "**/.env.*",
+                    "composer.local.json"
+                ],
+                "except_last": [
+                    "!.env.example",
+                    "!**/.env.example"
+                ]
+            },
+            "export_ignore": [
+                ".env",
+                ".env.*",
+                "**/.env",
+                "**/.env.*",
+                "composer.local.json"
+            ],
+            "export_keep": [
+                ".env.example",
+                "**/.env.example"
+            ],
+            "rsync_exclude_anchored": [
+                ".env",
+                ".env.*",
+                "**/.env",
+                "**/.env.*",
+                "composer.local.json"
+            ]
+        },
+        "machine_mcp_config": {
+            "description": "Machine-specific MCP server descriptors",
+            "dockerignore": {
+                "include": [
+                    ".mcp.json",
+                    "**/.mcp.json"
+                ]
+            },
+            "export_ignore": [
+                ".mcp.json",
+                "**/.mcp.json"
+            ],
+            "rsync_exclude_anchored": [
+                ".mcp.json",
+                "**/.mcp.json"
+            ]
+        },
+        "local_agent_adapters": {
+            "description": "Local-only agent CLI adapter directories",
+            "dockerignore": {
+                "include": [
+                    ".agents",
+                    ".agent",
+                    ".claude",
+                    ".codex",
+                    ".cursor",
+                    ".windsurf",
+                    ".gemini",
+                    ".augment",
+                    ".roo",
+                    ".amazonq",
+                    ".kiro",
+                    ".kilocode",
+                    ".qwen",
+                    ".opencode",
+                    ".vibe"
+                ]
+            },
+            "export_ignore": [
+                ".agents/",
+                ".agent/",
+                ".claude/",
+                ".codex/",
+                ".cursor/",
+                ".windsurf/",
+                ".gemini/",
+                ".augment/",
+                ".roo/",
+                ".amazonq/",
+                ".kiro/",
+                ".kilocode/",
+                ".qwen/",
+                ".opencode/",
+                ".vibe/"
+            ],
+            "rsync_exclude_anchored": [
+                ".agents/",
+                ".agent/",
+                ".claude/",
+                ".codex/",
+                ".cursor/",
+                ".windsurf/",
+                ".gemini/",
+                ".augment/",
+                ".roo/",
+                ".amazonq/",
+                ".kiro/",
+                ".kilocode/",
+                ".qwen/",
+                ".opencode/",
+                ".vibe/"
+            ]
+        },
+        "local_operator_state": {
+            "description": "Scratch databases and local operator run state",
+            "dockerignore": {
+                "include": [
+                    "storage/*.sqlite",
+                    "storage/files/",
+                    ".waaseyaa/",
+                    ".waaseyaa-golden-sha",
+                    "support-contract-evidence.json"
+                ]
+            },
+            "export_ignore": [
+                "storage/*.sqlite",
+                "storage/files/",
+                "**/storage/*.sqlite",
+                "**/storage/files/",
+                ".waaseyaa/",
+                ".waaseyaa-golden-sha",
+                "support-contract-evidence.json"
+            ],
+            "rsync_exclude_anchored": [
+                "storage/*.sqlite",
+                "storage/files/",
+                ".waaseyaa/",
+                ".waaseyaa-golden-sha",
+                "support-contract-evidence.json"
+            ]
+        }
+    },
+    "docker_build_context": {
+        "target": "skeleton/.dockerignore",
+        "section_begin": "# distribution-exclusion-policy BEGIN (#2648)",
+        "section_end": "# distribution-exclusion-policy END (#2648)",
+        "preamble": [
+            ".git",
+            ".github",
+            "node_modules",
+            "vendor",
+            "storage/*.sqlite",
+            "tests",
+            "phpunit.xml.dist",
+            "*.md"
+        ]
+    },
+    "deploy_rsync": {
+        "verify_script": "skeleton/bin/maintenance/verify-deploy-rsync",
+        "docs_anchor": {
+            "forbidden_unanchored": "docs/",
+            "required_anchored": "/docs/",
+            "reason": "unanchored docs/ drops templates/docs/; see docs/specs/per-site-convergence-audit.md"
+        }
+    }
+}

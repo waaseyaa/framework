@@ -97,3 +97,37 @@ kitty-specs/**/research/source-register.csv linguist-generated=true
 kitty-specs/**/test-transcripts/** linguist-generated=true
 kitty-specs/**/baseline/** linguist-generated=true
 kitty-specs/**/canary-evidence/** linguist-generated=true
+
+# distribution-exclusion-policy export-ignore BEGIN (#2648)
+**/.env export-ignore
+**/.env.* export-ignore
+**/.mcp.json export-ignore
+**/storage/*.sqlite export-ignore
+**/storage/files/ export-ignore
+.agent/ export-ignore
+.agents/ export-ignore
+.amazonq/ export-ignore
+.augment/ export-ignore
+.claude/ export-ignore
+.codex/ export-ignore
+.cursor/ export-ignore
+.env export-ignore
+.env.* export-ignore
+.gemini/ export-ignore
+.kilocode/ export-ignore
+.kiro/ export-ignore
+.mcp.json export-ignore
+.opencode/ export-ignore
+.qwen/ export-ignore
+.roo/ export-ignore
+.vibe/ export-ignore
+.waaseyaa-golden-sha export-ignore
+.waaseyaa/ export-ignore
+.windsurf/ export-ignore
+composer.local.json export-ignore
+storage/*.sqlite export-ignore
+storage/files/ export-ignore
+support-contract-evidence.json export-ignore
+**/.env.example -export-ignore
+.env.example -export-ignore
+# distribution-exclusion-policy export-ignore END (#2648)
