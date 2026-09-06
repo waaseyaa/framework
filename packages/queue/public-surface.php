@@ -19,7 +19,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Queue\\Exception\\InvalidPersistentPayload', 'disposition' => 'public', 'purpose' => 'Exact replay payload failed authentication'],
         ['fqcn' => 'Waaseyaa\\Queue\\FailedJobRepositoryInterface', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\Queue\\Handler\\HandlerInterface', 'disposition' => 'internal'],
-        ['fqcn' => 'Waaseyaa\\Queue\\Job', 'disposition' => 'internal'],
+        ['fqcn' => 'Waaseyaa\\Queue\\Job', 'disposition' => 'public', 'purpose' => 'Abstract application job: subclass and implement handle(); there is no JobInterface'],
         ['fqcn' => 'Waaseyaa\\Queue\\OccurrenceQueueInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Queue\\Occurrence\\OccurrenceAwareMessageInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Queue\\Occurrence\\OccurrenceContextInterface', 'disposition' => 'public'],

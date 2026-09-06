@@ -10,9 +10,11 @@ drivers execute through `Worker`, which records exhausted jobs and logs a
 throwing `Job::failed()` hook without allowing that secondary failure to stop
 the worker.
 
-Provides a `JobInterface`, `JobMiddlewareInterface`, and queue backend abstraction for dispatching and processing background jobs. Uses Symfony Messenger conventions. Workers consume jobs outside the HTTP request lifecycle.
+Application jobs subclass `Job` and implement `handle()`. There is no
+`JobInterface`. Dispatch through `QueueInterface`. Job middleware lives on
+foundation `JobMiddlewareInterface`, not in this package.
 
-Key classes: `JobInterface`, `JobMiddlewareInterface`, `QueueInterface`.
+Key classes: `Job`, `QueueInterface`.
 
 Persistent scheduler delivery is an explicit extension rather than an implied
 `QueueInterface::dispatch()` guarantee. `OccurrenceQueueInterface` attaches
