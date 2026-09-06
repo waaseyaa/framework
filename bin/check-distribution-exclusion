@@ -1,0 +1,116 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Waaseyaa\Tooling\DistributionExclusionPolicy;
+
+require_once dirname(__DIR__) . '/tools/lib/DistributionExclusionPolicy.php';
+
+/**
+ * Govern Docker, deploy-rsync, and git/composer export exclusions from one policy (#2648).
+ *
+ * support/distribution-exclusion-policy-v1.json is the sole authority. This gate
+ * validates rendered surfaces and proves git archive semantics; it carries no
+ * exclusion values of its own.
+ *
+ *   php bin/check-distribution-exclusion
+ *   php bin/check-distribution-exclusion --render
+ *   php bin/check-distribution-exclusion --self-test
+ *   php bin/check-distribution-exclusion --root=/path/to/fixture
+ *   php bin/check-distribution-exclusion --deploy-only --deploy-root=/path/to/app
+ */
+
+$root = dirname(__DIR__);
+$render = false;
+$selfTest = false;
+$deployOnly = false;
+$deployRoot = null;
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if ($argument === '--render') {
+        $render = true;
+    }
+    if ($argument === '--self-test') {
+        $selfTest = true;
+    }
+    if ($argument === '--deploy-only') {
+        $deployOnly = true;
+    }
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(substr($argument, strlen('--root=')), '/');
+    }
+    if (str_starts_with($argument, '--deploy-root=')) {
+        $deployRoot = rtrim(substr($argument, strlen('--deploy-root=')), '/');
+    }
+}
+
+try {
+    $policy = DistributionExclusionPolicy::load($root);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'check-distribution-exclusion: ' . $e->getMessage() . PHP_EOL);
+    exit(2);
+}
+
+if ($render && $deployOnly) {
+    fwrite(STDERR, "check-distribution-exclusion: --render cannot be combined with --deploy-only.\n");
+    exit(2);
+}
+
+if ($render) {
+    try {
+        $policy->writeRenderedSurfaces($root);
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'check-distribution-exclusion: render failed: ' . $e->getMessage() . PHP_EOL);
+        exit(2);
+    }
+    fwrite(STDOUT, "check-distribution-exclusion: rendered managed surfaces from policy.\n");
+}
+
+$errors = [];
+if (!$deployOnly) {
+    $errors = array_merge($errors, $policy->verifyGitattributes($root . '/.gitattributes'));
+    $errors = array_merge($errors, $policy->verifyDockerignore($root . '/skeleton/.dockerignore'));
+}
+
+$workflowPaths = [];
+$workflowDir = ($deployRoot ?? $root . '/skeleton') . '/.github/workflows';
+if (is_dir($workflowDir)) {
+    foreach (glob($workflowDir . '/*.{yml,yaml}', GLOB_BRACE) ?: [] as $workflowPath) {
+        $workflowPaths[] = $workflowPath;
+    }
+}
+$errors = array_merge($errors, $policy->verifyDeployRsyncWorkflows($workflowPaths));
+
+if ($selfTest) {
+    $scratch = sys_get_temp_dir() . '/waaseyaa_2648_archive_' . bin2hex(random_bytes(4));
+    try {
+        $errors = array_merge($errors, $policy->selfTestSentinels($root, $scratch));
+        $errors = array_merge($errors, $policy->proveGitArchiveExportIgnore($scratch));
+        $errors = array_merge($errors, $policy->proveComposerArchiveExportIgnore($scratch));
+    } catch (Throwable $e) {
+        $errors[] = 'self-test infrastructure failed: ' . $e->getMessage();
+    } finally {
+        @rmdir($scratch);
+    }
+}
+
+if ($errors !== []) {
+    fwrite(STDERR, "check-distribution-exclusion: FAIL\n");
+    foreach ($errors as $error) {
+        fwrite(STDERR, "  - {$error}\n");
+    }
+    exit(1);
+}
+
+fwrite(
+    STDOUT,
+    $deployOnly
+        ? 'check-distribution-exclusion: OK — deploy-rsync workflows match policy.'
+        : 'check-distribution-exclusion: OK — Docker, deploy-rsync, and git/Composer archive surfaces match policy.',
+);
+if ($selfTest) {
+    fwrite(STDOUT, ' Self-test sentinels passed; git archive proof passed; Composer archive proof passed.');
+}
+fwrite(STDOUT, PHP_EOL);
+exit(0);
