@@ -627,6 +627,7 @@ function copyTree(string $source, string $target): void
     if (is_file($source)) {
         ensureDirectory(dirname($target));
         copy($source, $target);
+        chmod($target, fileperms($source) & 0o777);
 
         return;
     }
