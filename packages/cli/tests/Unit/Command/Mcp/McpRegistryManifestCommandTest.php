@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\Mcp\McpRegistryManifestCommand;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Mcp\McpImplementationInfo;
