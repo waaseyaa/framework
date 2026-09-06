@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Attachment\Tests\Unit\Support;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Attachment\Tests\Support\ForkChildDiagnostics;
 
-#[CoversClass(ForkChildDiagnostics::class)]
+#[CoversNothing]
 final class ForkChildDiagnosticsTest extends TestCase
 {
     #[Test]
