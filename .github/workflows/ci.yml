@@ -2034,6 +2034,7 @@ jobs:
           run_gate check-s1-configuration-authority
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
+          run_gate check-distribution-exclusion
           run_gate check-local-operator-tool-profile
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
