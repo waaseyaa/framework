@@ -1,0 +1,738 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const BOARD_SNAPSHOT_SCHEMA = 'waaseyaa.project-board-snapshot.v1';
+const BOARD_REPORT_SCHEMA = 'waaseyaa.project-board-audit.v1';
+const BOARD_PLAN_SCHEMA = 'waaseyaa.project-board-plan.v1';
+const BOARD_APPLY_SCHEMA = 'waaseyaa.project-board-apply.v1';
+const BOARD_LIVE_LIMIT = 1000;
+
+final class BoardApplyException extends RuntimeException
+{
+    /** @param array<string, mixed> $receipt */
+    public function __construct(public readonly array $receipt, Throwable $previous)
+    {
+        parent::__construct($previous->getMessage(), 0, $previous);
+    }
+}
+
+try {
+    exit(boardMain(array_slice($_SERVER['argv'] ?? [], 1)));
+} catch (BoardApplyException $exception) {
+    boardOutput($exception->receipt, true);
+    exit(3);
+} catch (Throwable $exception) {
+    boardOutput([
+        'schema' => 'waaseyaa.project-board-error.v1',
+        'error' => ['code' => 'INVALID_INPUT', 'message' => $exception->getMessage()],
+    ], true);
+    exit(2);
+}
+
+/** @param list<string> $arguments */
+function boardMain(array $arguments): int
+{
+    $command = 'audit';
+    if (isset($arguments[0]) && !str_starts_with($arguments[0], '--')) {
+        $command = array_shift($arguments);
+    }
+    if (!in_array($command, ['audit', 'plan', 'verify-plan', 'apply'], true)) {
+        throw new RuntimeException("unknown command: {$command}");
+    }
+
+    $options = boardOptions($arguments);
+    $json = ($options['format'] ?? '') === 'json';
+    $snapshotPath = $options['snapshot'] ?? null;
+    $fixtureMode = is_string($snapshotPath) && $snapshotPath !== '';
+
+    if ($command === 'apply' && $fixtureMode) {
+        boardOutput([
+            'schema' => 'waaseyaa.project-board-error.v1',
+            'error' => ['code' => 'FIXTURE_APPLY_REFUSED', 'message' => 'fixture snapshots are read-only and cannot be applied'],
+        ], $json);
+        return 2;
+    }
+
+    $snapshot = $fixtureMode
+        ? boardReadJson((string) $snapshotPath)
+        : boardLiveSnapshot($options);
+    $snapshot = boardNormalizeSnapshot($snapshot);
+    $model = boardModel($snapshot);
+    $fingerprint = hash('sha256', boardCanonicalJson($snapshot));
+
+    if ($command === 'audit') {
+        $analysis = boardAnalyse($snapshot, $model);
+        $report = [
+            'schema' => BOARD_REPORT_SCHEMA,
+            'repository' => $snapshot['repository'],
+            'project_id' => $snapshot['project']['id'],
+            'source_fingerprint' => $fingerprint,
+            'finding_count' => count($analysis['findings']),
+            'findings' => $analysis['findings'],
+        ];
+        boardOutput($report, $json);
+        return $analysis['findings'] === [] ? 0 : 1;
+    }
+
+    if ($command === 'plan') {
+        $analysis = boardAnalyse($snapshot, $model);
+        $plan = [
+            'schema' => BOARD_PLAN_SCHEMA,
+            'repository' => $snapshot['repository'],
+            'project' => [
+                'owner' => $snapshot['project']['owner'],
+                'number' => $snapshot['project']['number'],
+                'id' => $snapshot['project']['id'],
+            ],
+            'source_fingerprint' => $fingerprint,
+            'operations' => $analysis['operations'],
+            'unresolved_findings' => array_values(array_filter(
+                $analysis['findings'],
+                static fn(array $finding): bool => !($finding['repairable'] ?? false),
+            )),
+        ];
+        $plan['plan_id'] = hash('sha256', boardCanonicalJson($plan));
+        if (isset($options['output'])) {
+            boardWriteNew((string) $options['output'], $plan);
+            if (!$json) {
+                fwrite(STDOUT, sprintf("board-sync plan %s: %d operations written to %s\n", $plan['plan_id'], count($plan['operations']), $options['output']));
+            } else {
+                boardOutput($plan, true);
+            }
+        } else {
+            boardOutput($plan, $json);
+        }
+        return 0;
+    }
+
+    $planPath = $options['plan'] ?? null;
+    if (!is_string($planPath) || $planPath === '') {
+        throw new RuntimeException("{$command} requires --plan=FILE");
+    }
+    $plan = boardReadJson($planPath);
+    $verification = boardVerifyPlan($plan, $snapshot, $model, $fingerprint);
+    if ($verification !== null) {
+        boardOutput([
+            'schema' => 'waaseyaa.project-board-error.v1',
+            'error' => ['code' => $verification, 'message' => 'the reviewed plan no longer matches the current source state'],
+        ], $json);
+        return 1;
+    }
+
+    if ($command === 'verify-plan') {
+        boardOutput([
+            'schema' => 'waaseyaa.project-board-plan-verification.v1',
+            'plan_id' => $plan['plan_id'],
+            'source_fingerprint' => $fingerprint,
+            'valid' => true,
+        ], $json);
+        return 0;
+    }
+
+    $receiptPath = $options['receipt'] ?? null;
+    if (!is_string($receiptPath) || $receiptPath === '') {
+        throw new RuntimeException('apply requires --receipt=FILE');
+    }
+    $receipt = boardApply($plan, $receiptPath);
+    boardOutput($receipt, $json);
+    return 0;
+}
+
+/** @param list<string> $arguments @return array<string, string> */
+function boardOptions(array $arguments): array
+{
+    $options = [];
+    foreach ($arguments as $argument) {
+        if ($argument === '--help' || $argument === '-h') {
+            fwrite(STDOUT, "Usage: php bin/project-board-sync [audit|plan|verify-plan|apply] [--snapshot=FILE] [--plan=FILE] [--output=FILE] [--receipt=FILE] [--format=json]\n");
+            exit(0);
+        }
+        if (!str_starts_with($argument, '--') || !str_contains($argument, '=')) {
+            throw new RuntimeException("options require --name=value: {$argument}");
+        }
+        [$name, $value] = explode('=', substr($argument, 2), 2);
+        if ($name === '' || $value === '' || isset($options[$name])) {
+            throw new RuntimeException("invalid or duplicate option: {$argument}");
+        }
+        if (!in_array($name, ['snapshot', 'plan', 'output', 'receipt', 'format', 'repository', 'owner', 'project'], true)) {
+            throw new RuntimeException("unknown option: --{$name}");
+        }
+        $options[$name] = $value;
+    }
+    if (isset($options['format']) && $options['format'] !== 'json') {
+        throw new RuntimeException('--format supports only json');
+    }
+    return $options;
+}
+
+/** @return array<string, mixed> */
+function boardLiveSnapshot(array $options): array
+{
+    $repository = $options['repository'] ?? 'waaseyaa/framework';
+    $owner = $options['owner'] ?? 'waaseyaa';
+    $projectRaw = (string) ($options['project'] ?? '4');
+    if (preg_match('/^[1-9][0-9]*$/D', $projectRaw) !== 1) {
+        throw new RuntimeException('project number must contain canonical decimal digits and be greater than zero');
+    }
+    $projectNumber = (int) $projectRaw;
+    if ((string) $projectNumber !== $projectRaw) {
+        throw new RuntimeException('project number exceeds the native integer range');
+    }
+    if (!preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $repository)) {
+        throw new RuntimeException('repository must be owner/name');
+    }
+    if (!preg_match('/^[A-Za-z0-9_.-]+$/', $owner)) {
+        throw new RuntimeException('project owner/number is invalid');
+    }
+
+    $project = boardGhJson(['project', 'view', (string) $projectNumber, '--owner', $owner, '--format', 'json']);
+    $fieldResult = boardGhJson(['project', 'field-list', (string) $projectNumber, '--owner', $owner, '--format', 'json', '--limit', (string) BOARD_LIVE_LIMIT]);
+    $itemResult = boardGhJson(['project', 'item-list', (string) $projectNumber, '--owner', $owner, '--format', 'json', '--limit', (string) BOARD_LIVE_LIMIT]);
+    $issues = boardGhJson(['issue', 'list', '--repo', $repository, '--state', 'open', '--limit', (string) BOARD_LIVE_LIMIT, '--json', 'id,number,state,title,url,labels,milestone']);
+
+    $fieldTotal = $project['fields']['totalCount'] ?? null;
+    $itemTotal = $project['items']['totalCount'] ?? null;
+    if (!is_int($fieldTotal) || !is_int($itemTotal)) {
+        throw new RuntimeException('Project view omitted field/item totalCount; completeness is unprovable');
+    }
+    if (($fieldResult['totalCount'] ?? null) !== $fieldTotal || count($fieldResult['fields'] ?? []) !== $fieldTotal) {
+        throw new RuntimeException(sprintf('Project field collection is truncated: expected %d, received %d', $fieldTotal, count($fieldResult['fields'] ?? [])));
+    }
+    if (($itemResult['totalCount'] ?? null) !== $itemTotal || count($itemResult['items'] ?? []) !== $itemTotal) {
+        throw new RuntimeException(sprintf('Project item collection is truncated: expected %d, received %d', $itemTotal, count($itemResult['items'] ?? [])));
+    }
+    if ($fieldTotal >= BOARD_LIVE_LIMIT || $itemTotal >= BOARD_LIVE_LIMIT || count($issues) >= BOARD_LIVE_LIMIT) {
+        throw new RuntimeException('live field, item, or open-issue collection reached its 1000-record bound; completeness is unprovable');
+    }
+
+    $normalizedIssues = [];
+    foreach ($issues as $issue) {
+        $normalizedIssues[] = [
+            'id' => (string) ($issue['id'] ?? ''),
+            'number' => (int) ($issue['number'] ?? 0),
+            'state' => strtoupper((string) ($issue['state'] ?? '')),
+            'title' => (string) ($issue['title'] ?? ''),
+            'url' => (string) ($issue['url'] ?? ''),
+            'labels' => array_values(array_map(
+                static fn(array $label): string => (string) ($label['name'] ?? ''),
+                is_array($issue['labels'] ?? null) ? $issue['labels'] : [],
+            )),
+            'milestone' => is_array($issue['milestone'] ?? null) ? (string) ($issue['milestone']['title'] ?? '') : null,
+        ];
+    }
+
+    $normalizedItems = [];
+    foreach (($itemResult['items'] ?? []) as $item) {
+        $content = is_array($item['content'] ?? null) ? $item['content'] : [];
+        if (($content['type'] ?? null) !== 'Issue') {
+            continue;
+        }
+        $normalizedItems[] = [
+            'id' => (string) ($item['id'] ?? ''),
+            'issue_number' => (int) ($content['number'] ?? 0),
+            'repository' => (string) ($content['repository'] ?? ''),
+            'status' => boardCaseValue($item, 'status'),
+            'priority' => boardCaseValue($item, 'priority'),
+            'readiness' => boardCaseValue($item, 'readiness'),
+            'roadmap_stage' => boardCaseValue($item, 'roadmap stage'),
+            'milestone' => is_array($item['milestone'] ?? null) ? (string) ($item['milestone']['title'] ?? '') : null,
+        ];
+    }
+
+    $openNumbers = array_fill_keys(array_column($normalizedIssues, 'number'), true);
+    foreach ($normalizedItems as $item) {
+        if ($item['repository'] !== $repository || isset($openNumbers[$item['issue_number']])) {
+            continue;
+        }
+        $normalizedIssues[] = [
+            'id' => '',
+            'number' => $item['issue_number'],
+            'state' => 'CLOSED',
+            'title' => '',
+            'url' => '',
+            'labels' => [],
+            'milestone' => $item['milestone'],
+        ];
+    }
+
+    return [
+        'schema' => BOARD_SNAPSHOT_SCHEMA,
+        'repository' => $repository,
+        'project' => [
+            'owner' => $owner,
+            'number' => $projectNumber,
+            'id' => (string) ($project['id'] ?? ''),
+            'title' => (string) ($project['title'] ?? ''),
+            'closed' => (bool) ($project['closed'] ?? false),
+        ],
+        'fields' => is_array($fieldResult['fields'] ?? null) ? $fieldResult['fields'] : [],
+        'issues' => $normalizedIssues,
+        'items' => $normalizedItems,
+    ];
+}
+
+function boardCaseValue(array $row, string $name): ?string
+{
+    foreach ($row as $key => $value) {
+        if (strtolower((string) $key) === $name) {
+            return is_string($value) && $value !== '' ? $value : null;
+        }
+    }
+    return null;
+}
+
+/** @return array<string, mixed> */
+function boardNormalizeSnapshot(array $snapshot): array
+{
+    if (($snapshot['schema'] ?? null) !== BOARD_SNAPSHOT_SCHEMA) {
+        throw new RuntimeException('snapshot schema must be ' . BOARD_SNAPSHOT_SCHEMA);
+    }
+    foreach (['repository', 'project', 'fields', 'issues', 'items'] as $key) {
+        if (!array_key_exists($key, $snapshot)) {
+            throw new RuntimeException("snapshot is missing {$key}");
+        }
+    }
+    if (!is_array($snapshot['project']) || !is_array($snapshot['fields']) || !is_array($snapshot['issues']) || !is_array($snapshot['items'])) {
+        throw new RuntimeException('snapshot project, fields, issues, and items must be arrays');
+    }
+    if (($snapshot['project']['closed'] ?? true) === true) {
+        throw new RuntimeException('target Project is closed');
+    }
+
+    foreach ($snapshot['issues'] as &$issue) {
+        if (!is_array($issue) || (int) ($issue['number'] ?? 0) < 1 || !in_array($issue['state'] ?? null, ['OPEN', 'CLOSED'], true)) {
+            throw new RuntimeException('snapshot contains an invalid issue');
+        }
+        $issue['labels'] = array_values(array_unique(array_map('strval', is_array($issue['labels'] ?? null) ? $issue['labels'] : [])));
+        sort($issue['labels'], SORT_STRING);
+        $issue['milestone'] = ($issue['milestone'] ?? null) === '' ? null : ($issue['milestone'] ?? null);
+    }
+    unset($issue);
+    usort($snapshot['issues'], static fn(array $a, array $b): int => $a['number'] <=> $b['number']);
+
+    foreach ($snapshot['fields'] as &$field) {
+        if (!is_array($field)) {
+            throw new RuntimeException('snapshot contains an invalid field');
+        }
+        $field['options'] = is_array($field['options'] ?? null) ? array_values($field['options']) : [];
+        usort($field['options'], static fn(array $a, array $b): int => [(string) ($a['name'] ?? ''), (string) ($a['id'] ?? '')] <=> [(string) ($b['name'] ?? ''), (string) ($b['id'] ?? '')]);
+    }
+    unset($field);
+    usort($snapshot['fields'], static fn(array $a, array $b): int => [(string) ($a['name'] ?? ''), (string) ($a['id'] ?? '')] <=> [(string) ($b['name'] ?? ''), (string) ($b['id'] ?? '')]);
+
+    foreach ($snapshot['items'] as $item) {
+        if (!is_array($item) || (string) ($item['id'] ?? '') === '' || (int) ($item['issue_number'] ?? 0) < 1) {
+            throw new RuntimeException('snapshot contains an invalid Project item');
+        }
+    }
+    usort($snapshot['items'], static fn(array $a, array $b): int => [(int) $a['issue_number'], (string) $a['id']] <=> [(int) $b['issue_number'], (string) $b['id']]);
+
+    return $snapshot;
+}
+
+/** @return array<string, array{id: string, options: array<string, string>}> */
+function boardModel(array $snapshot): array
+{
+    $required = [
+        'Status' => ['Todo', 'In Progress', 'Done'],
+        'Priority' => ['P0 - Critical', 'P1 - High', 'P2 - Medium', 'P3 - Low'],
+        'Readiness' => ['Ready', 'In Progress', 'Blocked', 'Needs Design', 'Needs Validation', 'Needs Rescope', 'Needs Triage', 'Deferred', 'Decision'],
+        'Roadmap Stage' => ['0 - Safety'],
+    ];
+    $model = [];
+    foreach ($required as $fieldName => $optionNames) {
+        $matches = array_values(array_filter($snapshot['fields'], static fn(array $field): bool => ($field['name'] ?? null) === $fieldName));
+        if (count($matches) !== 1 || ($matches[0]['type'] ?? null) !== 'ProjectV2SingleSelectField' || (string) ($matches[0]['id'] ?? '') === '') {
+            throw new RuntimeException("Project field {$fieldName} is missing, duplicated, or not single-select");
+        }
+        $options = [];
+        foreach ($matches[0]['options'] as $option) {
+            $name = (string) ($option['name'] ?? '');
+            $id = (string) ($option['id'] ?? '');
+            if ($name === '' || $id === '' || isset($options[$name])) {
+                throw new RuntimeException("Project field {$fieldName} has invalid or duplicate options");
+            }
+            $options[$name] = $id;
+        }
+        foreach ($optionNames as $optionName) {
+            if (!isset($options[$optionName])) {
+                throw new RuntimeException("Project field {$fieldName} is missing option {$optionName}");
+            }
+        }
+        $model[$fieldName] = ['id' => (string) $matches[0]['id'], 'options' => $options];
+    }
+    return $model;
+}
+
+/** @return array{findings: list<array<string, mixed>>, operations: list<array<string, mixed>>} */
+function boardAnalyse(array $snapshot, array $model): array
+{
+    $priorityMap = ['priority:p0' => 'P0 - Critical', 'priority:p1' => 'P1 - High', 'priority:p2' => 'P2 - Medium', 'priority:p3' => 'P3 - Low'];
+    $readinessMap = [
+        'status:ready' => 'Ready', 'status:in-progress' => 'In Progress', 'status:blocked' => 'Blocked',
+        'status:needs-design' => 'Needs Design', 'portfolio:needs-validation' => 'Needs Validation',
+        'status:needs-rescope' => 'Needs Rescope', 'status:needs-triage' => 'Needs Triage',
+        'portfolio:deferred' => 'Deferred', 'needs-decision' => 'Decision',
+    ];
+    $items = [];
+    foreach ($snapshot['items'] as $item) {
+        if (($item['repository'] ?? null) !== $snapshot['repository']) {
+            continue;
+        }
+        $items[(int) $item['issue_number']][] = $item;
+    }
+
+    $findings = [];
+    $operations = [];
+    foreach ($snapshot['issues'] as $issue) {
+        $number = (int) $issue['number'];
+        $labels = array_fill_keys($issue['labels'], true);
+        $matches = $items[$number] ?? [];
+        if (count($matches) > 1) {
+            $findings[] = boardFinding('coverage', 'COVERAGE_DUPLICATE_ITEM', $number, false, count($matches), 1);
+            continue;
+        }
+        if ($matches === []) {
+            if ($issue['state'] === 'OPEN') {
+                $findings[] = boardFinding('coverage', 'COVERAGE_MISSING_OPEN', $number, true, null, 'one Project item');
+                $fields = [];
+                $status = isset($labels['status:in-progress']) ? 'In Progress' : 'Todo';
+                $fields['Status'] = boardFieldTarget($model, 'Status', $status);
+                $priority = boardMappedLabel($issue['labels'], $priorityMap);
+                if ($priority['state'] === 'one') {
+                    $fields['Priority'] = boardFieldTarget($model, 'Priority', $priority['value']);
+                } else {
+                    $findings[] = boardFinding('priority', $priority['state'] === 'none' ? 'PRIORITY_MISSING' : 'PRIORITY_AMBIGUOUS', $number, false, $priority['labels'], 'exactly one priority label');
+                }
+                $readiness = boardReadiness($issue['labels'], $readinessMap);
+                if ($readiness['state'] === 'one') {
+                    $fields['Readiness'] = boardFieldTarget($model, 'Readiness', $readiness['value']);
+                } else {
+                    $findings[] = boardFinding('readiness', $readiness['state'] === 'ambiguous' ? 'READINESS_AMBIGUOUS' : 'READINESS_UNKNOWN_STATUS', $number, false, $readiness['labels'], 'one governed readiness carrier');
+                }
+                if (isset($labels['release:beta-blocker'])) {
+                    $findings[] = boardFinding('delivery_ordering', 'BETA_BLOCKER_OUTSIDE_SAFETY', $number, false, null, '0 - Safety');
+                }
+                $operations[] = ['type' => 'add_issue', 'issue' => $number, 'content_id' => $issue['id'], 'url' => $issue['url'], 'fields' => $fields];
+            }
+            continue;
+        }
+
+        $item = $matches[0];
+        $expectedStatus = $issue['state'] === 'CLOSED' ? 'Done' : (isset($labels['status:in-progress']) ? 'In Progress' : 'Todo');
+        if (($item['status'] ?? null) !== $expectedStatus) {
+            $findings[] = boardFinding('status', 'STATUS_MISMATCH', $number, true, $item['status'] ?? null, $expectedStatus);
+            $operations[] = boardSetOperation($model, $item, $number, 'Status', $expectedStatus);
+        }
+
+        if ($issue['state'] === 'CLOSED') {
+            if (($item['readiness'] ?? null) !== null && ($item['readiness'] ?? '') !== '') {
+                $findings[] = boardFinding('readiness', 'READINESS_CLOSED_NOT_CLEAR', $number, true, $item['readiness'], null);
+                $operations[] = ['type' => 'clear_field', 'issue' => $number, 'item_id' => $item['id'], 'field' => 'Readiness', 'field_id' => $model['Readiness']['id']];
+            }
+        } else {
+            $readiness = boardReadiness($issue['labels'], $readinessMap);
+            if ($readiness['state'] === 'ambiguous') {
+                $findings[] = boardFinding('readiness', 'READINESS_AMBIGUOUS', $number, false, $readiness['labels'], 'exactly one readiness carrier');
+            } elseif ($readiness['state'] === 'unknown') {
+                $findings[] = boardFinding('readiness', 'READINESS_UNKNOWN_STATUS', $number, false, $readiness['labels'], 'a governed readiness carrier');
+            } elseif (($item['readiness'] ?? null) !== $readiness['value']) {
+                $findings[] = boardFinding('readiness', 'READINESS_MISMATCH', $number, true, $item['readiness'] ?? null, $readiness['value']);
+                $operations[] = boardSetOperation($model, $item, $number, 'Readiness', $readiness['value']);
+            }
+        }
+
+        if ($issue['state'] === 'OPEN') {
+            $priority = boardMappedLabel($issue['labels'], $priorityMap);
+            if ($priority['state'] === 'none') {
+                $findings[] = boardFinding('priority', 'PRIORITY_MISSING', $number, false, [], 'exactly one priority label');
+            } elseif ($priority['state'] === 'ambiguous') {
+                $findings[] = boardFinding('priority', 'PRIORITY_AMBIGUOUS', $number, false, $priority['labels'], 'exactly one priority label');
+            } elseif (($item['priority'] ?? null) !== $priority['value']) {
+                $findings[] = boardFinding('priority', 'PRIORITY_MISMATCH', $number, true, $item['priority'] ?? null, $priority['value']);
+                $operations[] = boardSetOperation($model, $item, $number, 'Priority', $priority['value']);
+            }
+        }
+
+        if (($item['milestone'] ?? null) !== ($issue['milestone'] ?? null)) {
+            $findings[] = boardFinding('delivery_lane', 'MILESTONE_DISPLAY_MISMATCH', $number, false, $item['milestone'] ?? null, $issue['milestone'] ?? null);
+        }
+        if ($issue['state'] === 'OPEN' && isset($labels['release:beta-blocker']) && ($item['roadmap_stage'] ?? null) !== '0 - Safety') {
+            $findings[] = boardFinding('delivery_ordering', 'BETA_BLOCKER_OUTSIDE_SAFETY', $number, false, $item['roadmap_stage'] ?? null, '0 - Safety');
+        }
+    }
+
+    usort($findings, static fn(array $a, array $b): int => [$a['axis'], $a['issue'], $a['code']] <=> [$b['axis'], $b['issue'], $b['code']]);
+    usort($operations, static fn(array $a, array $b): int => [$a['issue'], $a['type'], $a['field'] ?? ''] <=> [$b['issue'], $b['type'], $b['field'] ?? '']);
+    return ['findings' => $findings, 'operations' => $operations];
+}
+
+function boardFinding(string $axis, string $code, int $issue, bool $repairable, mixed $actual, mixed $expected): array
+{
+    return compact('axis', 'code', 'issue', 'repairable', 'actual', 'expected');
+}
+
+/** @return array{state: string, value?: string, labels: list<string>} */
+function boardMappedLabel(array $labels, array $map): array
+{
+    $matched = array_values(array_intersect($labels, array_keys($map)));
+    if ($matched === []) {
+        return ['state' => 'none', 'labels' => []];
+    }
+    if (count($matched) > 1) {
+        return ['state' => 'ambiguous', 'labels' => $matched];
+    }
+    return ['state' => 'one', 'value' => $map[$matched[0]], 'labels' => $matched];
+}
+
+/** @return array{state: string, value?: string, labels: list<string>} */
+function boardReadiness(array $labels, array $map): array
+{
+    $mapped = boardMappedLabel($labels, $map);
+    $unknown = array_values(array_filter(
+        $labels,
+        static fn(string $label): bool => str_starts_with($label, 'status:') && !array_key_exists($label, $map),
+    ));
+    if ($unknown !== []) {
+        $carriers = array_values(array_unique(array_merge($mapped['labels'], $unknown)));
+        sort($carriers, SORT_STRING);
+        return ['state' => $mapped['state'] === 'none' ? 'unknown' : 'ambiguous', 'labels' => $carriers];
+    }
+    if ($mapped['state'] !== 'none') {
+        return $mapped;
+    }
+    return ['state' => 'one', 'value' => 'Needs Triage', 'labels' => []];
+}
+
+function boardFieldTarget(array $model, string $field, string $option): array
+{
+    return ['field_id' => $model[$field]['id'], 'option_id' => $model[$field]['options'][$option], 'option_name' => $option];
+}
+
+function boardSetOperation(array $model, array $item, int $issue, string $field, string $option): array
+{
+    return ['type' => 'set_field', 'issue' => $issue, 'item_id' => $item['id'], 'field' => $field] + boardFieldTarget($model, $field, $option);
+}
+
+function boardVerifyPlan(array $plan, array $snapshot, array $model, string $fingerprint): ?string
+{
+    if (($plan['schema'] ?? null) !== BOARD_PLAN_SCHEMA || !is_string($plan['plan_id'] ?? null)) {
+        return 'PLAN_INVALID';
+    }
+    $planId = $plan['plan_id'];
+    unset($plan['plan_id']);
+    if (!hash_equals($planId, hash('sha256', boardCanonicalJson($plan)))) {
+        return 'PLAN_ID_MISMATCH';
+    }
+    if (($plan['repository'] ?? null) !== $snapshot['repository'] || ($plan['project']['id'] ?? null) !== $snapshot['project']['id']) {
+        return 'PLAN_TARGET_MISMATCH';
+    }
+    if (!hash_equals((string) ($plan['source_fingerprint'] ?? ''), $fingerprint)) {
+        return 'PLAN_SOURCE_DRIFT';
+    }
+    $analysis = boardAnalyse($snapshot, $model);
+    $expected = [
+        'schema' => BOARD_PLAN_SCHEMA,
+        'repository' => $snapshot['repository'],
+        'project' => [
+            'owner' => $snapshot['project']['owner'],
+            'number' => $snapshot['project']['number'],
+            'id' => $snapshot['project']['id'],
+        ],
+        'source_fingerprint' => $fingerprint,
+        'operations' => $analysis['operations'],
+        'unresolved_findings' => array_values(array_filter(
+            $analysis['findings'],
+            static fn(array $finding): bool => !($finding['repairable'] ?? false),
+        )),
+    ];
+    if (boardCanonicalJson($plan) !== boardCanonicalJson($expected)) {
+        return 'PLAN_CONTENT_MISMATCH';
+    }
+    return null;
+}
+
+/** @return array<string, mixed> */
+function boardApply(array $plan, string $receiptPath): array
+{
+    $receipt = [
+        'schema' => BOARD_APPLY_SCHEMA,
+        'plan_id' => $plan['plan_id'],
+        'result' => 'in_progress',
+        'applied_count' => 0,
+        'applied_operations' => [],
+        'failed_operation' => null,
+        'error' => null,
+    ];
+    boardCreateReceipt($receiptPath, $receipt);
+
+    $record = static function (array $operation) use (&$receipt, $receiptPath): void {
+        $receipt['applied_operations'][] = $operation;
+        $receipt['applied_count'] = count($receipt['applied_operations']);
+        boardUpdateReceipt($receiptPath, $receipt);
+    };
+    $fail = static function (array $operation, Throwable $exception) use (&$receipt, $receiptPath): never {
+        $receipt['result'] = $receipt['applied_count'] === 0 ? 'failed' : 'partial_failure';
+        $receipt['failed_operation'] = $operation;
+        $receipt['error'] = $exception->getMessage();
+        boardUpdateReceipt($receiptPath, $receipt);
+        throw new BoardApplyException($receipt, $exception);
+    };
+
+    foreach ($plan['operations'] as $operation) {
+        if ($operation['type'] === 'add_issue') {
+            try {
+                $added = boardGhJson(['project', 'item-add', (string) $plan['project']['number'], '--owner', $plan['project']['owner'], '--url', $operation['url'], '--format', 'json']);
+                $itemId = (string) ($added['id'] ?? '');
+                if ($itemId === '') {
+                    throw new RuntimeException("GitHub did not return an item id for #{$operation['issue']}");
+                }
+                $record(['type' => 'add_issue', 'issue' => $operation['issue'], 'item_id' => $itemId]);
+            } catch (Throwable $exception) {
+                $fail(['type' => 'add_issue', 'issue' => $operation['issue']], $exception);
+            }
+            foreach ($operation['fields'] as $fieldName => $field) {
+                $fieldOperation = ['type' => 'set_field', 'issue' => $operation['issue'], 'item_id' => $itemId, 'field' => $fieldName, 'field_id' => $field['field_id'], 'option_id' => $field['option_id'], 'option_name' => $field['option_name']];
+                try {
+                    boardGhJson(['project', 'item-edit', '--id', $itemId, '--project-id', $plan['project']['id'], '--field-id', $field['field_id'], '--single-select-option-id', $field['option_id'], '--format', 'json']);
+                    $record($fieldOperation);
+                } catch (Throwable $exception) {
+                    $fail($fieldOperation, $exception);
+                }
+            }
+            continue;
+        }
+
+        try {
+            $arguments = ['project', 'item-edit', '--id', $operation['item_id'], '--project-id', $plan['project']['id'], '--field-id', $operation['field_id']];
+            if ($operation['type'] === 'clear_field') {
+                $arguments[] = '--clear';
+            } else {
+                $arguments[] = '--single-select-option-id';
+                $arguments[] = $operation['option_id'];
+            }
+            $arguments[] = '--format';
+            $arguments[] = 'json';
+            boardGhJson($arguments);
+            $record($operation);
+        } catch (Throwable $exception) {
+            $fail($operation, $exception);
+        }
+    }
+    $receipt['result'] = 'applied';
+    boardUpdateReceipt($receiptPath, $receipt);
+    return $receipt;
+}
+
+function boardCreateReceipt(string $path, array $receipt): void
+{
+    $handle = @fopen($path, 'x');
+    if ($handle === false) {
+        throw new RuntimeException("apply receipt already exists or cannot be created: {$path}; create a fresh plan before retrying");
+    }
+    try {
+        $json = json_encode($receipt, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+        if (fwrite($handle, $json) === false || !fflush($handle)) {
+            throw new RuntimeException("cannot initialize apply receipt: {$path}");
+        }
+    } finally {
+        fclose($handle);
+    }
+}
+
+function boardUpdateReceipt(string $path, array $receipt): void
+{
+    $json = json_encode($receipt, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+    if (file_put_contents($path, $json, LOCK_EX) === false) {
+        throw new RuntimeException("cannot update apply receipt: {$path}");
+    }
+}
+
+/** @return array<string, mixed> */
+function boardReadJson(string $path): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException("JSON file not found: {$path}");
+    }
+    $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        throw new RuntimeException("expected JSON object: {$path}");
+    }
+    return $decoded;
+}
+
+/** @return array<string, mixed> */
+function boardGhJson(array $arguments): array
+{
+    $adapter = getenv('WAASEYAA_PROJECT_BOARD_GH_ADAPTER');
+    if (is_string($adapter) && $adapter !== '') {
+        if (!is_file($adapter)) {
+            throw new RuntimeException('WAASEYAA_PROJECT_BOARD_GH_ADAPTER is not a file');
+        }
+        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($adapter) . ' ' . implode(' ', array_map('escapeshellarg', $arguments));
+    } else {
+        $command = 'gh ' . implode(' ', array_map('escapeshellarg', $arguments));
+    }
+    $lines = [];
+    $exit = 0;
+    exec($command . ' 2>&1', $lines, $exit);
+    if ($exit !== 0) {
+        throw new RuntimeException('GitHub CLI failed: ' . implode("\n", $lines));
+    }
+    if ($lines === []) {
+        return [];
+    }
+    $decoded = json_decode(implode("\n", $lines), true, flags: JSON_THROW_ON_ERROR);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function boardWriteNew(string $path, array $value): void
+{
+    $handle = @fopen($path, 'x');
+    if ($handle === false) {
+        throw new RuntimeException("output already exists or cannot be created: {$path}");
+    }
+    try {
+        $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+        if (fwrite($handle, $json) === false || !fflush($handle)) {
+            throw new RuntimeException("cannot write output: {$path}");
+        }
+    } finally {
+        fclose($handle);
+    }
+}
+
+function boardOutput(array $value, bool $json): void
+{
+    if ($json) {
+        fwrite(STDOUT, json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        return;
+    }
+    if (($value['schema'] ?? null) === BOARD_REPORT_SCHEMA) {
+        fwrite(STDOUT, sprintf("board-sync audit: %d finding(s)\n", $value['finding_count']));
+        foreach ($value['findings'] as $finding) {
+            fwrite(STDOUT, sprintf("%s %s #%d: %s -> %s%s\n", strtoupper($finding['axis']), $finding['code'], $finding['issue'], json_encode($finding['actual']), json_encode($finding['expected']), $finding['repairable'] ? ' [repairable]' : ''));
+        }
+        return;
+    }
+    fwrite(STDOUT, json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+}
+
+function boardCanonicalJson(mixed $value): string
+{
+    $normalize = static function (mixed $item) use (&$normalize): mixed {
+        if (!is_array($item)) {
+            return $item;
+        }
+        if (!array_is_list($item)) {
+            ksort($item, SORT_STRING);
+        }
+        foreach ($item as $key => $child) {
+            $item[$key] = $normalize($child);
+        }
+        return $item;
+    };
+    return json_encode($normalize($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+}
