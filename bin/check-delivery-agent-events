@@ -650,6 +650,7 @@ if (!$usingFixtures && ($batchFiles !== [] || $batchSchemaBytes !== null)) {
             continue;
         }
         validateEventSemantics($batchEvent, $eventsById, $replayLines, $replayLines[$eventId], $errors);
+        array_push($errors, ...delivery_agent_elapsed_ms_errors($batchEvent, $eventsById));
     }
 }
 
