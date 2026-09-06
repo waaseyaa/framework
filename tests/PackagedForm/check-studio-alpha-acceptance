@@ -117,6 +117,7 @@ teardown_done=false
 # run twice, and must never change the exit status: a failed cleanup that
 # masked a real RED would be worse than a leaked directory (#2870).
 cleanup() {
+    # Teardown must never change the script exit status.
     local status=$?
     if [[ "$teardown_done" == true ]]; then
         return "$status"

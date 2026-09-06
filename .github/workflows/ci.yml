@@ -1774,7 +1774,7 @@ jobs:
         run: npm ci --prefix packages/admin
 
       - name: Install the pinned Playwright browser
-        run: npx --prefix packages/admin playwright install --with-deps chromium
+        run: npx --prefix packages/admin playwright install chromium
 
       # The candidate SHA reaches the shell as an environment variable, never
       # interpolated into the script body.

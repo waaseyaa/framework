@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
+
+use Symfony\Component\Process\Process;
+
 /**
  * Assertion engine for the Studio-alpha packaged acceptance harness (#2789).
  *
@@ -586,21 +590,10 @@ function selfTest(string $consumer, string $directory): int
 /** @param list<string> $arguments */
 function assertionProcess(array $arguments): int
 {
-    $process = proc_open(
-        [PHP_BINARY, __FILE__, ...$arguments],
-        [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],
-        $pipes,
-    );
-    if (!is_resource($process)) {
-        fail('Could not start a negative-control assertion process.');
-    }
-    fclose($pipes[0]);
-    stream_get_contents($pipes[1]);
-    fclose($pipes[1]);
-    stream_get_contents($pipes[2]);
-    fclose($pipes[2]);
+    $process = new Process([PHP_BINARY, __FILE__, ...$arguments]);
+    $process->run();
 
-    return proc_close($process);
+    return $process->getExitCode() ?? 1;
 }
 
 /** @return array<string, mixed> */

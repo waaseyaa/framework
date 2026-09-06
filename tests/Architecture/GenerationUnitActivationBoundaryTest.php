@@ -10,10 +10,13 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class GenerationUnitActivationBoundaryTest extends TestCase
 {
-    public function testSeededCompilerAdmissionRemainsClosedUntilMigration(): void
+    public function testSeededCompilerAdmissionContainsOnlyTheReviewedContentTypeCompiler(): void
     {
         $authority = new \ReflectionClass(\Waaseyaa\CLI\Site\SiteInitializationService::class);
-        self::assertSame([], $authority->getConstant('SEEDED_COMPILERS'));
+        self::assertSame(
+            [\Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler::class],
+            $authority->getConstant('SEEDED_COMPILERS'),
+        );
     }
 
     public function testAdditiveCompilerAdmissionContainsOnlyTheTwoReviewedRootCompilers(): void

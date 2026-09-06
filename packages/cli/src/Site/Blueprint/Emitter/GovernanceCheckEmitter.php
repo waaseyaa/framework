@@ -950,7 +950,7 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
                         // A denied read answers the canonical not-found shape, never an existence oracle.
                         self::assertSame(404, \$document->statusCode);
                         self::assertSame('404', \$document->toArray()['errors'][0]['status']);
-                        self::assertArrayNotHasKey('code', \$document->toArray()['errors'][0]);
+                        self::assertSame('ENTITY_NOT_FOUND', \$document->toArray()['errors'][0]['code']);
                     }
                 }
 
