@@ -193,6 +193,15 @@ and execution timing remain unobservable.
      these endpoints as live are retained as a changelog record, not current state — see the
      "Workflow Transition Endpoints (CW-v1 WP-4)" section below for the shipped surface. -->
 
+<!-- Spec reviewed 2026-09-06 - #2788 (FW-SITE-BLUEPRINT-01E independent review, critical): `update()`
+     resolves its PATCH target (`loadWorkingCopy()`, else the `find()`-loaded entity) BEFORE
+     authorization, and both the entity-level `update` gate and the per-field `edit` gate evaluate that
+     exact target — never the published pointer. Access decisions are value-dependent (ownership,
+     workflow state: generated blueprint policies decide on those authorization inputs), so authorizing
+     the published revision while writing a diverged tip let a stale input grant or deny the wrong
+     revision. The 404/non-oracle shape, request validation order, revision-expectation semantics,
+     denial status/body contracts and non-revisionable updates are unchanged; nothing is hydrated or
+     saved before the two gates pass. Pinned by JsonApiControllerWorkingCopyAuthorizationTest. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-3 (#1920, design §4 "Surface pointer-awareness"):
      JSON:API becomes working-copy-aware on the write/edit surfaces. `show()` gains `?workingCopy=1`
      (serves `loadWorkingCopy()` to an account with entity UPDATE access, 403 otherwise — not an
@@ -202,8 +211,8 @@ and execution timing remain unobservable.
      the echo-tolerant write-allowlist comparison (`EntityWritePayloadGuard::evaluateForUpdate()`)
      now compares against the WORKING COPY's own `toArray()`, not the gate entity's, so a client that
      read the working copy and echoes ITS `revision_id` back is not spuriously refused. Entity/field
-     access gates are unchanged (still evaluated against the `find()`-loaded gate entity — type/bundle-
-     scoped, no behavior change). `WorkflowTransitionController`'s GET/POST now source the workflow
+     access gates were left on the `find()`-loaded gate entity at the time; #2788 (below) moved both
+     onto the working-copy target. `WorkflowTransitionController`'s GET/POST now source the workflow
      POSITION (`meta.workflow_state`, available transitions, the POST target) from `loadWorkingCopy()`
      too — the R8 view gate stays pinned to `find()`, byte-identical. See "GET single" and "PATCH —
      update" below (updated) and the new "Working-copy targeting (CW-v1 option-1 PR-3)" subsection.
