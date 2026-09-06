@@ -55,7 +55,40 @@ final class JsonApiControllerDeniedNotFoundTest extends TestCase
     }
 
     #[Test]
-    public function deniedShowCarriesNoCodeMemberAndNoDenialTrace(): void
+    public function bothWorldsCarryTheSameConcealedNotFoundCode(): void
+    {
+        // #2789 phase 4: the boundary gains a stable machine-readable code so a
+        // client can branch on it without parsing prose. It is emitted from the
+        // one shared document, so it says the same thing in both worlds and
+        // discriminates nothing.
+        [$deniedController, $deniedStorage] = $this->createWorld(denyView: true);
+        $entity = $deniedStorage->create(['title' => 'Secret']);
+        $deniedStorage->save($entity);
+        [$missingController] = $this->createWorld(denyView: true);
+
+        $denied = $deniedController->show('article', $entity->id())->toArray();
+        $missing = $missingController->show('article', $entity->id())->toArray();
+
+        self::assertSame(JsonApiController::CONCEALED_NOT_FOUND_CODE, $denied['errors'][0]['code']);
+        self::assertSame(JsonApiController::CONCEALED_NOT_FOUND_CODE, $missing['errors'][0]['code']);
+        self::assertSame('ENTITY_NOT_FOUND', JsonApiController::CONCEALED_NOT_FOUND_CODE, 'The published code is stable surface.');
+    }
+
+    #[Test]
+    public function anUnknownEntityTypeKeepsItsCodelessNotFoundShape(): void
+    {
+        // The code belongs to the concealed single-read boundary only. Every
+        // other 404 this factory produces must stay byte-identical.
+        [$controller] = $this->createWorld(denyView: false);
+
+        $array = $controller->show('nonexistent_type', 1)->toArray();
+
+        self::assertSame('404', $array['errors'][0]['status']);
+        self::assertArrayNotHasKey('code', $array['errors'][0]);
+    }
+
+    #[Test]
+    public function deniedShowCarriesTheSharedCodeAndNoDenialTrace(): void
     {
         [$controller, $storage] = $this->createWorld(denyView: true);
         $entity = $storage->create(['title' => 'Secret']);
@@ -65,7 +98,7 @@ final class JsonApiControllerDeniedNotFoundTest extends TestCase
         $array = $document->toArray();
 
         self::assertArrayHasKey('errors', $array);
-        self::assertArrayNotHasKey('code', $array['errors'][0]);
+        self::assertSame(JsonApiController::CONCEALED_NOT_FOUND_CODE, $array['errors'][0]['code']);
         self::assertSame('404', $array['errors'][0]['status']);
         self::assertSame('Not Found', $array['errors'][0]['title']);
 

@@ -65,13 +65,20 @@ final readonly class JsonApiError
 
     /**
      * Create a 404 Not Found error.
+     *
+     * The default keeps the pre-existing codeless 404 shape byte-identical for
+     * every pre-existing caller; the concealed single-read boundary passes
+     * `code: JsonApiController::CONCEALED_NOT_FOUND_CODE` so a client can
+     * branch on that one boundary without parsing prose (mirrors
+     * {@see conflict()} and {@see unprocessable()}).
      */
-    public static function notFound(string $detail = ''): self
+    public static function notFound(string $detail = '', string $code = ''): self
     {
         return new self(
             status: '404',
             title: 'Not Found',
             detail: $detail,
+            code: $code,
         );
     }
 

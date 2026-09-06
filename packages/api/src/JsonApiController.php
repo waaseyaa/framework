@@ -40,6 +40,24 @@ use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 final class JsonApiController
 {
     /**
+     * The stable machine-readable code of the concealed single-read boundary
+     * (#2789 phase 4).
+     *
+     * A single read answers a missing entity and a view-denied entity with one
+     * byte-identical document, so that this response cannot be used as an
+     * existence oracle. That is exactly why the code can exist: it is a
+     * property of the *boundary*, not of what happened behind it, and a client
+     * reading it learns only "no resource is addressable here" — the same thing
+     * the prose already said, in a form that survives translation and rewording.
+     *
+     * `ENTITY_NOT_FOUND` therefore says what the API asserts, not what the
+     * server knows. It is emitted only from {@see self::notFoundDocument()}; a
+     * caller that branched on the denial to add it would have reintroduced the
+     * oracle in the code member.
+     */
+    public const string CONCEALED_NOT_FOUND_CODE = 'ENTITY_NOT_FOUND';
+
+    /**
      * Credential keys that must never be queryable, even when stored as a raw `_data` key
      * with no FieldDefinition. Mirrors {@see ResourceSerializer::ALWAYS_INTERNAL_FIELDS}.
      *
@@ -1637,11 +1655,21 @@ final class JsonApiController
      * Canonical single-read 404. Used for BOTH a nonexistent id and a
      * view-denied entity — byte-identical on purpose (FR-003 / NFR-002,
      * mission request-surface-hardening-01KTX7F2). Do not fork the message.
+     *
+     * The `code` is emitted from this one shared document, never from a branch
+     * on why we got here (#2789 phase 4), so it is identical in both worlds and
+     * discriminates nothing. It is scoped to this boundary: the mutation 404s
+     * (`update`, `destroy`) answer a denial with a plain 403 rather than
+     * concealing it, so they are not this contract and keep their codeless
+     * shape, as does the unknown-entity-type 404.
      */
     private function notFoundDocument(string $entityTypeId, int|string $id): JsonApiDocument
     {
         return $this->errorDocument(
-            JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
+            JsonApiError::notFound(
+                "Entity of type '{$entityTypeId}' with ID '{$id}' not found.",
+                code: self::CONCEALED_NOT_FOUND_CODE,
+            ),
         );
     }
 
