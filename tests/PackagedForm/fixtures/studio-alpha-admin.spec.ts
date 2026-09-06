@@ -56,12 +56,12 @@ test('a seeded identity signs in and performs an admin-visible operation', async
   const session = await page.request.get('/admin/_surface/session')
   expect(session.status(), 'the seeded identity must resolve a real session').toBe(200)
   const payload = await session.json()
-  expect(payload?.account?.id, 'the session must identify the seeded administrator').toBe('1')
-  expect(payload?.account?.name, 'the host must expose its bounded admin display name').toBe('Admin')
+  expect(payload?.data?.account?.id, 'the session must identify the seeded administrator').toBe('1')
+  expect(payload?.data?.account?.name, 'the host must expose its bounded admin display name').toBe('Admin')
 
   const catalog = await page.request.get('/admin/_surface/catalog')
   expect(catalog.status()).toBe(200)
-  const entries = (await catalog.json())?.entries ?? []
+  const entries = (await catalog.json())?.data?.entities ?? []
   expect(Array.isArray(entries) && entries.length > 0, 'the host must expose at least one catalog entry').toBe(true)
 })
 
@@ -70,7 +70,7 @@ test('the hand-extended content type is visible to the running application', asy
 
   const catalog = await page.request.get('/admin/_surface/catalog')
   expect(catalog.status()).toBe(200)
-  const entries: Array<{ type?: string; id?: string }> = (await catalog.json())?.entries ?? []
+  const entries: Array<{ type?: string; id?: string }> = (await catalog.json())?.data?.entities ?? []
   const ids = entries.map((entry) => entry.type ?? entry.id)
 
   expect(ids, 'make:content-type published a unit the running application cannot see').toContain('story')
