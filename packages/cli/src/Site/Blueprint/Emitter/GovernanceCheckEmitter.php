@@ -512,7 +512,13 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
     {
         $entries = ["'id' => 1"];
         if ($fixture !== null) {
-            foreach ($fixture->values as $fieldId => $value) {
+            // Emitters are pure functions of the CANONICAL blueprint: the
+            // authored YAML and the published `.waaseyaa/site.yaml` (canonical
+            // key order) parse into the same fixture with different value
+            // order, and strict doctor recompiles from the published bytes.
+            $values = $fixture->values;
+            ksort($values, SORT_STRING);
+            foreach ($values as $fieldId => $value) {
                 if (!array_key_exists($fieldId, $entity->fields) || !is_scalar($value)) {
                     // A relationship-typed fixture value names another fixture id, not
                     // a resolvable real id (fixture materialization is 01D-3); left unset.
@@ -1123,7 +1129,9 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
             }
             $entries[] = self::quoted($field->id) . ' => ' . self::sampleLiteral($field);
         }
-        foreach ($blueprint->relationships as $relationship) {
+        $relationships = array_values($blueprint->relationships);
+        usort($relationships, static fn($left, $right): int => strcmp($left->id, $right->id));
+        foreach ($relationships as $relationship) {
             if ($relationship->fromEntity !== $entity->id) {
                 continue;
             }

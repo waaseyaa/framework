@@ -30,8 +30,18 @@ final class SiteBlueprintProcessTest extends TestCase
             file_put_contents($this->root . '/' . $path, "{}\n");
             chmod($this->root . '/' . $path, 0o644);
         }
-        $yaml = (string) file_get_contents($this->repoRoot . '/packages/site-contract/tests/Fixtures/Blueprint/valid/minimal.yaml');
-        $yaml = str_replace(str_repeat('a', 64), hash('sha256', "{}\n"), $yaml);
+        $this->writeAnswers('minimal.yaml', str_repeat('a', 64));
+    }
+
+    /**
+     * Bind the checked fixture's placeholder lock digest to this project's
+     * real `composer.lock` bytes. The minimal fixture additionally carries a
+     * console-markup name so the process proves literal artifact bytes.
+     */
+    private function writeAnswers(string $fixture, string $lockPlaceholder): void
+    {
+        $yaml = (string) file_get_contents($this->repoRoot . '/packages/site-contract/tests/Fixtures/Blueprint/valid/' . $fixture);
+        $yaml = str_replace($lockPlaceholder, hash('sha256', "{}\n"), $yaml);
         $yaml = str_replace('Minimal Blueprint Application', 'Minimal <info>Blueprint</info> Application', $yaml);
         file_put_contents($this->root . '/answers.yaml', $yaml);
     }
@@ -71,6 +81,115 @@ final class SiteBlueprintProcessTest extends TestCase
         self::assertSame([], $doctor['findings']);
         self::assertSame($before, $this->snapshot(), 'Strict doctor is a read-only process boundary.');
         self::assertFileDoesNotExist($this->root . '/probe.sqlite');
+    }
+
+    /**
+     * The complete governance-rich blueprint through the same real console
+     * boundary (#2788, FW-SITE-BLUEPRINT-01E): preview, apply, idempotent
+     * replay and read-only strict doctor, proving the compiled permission
+     * catalogue, discovered policy, governance provider, workflow definition
+     * and assignment, and every companion test (including the real
+     * JsonApiController proof) are published byte-for-byte as the golden
+     * emitter fixtures, bound to the plan digest and the approval receipt.
+     */
+    public function test_complete_blueprint_console_flow_publishes_governance_and_replays_idempotently(): void
+    {
+        $this->writeAnswers('complete.yaml', str_repeat('b', 64));
+        $receipt = $this->writeReceipt();
+        $governancePaths = [
+            'config/sync/workflows.assignments.yml',
+            'config/waaseyaa-blueprint/relationships.php',
+            'src/Access/ApplicationBlueprintPermissions.php',
+            'src/Access/ArticlePolicy.php',
+            'src/Entity/Article.php',
+            'src/Entity/Enum/ArticleStage.php',
+            'src/Entity/Person.php',
+            'src/Provider/ApplicationBlueprintGovernanceServiceProvider.php',
+            'src/Provider/ApplicationBlueprintServiceProvider.php',
+            'src/Workflow/EditorialWorkflowDefinition.php',
+            'tests/Blueprint/EntityAccessChecksTest.php',
+            'tests/Blueprint/GovernanceDefaultDenyTest.php',
+            'tests/Blueprint/JsonApiGovernanceChecksTest.php',
+            'tests/Blueprint/RolePermissionChecksTest.php',
+            'tests/Blueprint/WorkflowTransitionChecksTest.php',
+        ];
+        $companionTests = array_values(array_filter($governancePaths, static fn(string $path): bool => str_starts_with($path, 'tests/Blueprint/')));
+
+        // Preview: the complete plan is reviewable before any write.
+        $planned = $this->runInit(['--dry-run', '--decision-receipt=decision.json']);
+        self::assertSame('planned', $planned['result']['outcome']);
+        self::assertDirectoryDoesNotExist($this->root . '/.waaseyaa');
+        self::assertSame(
+            hash('sha256', CanonicalJson::encode($planned['evaluation']['plan']) . "\n"),
+            $planned['evaluation']['plan_digest'],
+        );
+        $plannedArtifacts = [];
+        foreach ($planned['evaluation']['plan']['artifacts'] as $artifact) {
+            $plannedArtifacts[$artifact['path']] = $artifact['content'];
+        }
+        foreach ($governancePaths as $path) {
+            self::assertArrayHasKey($path, $plannedArtifacts, "planned artifact {$path}");
+            self::assertSame($this->golden($path), $plannedArtifacts[$path], "planned bytes for {$path} equal the golden emitter fixture");
+            self::assertSame('created', $planned['evaluation']['status'][$path]);
+        }
+        self::assertSame($companionTests, $planned['evaluation']['plan']['companion_tests']);
+        self::assertSame(
+            ['App\\Provider\\ApplicationBlueprintGovernanceServiceProvider', 'App\\Provider\\ApplicationBlueprintServiceProvider'],
+            array_column($planned['evaluation']['plan']['registrations'], 'fqcn'),
+        );
+        self::assertStringContainsString('#[PolicyAttribute(entityType: \'article\')]', $plannedArtifacts['src/Access/ArticlePolicy.php'], 'discoverable policy');
+        self::assertStringContainsString('implements AccessPolicyInterface, FieldAccessPolicyInterface', $plannedArtifacts['src/Access/ArticlePolicy.php'], 'authorization inputs are edit-sealed');
+        self::assertStringContainsString('implements ProvidesRolesInterface, ProvidesPermissionsInterface', $plannedArtifacts['src/Provider/ApplicationBlueprintGovernanceServiceProvider.php'], 'shared permission catalogue contribution');
+        self::assertSame("article.article: editorial\n", $plannedArtifacts['config/sync/workflows.assignments.yml'], 'authored binding awaits a verified config:import');
+        self::assertStringContainsString('use Waaseyaa\\Api\\JsonApiController;', $plannedArtifacts['tests/Blueprint/JsonApiGovernanceChecksTest.php']);
+        $this->assertFixture('complete-planned', $planned);
+
+        // Apply: the identical plan is published under the same approval.
+        $applied = $this->runInit(['--yes', '--decision-receipt=decision.json']);
+        self::assertSame('applied', $applied['result']['outcome']);
+        self::assertSame($planned['evaluation']['plan_digest'], $applied['evaluation']['plan_digest']);
+        self::assertSame($planned['evaluation']['plan_digest'], $applied['receipts'][0]['plan_digest']);
+        self::assertSame($receipt->digest(), $applied['receipts'][0]['decision_receipt_id']);
+        self::assertSame('site.init', $applied['receipts'][0]['operation']);
+        foreach ($governancePaths as $path) {
+            self::assertContains($path, $applied['result']['changed']);
+            self::assertSame($this->golden($path), file_get_contents($this->root . '/' . $path), "published bytes for {$path}");
+            self::assertSame(0o644, fileperms($this->root . '/' . $path) & 0o777, "generated source mode for {$path}");
+        }
+        $evidence = json_decode((string) file_get_contents($this->root . '/.waaseyaa/generated.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('site-application-blueprint-v1', $evidence['application_blueprint']['generator_feature']);
+        self::assertSame(
+            json_decode($receipt->canonicalJson(), true, flags: JSON_THROW_ON_ERROR),
+            $evidence['application_blueprint']['decision_receipt'],
+            'applied evidence carries the exact canonical approval',
+        );
+        self::assertSame(['decision_receipt', 'generator_feature'], array_keys($evidence['application_blueprint']), 'closed evidence shape');
+        self::assertSame(0o644, fileperms($this->root . '/.waaseyaa/generated.json') & 0o777, 'transaction-owned evidence carries the managed artifact mode');
+        $this->assertFixture('complete-applied', $applied);
+
+        // Replay: an unchanged approved blueprint is a no-op with no byte drift.
+        $before = $this->snapshot();
+        $replay = $this->runInit(['--yes', '--decision-receipt=decision.json']);
+        self::assertSame('no_changes', $replay['result']['outcome']);
+        self::assertSame($planned['evaluation']['plan_digest'], $replay['result']['plan_digest']);
+        self::assertSame($receipt->digest(), $replay['receipts'][0]['decision_receipt_id']);
+        $this->assertFixture('complete-no-changes', $replay);
+        self::assertSame($before, $this->snapshot());
+
+        // Strict doctor: green, read-only, and never a database write.
+        $doctor = $this->runProcess(['site:doctor', '--strict', '--format=json'], 0);
+        self::assertSame([], $doctor['findings']);
+        self::assertSame($before, $this->snapshot(), 'Strict doctor is a read-only process boundary.');
+        self::assertFileDoesNotExist($this->root . '/probe.sqlite');
+    }
+
+    /** The golden emitter fixture bytes for a compiled `complete.yaml` artifact path. */
+    private function golden(string $path): string
+    {
+        $file = $this->repoRoot . '/packages/cli/tests/Fixtures/Blueprint/expected/complete/' . $path;
+        self::assertFileExists($file);
+
+        return (string) file_get_contents($file);
     }
 
     #[DataProvider('refusals')]

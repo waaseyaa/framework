@@ -120,8 +120,12 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
     {
         self::assertNoWorkflowFieldCollision($blueprint);
 
+        // Sorted by id so the emitted property order is a function of the
+        // canonical blueprint, not of the authored (or re-parsed) list order.
+        $relationships = array_values($blueprint->relationships);
+        usort($relationships, static fn(BlueprintRelationship $left, BlueprintRelationship $right): int => strcmp($left->id, $right->id));
         $relationshipsByFromEntity = [];
-        foreach ($blueprint->relationships as $relationship) {
+        foreach ($relationships as $relationship) {
             $relationshipsByFromEntity[$relationship->fromEntity][] = $relationship;
         }
         $boundEntityIds = self::workflowBoundEntityIds($blueprint);

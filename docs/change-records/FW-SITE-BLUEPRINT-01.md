@@ -555,11 +555,11 @@ here for #2788, never worked around in generated code).
 | Element | Canonical runtime target | Status |
 |---|---|---|
 | `roles[]` | `ProvidesRolesInterface::roles(): iterable<Role>` on a service provider (`packages/foundation/src/ServiceProvider/Capability/ProvidesRolesInterface.php:22-33`), collected by `RoleRepository::fromProviders()` (`packages/user/src/RoleRepository.php:50-55`; duplicate ids fail closed, `:43-44, 70`), kernel-bound (`packages/foundation/src/Kernel/AbstractKernel.php:1269-1270`); `Role(id, label, permissions, weight)` (`packages/user/src/Role.php:23-27`); assignment stamps the union of registry-known role permissions onto the account (`packages/cli/src/Handler/UserAssignRoleHandler.php:82-85, 111-126`); `User::hasPermission()` reads that flat array (`packages/user/src/User.php:194-204`) and short-circuits on the `administrator` role (`:185, :197`). | sufficient — with one compile-time refusal: a blueprint role id equal to `administrator` is refused (decision (c)). |
-| `permissions[]` | Enforcement authority is `AccountInterface::hasPermission(string)` over opaque strings (`packages/access/src/AccountInterface.php:20`). Catalogue authority: `PermissionHandlerInterface` (`packages/access/src/PermissionHandlerInterface.php:11-25`) is bound by nothing in production (`packages/access/src/Capability/McpApprovalCapabilities.php:18` records "framework binds no `PermissionHandlerInterface`"); the shipped catalogue shape is `AgentCapabilities::seed()` / `register(PermissionHandler)` (`packages/access/src/Capability/AgentCapabilities.php:83, 155-160`). Transition permissions are explicit strings resolved verbatim by `Workflow::permissionFor()` (`packages/workflows/src/Workflow.php:316-322`). | gap (recorded) + sufficient for enforcement — 01E emits the catalogue in the `seed()` shape and proves every referenced permission is catalogued at compile time and in a generated test; the framework cannot refuse boot on an unknown permission because no catalogue is bound (gap G1). |
+| `permissions[]` | Enforcement authority is `AccountInterface::hasPermission(string)` over opaque strings (`packages/access/src/AccountInterface.php:20`). Catalogue authority at design time: `PermissionHandlerInterface` (`packages/access/src/PermissionHandlerInterface.php:11-25`) was bound by nothing in production (`packages/access/src/Capability/McpApprovalCapabilities.php:18` recorded "framework binds no `PermissionHandlerInterface`"); the shipped catalogue shape is `AgentCapabilities::seed()` / `register(PermissionHandler)` (`packages/access/src/Capability/AgentCapabilities.php:83, 155-160`). Transition permissions are explicit strings resolved verbatim by `Workflow::permissionFor()` (`packages/workflows/src/Workflow.php:316-322`). | extend — accepted: 01E emits the catalogue in the `seed()` shape AND closes G1 upstream with `ProvidesPermissionsInterface`, `PermissionHandler::fromProviders()`, `RoleRepository::assertPermissionsCatalogued()` and the kernel-bound catalogue; an uncatalogued role grant fails boot (see "Gaps recorded", G1). |
 | `policies[]` | One `#[PolicyAttribute(entityType: '<id>')]` class (`packages/access/src/Gate/PolicyAttribute.php:35-53`) implementing `AccessPolicyInterface` (`packages/access/src/AccessPolicyInterface.php:15-40`), discovered by source scan of the root application's PSR-4 prefixes (`packages/foundation/src/Discovery/PackageManifestCompiler.php:1207-1225`; the skeleton maps `App\` to `src/`, `skeleton/composer.json:14-16`), instantiated at boot by `Waaseyaa\Foundation\Kernel\Bootstrap\AccessPolicyRegistry::discover()` (`packages/foundation/src/Kernel/Bootstrap/AccessPolicyRegistry.php:40-107`, called from `AbstractKernel.php:797`) which throws `PolicyInstantiationException` for any unresolvable constructor dependency (`:35-38, :122`), composed by `EntityAccessHandler::check()` (`packages/access/src/EntityAccessHandler.php:104-165`: Neutral start, `orIf`, Forbidden short-circuits) and `checkCreateAccess()` (`:438-460`). JSON:API applies `isAllowed()` on every path (`packages/api/src/JsonApiController.php:190, 353, 443-444, 463, 838-843, 1013-1014, 1445-1446`), so Neutral is deny. Decisions require an immutable `AuthorizationPrincipal` (`EntityAccessHandler.php:717-725`). The framework-default grants never reach generated types: `ContentAdminAccessPolicy` and `PublishedContentAccessPolicy` apply only to group `content` (`packages/access/src/Policy/ContentAdminAccessPolicy.php:45-57`, `PublishedContentAccessPolicy.php` `appliesTo`), and 01D-1 decision (e) registers generated types with no group. Note: the registry is not at `packages/access/src/Gate/AccessPolicyRegistry.php` (that path does not exist); `Gate/` holds `Gate`, `EntityAccessGate`, `PolicyAttribute`, `RevisionAccessRouter`. | sufficient for discovery, composition and default deny. |
 | `condition.kind: permission` | `$account->hasPermission(<permission>)` inside the generated policy. | sufficient |
 | `condition.kind: ownership` | Owner is the relationship field named by `keys.owner` (validated to be one, `packages/site-contract/src/Blueprint/ApplicationBlueprintValidator.php:129-131, 155-160`); owner equality follows `NodeAccessPolicy` exactly (`packages/node/src/NodeAccessPolicy.php:130-136`: authenticated AND owner not null AND `(string) id === (string) owner`, so anonymous is never an owner). Reading the owner value inside `access()`: a generated entity declares no `read:`, so the field is Internal and `get()` throws `FieldReadDenied` (`packages/entity/src/EntityValueContainer.php:68-71`; undeclared defaults to Internal, `packages/entity/src/EntityReadRuntime.php:176, 218`). The framework's own ownership readers escape scope with a bound closure into `EntityBase::$valueContainer->rawValues()` (`packages/node/src/NodeAuthorizationSnapshotReader.php:13-14`; the same pattern at fifteen production sites) — not an `@api` seam a consumer may copy. The V2 subject path (`ProtectedEntityReadPolicyInterface`, `PolicySubjectViewInterface`, both `@api`) receives declared inputs only through `@internal` interfaces (`packages/access/src/ClassifiedProtectedEntityReadPolicyInterface.php`, `ProjectedProtectedEntityReadPolicyInterface.php:10`) and is consulted for `view` only (`EntityAccessHandler.php:116-125`). | extend — 01E adds the L1 seam `Waaseyaa\Access\Read\AuthorizationInputReader` (decision (f)) and marks the owner field as an authorization input (decision (e)). |
-| `condition.kind: workflow_state` | Requires the entity bound to exactly one workflow (validator `:295-305`). The bound entity must declare `status` and `workflow_state` as ordinary fields (`packages/entity/src/Write/EntityWritePayloadGuard.php:53`; the shipped shape is `packages/node/src/Node.php:63-64, 81-82`: `status` boolean Protected authorization input, `workflow_state` string `stored: FieldStorage::Data` Protected authorization input). State is read through the same `AuthorizationInputReader`. | extend — `EntityClassEmitter` declares the two engine-owned selectors on bound entities (decision (e)). |
+| `condition.kind: workflow_state` | Requires the entity bound to exactly one workflow (validator `:295-305`). The bound entity must declare `status` and `workflow_state` as ordinary fields (`packages/entity/src/Write/EntityWritePayloadGuard.php:53`; the shipped shape is `packages/node/src/Node.php:63-64, 81-82`: `status` boolean Protected authorization input, `workflow_state` string `stored: FieldStorage::Data` Protected authorization input). State is read through the same `AuthorizationInputReader`. | extend — `EntityClassEmitter` declares the `workflow_state` selector on bound entities and refuses an authored `status`/`workflow_state` field (decision (e), accepted shape). |
 | `workflows[]` (definition) | `Workflow` config entity, entity type `workflow` (`packages/workflows/src/Workflow.php:18-20`), constructed from the `DefaultWorkflows::EDITORIAL` array shape (`packages/workflows/src/DefaultWorkflows.php`: `id, label, initial_state, states{label, published, default_revision}, transitions{label, from, to, permission}`), validated by `WorkflowValidator` (`packages/workflows/src/Validation/WorkflowValidator.php:26-60`), seeded at provider boot through `getRepository('workflow')` with log-and-skip and additive top-up (`packages/workflows/src/WorkflowServiceProvider.php:290-362, 365-401`). | sufficient — mirrored by the generated governance provider (decision (g)); `default_revision` is derived (decision (g)). |
 | `workflows[].bindings[]` | `workflows.assignments` config, key `<entity_type>.<bundle>` (`packages/workflows/src/Binding/WorkflowBindingResolver.php:30, 51-54`); a bundle-less entity reports its type id as bundle (`packages/entity/src/EntityBase.php:253-256`), so the exact key is `<id>.<id>`; CFG-03 schema `workflows.assignments@1` (`packages/workflows/src/Config/WorkflowAssignmentsConfig.php:14-17`); revisionable single-axis enforced at import and runtime (`WorkflowBindingResolver.php:62-90`). Activation is only a verified signed `config:import` (`docs/specs/config-management.md` CFG-02/CFG-03: production refuses unsigned activation until CFG-04; `docs/specs/content-workflow.md`: "Boot never copies legacy flat files or writes an assignment implicitly", bindings "are never copied into genesis or read directly from the sync directory at runtime"). Sync entry is `<sync>/workflows.assignments.yml` (`packages/config/src/Sync/ConfigSyncRepository.php:95-104`; read by `packages/cli/src/Handler/ConfigImportHandler.php:27`). | gap (recorded) — 01E emits the authored sync entry; activation is a runtime operation outside generation (gap G2). |
 | `workflows[].transitions[]` | `TransitionService::transition()` (`packages/workflows/src/Transition/TransitionService.php:84-100`): binding, edge, permission (`:149-158`, `REASON_PERMISSION`), group, revision-id CAS, own tip revision (`:191-288`); `WorkflowStateGuard::onPreSave()` forces `initial_state` on create and permission-gates a non-initial create (`packages/workflows/src/Listener/WorkflowStateGuard.php:76-79, 139-175`); HTTP `POST /api/{type}/{id}/workflow/transition` maps `REASON_PERMISSION` to 403 (`packages/api/src/Controller/WorkflowTransitionController.php:185-224, 356-362`). Audit entries are written by the service itself (`content-workflow.md` "Integration"). | sufficient |
@@ -607,9 +607,22 @@ only when a declared rule for that exact operation matches: `permission`
 requires `$account->hasPermission(p)`; `ownership` requires the permission
 and the owner equality of `NodeAccessPolicy.php:130-136`; `workflow_state`
 requires the permission and the entity's current `workflow_state` in the
-rule's `states`. It never returns `Forbidden`, so a stricter framework or
-application policy still wins, and it never inspects roles: role membership
-reaches a decision only through the permissions `user:assign-role` stamps.
+rule's `states`. At the entity level it never returns `Forbidden`, so a
+stricter framework or application policy still wins, and it never inspects
+roles: role membership reaches a decision only through the permissions
+`user:assign-role` stamps. At the field level (review gap 3, accepted): when
+the entity declares an authorization input — `keys.owner`, or the
+`workflow_state` selector on a workflow-bound entity — the generated class
+also implements `FieldAccessPolicyInterface` through the canonical
+`EntityAccessHandler::checkFieldAccess()` path: the owner field is
+edit-`Forbidden` once the entity is persisted (`EntityInterface::isNew()` is
+the lifecycle authority; create-time authorship stays settable, the
+`NodeAccessPolicy` `ADMIN_ONLY_EDIT_FIELDS` precedent) and `workflow_state`
+is edit-`Forbidden` always (`TransitionService` is its only writer), so an
+entity-level `update` grant can never rewrite the inputs it was decided on.
+`JsonApiController::store()`/`update()` consult that seal on every submitted
+attribute. `view` is never `Forbidden` here: Protected inputs are concealed
+by the read layout, and ordinary fields stay open-by-default.
 An entity that declares no policy gets no policy class, and every operation
 on it is denied by `isAllowed()`. Three declarations the validator admits
 cannot be represented safely and are refused by the emitter as
@@ -654,10 +667,16 @@ per `docs/specs/field-access.md`); the relationship field named by
 ordinary projection (`packages/api/src/ResourceSerializer.php:118-134,
 247-248` drops Protected fields and catches `FieldReadDenied`, so no
 protected-read grant is required for serialization); and an entity bound to
-a workflow additionally declares `status` and `workflow_state` byte-for-byte
-in Node's shape (`Node.php:63-64, 81-82`, `use Waaseyaa\Field\FieldStorage;`,
-`stored: FieldStorage::Data`), because they are engine-owned selectors the
-contract never authors. Golden fixtures for `minimal.yaml` and
+a workflow additionally declares the `workflow_state` selector byte-for-byte
+as `Node::$workflow_state` (`Node.php:81-82`, `use Waaseyaa\Field\FieldStorage;`,
+`stored: FieldStorage::Data`, `read: Protected`, `authorizationInput`),
+because it is the engine-owned selector the contract never authors.
+**Accepted shape (review round 1, F3/F4):** the emitter does NOT also emit
+Node's boolean `status`; a bound entity that authors its own `status` or
+`workflow_state` field is refused `GEN007_UNSUPPORTED_DECLARATION` before
+any artifact exists, and widening the emitted pair to Node's full
+`status`+`workflow_state` shape stays a recorded follow-up rather than a
+claim of this slice. Golden fixtures for `minimal.yaml` and
 `complete.yaml` change accordingly and are re-recorded in 01E. A
 contract-level `read_level` per field (follow-up F2) would override the
 first rule when it exists; a blueprint-declared `default_revision` per
@@ -753,6 +772,30 @@ names is a catalogue constant; and that every entity with a policy has a
 discovered `#[PolicyAttribute]` class. `fixture_present` and any check that
 needs a persisted fixture row belong to 01D-3 and are not emitted.
 
+**Accepted addition (review gap 2):** whenever the blueprint declares at
+least one policy, `GovernanceCheckEmitter` also emits
+`tests/Blueprint/JsonApiGovernanceChecksTest.php`, which drives EVERY
+blueprint entity through the real `Waaseyaa\Api\JsonApiController`
+(`store()`, `index()`, `show()`, `update()`, `destroy()`) composed with a
+real `EntityAccessHandler` over the generated policy (or none), a
+`TemporarySqliteDatabase`-backed `EntityRepository` built through
+`V2EntityRepositoryFactory`, and immutable principals. Per entity and
+operation it asserts the exact status and document shape for a
+permission-less principal (and anonymous on `show`: the canonical `404`
+not-found shape with no error code, never an existence oracle; `200` with an
+empty collection and `meta.total` `0` for a filtered list; `403` for
+writes), the allowed path built from the first declared policy for that
+operation (permission held, ownership satisfied, workflow state matched),
+and near-miss denials for `ownership`/`workflow_state` conditions (holding
+the permission but not the owner / outside the listed states). The allowed
+`update` path additionally proves the decision (c) field seal: reassigning
+`keys.owner` or writing `workflow_state` is `403`. Entities without a policy
+receive denied-only coverage, the honest maximum. The reference
+`complete.yaml` therefore declares `article_create` (permission) and
+`article_delete_own` (ownership) so every operation has both an allowed and
+a denied proof. This is in-process composition through the real controller,
+not #2789's packaged HTTP/admin journey.
+
 **(j) Exposure is not emitted.** Generated types stay `api: false`
 (mapping row "API exposure"). Turning generic JSON:API routes on is a
 deployment decision through `api.entity_type_allowlist`, not blueprint
@@ -761,20 +804,48 @@ access handler directly, which do not depend on route exposure. An
 unprotected exposed entity is therefore impossible from generation alone.
 
 **(k) What 01E does not claim.** 01E proves governance composition
-in-process through the same handler, service and predicate JSON:API and
-the transition endpoint apply. It does not claim #2789's packaged
-HTTP-level acceptance, does not activate configuration, and does not
-materialize fixtures.
+in-process through the same handler, service, real `JsonApiController`
+methods and predicate the JSON:API routes and the transition endpoint
+apply, and through the real `site:init`/`site:doctor` console process. It
+does not claim #2789's packaged HTTP/admin-level acceptance, does not
+activate configuration, and does not materialize fixtures.
 
-### Gaps recorded for #2788 (not worked around)
+**(l) Emitters are pure functions of the canonical blueprint.** The
+complete-blueprint console proof (`SiteBlueprintProcessTest`) found that
+strict doctor recompiles from the published `.waaseyaa/site.yaml`, whose
+canonical key order re-parses fixture values and relationship lists in a
+different order than the authored YAML; an emitter that iterated parse
+order produced different companion-test bytes and the doctor reported
+`SITE010_GENERATED_ARTIFACT_DRIFT` on an untouched project. Every emitter
+now sorts fixture values, relationships, fields, policies, roles, workflows
+and checks by id before rendering; digests were unaffected (the canonical
+form already sorted), only bytes were.
 
-- **G1 — no bound permission-catalogue authority.** `PermissionHandlerInterface`
-  has no production binding, so the framework cannot refuse boot on an
-  unknown permission. 01E enforces the invariant at compile time and in
-  `GovernanceDefaultDenyTest`. Candidate framework fix: a
-  `ProvidesPermissionsInterface` provider capability collected into a
-  kernel-bound `PermissionHandler`, the role registry's pattern
-  (`AbstractKernel.php:1269-1270`).
+### Gaps recorded for #2788
+
+- **G1 — closed: one bound permission-catalogue authority.** Landed as
+  designed: `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface`
+  (`ProvidesRolesInterface`'s sibling, `@api`),
+  `PermissionHandler::fromProviders(iterable $providers, array $declared)`
+  composing the compiled manifest's `extra.waaseyaa.permissions` entries
+  with every contributing provider (duplicate or empty ids fail closed with
+  `LogicException`), `RoleRepository::assertPermissionsCatalogued()`, and
+  `AbstractKernel::composePermissionCatalogue()` after provider boot: a
+  `ProvidesRolesInterface` role granting an uncatalogued permission is a
+  hard boot `RuntimeException` naming every offending grant and the role
+  providers, and the catalogue is served through
+  `AbstractKernel::permissionCatalogue()` and bound in the handler container
+  as `PermissionHandlerInterface` (so `permission:list` reads the instance
+  the validation ran against). The generated
+  `ApplicationBlueprintGovernanceServiceProvider` implements the capability
+  and returns `ApplicationBlueprintPermissions::seed()`, and is emitted
+  whenever a blueprint declares permissions, roles or workflows. Proven by
+  `tests/Integration/PermissionCatalogue/PermissionCatalogueBootTest.php`
+  (real-kernel boot refusal and container binding), `PermissionHandlerTest`,
+  `RoleRepositoryTest` and `GovernanceProviderEmitterTest`. Transition and
+  policy permissions are still proven catalogued at compile time and in
+  `GovernanceDefaultDenyTest`; the boot check covers role grants, the only
+  path that stamps permissions onto accounts.
 - **G2 — no pure-generation path activates a workflow binding.**
   Activation requires a signed, verified `config:import`
   (`config-management.md` CFG-02/CFG-03) and production refuses unsigned
@@ -795,9 +866,10 @@ materialize fixtures.
 - **G4 — no consumer-facing in-process HTTP harness.** `InteractsWithApi`
   builds descriptors and `CreatesApplication` is a service bag
   (`packages/testing/src/Traits/InteractsWithApi.php:35-37`,
-  `CreatesApplication.php:16`). Generated tests therefore compose the
-  controller and services directly, the framework's own precedent; the
-  HTTP journey is #2789's harness.
+  `CreatesApplication.php:16`). Generated tests therefore compose the real
+  `JsonApiController` and services directly (decision (i), accepted
+  addition), the framework's own precedent; the HTTP journey is #2789's
+  harness.
 - **G5 — the field-read default.** A registered type's undeclared fields
   are Internal (`EntityReadRuntime.php:176, 218`); decision (e) declares
   levels explicitly for generated entities and F2 records the contract
@@ -819,14 +891,19 @@ registrations.
 | `AccessPolicyEmitter` (`access-policy`) | `src/Access/<PascalCase(entity.id)>Policy.php` per entity with at least one policy | — |
 | `WorkflowDefinitionEmitter` (`workflow-definition`) | `src/Workflow/<PascalCase(workflow.id)>WorkflowDefinition.php` per workflow; `config/sync/workflows.assignments.yml` when any binding exists | — |
 | `GovernanceProviderEmitter` (`governance-provider`) | `src/Provider/ApplicationBlueprintGovernanceServiceProvider.php` | one registration, FQCN `App\Provider\ApplicationBlueprintGovernanceServiceProvider`, no group |
-| `GovernanceCheckEmitter` (`governance-checks`) | `tests/Blueprint/GovernanceDefaultDenyTest.php` always; `RolePermissionChecksTest.php`, `WorkflowTransitionChecksTest.php`, `EntityAccessChecksTest.php` when declared | every emitted test path |
+| `GovernanceCheckEmitter` (`governance-checks`) | `tests/Blueprint/GovernanceDefaultDenyTest.php` always; `RolePermissionChecksTest.php`, `WorkflowTransitionChecksTest.php`, `EntityAccessChecksTest.php` when declared; `JsonApiGovernanceChecksTest.php` when any policy is declared | every emitted test path |
 
 Roster after 01E: `entity-class`, `relationship-registry`,
 `provider-registration`, `permission-catalogue`, `access-policy`,
 `workflow-definition`, `governance-provider`, `governance-checks`.
 
 Framework additions outside the emitters: `packages/access/src/Read/AuthorizationInputReader.php`
-(decision (f)) and the three `EntityClassEmitter` rules of decision (e).
+(decision (f)); the three `EntityClassEmitter` rules of decision (e); and
+the shared permission-catalogue authority of G1 (closed):
+`ProvidesPermissionsInterface`, `PermissionHandler::fromProviders()`,
+`RoleRepository::assertPermissionsCatalogued()`, the kernel's
+`composePermissionCatalogue()`/`permissionCatalogue()` and its
+`PermissionHandlerInterface` container binding.
 
 ### 01E red tests
 
@@ -842,7 +919,14 @@ Framework additions outside the emitters: `packages/access/src/Read/Authorizatio
    rule allowed in `draft`, neutral in `published`; `create` with a
    permission rule allowed, without it neutral; `ownership`/`workflow_state`
    on `create` and a role id `administrator` refuse `GEN007` with pointers
-   before any artifact is produced; the class never returns `Forbidden`.
+   before any artifact is produced; the class never returns an entity-level
+   `Forbidden`. Accepted addition (review gap 3): the class implements
+   `FieldAccessPolicyInterface` and, through `EntityAccessHandler::checkFieldAccess()`,
+   an owner holding an entity-level update grant may edit `title` but is
+   `Forbidden` on `author` for a persisted entity and on `workflow_state`
+   always, may still set `author` on a new entity, and is never `Forbidden`
+   on `view`; a policy for an entity with no authorization input does not
+   implement the field interface.
 3. `WorkflowDefinitionEmitterTest.php` — golden definition and assignments
    yml; `new Workflow(<DEFINITION>)` passes `WorkflowValidator`;
    `permissionFor()` equals the blueprint's transition permission;
@@ -852,19 +936,31 @@ Framework additions outside the emitters: `packages/access/src/Read/Authorizatio
    differs from 01D-1's and carries no group; `RoleRepository::fromProviders()`
    yields exactly the blueprint roles and permissions; seeding against an
    in-memory `workflow` repository creates the definition once and tops up
-   an existing one additively without deleting a state or transition.
+   an existing one additively without deleting a state or transition;
+   accepted addition (G1): the loaded provider implements
+   `ProvidesPermissionsInterface`, `permissions()` equals the generated
+   `ApplicationBlueprintPermissions::seed()`, and `RoleRepository::
+   assertPermissionsCatalogued(PermissionHandler::fromProviders([$provider]))`
+   accepts every generated role grant.
 5. `GovernanceCheckEmitterTest.php` — golden tests for `complete.yaml`'s
-   three emitted checks and the default-deny test; `companionTests` equals
-   the emitted paths; no `fixture_present` artifact; the emitted tests
-   never reference `administer`, `administrator`, or a `*` permission.
+   three emitted checks, the default-deny test and the JSON:API companion;
+   `companionTests` equals the emitted paths; no `fixture_present`
+   artifact; the emitted tests never reference `administer`,
+   `administrator`, or a `*` permission. Its end-to-end proof materializes
+   every emitter's output for `complete.yaml` and runs the emitted
+   `tests/Blueprint` suite in a child process through
+   `Symfony\Component\Process\Process` (the #2491 house pattern;
+   `SubprocessHarnessContractTest` forbids a raw `proc_open()` in test
+   scope), asserting exit 0 and the exact method count — the real
+   `TransitionService` and the real `JsonApiController` both execute.
 6. `ApplicationBlueprintCompilerTest.php` (extended) — the factory roster
    ids and order are exactly the eight above; `complete.yaml` compiles
    deterministically with two registrations of distinct FQCNs; the union
    path set is disjoint; the compiler file is byte-identical to 01D-1's.
 7. `EntityClassEmitterTest.php` (extended) — the owner field carries
    `read: Protected` and `authorizationInput`; a bound entity declares
-   `status` and `workflow_state` in Node's shape and an unbound one does
-   not; ordinary fields carry `read: Public`; a generated entity loaded
+   `workflow_state` in `Node::$workflow_state`'s shape (and no `status`)
+   and an unbound one does not; ordinary fields carry `read: Public`; a generated entity loaded
    through the real read runtime answers `get('title')` and refuses
    `get('author')` without context (R2-5 closed for ordinary fields, kept
    for authorization inputs).
@@ -872,17 +968,42 @@ Framework additions outside the emitters: `packages/access/src/Read/Authorizatio
    returns only authorization-input fields; returns `[]` for an entity
    without the marker; works with no guard installed; the returned array is
    a copy.
-9. `tests/Architecture/BlueprintGovernanceEmitterBoundaryTest.php` — the
-   five emitter sources contain no filesystem, clock or environment calls
-   (the 01D-1 scan extended); `ApplicationBlueprintCompiler.php` is
-   unchanged from 01D-1; every emitted golden references only `@api`
-   framework types; `packages/cli/public-surface.php` and
-   `packages/access/public-surface.php` declare the new types.
-10. `packages/cli/tests/Integration/Blueprint/GeneratedGovernanceExecutionTest.php` —
-    materializes `complete.yaml`'s compiled plan into a `TemporaryDirectory`,
-    autoloads `App\` from it, and runs the emitted `tests/Blueprint` suite
-    through `proc_open` (POSIX-only, as the release-tooling tests), asserting
-    exit 0: packaged tests exercise runtime enforcement, not only snapshots.
+9. Architecture registrations (accepted shape; no dedicated
+   `BlueprintGovernanceEmitterBoundaryTest` was added — the existing gates
+   own these invariants): `BlueprintCompilerActivationBoundaryTest` keeps
+   the compiler and emitter sources free of filesystem, clock and
+   environment calls and `ApplicationBlueprintCompiler.php` unchanged;
+   `GenerationStagedActivationBoundaryTest` records the six emitters as
+   reviewed compile-time refusal sites of the closed `GenerationRefusalException`
+   family; `FieldReadBoundaryArchitectureTest` lists
+   `AuthorizationInputReader` in the closed raw-authority roster;
+   `S1SchemaAuthorityContractTest` classifies `GovernanceCheckEmitter` as
+   `tooling-generator` (its heredocs render generated tests, it executes no
+   schema boundary); surface parity verifies the `@api` declarations in
+   `packages/cli/public-surface.php`, `packages/access/public-surface.php`
+   and `packages/foundation/public-surface.php`.
+10. Runtime execution of the generated suite lives in
+    `GovernanceCheckEmitterTest::everyGeneratedCompanionTestPassesWhenExecutedAgainstTheFullyMaterializedBlueprint()`
+    (item 5), not in a separate `GeneratedGovernanceExecutionTest`.
+11. `packages/cli/tests/Integration/SiteBlueprintProcessTest.php` (extended,
+    accepted) — beside the unchanged minimal positive and refusal flows, a
+    separate complete-blueprint flow through the real console process:
+    `site:init --dry-run` plans every governance artifact byte-identical to
+    the golden emitter fixtures (permission catalogue, discoverable and
+    field-sealing `ArticlePolicy`, governance provider contributing the
+    catalogue, workflow definition, `workflows.assignments.yml`, all five
+    companion tests including the JSON:API companion, two distinct
+    provider registrations) with the plan digest bound to the canonical
+    plan; `--yes` publishes those bytes at mode `0644`, binds the receipt's
+    `plan_digest` and `decision_receipt_id`, and writes
+    `.waaseyaa/generated.json` with the closed
+    `{decision_receipt, generator_feature}` evidence carrying the exact
+    canonical approval; an unchanged replay is `no_changes` with a
+    byte-identical project snapshot; `site:doctor --strict --format=json`
+    reports zero findings, changes no byte and creates no database. The
+    envelopes are pinned as `complete-planned.json`,
+    `complete-applied.json` and `complete-no-changes.json` beside the
+    unchanged minimal fixtures. This flow is what exposed decision (l).
 
 ### Out of scope for 01E
 
