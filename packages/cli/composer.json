@@ -134,6 +134,10 @@
         },
         {
             "type": "path",
+            "url": "../api"
+        },
+        {
+            "type": "path",
             "url": "../node"
         },
         {
@@ -194,6 +198,7 @@
         "phpunit/phpunit": "^13.0",
         "waaseyaa/ai-agent": "^0.1.0-alpha.300",
         "waaseyaa/ai-tools": "^0.1.0-alpha.300",
+        "waaseyaa/api": "^0.1.0-alpha.300",
         "waaseyaa/node": "^0.1.0-alpha.300",
         "waaseyaa/oidc": "^0.1.0-alpha.300",
         "waaseyaa/relationship": "^0.1.0-alpha.300",
