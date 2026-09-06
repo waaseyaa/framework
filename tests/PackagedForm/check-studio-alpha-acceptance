@@ -332,7 +332,8 @@ if [[ "$browser_status" -ne 0 ]]; then
 fi
 
 echo "== Phase 9/13: typed concealed 404 for a real denied and a missing read"
-run_waaseyaa entity-create entity:create node --field title='Concealed draft' --field status=0 \
+run_waaseyaa entity-create entity:create node --field type=page --field title='Concealed draft' \
+    --field slug=concealed-draft --field status=0 \
     || { cat "$work/entity-create.out" >&2; echo 'Could not seed an unpublished resource.' >&2; exit 1; }
 denied_id="$(grep -Eo '[0-9]+' "$work/entity-create.out" | tail -1)"
 if [[ -z "$denied_id" ]]; then
