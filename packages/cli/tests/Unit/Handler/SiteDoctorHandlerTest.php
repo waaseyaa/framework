@@ -55,10 +55,10 @@ final class SiteDoctorHandlerTest extends TestCase
         self::assertStringNotContainsString('OK', $tester->getStdout());
     }
 
-    public function testProviderRegistersInitDoctorAndApplyCommands(): void
+    public function testProviderRegistersSiteCommandsAndProjectInitializer(): void
     {
         $commands = iterator_to_array(new SiteServiceProvider($this->fixture())->consoleCommands());
-        self::assertSame(['site:init', 'site:doctor', 'site:apply'], array_map(static fn($command): string => $command->getName(), $commands));
+        self::assertSame(['site:init', 'site:doctor', 'site:apply', 'project:init'], array_map(static fn($command): string => $command->getName(), $commands));
     }
 
     public function testCountPreservingGeneratedMetadataSubstitutionCannotPass(): void
