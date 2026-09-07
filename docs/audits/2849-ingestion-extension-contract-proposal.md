@@ -115,27 +115,52 @@ envelope validation entry points (`MessageEnvelopeValidator::validate(array):
 Envelope`, `PayloadValidator::validate(Envelope): array`). Unmarked is the
 worst state: not committed, not disclaimed.
 
-Proposed resolution, in order of preference:
+**The envelope wire format being public does not make these classes public.**
+An earlier draft of this proposal argued it did. That was a category error and
+is withdrawn. `CLAUDE.md`'s statement that the framework "defines the ingestion
+envelope contract that external tools (Python harvesters) must follow" commits
+a **JSON document shape** consumed across a process boundary by non-PHP
+programs. `MessageEnvelopeValidator::validate(array): Envelope` is a **PHP
+class contract** — constructor shape, method signature, exception type, return
+type. The two can vary independently: the wire format could stay frozen for
+years while the validating class is replaced, split or re-namespaced, and a
+consumer pinned to the class would break while every harvester kept working.
+Committing the class because the format is public would take on a semver
+obligation nobody asked for, on a class with zero first-party callers.
 
-1. **Commit them `@api`.** The envelope format is *already* an external
-   contract — `CLAUDE.md` states the framework "defines the ingestion envelope
-   contract that external tools (Python harvesters) must follow". Each is a
-   `final class` with a single public method, so the committed surface is tiny.
-   `Envelope`, `InvalidEnvelopeException` and `IngestionLogger` already carry
-   `@api`; `IngestionErrorCode` is already declared `public`. Committing three
-   more closes a documented contract that is presently unowned.
-2. If (1) is refused, mark them `@internal` and have `EnvelopeSource` own its
-   own validation. That is worse — it forks envelope semantics — but it is at
-   least a decision.
+Proposed resolution, and the choice is genuinely open:
+
+1. **Mark them `@internal` and declare them so.** They are the implementation
+   of a wire contract, not the contract. This is the default answer unless
+   someone identifies a consumer that needs to call them in PHP.
+2. **Commit them `@api`** only if a named consumer requirement exists — an
+   application that must validate an envelope in PHP *before* handing it to a
+   source plugin, and cannot do so through a higher-level seam. That
+   requirement has not been demonstrated; if it is, (2) becomes right.
+
+Either way the outcome is a **decision recorded in
+`packages/foundation/public-surface.php`**. The defect is that they are
+currently neither, which leaves consumers to guess and leaves the framework
+unable to change them safely.
 
 **`Waaseyaa\Ingestion\EnvelopeValidator` and `PayloadValidatorInterface` stay
-`internal`.** They have zero production callers and nothing extends them, so
-the cost of keeping them closed is zero. The one required change is deleting
-the sentence "Applications extend this to provide their supported versions,
-entity types, and entity-specific validation rules" from
-`packages/ingestion/src/EnvelopeValidator.php`, which contradicts the package's
-own declared disposition. The contradiction is resolved by **narrowing**, not
-by widening.
+`internal`, and stay *present*.** An earlier draft reasoned that zero
+production callers made them free to remove. That reasoning is withdrawn:
+`packages/ingestion` is split-mirrored to its own repository
+(`.github/workflows/split.yml:53`) and published as `waaseyaa/ingestion`, so
+"no callers" is evidence about **this repository only**. Any Packagist
+consumer may have taken the class up — and its docblock actively invited them
+to ("Applications extend this…"), which makes an extending consumer the
+*expected* case rather than a hypothetical one, notwithstanding the
+`@internal` marker they may never have read.
+
+The one change with no compatibility cost is **deleting the invitation**: the
+sentence "Applications extend this to provide their supported versions, entity
+types, and entity-specific validation rules" contradicts the package's own
+declared disposition and should go, so the contradiction stops recruiting new
+extenders. Removing the *classes* is a separate, later decision requiring a
+deprecation window and release-note treatment (see Compatibility below), not a
+cleanup.
 
 ## Application example
 
@@ -234,6 +259,132 @@ Each is written to fail for one specific defect, not to pass trivially.
    row is present.
    *Discriminates:* fails if discovery works only in the monorepo — the class
    of defect #2857 already found once for recipe providers.
+
+## ADR-012a verified against current code
+
+Checked before relying on it, at `8747683ea`. The substrate is real, with one
+documented drift.
+
+| ADR-012a claim | Code | Verdict |
+|---|---|---|
+| `SourcePluginInterface` stable | `packages/migration/src/Plugin/SourcePluginInterface.php:22`, `@api`, declared `public` | **holds** |
+| `ProcessPluginInterface`, `DestinationPluginInterface` stable | `packages/migration/src/Plugin/`, both declared `public` | **holds** |
+| `MigrationDefinition` manifest with source/process/destination/dependencies | `packages/migration/src/MigrationDefinition.php:68-81` — carries all four plus `description`, `memoryBudgetBytes`, `errorRateWarn/Halt`, `bundle`, `fieldReads`, advisory codes | **holds, and is wider than the ADR sketch** |
+| `EntityDestination` respects access policies and lifecycle events | ctor takes `GateInterface` and `EventDispatcherInterface` (`Plugin/Destination/EntityDestination.php:164-165`) | **holds** |
+| `migration_id_map` idempotency primitive | `MigrationIdMap`, `Schema/MigrationIdMapSchema`, both declared `public` | **holds** |
+| Six `import:*` CLI commands | `packages/cli/src/Provider/ImportServiceProvider.php:165-286` | **holds** |
+| Conformance bases as stable surface | `packages/migration/testing/SourceConformanceTestCase.php:56`, `DestinationConformanceTestCase.php:51`, both declared `public` | **holds** |
+| "`SourceIdInterface` for source records" is stable surface | **No such interface exists.** `rg -n "SourceIdInterface" packages/ --type=php` returns nothing outside tests; the shipped type is a `final readonly class SourceId` (`packages/migration/src/SourceId.php`) | **DRIFT — ADR names an interface the code never shipped** |
+| Migration platform status | `docs/specs/migration-platform.md:11` — "Status: Stable (M-002 landed, 2026-05-13)" | **holds** |
+
+The `SourceIdInterface` drift matters for this proposal only in that a source
+plugin returns a concrete `SourceId`, not an interface, so third-party
+substitution of identity semantics is not available. That is a fine v1 answer;
+it should be corrected in ADR-012a's text rather than implemented into code.
+
+### Where the existing mechanism is preferred — and where it is not enough
+
+Preferred, per the instruction to reuse it: everything above. A consumer
+importing foreign records into entities should use `SourcePluginInterface` +
+process plugins + `EntityDestination` + `import:*`, and this proposal adds
+nothing to that path.
+
+The honest limit: ADR-012a `012a:97` states "**No incremental / continuous
+sync** in v0.x. Migrations are one-shot operations." A recurring harvester feed
+— which is what the `ingest:run` envelope pipeline exists for — is therefore
+**outside** what the migration substrate promises today. Two consequences:
+
+- For **one-shot backfills** of envelope data, the migration substrate already
+  meets the requirement and no new contract is needed at all.
+- For **recurring ingestion**, either ADR-012a's continuous-sync door is opened
+  by a further decision, or recurring ingestion is served by a different seam.
+  This proposal does not decide that, and #2849's ingestion clause cannot be
+  closed until someone does.
+
+## Recommended disposition per implementation
+
+Each disposition is a recommendation for review, not an action taken.
+
+### 1. `ingest:run` pipeline (`packages/cli/src/Ingestion/*`) — **retain, narrow, document**
+
+The only ingestion code with live behaviour and four governing specs. It emits
+JSON and never persists (`docs/specs/ingestion-defaults.md:65`), which is a
+legitimate narrower purpose: validation, diagnostics, editorial review and
+refresh planning ahead of any write.
+
+- Keep it. Document that narrower purpose explicitly where the specs now imply
+  a persistence pipeline.
+- Its collaborators carry no `@api`/`@internal` markers; they are CLI-package
+  implementation and should be declared `internal`.
+- **Compatibility:** none. `waaseyaa/cli` ships them; no signature changes.
+
+### 2. `packages/foundation/src/Ingestion/*` — **decide the markers; do not delete**
+
+`Envelope`, `InvalidEnvelopeException`, `IngestionLogger`, `IngestionLogEntry`
+carry `@api`. `MessageEnvelopeValidator`, `PayloadValidator`, `IngestionError`,
+`UuidV4TraceIdGenerator` carry nothing. `IngestionErrorCode` and
+`TraceIdGeneratorInterface` are declared `public`.
+
+- Give the unmarked four a disposition — `internal` unless a consumer
+  requirement is named (see above).
+- **Do not remove anything.** `waaseyaa/foundation` is the most widely
+  installed package in the graph; every metapackage requires it.
+- **Compatibility:** marking an unmarked class `@internal` is not a break — it
+  removes an implied promise that was never made. It should still appear in
+  release notes, because consumers may have inferred a promise from the class
+  being shipped and documented in `ingestion-defaults.md`.
+
+### 3. `packages/ingestion` (`EnvelopeValidator`, `PayloadValidatorInterface`) — **keep, stop advertising, deprecate deliberately if at all**
+
+- Delete the "Applications extend this…" sentence. Zero compatibility cost;
+  stops the contradiction recruiting extenders.
+- If removal is ever wanted, it needs the full path: a deprecation notice in
+  the class, a release-note entry, a stated window, and a successor named. The
+  package is published and split-mirrored; a Packagist consumer extending
+  `EnvelopeValidator` is exactly what the docblock asked for.
+- **Compatibility:** deletion today would be a silent break for any such
+  consumer, undetectable from this repository.
+
+### 4. `packages/note/src/Ingestion/*` — **leave alone; treat as precedent, not duplication**
+
+`NoteIngester` is the one working envelope-to-entity path. It is content-type
+local with its own DTO. It is not a competing framework contract and should not
+be consolidated away as part of this work.
+
+- **Compatibility:** none; untouched.
+
+### 5. Specifications — **correct the drift**
+
+`docs/specs/ingestion-defaults.md:19-32` documents the foundation pipeline as
+the live one. The live one is `ingest:run`, documented by four other specs.
+`docs/specs/app-level-ingestion.md`, required by ADR-012's own acceptance, was
+never written; ADR-012 is superseded, so that deliverable should be formally
+retired rather than left outstanding. ADR-012a's `SourceIdInterface` reference
+should be corrected to `SourceId`.
+
+## Focused acceptance criteria
+
+For the consolidation work, not for a runtime implementation:
+
+1. Every class under `packages/foundation/src/Ingestion/`,
+   `packages/ingestion/src/` and `packages/cli/src/Ingestion/` carries exactly
+   one disposition — `@api` or `@internal` — and every scanned contract shape
+   among them appears in its package's `public-surface.php`. Verified by an
+   architecture test that fails on an unmarked class in those three trees.
+2. No first-party source or spec advertises extension of a type declared
+   `internal`. Verified by an architecture test asserting
+   `EnvelopeValidator`'s docblock carries no "Applications extend" claim.
+3. `docs/specs/ingestion-defaults.md` describes the pipeline that actually
+   runs, and names the foundation types' status. Verified by review, with the
+   spec-drift detector acknowledging the change.
+4. ADR-012a's `SourceIdInterface` reference is corrected, or the interface
+   ships. Verified by a documentation test asserting every type ADR-012a names
+   as stable surface resolves to a real declared-public symbol.
+5. No class is removed from a published package in this work. Verified by
+   `bin/check-surface-parity` and the release-notes discipline; any future
+   removal carries a deprecation window.
+6. #2849's ingestion clause remains open and is explicitly not claimed by this
+   work.
 
 ## What this proposal does not do
 
