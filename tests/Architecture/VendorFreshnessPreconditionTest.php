@@ -168,6 +168,361 @@ final class VendorFreshnessPreconditionTest extends TestCase
     }
 
     #[Test]
+    public function equal_package_metadata_cannot_hide_a_runtime_static_psr4_map_bound_to_a_donor_checkout(): void
+    {
+        $donor = $this->scratchDirectory('waaseyaa-vendor-donor-');
+        new Filesystem()->mkdir($donor . '/src');
+        $root = $this->fixture(
+            locked: [self::pkg('waaseyaa/cli', 'dev-main', 'bbbb')],
+            installed: [self::pkg('waaseyaa/cli', 'dev-main', 'bbbb')],
+            declaredNamespaces: ['Waaseyaa\\Candidate\\'],
+            dumpedNamespaces: ['Waaseyaa\\Candidate\\'],
+        );
+        $this->writeAutoloadMaps(
+            $root,
+            psr4: ['Waaseyaa\\Candidate\\' => [$root . '/x']],
+            staticPsr4: ['Waaseyaa\\Candidate\\' => [$donor . '/src']],
+        );
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertSame('composer install', $problem['fix']);
+        self::assertStringContainsString('runtime-static PSR-4', $problem['detail']);
+        self::assertStringContainsString($donor . '/src', $problem['detail']);
+        self::assertStringContainsString($root, $problem['detail']);
+    }
+
+    #[Test]
+    public function an_ordered_compatibility_psr4_fallback_cannot_include_a_donor_path(): void
+    {
+        $donor = $this->scratchDirectory('waaseyaa-compat-donor-');
+        new Filesystem()->mkdir($donor . '/src');
+        $root = $this->fixture(
+            locked: [],
+            installed: [],
+            declaredNamespaces: ['Waaseyaa\\Candidate\\'],
+            dumpedNamespaces: ['Waaseyaa\\Candidate\\'],
+        );
+        $this->writeAutoloadMaps(
+            $root,
+            psr4: ['Waaseyaa\\Candidate\\' => [$root . '/x', $donor . '/src']],
+            staticPsr4: ['Waaseyaa\\Candidate\\' => [$root . '/x']],
+        );
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString('compatibility PSR-4', $problem['detail']);
+        self::assertStringContainsString($donor . '/src', $problem['detail']);
+    }
+
+    #[Test]
+    public function a_more_specific_generated_prefix_cannot_shadow_an_owned_prefix_with_a_donor(): void
+    {
+        $donor = $this->scratchDirectory('waaseyaa-prefix-donor-');
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Project\\'], dumpedNamespaces: ['Project\\']);
+        $this->writeAutoloadMaps($root, psr4: [
+            'Project\\' => [$root . '/x'],
+            'Project\\Feature\\' => [$donor],
+        ]);
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString('PSR-4 Project\\Feature\\', $problem['detail']);
+        self::assertStringContainsString($donor, $problem['detail']);
+    }
+
+    #[Test]
+    public function a_more_specific_prefix_declared_by_an_external_package_remains_third_party(): void
+    {
+        $donor = $this->scratchDirectory('acme-feature-package-');
+        new Filesystem()->mkdir($donor . '/src');
+        $package = self::pathPkg('acme/feature', $donor, 'Project\\Feature\\');
+        $root = $this->fixture(
+            locked: [$package],
+            installed: [$package],
+            declaredNamespaces: ['Project\\'],
+            dumpedNamespaces: ['Project\\'],
+        );
+        $this->writeAutoloadMaps($root, psr4: [
+            'Project\\' => [$root . '/x'],
+            'Project\\Feature\\' => [$donor . '/src'],
+        ]);
+
+        self::assertNull(vendor_freshness_problem($root));
+    }
+
+    #[Test]
+    public function an_optimized_first_party_classmap_entry_cannot_override_psr4_with_a_donor_file(): void
+    {
+        $donor = $this->scratchDirectory('waaseyaa-classmap-donor-');
+        new Filesystem()->dumpFile($donor . '/Candidate.php', "<?php\n");
+        $root = $this->fixture(
+            locked: [],
+            installed: [],
+            declaredNamespaces: ['Waaseyaa\\Candidate\\'],
+            dumpedNamespaces: ['Waaseyaa\\Candidate\\'],
+        );
+        new Filesystem()->dumpFile($root . '/x/Candidate.php', "<?php\n");
+        $this->writeAutoloadMaps(
+            $root,
+            psr4: ['Waaseyaa\\Candidate\\' => [$root . '/x']],
+            classmap: ['Waaseyaa\\Candidate\\Candidate' => $root . '/x/Candidate.php'],
+            staticClassmap: ['Waaseyaa\\Candidate\\Candidate' => $donor . '/Candidate.php'],
+        );
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString('runtime-static classmap Waaseyaa\\Candidate\\Candidate', $problem['detail']);
+        self::assertStringContainsString($donor . '/Candidate.php', $problem['detail']);
+    }
+
+    #[Test]
+    public function a_first_party_autoload_file_cannot_be_loaded_from_a_donor_checkout(): void
+    {
+        $donor = $this->scratchDirectory('waaseyaa-files-donor-');
+        new Filesystem()->dumpFile($donor . '/bootstrap.php', "<?php\n");
+        $root = $this->fixture(locked: [], installed: [], declaredFiles: ['bootstrap.php']);
+        $identifier = md5('waaseyaa/framework:bootstrap.php');
+        $this->writeAutoloadMaps(
+            $root,
+            psr4: [],
+            files: [$identifier => $root . '/bootstrap.php'],
+            staticFiles: [$identifier => $donor . '/bootstrap.php'],
+        );
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString('runtime-static autoload-file', $problem['detail']);
+        self::assertStringContainsString($donor . '/bootstrap.php', $problem['detail']);
+    }
+
+    #[Test]
+    public function candidate_local_psr4_classmap_and_autoload_files_are_accepted_together(): void
+    {
+        $root = $this->fixture(
+            locked: [],
+            installed: [],
+            declaredNamespaces: ['Waaseyaa\\Candidate\\'],
+            dumpedNamespaces: ['Waaseyaa\\Candidate\\'],
+            declaredFiles: ['bootstrap.php'],
+        );
+        new Filesystem()->dumpFile($root . '/x/Candidate.php', "<?php\n");
+        $identifier = md5('waaseyaa/framework:bootstrap.php');
+        $this->writeAutoloadMaps(
+            $root,
+            psr4: ['Waaseyaa\\Candidate\\' => [$root . '/x']],
+            classmap: ['Waaseyaa\\Candidate\\Candidate' => $root . '/x/Candidate.php'],
+            files: [$identifier => $root . '/bootstrap.php'],
+        );
+
+        self::assertNull(vendor_freshness_problem($root));
+    }
+
+    #[Test]
+    public function composer_may_omit_the_compatibility_files_map_when_no_autoload_files_exist(): void
+    {
+        $root = $this->fixture(locked: [], installed: []);
+        unlink($root . '/vendor/composer/autoload_files.php');
+
+        self::assertNull(vendor_freshness_problem($root));
+    }
+
+    #[Test]
+    public function a_missing_compatibility_files_map_is_refused_when_a_file_is_declared(): void
+    {
+        $root = $this->fixture(locked: [], installed: [], declaredFiles: ['bootstrap.php']);
+        unlink($root . '/vendor/composer/autoload_files.php');
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertSame('composer dump-autoload', $problem['fix']);
+        self::assertStringContainsString('autoload_files.php', $problem['detail']);
+    }
+
+    #[Test]
+    public function a_lexically_candidate_owned_path_package_symlinked_to_a_donor_is_rejected(): void
+    {
+        $donor = $this->scratchDirectory('waaseyaa-path-package-donor-');
+        new Filesystem()->mkdir($donor . '/src');
+        $package = self::pathPkg('waaseyaa/candidate', 'packages/candidate', 'Waaseyaa\\Candidate\\');
+        $root = $this->fixture(
+            locked: [$package],
+            installed: [$package],
+            dumpedNamespaces: ['Waaseyaa\\Candidate\\'],
+        );
+        new Filesystem()->mkdir($root . '/packages');
+        self::assertTrue(symlink($donor, $root . '/packages/candidate'));
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString('path package waaseyaa/candidate', $problem['what']);
+        self::assertStringContainsString($root . '/packages/candidate', $problem['detail']);
+        self::assertStringContainsString($donor, $problem['detail']);
+    }
+
+    #[Test]
+    public function canonical_paths_allow_candidate_internal_symlinks_but_reject_external_ones(): void
+    {
+        $fs = new Filesystem();
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Waaseyaa\\Candidate\\'], dumpedNamespaces: ['Waaseyaa\\Candidate\\']);
+        $fs->remove($root . '/x');
+        $fs->mkdir($root . '/source');
+        self::assertTrue(symlink($root . '/source', $root . '/x'));
+        self::assertNull(vendor_freshness_problem($root), 'An alias that still resolves inside the candidate is safe.');
+
+        $donor = $this->scratchDirectory('waaseyaa-external-target-');
+        $external = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Waaseyaa\\Candidate\\'], dumpedNamespaces: ['Waaseyaa\\Candidate\\']);
+        $fs->remove($external . '/x');
+        self::assertTrue(symlink($donor, $external . '/x'));
+
+        $problem = vendor_freshness_problem($external);
+        self::assertNotNull($problem);
+        self::assertStringContainsString($donor, $problem['detail']);
+    }
+
+    #[Test]
+    public function a_missing_psr4_leaf_under_a_candidate_ancestor_is_valid_composer_output(): void
+    {
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Project\\'], dumpedNamespaces: ['Project\\']);
+        new Filesystem()->remove($root . '/x');
+
+        self::assertNull(vendor_freshness_problem($root));
+    }
+
+    #[Test]
+    public function a_missing_psr4_leaf_under_a_donor_symlink_ancestor_is_rejected(): void
+    {
+        $fs = new Filesystem();
+        $donor = $this->scratchDirectory('waaseyaa-missing-leaf-donor-');
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Project\\'], dumpedNamespaces: ['Project\\']);
+        $fs->remove($root . '/x');
+        self::assertTrue(symlink($donor, $root . '/x'));
+        $fs->dumpFile($root . '/composer.json', json_encode([
+            'name' => 'waaseyaa/framework',
+            'autoload' => ['psr-4' => ['Project\\' => 'x/missing/']],
+        ], JSON_THROW_ON_ERROR));
+        $this->writeAutoloadMaps($root, psr4: ['Project\\' => [$root . '/x/missing']]);
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString($donor . '/missing', $problem['detail']);
+    }
+
+    #[Test]
+    public function a_missing_psr4_leaf_beneath_a_dangling_symlink_is_unverifiable_and_rejected(): void
+    {
+        $fs = new Filesystem();
+        $donor = $this->scratchDirectory('waaseyaa-dangling-target-');
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Project\\'], dumpedNamespaces: ['Project\\']);
+        $fs->remove($root . '/x');
+        self::assertTrue(symlink($donor . '/absent', $root . '/x'));
+        $fs->dumpFile($root . '/composer.json', json_encode([
+            'name' => 'waaseyaa/framework',
+            'autoload' => ['psr-4' => ['Project\\' => 'x/missing/']],
+        ], JSON_THROW_ON_ERROR));
+        $this->writeAutoloadMaps($root, psr4: ['Project\\' => [$root . '/x/missing']]);
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString($root . '/x/missing', $problem['detail']);
+    }
+
+    #[Test]
+    public function parent_traversal_after_a_symlink_is_resolved_by_the_filesystem_before_containment(): void
+    {
+        $fs = new Filesystem();
+        $donor = $this->scratchDirectory('waaseyaa-parent-traversal-donor-');
+        $fs->mkdir($donor . '/subdir');
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Project\\'], dumpedNamespaces: ['Project\\']);
+        $fs->dumpFile($root . '/composer.json', json_encode([
+            'name' => 'waaseyaa/framework',
+            'autoload' => ['psr-4' => ['Project\\' => 'missing/']],
+        ], JSON_THROW_ON_ERROR));
+        self::assertTrue(symlink($donor . '/subdir', $root . '/link'));
+        $this->writeAutoloadMaps($root, psr4: ['Project\\' => [$root . '/link/../missing']]);
+
+        $problem = vendor_freshness_problem($root);
+
+        self::assertNotNull($problem);
+        self::assertStringContainsString($donor . '/missing', $problem['detail']);
+    }
+
+    #[Test]
+    public function ordinary_parent_traversal_without_a_symlink_stays_candidate_local(): void
+    {
+        $fs = new Filesystem();
+        $root = $this->fixture(locked: [], installed: [], declaredNamespaces: ['Project\\'], dumpedNamespaces: ['Project\\']);
+        $fs->dumpFile($root . '/composer.json', json_encode([
+            'name' => 'waaseyaa/framework',
+            'autoload' => ['psr-4' => ['Project\\' => 'missing/']],
+        ], JSON_THROW_ON_ERROR));
+        $fs->mkdir($root . '/nested');
+        $this->writeAutoloadMaps($root, psr4: ['Project\\' => [$root . '/nested/../missing']]);
+
+        self::assertNull(vendor_freshness_problem($root));
+    }
+
+    #[Test]
+    public function a_whole_vendor_symlink_to_an_equal_lock_donor_is_rejected_without_rewriting_the_donor(): void
+    {
+        $fs = new Filesystem();
+        $package = self::pkg('acme/external', '1.0.0', 'aaaa');
+        $donor = $this->fixture(locked: [$package], installed: [$package]);
+        $candidate = $this->fixture(locked: [$package], installed: [$package]);
+        $fs->remove($candidate . '/vendor');
+        self::assertTrue(symlink($donor . '/vendor', $candidate . '/vendor'));
+
+        $problem = vendor_freshness_problem($candidate);
+
+        self::assertNotNull($problem);
+        self::assertSame('unlink vendor && composer install', $problem['fix']);
+        self::assertStringContainsString($donor . '/vendor/autoload.php', $problem['detail']);
+        self::assertFileExists($donor . '/vendor/autoload.php', 'Detection must not mutate the donor.');
+    }
+
+    #[Test]
+    public function a_nested_composer_metadata_symlink_is_unlinked_before_install_is_suggested(): void
+    {
+        $fs = new Filesystem();
+        $donor = $this->fixture(locked: [], installed: []);
+        $candidate = $this->fixture(locked: [], installed: []);
+        $fs->remove($candidate . '/vendor/composer');
+        self::assertTrue(symlink($donor . '/vendor/composer', $candidate . '/vendor/composer'));
+
+        $problem = vendor_freshness_problem($candidate);
+
+        self::assertNotNull($problem);
+        self::assertSame('unlink vendor/composer && composer install', $problem['fix']);
+        self::assertStringContainsString($donor . '/vendor/composer', $problem['detail']);
+        self::assertFileExists($donor . '/vendor/composer/autoload_static.php', 'Detection must not mutate the donor metadata.');
+    }
+
+    #[Test]
+    public function an_external_third_party_mapping_is_not_misclassified_as_candidate_owned(): void
+    {
+        $donor = $this->scratchDirectory('acme-third-party-');
+        new Filesystem()->dumpFile($donor . '/External.php', "<?php\n");
+        $package = self::pathPkg('acme/external', $donor, 'Acme\\External\\');
+        $root = $this->fixture(locked: [$package], installed: [$package], dumpedNamespaces: ['Acme\\External\\']);
+        $this->writeAutoloadMaps(
+            $root,
+            psr4: ['Acme\\External\\' => [$donor]],
+            classmap: ['Acme\\External\\External' => $donor . '/External.php'],
+        );
+
+        self::assertNull(vendor_freshness_problem($root));
+    }
+
+    #[Test]
     public function a_missing_vendor_directory_is_reported_not_fatal(): void
     {
         $root = $this->fixture(locked: [self::pkg('waaseyaa/cli', 'dev-main', 'bbbb')], installed: [], withVendor: false);
@@ -253,6 +608,31 @@ final class VendorFreshnessPreconditionTest extends TestCase
         self::assertStringNotContainsString('Uncaught', $result['stderr'] . $result['stdout']);
     }
 
+    #[Test]
+    public function a_freshness_check_does_not_poison_a_later_composer_static_map_load(): void
+    {
+        $root = $this->fixture(locked: [], installed: []);
+        $probe = <<<'PHP'
+            <?php
+            require $argv[2];
+            $problem = vendor_freshness_problem($argv[1]);
+            if ($problem !== null) {
+                fwrite(STDERR, $problem['what'] . ': ' . $problem['detail']);
+                exit(2);
+            }
+            require $argv[1] . '/vendor/composer/autoload_static.php';
+            fwrite(STDOUT, "autoload-static-ok\n");
+            PHP;
+        $probePath = $root . '/freshness-then-autoload.php';
+        new Filesystem()->dumpFile($probePath, $probe);
+
+        $result = $this->runProcess([PHP_BINARY, $probePath, $root, $this->root . '/bin/lib/vendor-freshness.php'], $root);
+
+        self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertSame("autoload-static-ok\n", $result['stdout']);
+        self::assertStringNotContainsString('Cannot redeclare class', $result['stderr']);
+    }
+
     // ── bin/check-pr-preflight ───────────────────────────────────────────────
 
     #[Test]
@@ -317,12 +697,24 @@ final class VendorFreshnessPreconditionTest extends TestCase
         return ['name' => $name, 'version' => $version, 'dist' => ['type' => 'zip', 'reference' => $reference]];
     }
 
+    /** @return array<string, mixed> */
+    private static function pathPkg(string $name, string $url, string $namespace): array
+    {
+        return [
+            'name' => $name,
+            'version' => 'dev-main',
+            'dist' => ['type' => 'path', 'url' => $url, 'reference' => 'bbbb'],
+            'autoload' => ['psr-4' => [$namespace => 'src/']],
+        ];
+    }
+
     /**
      * @param list<array<string, mixed>> $locked
      * @param list<array<string, mixed>> $lockedDev
      * @param list<array<string, mixed>> $installed
      * @param list<string> $declaredNamespaces
      * @param list<string> $dumpedNamespaces
+     * @param list<string> $declaredFiles
      */
     private function fixture(
         array $locked,
@@ -330,6 +722,7 @@ final class VendorFreshnessPreconditionTest extends TestCase
         array $lockedDev = [],
         array $declaredNamespaces = [],
         array $dumpedNamespaces = [],
+        array $declaredFiles = [],
         bool $withVendor = true,
     ): string {
         $root = sys_get_temp_dir() . '/waaseyaa-vendor-fresh-' . bin2hex(random_bytes(6));
@@ -337,9 +730,13 @@ final class VendorFreshnessPreconditionTest extends TestCase
         $fs->mkdir($root);
         $this->fixtures[] = $root;
 
+        $fs->mkdir($root . '/x');
+        foreach ($declaredFiles as $file) {
+            $fs->dumpFile($root . '/' . $file, "<?php\n");
+        }
         $fs->dumpFile($root . '/composer.json', json_encode([
             'name' => 'waaseyaa/framework',
-            'autoload' => ['psr-4' => (object) []],
+            'autoload' => ['psr-4' => (object) [], 'files' => $declaredFiles],
             'autoload-dev' => ['psr-4' => (object) array_fill_keys($declaredNamespaces, 'x/')],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
         $fs->dumpFile($root . '/composer.lock', json_encode([
@@ -359,13 +756,66 @@ final class VendorFreshnessPreconditionTest extends TestCase
             'dev' => true,
             'dev-package-names' => array_column($lockedDev, 'name'),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
-        $entries = '';
+        $psr4 = [];
         foreach ($dumpedNamespaces as $namespace) {
-            $entries .= '    ' . var_export($namespace, true) . " => array('x'),\n";
+            $psr4[$namespace] = [$root . '/x'];
         }
-        $fs->dumpFile($root . '/vendor/composer/autoload_psr4.php', "<?php\n\nreturn array(\n{$entries});\n");
+        $files = [];
+        foreach ($declaredFiles as $file) {
+            $files[md5('waaseyaa/framework:' . $file)] = $root . '/' . $file;
+        }
+        $this->writeAutoloadMaps($root, psr4: $psr4, files: $files);
 
         return $root;
+    }
+
+    /**
+     * @param array<string, list<string>> $psr4
+     * @param array<string, string> $classmap
+     * @param array<string, string> $files
+     * @param array<string, list<string>>|null $staticPsr4
+     * @param array<string, string>|null $staticClassmap
+     * @param array<string, string>|null $staticFiles
+     */
+    private function writeAutoloadMaps(
+        string $root,
+        array $psr4,
+        array $classmap = [],
+        array $files = [],
+        ?array $staticPsr4 = null,
+        ?array $staticClassmap = null,
+        ?array $staticFiles = null,
+    ): void {
+        $staticPsr4 ??= $psr4;
+        $staticClassmap ??= $classmap;
+        $staticFiles ??= $files;
+        $suffix = bin2hex(random_bytes(8));
+        $class = 'ComposerStaticInitFixture' . $suffix;
+        $fs = new Filesystem();
+        $fs->dumpFile($root . '/vendor/composer/autoload_psr4.php', "<?php\nreturn " . var_export($psr4, true) . ";\n");
+        $fs->dumpFile($root . '/vendor/composer/autoload_classmap.php', "<?php\nreturn " . var_export($classmap, true) . ";\n");
+        $fs->dumpFile($root . '/vendor/composer/autoload_files.php', "<?php\nreturn " . var_export($files, true) . ";\n");
+        $fs->dumpFile($root . '/vendor/composer/autoload_static.php', sprintf(
+            "<?php\nnamespace Composer\\Autoload;\nclass %s\n{\n    public static \$files = %s;\n    public static \$prefixDirsPsr4 = %s;\n    public static \$classMap = %s;\n    public static function getInitializer(object \$loader): \\Closure { return static function (): void {}; }\n}\n",
+            $class,
+            var_export($staticFiles, true),
+            var_export($staticPsr4, true),
+            var_export($staticClassmap, true),
+        ));
+        $fs->dumpFile($root . '/vendor/composer/autoload_real.php', sprintf(
+            "<?php\ncall_user_func(\\Composer\\Autoload\\%s::getInitializer(\$loader));\n\$filesToLoad = \\Composer\\Autoload\\%s::\$files;\n",
+            $class,
+            $class,
+        ));
+    }
+
+    private function scratchDirectory(string $prefix): string
+    {
+        $path = sys_get_temp_dir() . '/' . $prefix . bin2hex(random_bytes(6));
+        new Filesystem()->mkdir($path);
+        $this->fixtures[] = $path;
+
+        return $path;
     }
 
     private function seedDeliveryGate(string $root): void

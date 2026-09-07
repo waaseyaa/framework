@@ -80,6 +80,34 @@ gate: hosted CI installs fresh and can never observe this state, so a manifest e
 no-op in CI while still needing an `enforced_by` surface; `bin/check-vendor-fresh` remains the
 standalone local guard over the same library. `--list` does not require a fresh `vendor/`.
 
+First-party source binding (#2972) is part of that same precondition. Package
+identity alone cannot distinguish two checkouts with equal lock files, so the
+guard also inspects the generated PSR-4, optimized classmap, and autoload-files
+paths in Composer's compatibility maps (when Composer emits the optional files
+map) and the runtime-static maps named by `autoload_real.php`. Candidate ownership comes from the root manifest and
+from path-package lock entries whose declared path is lexically inside the
+candidate; it never comes from a package or namespace naming convention. A
+candidate-owned path package stays first-party when its source path is a
+symlink, and fails when that symlink resolves outside the checkout. Every
+first-party generated path, including a more-specific generated PSR-4 prefix
+that could shadow an owned parent prefix, must likewise resolve inside the
+canonical candidate root. A more-specific prefix declared by a third-party
+package retains that ownership. Candidate-internal symlinks are valid;
+Composer-valid missing PSR-4 leaf directories are contained through their
+closest existing canonical ancestor. A donor symlink ancestor or dangling
+symlink remains a refusal. Raw path components reach `realpath` before lexical
+normalization, so `link/../missing` follows the link target's parent rather than
+being collapsed inside the candidate. Autoload-file and classmap targets must exist.
+Unrelated third-party package mappings are outside this containment rule. The guard reads generated
+array declarations without invoking `vendor/autoload.php` or any autoloaded
+file. A refusal identifies the map plane, owned declaration, observed path,
+and expected candidate root. If `vendor/` itself is a symlink, its repair is
+`unlink vendor && composer install`, affecting the candidate link only; the
+guard never rewrites or regenerates the donor checkout. A nested
+`vendor/composer` symlink is likewise unlinked in the candidate before install;
+an ambiguous generated-metadata escape requires restoring that candidate
+directory before running Composer.
+
 State semantics: preflight evaluates the committed range against `origin/main` (or
 `WAASEYAA_DRIFT_BASE`) **plus staged, unstaged, and untracked worktree files**. Spec-review
 trailers remain commit metadata: a committed trailer cannot pre-approve a later worktree source
