@@ -10,6 +10,14 @@ drivers execute through `Worker`, which records exhausted jobs and logs a
 throwing `Job::failed()` hook without allowing that secondary failure to stop
 the worker.
 
+Persistent dispatch accepts any object, but successful consumption requires a
+supporting worker handler. If no handler supports an accepted message, `Worker`
+raises a typed `UnhandledQueueMessage` failure and applies its configured
+bounded retry/backoff policy. On exhaustion, the signed payload and failure are
+stored in the failed-job repository before the delivery is rejected; it is never
+silently acknowledged. The error identifies the message class without exposing
+its payload.
+
 Application jobs subclass `Job` and implement `handle()`. There is no
 `JobInterface`. Dispatch through `QueueInterface`. Job middleware lives on
 foundation `JobMiddlewareInterface`, not in this package.

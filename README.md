@@ -38,6 +38,12 @@ and the [S1 SQLite topology](docs/specs/s1-sqlite-topology.md). S1 consumer cert
 MySQL/PostgreSQL, remote/shared filesystems, WebKit/Safari, and unlisted web
 runtimes are not supported claims.
 
+The native developer and verification entrypoints are classified in the
+[native host support contract](docs/specs/native-host-support.md). It
+distinguishes verified native behavior and normative targets from POSIX-only
+maintainer automation, and keeps WSL/Git Bash optional rather than treating
+them as native Windows proof.
+
 ## Quick Start
 
 The `composer create-project` target below installs the published Waaseyaa project skeleton package (`waaseyaa/waaseyaa`). This repository is the `waaseyaa/framework` monorepo that supplies the underlying framework packages.
