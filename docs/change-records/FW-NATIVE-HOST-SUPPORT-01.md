@@ -111,8 +111,8 @@ repairs:
   and `chmod`;
 - `check-pr-preflight` is a PHP coordinator over a roster containing Bash
   gates and is therefore not native Windows portable;
-- the complete top-level `bin/` inventory is 92 entries, including
-  `check-landing-base`, `check-skeleton-docker-secret-exclusion`,
+- the complete top-level `bin/` inventory is 93 entries, including
+  `check-distribution-exclusion`, `check-landing-base`, `check-skeleton-docker-secret-exclusion`,
   `check-vendor-fresh`, and `worktree-coordinator`, with no duplicate
   `verify-k1-delivery-cutover`;
 - the skeleton onboarding link must survive publication at repository root, so
@@ -153,17 +153,17 @@ The docs-only candidate currently has this evidence:
 - `composer install --no-interaction --no-progress` — pass from the committed
   lockfile; no Composer update was run.
 - `php bin/check-support-contract` — pass.
-- `php bin/changelog-fragments validate` — pass; 88 fragments valid.
+- `php bin/changelog-fragments validate` — pass; 93 fragments valid.
 - `php bin/check-changelog-shape` — pass.
-- `php bin/check-portable-paths` — pass; 8,584 tracked paths accepted.
+- `php bin/check-portable-paths` — pass; 8,617 tracked paths accepted.
 - `php -d memory_limit=1G ./vendor/bin/phpunit --testsuite Architecture
   --no-coverage --filter 'S1SupportContractTest|SiteReferenceConsumerContractTest'`
   — pass; 3 tests, 88 assertions.
-- Deterministic Markdown-link and inventory probe — pass; all 92 tracked
+- Deterministic Markdown-link and inventory probe — pass; all 93 tracked
   top-level `bin/` entries appear exactly once, every Composer script is
   classified, the root relative link resolves locally, and the skeleton uses
   the publication-safe full Framework URL.
-- `bin/git diff --check` — pass.
+- `bin/git diff --check` — the refreshed check first found trailing spaces in the metadata block; the block was reformatted as bullets and the rerun passed.
 
 The complete Unit/Integration/Architecture qualification, CI publication, and
 merge remain root-lane responsibilities.
