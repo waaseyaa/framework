@@ -9,6 +9,7 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
+use Waaseyaa\CLI\Site\Scaffold\SearchProjectionScaffoldCompiler;
 use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
 use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -480,9 +481,18 @@ final class SiteInitializationService
      * developer then edits. Persisted provenance is readable independently of
      * new-plan eligibility.
      *
+     * `SearchProjectionScaffoldCompiler` is the second (#2849): the projector,
+     * its provider binding and its companion test are equally a starting point
+     * the developer then edits — a projector that could never be extended
+     * would not be worth generating. It is admitted for the seeded disposition
+     * only; its set evolution stays `Frozen` like every other scaffold.
+     *
      * @var list<class-string>
      */
-    private const array SEEDED_COMPILERS = [ContentTypeScaffoldCompiler::class];
+    private const array SEEDED_COMPILERS = [
+        ContentTypeScaffoldCompiler::class,
+        SearchProjectionScaffoldCompiler::class,
+    ];
 
     /**
      * The closed compiler admission list for additive successor evolution.
