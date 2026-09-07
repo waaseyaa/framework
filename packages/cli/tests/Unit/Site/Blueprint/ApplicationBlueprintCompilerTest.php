@@ -33,10 +33,13 @@ use Waaseyaa\SiteContract\SiteManifestParser;
 final class ApplicationBlueprintCompilerTest extends TestCase
 {
     #[Test]
-    public function baseRowsAreByteIdenticalToTheManifestRendererMinusMetadata(): void
+    public function baseRowsAreByteIdenticalToTheManifestRendererAndOwnershipMetadataIsExcluded(): void
     {
         $manifest = $this->manifest('complete.yaml');
         $plan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+
+        $planPaths = array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $plan->artifacts);
+        self::assertNotContains('.waaseyaa/generated.json', $planPaths);
 
         $rendered = SiteArtifactRendererFactory::create()->render($manifest);
         foreach ($rendered->artifacts as $path => $artifact) {
@@ -77,8 +80,8 @@ final class ApplicationBlueprintCompilerTest extends TestCase
 
     /**
      * #2788 (01E): the roster grows from three emitter ids (01D-1) to eight,
-     * all additive — the compiler itself is untouched (pinned below by
-     * {@see self::theCompilerFileIsByteIdenticalToThe01D1Baseline()}). Two
+     * all additive — the compiler stays generic over its injected emitter
+     * roster (guarded below). Two
      * distinct `ComposerProviderRegistration` FQCNs compose without
      * collision (`ProviderRegistrationEmitter`'s content provider,
      * `GovernanceProviderEmitter`'s governance provider), and every
@@ -118,22 +121,84 @@ final class ApplicationBlueprintCompilerTest extends TestCase
     }
 
     /**
-     * #2788 (01E) is additive-only per its own emitter roster (decision (f)):
-     * it must never edit `ApplicationBlueprintCompiler.php` itself. Pins the
-     * exact byte content accepted main carries after 01D-2 (main
-     * `d64a825fc`, PR #2937 merge) so an accidental edit fails loudly here
-     * instead of only showing up as an unexplained diff in review. Re-pin
-     * only when a #2787 slice legitimately changes the compiler.
+     * #2788 (01E) adds concrete emitters only at the factory composition
+     * root. The compiler may evolve under an explicitly reviewed compiler
+     * decision such as ADR-025 D-15.2, but it must remain generic over the
+     * injected emitter interface. This semantic boundary replaces the former
+     * whole-file byte pin, which could not distinguish an authority change
+     * from an unrelated, reviewed maintenance edit.
      */
     #[Test]
-    public function theCompilerFileIsByteIdenticalToThe01D1Baseline(): void
+    public function theConcreteEmitterRosterRemainsOwnedByTheFactory(): void
     {
         $path = \dirname(__DIR__, 4) . '/src/Site/Blueprint/ApplicationBlueprintCompiler.php';
-        self::assertSame(
-            '815319f5f260ed28b1c4d7ee48e750ab1cf2326ba64cf77ec72215458d8032a7',
-            hash('sha256', (string) file_get_contents($path)),
-            'ApplicationBlueprintCompiler.php must not be edited by an additive emitter slice.',
+        $source = (string) file_get_contents($path);
+        $emitterNamespace = 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter' . '\\';
+
+        self::assertSame(1, substr_count($source, $emitterNamespace));
+        self::assertStringContainsString(
+            'use ' . $emitterNamespace . 'BlueprintArtifactEmitterInterface;',
+            $source,
         );
+    }
+
+    /**
+     * ADR-025 D-15.2: `ApplicationBlueprintCompiler` composes the renderer's
+     * base plan (base artifacts, retires, registrations, companion tests,
+     * schema/config effects) with the emitter roster's output, rather than
+     * discarding the base plan's registrations the way it discarded its
+     * artifact set's ownership document. A recipe-declared base registration
+     * and an emitter-declared blueprint registration must both survive,
+     * sorted, without duplication.
+     */
+    #[Test]
+    public function baseRegistrationsFromTheRendererAreComposedWithEmitterRegistrationsWithoutDuplication(): void
+    {
+        $manifest = $this->manifest('minimal.yaml');
+        $recipe = new class implements \Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface, \Waaseyaa\SiteContract\Generation\SiteRecipeProviderRegistrationInterface {
+            public function id(): string
+            {
+                return 'stub_recipe';
+            }
+
+            public function render(SiteManifest $manifest): array
+            {
+                return [];
+            }
+
+            public function providerRegistrations(SiteManifest $manifest): array
+            {
+                return isset($manifest->recipes['stub_recipe']) ? [new \Waaseyaa\SiteContract\Generation\ComposerProviderRegistration('App\\Provider\\StubRecipeServiceProvider')] : [];
+            }
+        };
+        $manifestWithRecipe = new SiteManifest(
+            $manifest->schemaVersion,
+            $manifest->generatorVersion,
+            $manifest->application,
+            $manifest->framework,
+            $manifest->contentTypes,
+            $manifest->capabilities,
+            $manifest->personalDataStores,
+            ['stub_recipe' => new \Waaseyaa\SiteContract\RecipeSelection('stub_recipe', 1, 'stub_recipe', str_repeat('a', 64))],
+            $manifest->verificationCommand,
+            $manifest->canonicalJson,
+            $manifest->digest,
+            $manifest->applicationBlueprint,
+            $manifest->requiredGeneratorFeatures,
+        );
+        $compiler = new ApplicationBlueprintCompiler(new SiteArtifactRenderer([$recipe]), [
+            new \Waaseyaa\CLI\Site\Blueprint\Emitter\ProviderRegistrationEmitter(),
+        ]);
+
+        $plan = $compiler->compile($manifestWithRecipe);
+
+        $fqcns = array_map(static fn($registration): string => $registration->fqcn, $plan->registrations);
+        self::assertSame(array_unique($fqcns), $fqcns, 'No two registrations may repeat the same fqcn.');
+        $sorted = $fqcns;
+        sort($sorted, SORT_STRING);
+        self::assertSame($sorted, $fqcns, 'Registrations must be sorted by fqcn.');
+        self::assertContains('App\\Provider\\StubRecipeServiceProvider', $fqcns);
+        self::assertContains('App\\Provider\\ApplicationBlueprintServiceProvider', $fqcns);
     }
 
     #[Test]

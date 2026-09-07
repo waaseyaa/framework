@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Site\Recipe;
 
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Generation\ComposerProviderRegistration;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
+use Waaseyaa\SiteContract\Generation\SiteRecipeProviderRegistrationInterface;
 use Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface;
 use Waaseyaa\SiteContract\SiteManifest;
 
-final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
+final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface
 {
     public const int VERSION = 1;
 
@@ -48,6 +50,16 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
     public function id(): string
     {
         return 'governed_authoring';
+    }
+
+    /** @return list<ComposerProviderRegistration> */
+    public function providerRegistrations(SiteManifest $manifest): array
+    {
+        if (!isset($manifest->recipes['governed_authoring'])) {
+            return [];
+        }
+
+        return [new ComposerProviderRegistration('App\\Provider\\GovernedAuthoringServiceProvider')];
     }
 
     public static function digest(): string
@@ -231,8 +243,12 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
 
             use App\Authoring\GovernedPageDefinitions;
             use App\Authoring\GovernedPagePreviewUrlGenerator;
+            use Waaseyaa\Access\EntityAccessHandler;
             use Waaseyaa\AdminSurface\PageBuilder\GenericPageBuilderSurfaceHost;
             use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
+            use Waaseyaa\Audit\Contract\AuditWriterInterface;
+            use Waaseyaa\Database\DatabaseInterface;
+            use Waaseyaa\Entity\EntityTypeManagerInterface;
             use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
             use Waaseyaa\Field\FieldDefinition;
             use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -244,7 +260,11 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
             use Waaseyaa\PageBuilder\Surface\PageBuilderSurface;
             use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
             use Waaseyaa\PageBuilder\Validation\LayoutValidator;
+            use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
             use Waaseyaa\Publishing\ContentPublisher;
+            use Waaseyaa\Publishing\ContentTypeDescriptor;
+            use Waaseyaa\Publishing\FieldSpec;
+            use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
             use Waaseyaa\Publishing\PageBuilder\PublishingLayoutDraftGateway;
             use Waaseyaa\Publishing\PageBuilder\PublishingPageBuilderRevisionGateway;
             use Waaseyaa\Publishing\PageBuilder\PublishingRevisionPreviewGateway;
@@ -264,7 +284,7 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
                         $codec = new CanonicalLayoutCodec();
                         $validator = new LayoutValidator($definitions);
                         $editor = new LayoutEditor($codec, $validator, $definitions);
-                        $publisher = $this->resolve(ContentPublisher::class);
+                        $publisher = $this->pagePublisher($config);
                         $drafts = new PublishingLayoutDraftGateway($publisher, $config['layout_field']);
                         $historyGateway = new PublishingPageBuilderRevisionGateway($publisher, $config['layout_field']);
                         $previews = new PublishingRevisionPreviewGateway(
@@ -284,10 +304,8 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
 
                         return $registry;
                     });
-                }
 
-                public function boot(): void
-                {
+                    // install:init runs definition-only provider registration before schema sync.
                     $this->resolve(FieldDefinitionRegistryInterface::class)->registerBundleFields('node', 'page', [
                         new FieldDefinition(
                             name: 'page_layout',
@@ -300,6 +318,33 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface
                         ),
                     ]);
                 }
+
+                /** @param array<string, mixed> $config */
+                private function pagePublisher(array $config): ContentPublisher
+                {
+                    return new ContentPublisher(
+                        descriptor: new ContentTypeDescriptor(
+                            entityTypeId: 'node',
+                            bundle: $config['bundle'],
+                            slugField: 'slug',
+                            statusField: 'status',
+                            writableFields: [
+                                'slug' => new FieldSpec(type: 'string', required: true),
+                                $config['layout_field'] => new FieldSpec(type: 'text'),
+                            ],
+                            htmlSanitizer: null,
+                            validators: [],
+                            publishCapability: $config['permission'],
+                            authorField: 'uid',
+                        ),
+                        repository: $this->resolve(EntityTypeManagerInterface::class)->getRepository('node'),
+                        idempotency: new IdempotencyStore($this->resolve(DatabaseInterface::class)),
+                        audit: $this->resolve(AuditWriterInterface::class),
+                        accessHandler: $this->resolve(EntityAccessHandler::class),
+                        publicationTransitioner: $this->resolve(ContentPublicationTransitionerInterface::class),
+                    );
+                }
+
             }
             PHP;
     }

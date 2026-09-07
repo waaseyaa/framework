@@ -100,8 +100,8 @@ One outcome is deliberately **not** a §4 failure. A declared FQCN that does not
 but whose defining file exists on disk under a PSR-4 root **the root autoloader is
 expected to honour** is an **environment** fault: the autoloader is stale, not the
 declaration (#2926). Exactly two kinds of root qualify — the root `composer.json`'s
-`autoload`/`autoload-dev` (the `Waaseyaa\CLI\Io\StdinSource` shape:
-`packages/cli/tests/Io/StdinSource.php`, mapped only by the root `autoload-dev`), and
+`autoload`/`autoload-dev` (the `Waaseyaa\CLI\Testing\CliTester` shape:
+`packages/cli/tests/Testing/CliTester.php`, mapped only by the root `autoload-dev`), and
 the `autoload` section of a package that `composer.lock` names (so `composer install`
 dumps it). A package's `autoload-dev` never qualifies: Composer dumps `autoload-dev`
 for the root package only, so a symbol defined only under a dependency's `autoload-dev`

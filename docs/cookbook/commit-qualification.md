@@ -67,8 +67,9 @@ landings implicitly.
 ## Canonical local qualifier
 
 ```bash
-php bin/qualify-candidate            # preflight --full + Unit + Integration + Architecture on the exact HEAD
-php bin/qualify-candidate --jobs=2   # explicit concurrency
+php bin/qualify-candidate            # preflight --full, then Unit + Integration + Architecture on the exact HEAD
+php bin/qualify-candidate --jobs=2   # explicit concurrency after preflight passes
+php bin/qualify-candidate --collect-all # diagnostic override after a failing preflight
 ```
 
 The default evidence directory is
@@ -77,7 +78,12 @@ has `verdict: qualified`, `qualification: true`, and exit 0. Custom plans,
 subsets, and allowed dirty tracked trees may also exit 0, but their receipt says
 `verdict: passed`, sets `qualification: false`, and names the disqualifiers.
 Every other exit records why the candidate was not qualified unless the evidence
-directory or receipt itself could not be written.
+directory or receipt itself could not be written. When selected, `preflight` is a
+scheduling barrier: it runs alone, and a non-pass records the held suites as `unrun`
+without spending their runtime. Once preflight passes, all three suites still run even
+when an earlier suite fails. `--collect-all` is the explicit diagnostic override that
+schedules all selected components despite a preflight failure; it does not relax the
+all-components-must-pass qualification rule.
 
 Qualification intentionally binds HEAD, its tree, and tracked working-tree
 state. Run it from an isolated worktree: untracked scratch is permitted and is

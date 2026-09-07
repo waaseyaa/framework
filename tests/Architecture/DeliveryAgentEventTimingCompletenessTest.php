@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\CandidateLocalComposerFixture;
 
 /**
  * Trustworthy elapsed_ms for FUTURE (batch-sourced, post-#2902-freeze)
@@ -409,13 +410,13 @@ final class DeliveryAgentEventTimingCompletenessTest extends TestCase
         }
         chmod($repo . '/bin/check-delivery-agent-events', 0o755);
         chmod($repo . '/bin/git', 0o755);
-        symlink($this->root . '/vendor', $repo . '/vendor');
+        CandidateLocalComposerFixture::materialize($this->root, $repo);
         $this->fixtures[] = $repo;
 
         $this->git($repo, ['init', '--quiet', '--initial-branch=main']);
         $this->git($repo, ['config', 'user.name', 'Timing Gate Fixture']);
         $this->git($repo, ['config', 'user.email', 'timing-gate@example.invalid']);
-        $this->git($repo, ['add', 'ops', 'bin', 'vendor', 'composer.json', 'composer.lock']);
+        $this->git($repo, ['add', 'ops', 'bin', 'packages', 'vendor', 'composer.json', 'composer.lock']);
         $this->git($repo, ['commit', '--quiet', '-m', 'frozen authority']);
 
         return $repo;
