@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\CandidateLocalComposerFixture;
 
 #[CoversNothing]
 final class DeliveryAgentEventBranchCustodyTest extends TestCase
@@ -372,21 +373,19 @@ final class DeliveryAgentEventBranchCustodyTest extends TestCase
         self::assertTrue(copy($this->root . '/bin/lib/delivery-agent-event-set.php', $repo . '/bin/lib/delivery-agent-event-set.php'));
         self::assertTrue(copy($this->root . '/bin/lib/vendor-freshness.php', $repo . '/bin/lib/vendor-freshness.php'));
         self::assertTrue(copy($this->root . '/bin/git', $repo . '/bin/git'));
-        // The gate's vendor/ precondition (#2926) compares these against the
-        // symlinked real vendor/, so the fixture carries the real pair. On a
-        // machine whose vendor/ is stale these tests fail with the gate's
-        // exit-3 "run composer install" message — not a fixture bug.
+        // Candidate-local generated Composer metadata below is checked against
+        // this exact manifest/lock pair before the gate loads dependencies.
         self::assertTrue(copy($this->root . '/composer.json', $repo . '/composer.json'));
         self::assertTrue(copy($this->root . '/composer.lock', $repo . '/composer.lock'));
         chmod($repo . '/bin/check-delivery-agent-events', 0o755);
         chmod($repo . '/bin/git', 0o755);
-        self::assertTrue(symlink($this->root . '/vendor', $repo . '/vendor'));
+        CandidateLocalComposerFixture::materialize($this->root, $repo);
         $this->fixtures[] = $repo;
 
         $this->git($repo, ['init', '--quiet', '--initial-branch=main']);
         $this->git($repo, ['config', 'user.name', 'Ledger Fixture']);
         $this->git($repo, ['config', 'user.email', 'ledger-fixture@example.invalid']);
-        $this->git($repo, ['add', 'ops/observability', 'bin', 'vendor', 'composer.json', 'composer.lock']);
+        $this->git($repo, ['add', 'ops/observability', 'bin', 'packages', 'vendor', 'composer.json', 'composer.lock']);
         $this->git($repo, ['commit', '--quiet', '-m', 'initial custody']);
 
         return $repo;
