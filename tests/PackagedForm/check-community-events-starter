@@ -64,12 +64,13 @@ installed_starter="$consumer/vendor/waaseyaa/site-contract/resources/starters/co
 test -f "$installed_starter" || { echo 'Installed site-contract artifact has no community-events@1 starter.' >&2; exit 1; }
 php -r '
     $installed = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $seal = json_decode((string) file_get_contents($argv[3]), true, flags: JSON_THROW_ON_ERROR);
     $packages = $installed["packages"] ?? [];
     foreach ($packages as $package) {
         if (($package["name"] ?? null) !== "waaseyaa/site-contract") { continue; }
         if (($package["installation-source"] ?? null) !== "dist") { throw new RuntimeException("site-contract was not installed from dist"); }
-        $reference = $package["dist"]["reference"] ?? $package["source"]["reference"] ?? null;
-        if (!is_string($reference) || $reference === "") { throw new RuntimeException("site-contract has no exact source reference"); }
+        $reference = $seal["commit"] ?? null;
+        if (!is_string($reference) || preg_match("/^[0-9a-f]{40}$/", $reference) !== 1) { throw new RuntimeException("seal has no exact source reference"); }
         file_put_contents($argv[2], json_encode([
             "package" => $package["name"], "version" => $package["version"], "reference" => $reference,
             "starter" => "resources/starters/community-events/v1.yaml",
@@ -77,7 +78,7 @@ php -r '
         exit(0);
     }
     throw new RuntimeException("site-contract is absent from installed package metadata");
-' "$consumer/vendor/composer/installed.json" "$work/provenance.json"
+' "$consumer/vendor/composer/installed.json" "$work/provenance.json" "$seal"
 
 echo '== Phase 2/6: bind installed starter and issue exact approval'
 cp "$installed_starter" "$consumer/community-events.yaml"
