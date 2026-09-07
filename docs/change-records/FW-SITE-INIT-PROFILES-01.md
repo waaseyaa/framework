@@ -33,10 +33,12 @@ against the workflow's requested exact SHA.
 
 This evidence closes only the packaged proof for the already implemented
 declarative half. It does not claim that `editorial` reaches a running
-authenticated authoring surface. Provider and Composer-requirement activation
-remain the #2857 edge governed by the accepted #2845 contract and its #2846
-implementation. #2442 remains incomplete until that activation path and the
-corresponding packaged authenticated-authoring and upgrade evidence land.
+authenticated authoring surface. The full Framework skeleton already installs
+the packages and #2846 already implements the generation authority; the actual
+remaining #2857 edge is that provider discovery reads literal root
+`composer.json`, where the generated provider is not registered. #2442 remains
+incomplete until that provider-registration path and the corresponding packaged
+authenticated-authoring and upgrade evidence land.
 
 This candidate changes verification and governance records only. It introduces
 no production command, manifest, recipe, provider, authorization, or publication
