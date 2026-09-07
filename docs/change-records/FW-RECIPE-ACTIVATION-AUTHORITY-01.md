@@ -55,7 +55,13 @@ The generated published-content and governed-authoring providers register
 their in-memory `node`/`page` field declarations during `register()`. That is
 the definition-only phase `install:init` executes before entity schema sync;
 ordinary provider `boot()` cannot add a field that the completed installation
-was already expected to materialize.
+was already expected to materialize. `FieldServiceProvider` adopts the
+kernel-owned `FieldDefinitionRegistryInterface` before constructing its
+`BundleTemplateCompiler`, so the published-content fields and governed
+`page_layout` field enter the same registry that drives listing validation,
+schema materialization, provider-local resolution, and HTTP resolution.
+Standalone provider tests retain an isolated fallback only when no kernel
+registry exists; a non-null wrong-typed authority is rejected.
 
 #2664 may land a fresh-only boot-free orchestrator after #2857. It invokes
 `site:init` → `install:init`, forwards existing input/profile options, stops at
