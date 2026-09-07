@@ -1,4 +1,11 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-07 - #2664 / FW-PROJECT-INITIALIZER-01: ConsoleKernel
+recognizes project:init at the same pre-boot composition seam as the existing
+site lifecycle commands. The parent command itself remains boot-free; it runs
+site:init and, outside dry-run, install:init as separate child CLI processes so
+schema installation retains its existing command authority. No general kernel
+boot-order or provider-discovery contract changes. Canonical command behavior:
+docs/specs/cli-kernel.md. -->
 <!-- Spec reviewed 2026-09-06 - #2740 / FW-2740: a persistent Worker that exhausts its first-match handler roster now raises typed UnhandledQueueMessage instead of treating the fallthrough as successful void handling. The failure uses the existing bounded retry/backoff and failed-job path (Job::$tries or WorkerOptions::$maxTries); the failed record names the message class without payload data. Failed-row persistence still precedes reject, so a repository outage preserves the reserved delivery for lease recovery, and scoped authority closes before queue side effects. Successful void handlers, deliberate duplicate-occurrence ACKs, Worker first-match behavior, SyncQueue all-match behavior, and MessageBusQueue dispatch remain unchanged. Acceptance uses the shipped queue migration and real QueueServiceProvider + DbalQueue + DbalTransport + DatabaseFailedJobRepository composition. Stable record: docs/change-records/FW-2740.md. -->
 <!-- Spec reviewed 2026-09-05 - #2822: the supported application job extension point is abstract `Waaseyaa\Queue\Job` (`handle()`), classified public. There is no `JobInterface`. Queue README key classes name only loadable types. Job middleware remains foundation `JobMiddlewareInterface`. HandlerInterface/TransportInterface/FailedJobRepositoryInterface stay internal backend types. Acceptance: QueueJobContractSurfaceTest. -->
 <!-- Spec reviewed 2026-09-04 - #2835: HttpKernel resolves the provider-bound
