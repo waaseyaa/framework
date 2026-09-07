@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+
+# Packaged search-projection scaffold acceptance (#2849).
+#
+# Fresh-install boot proves a consumer boots. It does not prove the flow this
+# issue is actually about, so this proof drives that flow end to end from a
+# disposable consumer built out of the EXACT candidate tree, using its own
+# resolved dependencies — no vendor directory is ever copied in.
+#
+#   1. `site:init` + `install:init`, the governed lifecycle a deployment runs.
+#   2. `make:content-type story` — the entity, generated, not hand-written.
+#   3. A DELIBERATE per-field visibility decision applied to that entity:
+#      `body` is declared `FieldReadLevel::Public`; `secret_note` is left
+#      exactly as the emitter wrote it, i.e. undeclared and therefore
+#      Internal for a registered type. This is the choice #2849's guidance
+#      demands, and the proof asserts both halves of it hold.
+#   4. `make:search-projection story --fields=body,secret_note` — the
+#      generator under test, asked to index one publishable field and one
+#      restricted one.
+#   5. `schema:sync` + `entity:create`, then `search:reindex`.
+#
+# Then three assertions, of which the third is the discriminating one:
+#
+#   (a) reindex reports exactly one indexed document. It can only do so if the
+#       generated provider was discovered from literal root `composer.json`
+#       and its projector consulted ahead of the built-in default — no
+#       built-in projector supports a `story`.
+#   (b) the public field's text is present in the stored index.
+#   (c) the restricted field's text is absent from the stored index — checked
+#       against the serialized rows, so a leak through any column fails.
+#
+#   (d) NEGATIVE CONTROL: with only the generated provider's literal-root
+#       registration removed — the projector class, its provider class and the
+#       ownership roster left untouched on disk — reindex must index ZERO
+#       documents. Without this step, (a) would also pass if discovery ever
+#       started honouring the mere presence of a class file.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-search-projection-acceptance.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    # Best-effort: a failed rm must not change this script's exit status.
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+candidate="${CANDIDATE_SHA:-}"
+if [[ -z "$candidate" ]]; then
+    if [[ -n "$("$root/bin/git" -C "$root" status --porcelain=v1 --untracked-files=all)" ]]; then
+        echo 'The default packaged candidate must be a clean immutable HEAD; commit the reviewed candidate or pass CANDIDATE_SHA.' >&2
+        exit 1
+    fi
+    candidate="HEAD"
+fi
+candidate="$("$root/bin/git" -C "$root" rev-parse --verify "${candidate}^{commit}")"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar "$candidate" \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+database="$consumer/storage/search-projection.sqlite"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\nWAASEYAA_CONFIG_DIR=%s/config/sync\n' \
+    "$app_secret" "$database" "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
+
+lock_sha256="$(sha256sum "$consumer/composer.lock" | awk '{print $1}')"
+cat >"$consumer/site-answers.yaml" <<SITEYAML
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  name: Search Projection Acceptance
+  id: search-projection-acceptance
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: ${lock_sha256}
+content_types:
+  - id: page
+    canonical_route: /{slug}
+verification:
+  command: bin/maintenance/site-verify
+SITEYAML
+
+run_cli() {
+    local label="$1"
+    shift
+    if ! ( cd "$consumer" && php vendor/bin/waaseyaa "$@" ) >"$work/$label.out" 2>&1; then
+        cat "$work/$label.out" >&2
+        echo "packaged search-projection proof: '$*' failed." >&2
+        exit 1
+    fi
+}
+
+run_cli site-init site:init --answers=site-answers.yaml --project-root=. --yes
+run_cli install-init install:init
+
+# (2) The entity is generated, not hand-written.
+run_cli make-content-type make:content-type story --fields="title:string,body:text,secret_note:text"
+
+entity_file="$consumer/src/Entity/Story.php"
+[[ -f "$entity_file" ]] || { echo 'make:content-type did not generate the entity.' >&2; exit 1; }
+
+# (3) The deliberate visibility decision, applied to exactly one field.
+php -r '
+    $path = $argv[1];
+    $source = (string) file_get_contents($path);
+    $needle = "#[Field(type: \x27text\x27, label: \x27Body\x27)]";
+    if (substr_count($source, $needle) !== 1) {
+        throw new RuntimeException("Packaged proof could not identify the generated body field attribute.");
+    }
+    $source = str_replace($needle, "#[Field(type: \x27text\x27, label: \x27Body\x27, read: \Waaseyaa\Entity\FieldReadLevel::Public)]", $source);
+    if (!str_contains($source, "#[Field(type: \x27text\x27, label: \x27Secret Note\x27)]")) {
+        throw new RuntimeException("Packaged proof expects secret_note to remain undeclared, as the emitter wrote it.");
+    }
+    file_put_contents($path, $source);
+' "$entity_file"
+
+# (4) The generator under test, asked to index one publishable and one
+# restricted field.
+run_cli make-search-projection make:search-projection story --fields="body,secret_note"
+
+for generated in \
+    "src/Search/StorySearchProjector.php" \
+    "src/Provider/StorySearchServiceProvider.php" \
+    "tests/Search/StorySearchProjectorTest.php"; do
+    [[ -f "$consumer/$generated" ]] || { echo "make:search-projection did not generate $generated." >&2; exit 1; }
+done
+
+registrations="$(php -r '
+    $composer = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    echo count(array_keys($providers, "App\\Provider\\StorySearchServiceProvider", true));
+' "$consumer/composer.json")"
+if [[ "$registrations" != "1" ]]; then
+    echo "Expected the generated search provider registered exactly once in literal root composer.json, found $registrations." >&2
+    exit 1
+fi
+
+( cd "$consumer" && "$composer_bin" dump-autoload --no-interaction ) >"$work/dump.out" 2>&1
+
+run_cli schema-sync schema:sync
+run_cli entity-create entity:create story \
+    --field title="Fall harvest" \
+    --field body="Wild rice camp opens Monday harvestpublicterm" \
+    --field secret_note="restrictedsecretterm" \
+    --field status=1
+
+# (5) The boot proof: reindex can only find a story if the generated provider
+# was discovered and its projector consulted ahead of the built-in default.
+run_cli reindex search:reindex
+cat "$work/reindex.out"
+grep -Fq 'Reindex complete. 1 documents indexed.' "$work/reindex.out"
+
+cp "$source_root/tests/PackagedForm/fixtures/search-projection-index-probe.php" "$consumer/search-projection-index-probe.php"
+if ! php "$consumer/search-projection-index-probe.php" "$database" >"$work/probe.out" 2>&1; then
+    cat "$work/probe.out" >&2
+    echo 'The packaged search index could not be inspected.' >&2
+    exit 1
+fi
+cat "$work/probe.out"
+
+grep -Fq 'search-projection indexed rows: 1' "$work/probe.out"
+grep -Fq 'search-projection document: story:1' "$work/probe.out"
+
+# (b) the deliberately-public field is searchable.
+if ! grep -Fq 'harvestpublicterm' "$work/probe.out"; then
+    echo 'The field the application declared Public did not reach the packaged index.' >&2
+    exit 1
+fi
+
+# (c) the field left restricted never entered the index file.
+if grep -Fq 'restrictedsecretterm' "$work/probe.out"; then
+    echo 'A field left at the restricted default reached the packaged search index.' >&2
+    exit 1
+fi
+
+# (d) The discriminating negative control.
+projector_sha256="$(sha256sum "$consumer/src/Search/StorySearchProjector.php" | awk '{print $1}')"
+provider_sha256="$(sha256sum "$consumer/src/Provider/StorySearchServiceProvider.php" | awk '{print $1}')"
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    $composer["extra"]["waaseyaa"]["providers"] = array_values(array_filter(
+        $providers,
+        static fn (string $fqcn): bool => $fqcn !== "App\\Provider\\StorySearchServiceProvider",
+    ));
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json"
+( cd "$consumer" && "$composer_bin" dump-autoload --no-interaction ) >"$work/dump-rival.out" 2>&1
+
+run_cli reindex-rival search:reindex
+grep -Fq 'Reindex complete. 0 documents indexed.' "$work/reindex-rival.out"
+
+if [[ "$(sha256sum "$consumer/src/Search/StorySearchProjector.php" | awk '{print $1}')" != "$projector_sha256" ]]; then
+    echo 'The negative control must not modify the generated projector.' >&2
+    exit 1
+fi
+if [[ "$(sha256sum "$consumer/src/Provider/StorySearchServiceProvider.php" | awk '{print $1}')" != "$provider_sha256" ]]; then
+    echo 'The negative control must not modify the generated provider.' >&2
+    exit 1
+fi
+
+echo 'Packaged search-projection scaffold acceptance passed.'
+echo "Candidate: $candidate"
