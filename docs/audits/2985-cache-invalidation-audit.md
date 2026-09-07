@@ -242,10 +242,21 @@ PHP-FPM. Nothing warns. *(reported.)*
   construction. Recorded as **fragile but correct**: the invariant lives at the
   call site, not in the key, so a future caller omitting the guard would convert
   this into a real leak with no signal from the key builder.
-- **D-3 — `ProtectedCacheDimensions` is not a silent gap.** It has no production
-  constructor, but `docs/specs/entity-field-read-boundary.md:265-279` documents it
-  as WP4 scaffolding — "hard rejection remains WP4". Acknowledged future phase,
-  not abandoned safety machinery. Absence of callers is reported as exactly that.
+- **D-3 — `ProtectedCacheDimensions` has no production constructor.** *(Amended
+  after the access-policy lane, `0af4c2431`.)* This lane originally recorded the
+  absence as expected, citing `entity-field-read-boundary.md:274` — "hard
+  rejection remains WP4". **That citation was stale**: the line sits inside a
+  WP2-tranche section, and the file's top-of-file status reads "**WP4 activated**:
+  sealed entity reads, persistence gateways, production preflight, and payload
+  boundaries are enforced without compatibility shims."
+
+  The finding itself is unchanged and was re-verified at `1d4dcec49`: `new
+  ProtectedCacheDimensions` has zero production constructions. But the reading
+  changes and is modestly **stronger** — the class is unwired *after* the phase it
+  was scheduled for has shipped, rather than before it. It is still not evidence
+  of abandoned safety machinery, and absence of callers is still reported as
+  exactly that; what this lane can no longer say is that a documented future phase
+  explains it.
 - **D-4 — `EntityCacheSubscriber` and `EntityCacheInvalidator` are not competing
   authorities.** The former is the latter's registrar; it holds no invalidation
   logic. The lane owner's initial "two entity listeners" framing was wrong.
@@ -303,13 +314,16 @@ observations for the anchor, not defects.
 
 ## Residual work not covered
 
-- Every `AccessPolicyInterface` implementor's `SUPPORTS_LISTING_FAST_PATH`
-  declaration. `ListingResolver::computeCacheContexts()` (`:189-203`) force-adds
-  `user.id`/`user.roles` **unless** a policy opts into the fast path, so a
-  misdeclared policy would drop those dimensions from the listing cache key. This
-  lane found no misdeclared policy but did not audit them; it belongs to an access
-  lane. Note also that the auto-added dimensions are role and account id only —
-  a classification/clearance dimension is not among them.
+- ~~Every `AccessPolicyInterface` implementor's `SUPPORTS_LISTING_FAST_PATH`
+  declaration.~~ **Resolved by the access-policy lane (`0af4c2431`): the risk is
+  currently unreachable.** The production `GateInterface` binding is
+  `EntityAccessGate`, which does not implement `ListingFastPathProbeInterface`, so
+  `canUseAccessFastPath()`'s `instanceof` check is false for every request through
+  real kernel wiring — and zero production policies declare the constant. The
+  correctness obligation stands for any future opt-in: the policy's `view`
+  decision must be identical for every possible account. Note the auto-added
+  dimensions remain role and account id only — no classification/clearance
+  dimension.
 - Discovery/mcp_read payload tagging symmetry (`set()`-side tags vs. what the
   listeners invalidate).
 - Whether the `mcp_read` bin has any reader in this repository.
