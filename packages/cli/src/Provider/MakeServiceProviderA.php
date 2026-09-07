@@ -125,6 +125,23 @@ final class MakeServiceProviderA extends ServiceProvider implements ProvidesCons
                     description: 'The policy class name (e.g. "ContentPolicy")',
                 ),
             ],
+            options: [
+                new HandlerOption(
+                    name: 'entity',
+                    mode: HandlerOptionMode::Required,
+                    description: 'The entity type id this policy governs (e.g. "article")',
+                ),
+                new HandlerOption(
+                    name: 'grant',
+                    mode: HandlerOptionMode::Array_,
+                    description: 'Grant in operation:permission form (repeatable, e.g. "view:view article")',
+                ),
+                new HandlerOption(
+                    name: 'entity-class',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Fully-qualified entity class the generated access() asserts against (defaults to App\\Entity\\<PascalCase(entity)>)',
+                ),
+            ],
             handler: [MakePolicyHandler::class, 'execute'],
         );
     }

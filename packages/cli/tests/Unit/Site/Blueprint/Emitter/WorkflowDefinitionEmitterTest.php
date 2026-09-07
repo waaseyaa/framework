@@ -119,6 +119,53 @@ final class WorkflowDefinitionEmitterTest extends TestCase
     }
 
     /**
+     * #2848 convergence proof: `toDefinitionArray()` (the `scaffold:workflow`
+     * entrypoint) and `renderDefinition()` (the blueprint-compiled PHP
+     * source, exercised via `theGeneratedDefinitionConstructsAValidWorkflow...`
+     * above) apply the same derivation rules to the same `complete.yaml`
+     * `editorial` workflow — hydrating a `Workflow` from either one produces
+     * the identical `initial_state`, states, and transitions.
+     */
+    #[Test]
+    public function toDefinitionArrayConvergesWithTheGeneratedPhpSourceForTheSameWorkflow(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $blueprint = $manifest->applicationBlueprint;
+        $editorial = $blueprint->workflows['editorial'];
+
+        $array = new WorkflowDefinitionEmitter()->toDefinitionArray($editorial);
+
+        $fromArray = new Workflow($array);
+        self::assertSame([], new WorkflowValidator()->validate($fromArray));
+
+        $emission = new WorkflowDefinitionEmitter()->emit($blueprint, $manifest);
+        $namespace = 'Waaseyaa\\CLI\\Tests\\WorkflowDefinitionConvergence' . bin2hex(random_bytes(4));
+        $source = str_replace(
+            'namespace App\\Workflow;',
+            'namespace ' . $namespace . ';',
+            $this->content($emission->artifacts, 'src/Workflow/EditorialWorkflowDefinition.php'),
+        );
+        $file = tempnam(sys_get_temp_dir(), 'waaseyaa_workflow_definition_convergence_') . '.php';
+        file_put_contents($file, $source);
+        try {
+            require $file;
+            $fromPhpSource = new Workflow(($namespace . '\\EditorialWorkflowDefinition')::DEFINITION);
+
+            self::assertSame($fromPhpSource->getInitialState(), $fromArray->getInitialState());
+            self::assertSame(array_keys($fromPhpSource->getStates()), array_keys($fromArray->getStates()));
+            self::assertSame(array_keys($fromPhpSource->getTransitions()), array_keys($fromArray->getTransitions()));
+            foreach ($fromPhpSource->getTransitions() as $transitionId => $transition) {
+                self::assertSame(
+                    $fromPhpSource->permissionFor($transition),
+                    $fromArray->permissionFor($fromArray->getTransition($transitionId)),
+                );
+            }
+        } finally {
+            unlink($file);
+        }
+    }
+
+    /**
      * Two workflow ids that PascalCase to the same class name are refused
      * (`GEN006_MALICIOUS_IDENTIFIER`) before any artifact is emitted, rather
      * than silently producing a duplicate `src/Workflow/*.php` path within
