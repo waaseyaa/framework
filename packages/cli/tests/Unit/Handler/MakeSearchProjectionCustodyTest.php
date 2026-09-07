@@ -16,9 +16,12 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\MakeSearchProjectionHandler;
+use Waaseyaa\CLI\Provider\MakeServiceProviderB;
 use Waaseyaa\CLI\Site\Scaffold\SearchProjectionScaffoldCompiler;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Search\ProvidesEntitySearchProjectorsInterface;
 use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\Generation\GenerationUnitDisposition;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
@@ -37,6 +40,7 @@ use Waaseyaa\SiteContract\SiteManifestParser;
  */
 #[CoversClass(SearchProjectionScaffoldCompiler::class)]
 #[CoversClass(MakeSearchProjectionHandler::class)]
+#[CoversClass(MakeServiceProviderB::class)]
 final class MakeSearchProjectionCustodyTest extends TestCase
 {
     /** @var list<string> */
@@ -141,11 +145,134 @@ final class MakeSearchProjectionCustodyTest extends TestCase
         $first = $this->runMake($root, ['entity-type' => 'story', '--fields' => 'body']);
         self::assertSame(0, $first->getExitCode(), $first->getStderr());
 
-        $tester = $this->runMake($root, ['entity-type' => 'report', '--fields' => 'body']);
+        // A real second process boots the container `MakeServiceProviderB`
+        // resolves ProvidesEntitySearchProjectorsInterface from, discovering
+        // the provider the first scaffold just registered in composer.json.
+        // This test's stub container never boots the application, so the
+        // resolved instance is injected directly, proving the handler's own
+        // refusal wiring without a real kernel boot.
+        $existingProvider = $this->existingSearchProjectorProvider();
+
+        $tester = $this->runMake($root, ['entity-type' => 'report', '--fields' => 'body'], $existingProvider);
 
         self::assertSame(1, $tester->getExitCode());
         $output = $tester->getStderr() !== '' ? $tester->getStderr() : $tester->getStdout();
-        self::assertStringContainsString('already exists', $output);
+        self::assertStringContainsString('already registered as', $output);
+        self::assertStringContainsString($existingProvider::class, $output);
+        self::assertFileDoesNotExist($root . '/src/Search/ReportSearchProjector.php');
+    }
+
+    #[Test]
+    public function anInjectedBootResolvedProviderIsRefusedBeforeAnyWrite(): void
+    {
+        $root = $this->initializedProject();
+        $before = $this->ownership($root);
+        $existingProvider = $this->existingSearchProjectorProvider();
+
+        $tester = $this->runMake($root, ['entity-type' => 'story', '--fields' => 'body'], $existingProvider);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getStderr() !== '' ? $tester->getStderr() : $tester->getStdout();
+        self::assertStringContainsString('already registered as', $output);
+        self::assertStringContainsString($existingProvider::class, $output);
+        self::assertStringContainsString('entitySearchProjectors()', $output);
+
+        // Refusal happens before compiling or writing anything: no artifact
+        // and no roster mutation, exactly like the other pre-write refusals.
+        self::assertDirectoryDoesNotExist($root . '/src/Search');
+        self::assertSame($before, $this->ownership($root));
+    }
+
+    #[Test]
+    public function anInertUnregisteredFileMentioningTheInterfaceDoesNotFalselyRefuse(): void
+    {
+        $root = $this->initializedProject();
+        mkdir($root . '/src/Provider', 0o755, true);
+        file_put_contents(
+            $root . '/src/Provider/UnrelatedNotes.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Provider;
+
+                // Mentions ProvidesEntitySearchProjectorsInterface only in a comment; it
+                // implements nothing and is never registered in composer.json. Detection
+                // no longer scans source files, so this file has no effect either way.
+                final class UnrelatedNotes
+                {
+                }
+
+                PHP,
+        );
+
+        $tester = $this->runMake($root, ['entity-type' => 'story', '--fields' => 'body']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertFileExists($root . '/src/Search/StorySearchProjector.php');
+    }
+
+    #[Test]
+    public function theRealCommandProviderRefusesItsBootResolvedSearchProvider(): void
+    {
+        $root = $this->initializedProject();
+        $before = $this->ownership($root);
+        $existingProvider = $this->existingSearchProjectorProvider();
+        $services = new readonly class ($existingProvider) implements KernelServicesInterface {
+            public function __construct(private ProvidesEntitySearchProjectorsInterface $existingProvider) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === ProvidesEntitySearchProjectorsInterface::class
+                    ? $this->existingProvider
+                    : null;
+            }
+        };
+
+        $tester = $this->runProviderMake($root, $services);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('already registered as', $tester->getStderr() . $tester->getStdout());
+        self::assertDirectoryDoesNotExist($root . '/src/Search');
+        self::assertSame($before, $this->ownership($root));
+    }
+
+    #[Test]
+    public function theRealCommandProviderFailsClosedWhenARegisteredProviderCannotResolve(): void
+    {
+        $root = $this->initializedProject();
+        $before = $this->ownership($root);
+        $services = new class implements KernelServicesInterface {
+            public function get(string $abstract): ?object
+            {
+                if ($abstract === ProvidesEntitySearchProjectorsInterface::class) {
+                    throw new \RuntimeException('sensitive provider construction detail');
+                }
+
+                return null;
+            }
+        };
+
+        $tester = $this->runProviderMake($root, $services);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getStderr() . $tester->getStdout();
+        self::assertStringContainsString('could not be resolved', $output);
+        self::assertStringNotContainsString('sensitive provider construction detail', $output);
+        self::assertDirectoryDoesNotExist($root . '/src/Search');
+        self::assertSame($before, $this->ownership($root));
+    }
+
+    /** A stand-in for whatever provider instance a real boot would resolve. */
+    private function existingSearchProjectorProvider(): ProvidesEntitySearchProjectorsInterface
+    {
+        return new class implements ProvidesEntitySearchProjectorsInterface {
+            public function entitySearchProjectors(): array
+            {
+                return [];
+            }
+        };
     }
 
     #[Test]
@@ -285,7 +412,7 @@ final class MakeSearchProjectionCustodyTest extends TestCase
     }
 
     /** @param array<string, mixed> $argv */
-    private function runMake(string $root, array $argv): CliTester
+    private function runMake(string $root, array $argv, ?ProvidesEntitySearchProjectorsInterface $existingSearchProjectorProvider = null): CliTester
     {
         $command = new HandlerCommand(
             name: 'make:search-projection',
@@ -295,7 +422,10 @@ final class MakeSearchProjectionCustodyTest extends TestCase
                 new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'body'),
                 new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
             ],
-            handler: \Closure::fromCallable([new MakeSearchProjectionHandler(projectRoot: $root), 'execute']),
+            handler: \Closure::fromCallable([
+                new MakeSearchProjectionHandler(projectRoot: $root, existingSearchProjectorProvider: $existingSearchProjectorProvider),
+                'execute',
+            ]),
         );
         $container = new class implements ContainerInterface {
             public function get(string $id): mixed
@@ -310,6 +440,35 @@ final class MakeSearchProjectionCustodyTest extends TestCase
         };
 
         return CliTester::for($command, $container)->executeMap($argv);
+    }
+
+    private function runProviderMake(string $root, KernelServicesInterface $services): CliTester
+    {
+        $provider = new MakeServiceProviderB();
+        $provider->setKernelContext($root, [], []);
+        $provider->setKernelServices($services);
+        $commands = iterator_to_array($provider->consoleCommands(), false);
+        $command = array_values(array_filter(
+            $commands,
+            static fn(HandlerCommand $candidate): bool => $candidate->getName() === 'make:search-projection',
+        ))[0];
+
+        $container = new class implements ContainerInterface {
+            public function get(string $id): mixed
+            {
+                throw new \RuntimeException('not used');
+            }
+
+            public function has(string $id): bool
+            {
+                return false;
+            }
+        };
+
+        return CliTester::for($command, $container)->executeMap([
+            'entity-type' => 'story',
+            '--fields' => 'body',
+        ]);
     }
 
     private function project(): string

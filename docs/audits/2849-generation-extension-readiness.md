@@ -152,9 +152,12 @@ declaration is the single editable authority and the disposition column is what
 distinguishes a commitment from a non-commitment. So the class is documented as
 an application extension point and simultaneously declared not to be one.
 
-ADR-012 (`docs/adr/012-migration-platform-out-of-scope.md:13`) is consistent
-with the declaration, not the docblock: consumer applications "may keep an
-`Ingestion` namespace ... That remains app-shaped, not framework-shaped."
+ADR-012 (`docs/adr/012-migration-platform-out-of-scope.md`) no longer settles
+that boundary: it is superseded by ADR-012a, which establishes the stable
+migration plugin substrate while explicitly leaving incremental and continuous
+sync out of scope for v0.x. Neither decision turns the current internal
+ingestion classes into a supported recurring-ingestion extension contract.
+Follow-up #2984 owns the contract clarification; this search slice does not.
 
 Two further gaps are independent of that contradiction:
 
@@ -177,9 +180,10 @@ contracts"; there is not one here yet.
 
 1. Resolve the contradiction in one direction deliberately. Either promote a
    *successor* contract to `public` — not `EnvelopeValidator` itself, whose
-   shape is entangled with the CLI pipeline — or affirm ADR-012 and state that
-   ingestion adapters stay app-shaped, in which case #2849's ingestion clause
-   should be narrowed rather than implemented.
+   shape is entangled with the CLI pipeline — or ratify that recurring
+   ingestion adapters stay app-shaped despite ADR-012a's migration substrate,
+   in which case #2849's ingestion clause should be narrowed rather than
+   implemented. #2984 owns that decision record.
 2. If promoting: introduce a minimal `IngestionAdapterInterface` in
    `waaseyaa/ingestion` carrying only the entity-mapping boundary
    (`supports(Envelope): bool`, `map(Envelope): iterable`), declared `public`,

@@ -11,6 +11,7 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\Scaffold\SearchProjectionScaffoldCompiler;
 use Waaseyaa\CLI\Site\SiteInitializationService;
+use Waaseyaa\Search\ProvidesEntitySearchProjectorsInterface;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 
 /**
@@ -62,10 +63,20 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
      * @param list<string>|null $requiredSearchSymbols the search surface the generated
      *   code depends on. Defaults to the real contract; injectable so the
      *   refusal path can be proven without uninstalling a package.
+     * @param ProvidesEntitySearchProjectorsInterface|null $existingSearchProjectorProvider the
+     *   application's boot-scoped provider instance, when one is already
+     *   registered. `MakeServiceProviderB` resolves this from the same
+     *   container the running application would (mirroring
+     *   `make:content-type`'s field-registry injection) and passes the
+     *   already-validated result here; null when no provider is bound. This
+     *   handler trusts the caller's resolution rather than re-discovering it
+     *   — a malformed or unresolvable registration is a boot/provider-
+     *   discovery failure, not this command's concern.
      */
     public function __construct(
         private readonly ?string $projectRoot = null,
         private readonly ?array $requiredSearchSymbols = null,
+        private readonly ?ProvidesEntitySearchProjectorsInterface $existingSearchProjectorProvider = null,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -147,27 +158,24 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
         // Single-provider refusal (fail-closed): the container resolves
         // exactly one ProvidesEntitySearchProjectorsInterface, so a second
         // generated provider would silently shadow the first depending on
-        // registration order. Refuse before compiling rather than let two
-        // providers land and surprise the developer at boot.
-        $providerDir = $root . '/src/Provider';
-        if (is_dir($providerDir)) {
-            $candidates = glob($providerDir . '/*.php');
-            foreach ($candidates === false ? [] : $candidates as $candidate) {
-                if (realpath($candidate) === realpath($providerPath)) {
-                    continue;
-                }
-                $contents = file_get_contents($candidate);
-                if ($contents !== false && str_contains($contents, 'ProvidesEntitySearchProjectorsInterface')) {
-                    $relativePath = ltrim(substr($candidate, strlen($root)), '/');
-                    $io->error(sprintf(
-                        'An application search-projector provider already exists at %s. The container resolves one ProvidesEntitySearchProjectorsInterface, so add %s to its entitySearchProjectors() list instead of generating a second provider.',
-                        $relativePath,
-                        $projectorClass,
-                    ));
+        // registration order. `MakeServiceProviderB` resolves this exact
+        // boot-scoped binding through the same container the running
+        // application would (mirroring make:content-type's field-registry
+        // injection) and hands the already-validated instance to this
+        // handler's constructor; refuse before compiling rather than let
+        // two providers land and surprise the developer at boot. A
+        // registered provider that cannot be resolved is a boot/provider-
+        // discovery failure the framework already owns elsewhere — this
+        // handler classifies only the exact instance boot would hand the
+        // rest of the application, never source files or composer.json.
+        if ($this->existingSearchProjectorProvider !== null) {
+            $io->error(sprintf(
+                'An application search-projector provider is already registered as %s. The container resolves one ProvidesEntitySearchProjectorsInterface, so add %s to its entitySearchProjectors() list instead of generating a second provider.',
+                $this->existingSearchProjectorProvider::class,
+                $projectorClass,
+            ));
 
-                    return 1;
-                }
-            }
+            return 1;
         }
 
         try {
@@ -208,7 +216,7 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
         $io->writeln(sprintf('Each field %s indexes therefore needs a deliberate visibility decision, not a blanket one:', $projectorClass));
         $io->writeln('  - content genuinely meant for the search index: declare read: FieldReadLevel::Public on its #[Field] attribute;');
         $io->writeln('  - anything else: leave it Internal or Protected and drop it from --fields.');
-        $io->writeln('Do not widen a field to Public merely to silence the omission. The generated companion test fails loudly while an indexed field is still unreadable, so the choice is made rather than defaulted.');
+        $io->writeln('Do not widen a field to Public merely to silence the omission. The generated companion test fails loudly only once every requested field is unreadable and the projected body is empty; it does not fail merely because one field among several is left unread, so the choice is made rather than defaulted.');
         $io->writeln('Then run "waaseyaa search:reindex" to build the index.');
 
         return 0;
