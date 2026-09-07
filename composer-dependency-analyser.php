@@ -63,21 +63,12 @@ if (is_dir($rootDir . '/tools')) {
  *   (then map each <testsuite name> to the matching ErrorType:: constant)
  */
 
-// Unused dependencies: declared in root composer.json but no source code references.
-$config->ignoreErrorsOnPackages([
-    'waaseyaa/analytics',
-    'waaseyaa/deployer',
-    'waaseyaa/engagement',
-    'waaseyaa/github',
-], [ErrorType::UNUSED_DEPENDENCY]);
-
 // Shadow dependencies: used directly in code but only pulled in transitively.
 $config->ignoreErrorsOnPackages([
     'doctrine/dbal',
     'nikic/php-parser',
     'psr/container',
     'psr/event-dispatcher',
-    'symfony/dependency-injection',
     'symfony/event-dispatcher',
     'symfony/event-dispatcher-contracts',
     'symfony/http-foundation',
@@ -117,20 +108,15 @@ $config->ignoreErrorsOnPackages([
 
 // Prod dependencies whose only references live in dev paths.
 $config->ignoreErrorsOnPackages([
-    'symfony/dotenv',
     'waaseyaa/ai-pipeline',
     'waaseyaa/billing',
     'waaseyaa/debug',
     'waaseyaa/error-handler',
     'waaseyaa/geo',
-    'waaseyaa/groups',
     'waaseyaa/inertia',
     'waaseyaa/ingestion',
     'waaseyaa/menu',
     'waaseyaa/mercure',
-    'waaseyaa/messaging',
-    'waaseyaa/node',
-    'waaseyaa/state',
     'waaseyaa/taxonomy',
 ], [ErrorType::PROD_DEPENDENCY_ONLY_IN_DEV]);
 
@@ -140,7 +126,6 @@ $config->ignoreErrorsOnPackages([
 $config->ignoreUnknownClassesRegex('~^Waaseyaa\\\\(Entity|Field)\\\\Tests\\\\(.+\\\\)?Fixtures?\\\\.+$~');
 $config->ignoreUnknownClasses([
     'Waaseyaa\\Database\\PdoDatabase',
-    'Waaseyaa\\Entity\\Storage\\SqlEntityStorage',
 ]);
 
 return $config;
