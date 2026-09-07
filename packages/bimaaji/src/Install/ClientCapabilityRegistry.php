@@ -19,11 +19,17 @@ namespace Waaseyaa\Bimaaji\Install;
  * `default()` mirrors the **currently shipped** convention for all seven
  * launch clients — see the "Supported clients" table in
  * `docs/specs/bimaaji-install.md` — and changing an entry here changes
- * what `bimaaji:install` writes to disk. It intentionally does NOT encode
- * the #2660 decision memo's proposed conventions (e.g. Codex per-skill
- * `.agents/skills/`), because that mapping is gated on an undecided
- * maintainer question (open question (a) — see
- * `docs/adr/026-client-guidance-and-skill-conventions.md`).
+ * what `bimaaji:install` writes to disk. `codex` records `PerSkillFile` as
+ * the accepted implementation choice for #2660 Part B, backed by a
+ * verified upstream citation (see {@see Client\CodexClientTransformer}'s
+ * docblock) — not an invented convention. ADR-026 records that technical
+ * decision under delegated delivery authority; candidate qualification and
+ * governed landing remain separate.
+ *
+ * `claude` and `codex` share {@see Client\AbstractPerSkillClientTransformer}
+ * — concise always-loaded guidance plus one on-demand skill file per
+ * canonical inventory entry, each carrying a source-hash provenance marker
+ * so the two clients' output is provably in sync with one canonical set.
  *
  * @api
  */
@@ -63,9 +69,11 @@ final class ClientCapabilityRegistry
             ),
             new ClientCapabilities(
                 clientId: 'codex',
-                skillDelivery: SkillDeliveryMode::SingleConsolidatedFile,
-                requiresFrontmatterAtByteZero: false,
+                skillDelivery: SkillDeliveryMode::PerSkillFile,
+                requiresFrontmatterAtByteZero: true,
                 guidancePath: 'AGENTS.md',
+                skillDirectory: '.agents/skills',
+                skillIdPrefix: 'waaseyaa-',
             ),
             new ClientCapabilities(
                 clientId: 'copilot',

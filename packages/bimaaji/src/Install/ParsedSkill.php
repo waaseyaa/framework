@@ -23,6 +23,7 @@ final readonly class ParsedSkill
      * @param string $description One-line description from the frontmatter.
      * @param array<string, mixed> $frontmatter Full parsed frontmatter; consumers MAY pluck additional keys but should not assume any beyond `name`/`description`.
      * @param string $body Skill body with the YAML frontmatter block stripped.
+     * @param string $sourceSha256 sha256 of the raw `SKILL.md` bytes this skill was parsed from — the canonical-source identity #2660 Part B uses to prove Claude/Codex per-skill parity.
      */
     public function __construct(
         public string $id,
@@ -30,5 +31,6 @@ final readonly class ParsedSkill
         public string $description,
         public array $frontmatter,
         public string $body,
+        public string $sourceSha256 = '',
     ) {}
 }
