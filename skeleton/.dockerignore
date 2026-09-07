@@ -6,21 +6,47 @@ storage/*.sqlite
 tests
 phpunit.xml.dist
 *.md
-.claude
-.cursor
 
-# Generated secrets must never reach the build context. bin/post-create-setup.php
-# writes .env at create-project time with a random WAASEYAA_JWT_SECRET and
-# WAASEYAA_APP_SECRET; the production stage's `COPY . /app` would otherwise bake
-# both into a distributable image layer. Excluded at the context level, which is
-# the only boundary no later Dockerfile instruction can reach behind. (#2647)
+# distribution-exclusion-policy BEGIN (#2648)
+
+# Local-only agent CLI adapter directories
+.agents
+.agent
+.claude
+.codex
+.cursor
+.windsurf
+.gemini
+.augment
+.roo
+.amazonq
+.kiro
+.kilocode
+.qwen
+.opencode
+.vibe
+
+# Scratch databases and local operator run state
+storage/*.sqlite
+storage/files/
+.waaseyaa/
+.waaseyaa-golden-sha
+support-contract-evidence.json
+
+# Machine-specific MCP server descriptors
+.mcp.json
+**/.mcp.json
+
+# Generated credentials and local composer overrides
 .env
 .env.*
 **/.env
 **/.env.*
+composer.local.json
 
-# .env.example carries placeholders only and is the documented template the
-# create-project step reads. The negations come last: `.env.*` matches it, and
-# in .dockerignore the last matching pattern wins.
+# Placeholder templates survive the secret patterns above; negations come last
+# because in .dockerignore the last matching pattern wins.
 !.env.example
 !**/.env.example
+
+# distribution-exclusion-policy END (#2648)
