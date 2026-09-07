@@ -33,7 +33,7 @@ different bearer mechanisms in production with materially different postures
 | Session expiry | ✅ | Full | |
 | Concurrent sessions / enumeration | ✅ | Full | |
 | Bearer issuance, storage, verification, expiry, replay, scope | ✅ | Both mechanisms | |
-| Account disablement enforcement | ✅ | Both paths | |
+| Account disablement enforcement | ✅ | Both paths, plus the wiring condition (F9) | |
 | Generation-based revocation | ✅ | Full | |
 | Existing issue and record coverage | ✅ | Full | |
 | CSRF | ✅ | Full: generation, verification, per-surface scope, exemptions, SameSite | |
@@ -91,7 +91,10 @@ returning false for an inactive account before the email check
 `AnonymousUser` on rejection. The durable bearer path independently re-loads the
 owner with `'status' => 1` (`DurableBearerTokenAuth.php:103-107`).
 
-**Disablement takes effect on the next request, on every path examined.**
+**Disablement takes effect on the next request — but only when `waaseyaa/auth`
+is installed.** That condition is not incidental; see F9, which qualifies this
+result. D1 disproves "disablement is never enforced"; it does not establish
+"disablement is always enforced".
 
 ### D2 — Token storage and comparison are correct
 `AuthTokenRepository` stores `hash_hmac('sha256', $plain, $secret)` — a keyed
@@ -240,6 +243,56 @@ page-builder routes call `->requireCsrf()` despite JSON bodies
 (`packages/api/src/ApiServiceProvider.php:686,708`;
 `packages/admin-surface/src/AdminSurfaceServiceProvider.php:402,409,429`).
 
+### F9 — Disablement enforcement is silently absent without `waaseyaa/auth`
+**CONFIRMED. Conditional on a supported metapackage configuration.**
+
+The only production `AuthenticationEligibilityInterface` implementation,
+`VerifiedEmailAuthenticationEligibility`, ships in **`waaseyaa/auth`**.
+`HttpKernel` resolves it **by string FQCN** and, when it cannot, sets
+`$authenticationEligibility = null` (`packages/foundation/src/Kernel/HttpKernel.php:616-625`).
+It raises only if `auth.require_verified_email` is explicitly configured
+truthy — so in the ordinary case the control simply becomes absent, with no
+error and no log line. `SessionMiddleware` then skips both checks, because each
+is guarded by `$this->authenticationEligibility !== null` (`:96-101`, `:248-251`).
+
+The metapackage graph makes that reachable. Verified directly:
+
+| Metapackage | requires `waaseyaa/auth`? | requires `waaseyaa/user`? |
+|---|---|---|
+| `core` | **no** | yes |
+| `cms` | **no** (inherits `user` via `core`) | — |
+| `full` | **no** (inherits `user` via `core`) | — |
+
+Only the root `composer.json` — the dev skeleton / `waaseyaa/framework` — pulls
+`waaseyaa/auth`.
+
+So a consumer installing `core`, `cms` or `full` and issuing sessions itself on
+`waaseyaa/user`'s `AuthenticatedSession` gets a pipeline where the account
+`status` (Active) field is **never consulted** for live sessions or
+bearer-resolved accounts. `SessionMiddleware::resolveAccount` checks only
+`session_generation`, and nothing but password reset ever bumps that (F1, and
+the revocation lane's independent search for role-change or admin-disablement
+writers found none).
+
+**Scope, stated carefully.** This is not exploitable on a default framework
+install, because the skeleton requires `waaseyaa/auth`. It requires a consumer
+to build authentication on `waaseyaa/user` without `waaseyaa/auth` — plausible,
+since `AuthenticatedSession` and `SessionMiddleware` both live in `user`, but
+not the documented path. This audit did **not** establish that any real consumer
+is in that configuration.
+
+**Why it is still worth raising:** the degradation is *silent*. A security
+control disappears because a package is absent, and the only signal is an
+exception in the one case where a *different* setting
+(`auth.require_verified_email`) was explicitly turned on. A control that fails
+open quietly, keyed on package presence, is the shape worth fixing regardless of
+whether anyone is currently exposed — for example by failing closed when a
+session-issuing surface is present without an eligibility policy, or by moving
+the canonical policy into `waaseyaa/user` beside the middleware that needs it.
+
+This finding is why D1 is stated as a qualified disproof rather than a clean
+one.
+
 ## 5. Existing issue coverage
 
 | Issue | State | Relationship | Evidence |
@@ -251,7 +304,8 @@ page-builder routes call `->requireCsrf()` despite JSON bodies
 | #2276 | CLOSED | Scoped bearer tokens — Path B | — |
 | #2699 / #2775 | OPEN | Secure local token delivery; atomic token spending — adjacent, not traced | recon |
 | #2149 / #2146 / #2154 | CLOSED | Prior CSRF/session-cookie iterations; F7 is adjacent ground worth re-checking against them | recon |
-| **F1, F2, F3, F7** | — | **No owning issue.** F7 and F2 are the two worth raising first; F1 is a decision for #2816's design; F4 is already inside #2816 | — |
+| **F9** | — | **No owning issue. Highest-priority item in this lane** — a silently absent security control keyed on package presence | `HttpKernel.php:616-625`; metapackage graph |
+| **F1, F2, F3, F7** | — | **No owning issue.** F7 and F2 next; F1 is a decision for #2816's design; F4 is already inside #2816 | — |
 
 ## 6. Compatibility constraints
 
@@ -284,7 +338,10 @@ Each fails for one specific defect. None to be implemented under this audit.
    invalidating the others. *Discriminates:* not expressible today.
 6. **D1 (regression guard):** disabling an account rejects both a live cookie
    session and a live bearer token on the next request. *Discriminates:* pins
-   the behaviour that is currently correct.
+   the behaviour that is currently correct **when `waaseyaa/auth` is present**.
+7. **F9:** a kernel that composes a session-issuing pipeline without an
+   eligibility policy either refuses to boot or logs a loud warning.
+   *Discriminates:* fails today — the control degrades to `null` in silence.
 
 ## 8. Cross-boundary notes
 
