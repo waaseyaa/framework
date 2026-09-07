@@ -36,6 +36,7 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Field\FieldStorage;
 
 #[CoversClass(EntityRepository::class)]
+#[CoversClass(V2EntityRepositoryFactory::class)]
 final class EntityRepositoryEntityReferenceValidationTest extends TestCase
 {
     private const TARGET_UUID = '3f2a1b4c-5d6e-4f80-9a1b-2c3d4e5f6a7b';
