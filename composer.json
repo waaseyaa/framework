@@ -489,6 +489,7 @@
         "check-changelog-shape": "php bin/check-changelog-shape",
         "check-changelog-fragments": "php bin/changelog-fragments validate",
         "check-distribution-extensions": "php bin/check-distribution-extensions",
+        "check-distribution-exclusion": "php bin/check-distribution-exclusion",
         "check-local-operator-tool-profile": "php bin/check-local-operator-tool-profile",
         "check-openapi": "bash bin/check-openapi",
         "check-external-consumers": "php bin/check-external-consumers ai-agent-orphans",
