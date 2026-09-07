@@ -240,18 +240,34 @@ call, though `transactional()` is used elsewhere in the codebase
 portable upsert safe because "the retained set is written by a single presenter
 emitting sequentially" — an assumption, not an enforced invariant.
 
-Observed failure modes, all **CONFIRMED**, none claimed exhaustive:
+**What the confirmed finding actually is.** The defect is *publication despite a
+reported failure*, not cross-channel disclosure. Because the log `INSERT`
+(`:79-82`) commits before the retained `DELETE`/`INSERT` (`:89-94`) and nothing
+wraps the three in a transaction, a fault after the first statement leaves the
+operation reporting failure to its caller while a **pollable row already exists
+in `_broadcast_log`**. An authorized subscriber on that channel therefore
+receives a message the writer believes was not published — and a caller retry
+re-runs the log `INSERT`, so the same subscriber receives it twice.
+`EmitBeaconController.php:124` calls `pushRetained` with no try/catch.
+
+The recipient in this finding is entitled to the channel. The harm is
+publication of a message whose write was reported as failed, and duplicate
+delivery on retry — an integrity and idempotency defect, not a confidentiality
+one.
+
+Two further **CONFIRMED** failure modes, none claimed exhaustive:
 - DELETE succeeds and INSERT throws → the retained row is gone (loss on replay).
-- A caller retry after a mid-sequence exception re-runs the log INSERT →
-  duplicate live entry. `EmitBeaconController.php:124` calls `pushRetained`
-  with no try/catch.
 - A concurrent same-key retry would collide on the
   `_broadcast_retained(channel, retain_key)` primary key
   (`packages/api/migrations/2026_08_12_000001_broadcast_schema.php:34`).
 
-**Unresolved:** whether any sequence exposes a retained message to a subscriber
-not entitled to it. Resolving it needs an adversarial interleaving analysis of
-write-failure states against the read path, which is beyond what was done here.
+**Separate hypothesis, UNRESOLVED:** whether any sequence exposes a retained
+message to a subscriber *not entitled to it*. That is a distinct,
+confidentiality-shaped claim from the integrity finding above, it is not
+established by this audit, and this report's earlier attempt to *disprove* it
+was withdrawn. Resolving it needs an adversarial interleaving analysis of
+write-failure states against the read path. Neither the confirmed finding nor
+the withdrawn disproof should be read as settling it.
 
 Separately documented and not a finding: non-privileged broadcast channels have
 no per-channel ACL — `docs/specs/broadcasting.md:315-316` states any
@@ -396,7 +412,7 @@ direct `gh issue view` on `waaseyaa/framework` and from commit history.
 | **#2741** | OPEN p1 | **Confirmed, unfixed.** Add: it is a data-loss path, and the scheduler already has the fix | `DbalTransport.php:179-213` unconditional predicates; `OccurrenceRepository.php:75-95` fenced counterpart |
 | **#2743** | OPEN p1 | **Confirmed** by the `claimForRetry` latch, plus the indistinguishable-status defect | `DatabaseFailedJobRepository.php:103-118`; `DbalTransport.php:296-306` |
 | **#2745** | OPEN p1 | **Confirmed**, root cause localized to one `match` | `SendNotificationHandler.php:70-76`; `SendNotificationJob.php:28-33` |
-| **#2747** | OPEN p1 | **Non-atomicity confirmed; leak question UNRESOLVED.** An earlier disproof in this report is withdrawn — do not re-scope on it | `BroadcastStorage.php:69-97` (no transaction) |
+| **#2747** | OPEN p1 | **Confirmed: publication to an authorized subscriber despite a failed write, plus duplicate delivery on retry.** A separate unauthorized-disclosure hypothesis is UNRESOLVED; an earlier disproof of it is withdrawn | `BroadcastStorage.php:69-97` (no transaction); log INSERT commits at `:79-82` before the retained pair at `:89-94` |
 | **#2818** | OPEN p1 | **Confirmed and understated** — declared timeouts are dead config, not merely absent isolation | `Job.php:25`, `WorkerOptions.php:22`, no enforcement anywhere |
 | #2822 | CLOSED | Verified resolved; regression-pinned | `e9fa7b3ba`; `QueueJobContractSurfaceTest` |
 | #2740 | — | Sibling A3-QUEUE-01 (messages without handler) | `docs/change-records/FW-2740.md` |
