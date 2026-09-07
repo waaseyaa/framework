@@ -33,6 +33,13 @@ final class SiteRecipeProviderActivationGateTest extends TestCase
         self::assertStringContainsString('site-verify', $source);
         self::assertStringContainsString('probe-rival.out', $source);
 
+        $probe = (string) file_get_contents($root . '/tests/PackagedForm/fixtures/recipe-provider-activation-probe.php');
+        self::assertStringContainsString('$kernel->getEntityTypeManager()->getFieldRegistry()', $probe);
+        self::assertStringNotContainsString('$resolver->resolve(FieldDefinitionRegistryInterface::class)', $probe);
+        self::assertStringContainsString("tableExists('node__page')", $probe);
+        self::assertStringContainsString("fieldExists('node__page', 'page_layout')", $probe);
+        self::assertStringContainsString('recipe-provider-activation node__page.page_layout storage: present', $source);
+
         $workflow = Yaml::parseFile($root . '/.github/workflows/ci.yml');
         self::assertIsArray($workflow);
         self::assertArrayHasKey('site-recipe-provider-activation', $workflow['jobs']);

@@ -28,6 +28,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
@@ -61,7 +62,7 @@ try {
 
     $fieldRegistered = false;
     try {
-        $fields = $resolver->resolve(FieldDefinitionRegistryInterface::class);
+        $fields = $kernel->getEntityTypeManager()->getFieldRegistry();
         if ($fields instanceof FieldDefinitionRegistryInterface) {
             $fieldRegistered = isset($fields->bundleFieldsFor('node', 'page')['page_layout']);
         }
@@ -71,6 +72,21 @@ try {
     fwrite(STDOUT, $fieldRegistered
         ? "recipe-provider-activation page_layout field: present\n"
         : "recipe-provider-activation page_layout field: NOT present\n");
+
+    $storagePresent = false;
+    try {
+        $database = $resolver->resolve(DatabaseInterface::class);
+        if ($database instanceof DatabaseInterface) {
+            $schema = $database->schema();
+            $storagePresent = $schema->tableExists('node__page')
+                && $schema->fieldExists('node__page', 'page_layout');
+        }
+    } catch (\Throwable) {
+        $storagePresent = false;
+    }
+    fwrite(STDOUT, $storagePresent
+        ? "recipe-provider-activation node__page.page_layout storage: present\n"
+        : "recipe-provider-activation node__page.page_layout storage: NOT present\n");
 
     exit(0);
 } catch (\Throwable $e) {

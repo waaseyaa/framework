@@ -285,6 +285,7 @@ cat "$work/probe-positive.out"
 grep -Fq 'recipe-provider-activation kernel boot OK' "$work/probe-positive.out"
 grep -Fq 'recipe-provider-activation page surface: resolved' "$work/probe-positive.out"
 grep -Fq 'recipe-provider-activation page_layout field: present' "$work/probe-positive.out"
+grep -Fq 'recipe-provider-activation node__page.page_layout storage: present' "$work/probe-positive.out"
 
 # (4) The rival: remove ONLY the literal-root governed_authoring provider
 # entry. The generated Composer fragment and the generated provider class
