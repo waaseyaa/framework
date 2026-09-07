@@ -836,7 +836,7 @@ final class JsonApiController
             && $this->account?->isAuthenticated() === true
         ) {
             $accountId = $this->account->id();
-            if (\is_int($accountId) || \ctype_digit((string) $accountId)) {
+            if (\is_int($accountId) || \ctype_digit($accountId)) {
                 $ownerId = (int) $accountId;
                 if ($ownerId > 0) {
                     $targetType = $uidDefinition->getSetting('target_entity_type_id')
@@ -845,7 +845,9 @@ final class JsonApiController
                         ?? 'user';
                     if (is_string($targetType)) {
                         $targetType = trim($targetType);
-                        if ($targetType !== '' && $this->identifierResolver->resolve($targetType, $ownerId) !== null) {
+                        if ($targetType !== ''
+                            && $this->entityTypeManager->hasDefinition($targetType)
+                            && $this->identifierResolver->resolve($targetType, $ownerId) !== null) {
                             $entity->set('uid', $ownerId);
                         }
                     }

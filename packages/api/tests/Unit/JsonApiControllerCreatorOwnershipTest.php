@@ -102,6 +102,66 @@ final class JsonApiControllerCreatorOwnershipTest extends TestCase
     }
 
     #[Test]
+    public function unregisteredUidTargetSkipsAutoAttributionWithoutRepositoryLookup(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $dispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($database);
+        $entityTypeManager = new GuardedEntityTypeManager(
+            $dispatcher,
+            null,
+            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, &$entityTypeManager): EntityRepository {
+                new SqlSchemaHandler($definition, $database)->ensureTable();
+
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+                    $definition,
+                    new SqlStorageDriver($resolver, $definition->getKeys()['id']),
+                    $dispatcher,
+                    database: $database,
+                    validator: ClosedEntityValidatorFactory::create(Validation::createValidator()),
+                    entityReferenceResolver: new EntityIdentifierResolver($entityTypeManager),
+                );
+            },
+        );
+
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'authored_article',
+            label: 'Authored Article',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+            _fieldDefinitions: [
+                'title' => new FieldDefinition(name: 'title', type: 'string', required: true),
+                'uid' => new FieldDefinition(
+                    name: 'uid',
+                    type: 'entity_reference',
+                    settings: ['target_entity_type_id' => 'user', 'authorizationInput' => true],
+                    read: FieldReadLevel::Protected,
+                ),
+            ],
+        ));
+
+        $controller = new JsonApiController(
+            $entityTypeManager,
+            new ResourceSerializer($entityTypeManager),
+            new EntityAccessHandler([new AllowAllPolicy()]),
+            $this->principal(42),
+        );
+
+        $doc = $controller->store('authored_article', [
+            'data' => [
+                'type' => 'authored_article',
+                'attributes' => ['title' => 'Harness-authored draft'],
+            ],
+        ]);
+
+        self::assertSame(201, $doc->statusCode, json_encode($doc->toArray(), JSON_THROW_ON_ERROR));
+
+        $stored = $database->getConnection()->fetchAssociative("SELECT json_extract(_data, '$.uid') AS uid FROM authored_article");
+        self::assertIsArray($stored);
+        self::assertNull($stored['uid'], 'Unregistered uid targets must not auto-attribute or touch the user repository.');
+    }
+
+    #[Test]
     public function persistedAuthenticatedUserReceivesCanonicalUidAttribution(): void
     {
         self::assertInstanceOf(User::class, $this->entityTypeManager->getRepository('user')->find('42'));
@@ -144,6 +204,22 @@ final class JsonApiControllerCreatorOwnershipTest extends TestCase
             new EntityAccessHandler([new AllowAllPolicy()]),
             $account,
         );
+    }
+}
+
+/**
+ * Entity type manager that fails closed if auto-attribution reaches an
+ * unregistered uid target repository.
+ */
+final class GuardedEntityTypeManager extends EntityTypeManager
+{
+    public function getRepository(string $entityTypeId): \Waaseyaa\Entity\Repository\EntityRepositoryInterface
+    {
+        if ($entityTypeId === 'user') {
+            throw new \LogicException('getRepository(user) must not be called when the user entity type is unregistered.');
+        }
+
+        return parent::getRepository($entityTypeId);
     }
 }
 
