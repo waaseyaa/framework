@@ -30,7 +30,13 @@ source_root="$work/source"; consumer="$work/consumer"; nodev="$work/nodev"
 
 composer_bin="${COMPOSER_BIN:-$(command -v composer)}"
 
-cleanup() { rm -rf -- "$work" || echo "warning: failed to remove $work" >&2; }
+cleanup() {
+    # Teardown is best-effort and must never change this script's exit
+    # status: a failed rm under `set -e` would otherwise overwrite the
+    # verdict the proof already reached, including a clean success
+    # (#2870). Guard the removal with `||` and report a leak on stderr.
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
 trap cleanup EXIT
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
