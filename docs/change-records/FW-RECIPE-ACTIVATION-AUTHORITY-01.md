@@ -51,13 +51,14 @@ Upgrade and AI update/verify remain later slices after non-root generator
 migrations and accepted #2660/#2663 plan contracts. A Composer activation phase
 requires the new consumer decision described in D-15.4.
 
-The current `docs/specs/cli-kernel.md` statement that presets do not make a
-declared capability run remains truthful until the provider implementation
-lands. The #2857 implementation must then narrow that sentence to the provider
-activation result; this candidate does not expand to a fifth documentation
-file.
+`docs/specs/cli-kernel.md` is narrowed in this candidate to the implemented
+provider-activation result: presets still do not execute an arbitrary declared
+capability, while a selected first-party recipe contributes its fixed provider
+through the typed root-plan seam and the existing generation transaction.
 
-Shared CI, full qualification, issue reconciliation, release publication and
+The unconditional `ci/site-recipe-provider-activation` job runs the packaged
+proof against the exact candidate selected by CI and propagates any proof
+failure. Full qualification, issue reconciliation, release publication and
 broad lifecycle documentation remain integration-owner work. This decision
 record authorizes no production edit by itself.
 
@@ -98,5 +99,5 @@ provider's `boot()` has run. `docs/specs/listing-pipeline-v1.md` FR-052/FR-053
 now describe the actual finalization boundary.
 
 This entry records only the local unit-level fix and its focused regression
-test. The packaged proof itself has not been rerun against this repair as
-part of this candidate; packaged success is not claimed here.
+test. The packaged proof is required as exact-candidate execution evidence
+before acceptance; this record and its CI wiring do not claim that result.

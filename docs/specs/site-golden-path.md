@@ -583,14 +583,12 @@ never generates code of its own:
 **What a preset does not do.** A preset selects capabilities and recipes and
 publishes their artifacts; it does not create a separate activation mechanism.
 The supported skeleton already installs the governed-authoring packages through
-its `waaseyaa/framework` dependency. At repository revision
-`a4bdd9167d36587fbda5853fd4b7f6c19672158b`, `editorial` still does not reach
-a usable authenticated authoring surface because
-`PackageManifestCompiler::readRootComposer()` reads literal root
-`composer.json`, while the recipe's provider exists only in generated fragment
-metadata. #2857 implements ADR-025 D-15's typed root-plan registration; until
-that implementation lands, treat an `editorial` site as a correct, reviewable
-declaration of governed authoring rather than a running authoring surface.
+its `waaseyaa/framework` dependency. Provider activation uses ADR-025 D-15's
+typed root-plan registration: each selected first-party recipe contributes its
+fixed provider to the existing `ArtifactPlan`, and the generation transaction
+merges that registration into literal root `composer.json` exactly once.
+Generated fragment metadata remains compatibility output and is not a second
+provider-discovery authority.
 
 Both `--answers` (a `waaseyaa.site-seed` document, not a complete manifest,
 when combined with `--preset`) and interactive mode (fewer questions — no
