@@ -46,11 +46,18 @@ final class GenerationAuthorityConstraintsTest extends TestCase
         ], $this->productionFilesMatching('/\\\\?flock\\s*\\([^;]*\\\\?LOCK_EX/s'));
     }
 
+    /**
+     * The blueprint compiler composes SiteArtifactRenderer::compile(), whose
+     * plan excludes ownership metadata for the transaction authority to
+     * compose. SiteInitializationService refuses any compiler plan that
+     * claims that path; the compiler unit test also guards the indirect
+     * boundary. This inventory is the closed set of production code that
+     * handles the document directly.
+     */
     #[Test]
-    public function generatedOwnershipDocumentHasOneClosedSetOfProductionParticipants(): void
+    public function generatedOwnershipDocumentHasOneClosedSetOfDirectProductionParticipants(): void
     {
         self::assertSame([
-            'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
             'packages/cli/src/Site/SiteDoctorService.php',
             'packages/cli/src/Site/SiteInitializationService.php',
             'packages/site-contract/src/Generation/GeneratedSite.php',

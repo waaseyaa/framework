@@ -9,12 +9,16 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Handler\MakeContentTypeHandler;
 use Waaseyaa\CLI\Handler\MakeEntityTypeHandler;
 use Waaseyaa\CLI\Handler\MakePluginHandler;
 use Waaseyaa\CLI\Handler\MakeProviderHandler;
 use Waaseyaa\CLI\Handler\MakePublicHandler;
 use Waaseyaa\CLI\Handler\MakeTestHandler;
+use Waaseyaa\Field\FieldScaffoldProjection;
+use Waaseyaa\Field\FieldTypeManagerInterface;
+use Waaseyaa\Field\FieldValueKindResolverInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -40,7 +44,7 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                 new HandlerOption(
                     name: 'fields',
                     mode: HandlerOptionMode::Required,
-                    description: 'Comma-separated fields: name:type[,...] (types: string,text,integer,float,boolean,datetime,entity_reference; reference: author:entity_reference:user)',
+                    description: 'Comma-separated fields: name:type[,...] using registered scaffold field types; reference: author:entity_reference:user',
                     default: 'title:string,body:text',
                 ),
                 new HandlerOption(
@@ -49,7 +53,17 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                     description: 'Overwrite existing generated files',
                 ),
             ],
-            handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $projectRoot), 'execute']),
+            handler: function (SymfonyCommandIO $io) use ($projectRoot): int {
+                $fieldTypes = $this->resolve(FieldTypeManagerInterface::class);
+                if (!$fieldTypes instanceof FieldTypeManagerInterface || !$fieldTypes instanceof FieldValueKindResolverInterface) {
+                    throw new \LogicException('make:content-type requires the boot-scoped field registry and value-kind resolver.');
+                }
+
+                return new MakeContentTypeHandler(
+                    fieldProjection: new FieldScaffoldProjection($fieldTypes),
+                    projectRoot: $projectRoot,
+                )->execute($io);
+            },
         );
 
         yield new HandlerCommand(

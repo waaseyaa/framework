@@ -127,4 +127,37 @@ final readonly class SkillInventory
 
         return null;
     }
+
+    /**
+     * @return array<string, string> skill id => sha256 of the raw source `SKILL.md` bytes, sorted by id
+     */
+    public function sourceSha256ById(): array
+    {
+        $map = [];
+        foreach ($this->skills as $skill) {
+            $map[$skill->id] = $skill->sourceSha256;
+        }
+
+        ksort($map);
+
+        return $map;
+    }
+
+    /**
+     * A single sha256 identifying this exact inventory (ids + per-skill
+     * source hashes). Two inventories over the same canonical skill set
+     * produce the same value regardless of construction order — see
+     * {@see fromSkills()}'s canonicalization. Used to prove Claude and
+     * Codex regenerated their per-skill output from one canonical source
+     * set (#2660 Part B).
+     */
+    public function inventorySha256(): string
+    {
+        $lines = [];
+        foreach ($this->sourceSha256ById() as $id => $sha256) {
+            $lines[] = $id . ':' . $sha256;
+        }
+
+        return hash('sha256', implode("\n", $lines));
+    }
 }

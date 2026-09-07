@@ -1,9 +1,11 @@
 # Fresh-site golden path
 
+<!-- #2857 / FW-RECIPE-ACTIVATION-AUTHORITY-01 candidate: ADR-025 D-15 binds first-party recipe providers to the existing typed root plan and corrects the package-materialization premise for the supported full-framework skeleton. This records a technical integration target; it does not claim the provider fix is implemented before #2857 lands. -->
+
 <!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->
 
 <!-- Spec reviewed 2026-09-06 - #2789, ADR-025 D-6.5: the apply request is now decodable by the contract that defines it (`ArtifactApplyRequest::fromArray()`/`fromCanonicalJson()`, strict and byte-exact), and `site:apply` installs D-6.5's second process on the boot-free seam. Digest verification is unchanged and stays with the execution authority under its lock. See "Initialization" below and cli-kernel.md "Reviewed apply". -->
-<!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets land the declarative half only - activating a declared capability in the canonical lifecycle is the pre-existing gap tracked by #2857, decided by #2845/#2846. -->
+<!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets select declarative recipe output; ADR-025 D-15's #2857 candidate binds current provider activation to the typed root plan and leaves a future thinner consumer's package materialization undecided. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
 ## Purpose
@@ -213,7 +215,7 @@ validator, exact-digest decision boundary, initializer, and verifier.
 The blueprint compiler is
 `Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler`: a distinct root
 compiler with its own `generator.fqcn` that composes
-`SiteArtifactRenderer::render()` and pure emitters into the root `site`
+`SiteArtifactRenderer::compile()` and pure emitters into the root `site`
 unit's `ArtifactPlan`, declaring `set_evolution: additive` purely (#2787
 01D-1; design in `docs/change-records/FW-SITE-BLUEPRINT-01.md`). 01D-2
 activates the execution and verification boundaries above under ADR-025 D-13.
@@ -578,21 +580,15 @@ never generates code of its own:
   resolves `not_needed`: personal-data collection is an orthogonal decision a
   preset does not make on an operator's behalf.
 
-**What a preset does not do.** A preset lands the *declarative* half only. It
-selects capabilities and recipes and publishes their artifacts; it does not
-make a declared capability run. `editorial` therefore does **not** by itself
-reach a usable authenticated authoring surface: the canonical
-`create-project` → `site:init` → `install:init` lifecycle never reruns
-Composer after generation, and `PackageManifestCompiler::readRootComposer()`
-reads the literal root `composer.json` rather than the merge-plugin result, so
-a recipe-declared provider and its package requirements are generated and
-never activated. That gap is **pre-existing and not preset-specific** — every
-manifest that activates `governed_authoring` has it — and is tracked by
-**#2857**; the contract that closes it is the materialization decision under
-#2845/#2846, and duplicating it here would be exactly the second activation
-authority those issues exist to prevent. Until then, treat an `editorial`
-site as a correct, reviewable *declaration* of governed authoring, not as a
-running authoring surface.
+**What a preset does not do.** A preset selects capabilities and recipes and
+publishes their artifacts; it does not create a separate activation mechanism.
+The supported skeleton already installs the governed-authoring packages through
+its `waaseyaa/framework` dependency. Provider activation uses ADR-025 D-15's
+typed root-plan registration: each selected first-party recipe contributes its
+fixed provider to the existing `ArtifactPlan`, and the generation transaction
+merges that registration into literal root `composer.json` exactly once.
+Generated fragment metadata remains compatibility output and is not a second
+provider-discovery authority.
 
 Both `--answers` (a `waaseyaa.site-seed` document, not a complete manifest,
 when combined with `--preset`) and interactive mode (fewer questions — no
@@ -663,21 +659,33 @@ A recipe is a versioned first-party generator with four parts:
 Recipes may generate application code and configuration, but must not create a
 private framework fork or duplicate framework-owned services.
 
-**Activation is not yet part of this contract (#2857).** A recipe that emits a
-Composer fragment — `composer.site-recipes.json`,
-`composer.governed-authoring-recipe.json`, `composer.subscription-recipe.json`
-— relies on the skeleton's `extra.merge-plugin.include` list to see it. All
-three are listed there (the governed-authoring entry was missing, an asymmetry
-with no rationale; `include` patterns that match no file are ignored by
-`wikimedia/composer-merge-plugin`, so listing a fragment a given site never
-generates is inert). Being listed is necessary and **not sufficient**: the
-canonical `create-project` → `site:init` → `install:init` lifecycle never
-reruns Composer after generation, and `PackageManifestCompiler` reads the
-literal root `composer.json` rather than the merged result, so a
-recipe-declared package requirement is not installed and a recipe-declared
-provider is not registered. Closing that is the materialization decision under
-#2845/#2846, tracked for recipes by #2857; nothing in this spec may introduce a
-second activation authority ahead of it.
+**Provider activation is fixed by ADR-025 D-15 (#2857).** The supported
+skeleton requires `waaseyaa/framework`, whose production dependency graph
+already installs `waaseyaa/admin-surface`, `waaseyaa/page-builder`, and
+`waaseyaa/publishing` before `site:init`. The identical `^0.1` requirements in
+`composer.governed-authoring-recipe.json` are therefore redundant compatibility
+output on this topology. They do not justify a Composer rerun or prove a
+package-activation mechanism. The published-content and subscription fragments
+contain provider metadata only.
+
+Provider discovery intentionally reads literal root `composer.json`, so each
+enabled recipe must instead contribute its fixed provider as a typed D-6.6
+registration in the root `ArtifactPlan`. The existing generation transaction
+merges that registration into the literal file. Generated fragments remain
+governed artifacts for byte compatibility and drift detection, but their
+`extra.waaseyaa.providers` values are not a second discovery authority.
+
+A generated provider's entity and bundle field declarations belong to
+`register()`, which the definition-only `install:init` bootstrap executes before
+schema synchronization. A later ordinary `boot()` hook cannot be the first
+authority to declare storage that installation must already have materialized.
+
+At repository revision `a4bdd9167d36587fbda5853fd4b7f6c19672158b`, the
+fragments and installed dependencies exist but typed recipe registrations do
+not; #2857 implements the provider-plan seam before consumer documentation may
+claim an activated recipe. A future thinner skeleton and its package
+materialization lifecycle require the separate product and ADR decision in
+D-15.4; this contract names no such consumer today.
 
 ### Published content
 
@@ -721,6 +729,8 @@ capability rather than generating a site-specific builder. It generates:
 - semantic public renderers bound to application design tokens;
 - one authenticated page-builder surface, exact-revision preview route, and
   ordinary revision/workflow persistence path;
+- a page-scoped publishing composition over the canonical `node` repository,
+  database, audit, entity-access, and publication-transition authorities;
 - the generic Waaseyaa Admin SPA client and, when selected, an Anokii module
   adapter that opens the same drafts and builder workspace;
 - role-scoped content inventory actions for pages and typed high-volume

@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Site\Recipe;
 
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Generation\ComposerProviderRegistration;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
+use Waaseyaa\SiteContract\Generation\SiteRecipeProviderRegistrationInterface;
 use Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface;
 use Waaseyaa\SiteContract\PersonalDataStore;
 use Waaseyaa\SiteContract\SiteManifest;
 
-final class SubscriptionRecipe implements SiteRecipeRendererInterface
+final class SubscriptionRecipe implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface
 {
     public const int VERSION = 1;
 
@@ -65,6 +67,16 @@ final class SubscriptionRecipe implements SiteRecipeRendererInterface
     public function id(): string
     {
         return 'subscription';
+    }
+
+    /** @return list<ComposerProviderRegistration> */
+    public function providerRegistrations(SiteManifest $manifest): array
+    {
+        if (!isset($manifest->recipes['subscription'])) {
+            return [];
+        }
+
+        return [new ComposerProviderRegistration('App\\Provider\\SubscriptionServiceProvider')];
     }
 
     public static function digest(): string

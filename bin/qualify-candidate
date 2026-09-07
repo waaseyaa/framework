@@ -18,7 +18,8 @@ declare(strict_types=1);
  *
  * Usage:
  *   bin/qualify-candidate                 # preflight --full + Unit + Integration + Architecture on HEAD
- *   bin/qualify-candidate --jobs=2         # explicit concurrency
+ *   bin/qualify-candidate --jobs=2         # explicit post-preflight concurrency
+ *   bin/qualify-candidate --collect-all    # diagnostic override: schedule despite preflight failure
  *   bin/qualify-candidate --only=unit,integration
  *   bin/qualify-candidate --base=origin/main
  *   bin/qualify-candidate --allow-dirty    # run against an uncommitted tree; never a qualification
@@ -34,7 +35,10 @@ declare(strict_types=1);
  *                    Default plan (no --plan) is the four real components above.
  *   --only=a,b       Run only the named component ids. An all-green subset run is verdict
  *                    "passed" with disqualifier "subset" — never a qualification.
- *   --jobs=N         Run up to N components concurrently. Default 1. Every component still binds to one head/tree.
+ *   --jobs=N         Run up to N components concurrently after preflight passes. Default 1.
+ *                    Preflight always runs alone when selected; every component binds to one head/tree.
+ *   --collect-all    Diagnostic override: schedule every selected component even when preflight fails.
+ *                    Complete all-green default evidence can still qualify; failures remain failures.
  *   --out=DIR        Evidence directory. Default: <repo>/build/qualification/<sha12>-<utc yyyymmddThhmmssZ>/.
  *                    A pre-existing <out>/receipt.json is superseded (never deleted) before any
  *                    component starts; see "Receipt" below.
@@ -73,6 +77,11 @@ declare(strict_types=1);
  * exits 2 and prints nothing on stdout that could be mistaken for a green
  * result.
  *
+ * Scheduling: when selected, `preflight` runs alone. Its pass opens the
+ * remaining scheduler; any other outcome records held components as `unrun`
+ * without starting them. Later suite failures are collected without closing the
+ * scheduler. `--collect-all` explicitly restores all-component diagnostic scheduling.
+ *
  * Evidence binding per component: a previous run's log/junit at the same path
  * is removed before the child starts (unremovable -> evidence_error); a junit
  * whose failures/errors are non-zero next to a zero exit is an evidence_error,
@@ -83,8 +92,8 @@ declare(strict_types=1);
  * failures, errors and skipped counts on every top-level suite.
  */
 
-const QUALIFY_CANDIDATE_VERSION = '1.0.0';
-const QUALIFY_CANDIDATE_SCHEMA_VERSION = 1;
+const QUALIFY_CANDIDATE_VERSION = '1.1.0';
+const QUALIFY_CANDIDATE_SCHEMA_VERSION = 2;
 
 function qcHelpText(): string
 {
@@ -415,10 +424,34 @@ function qcTerminateActive(array $active): array
 }
 
 /**
+ * @param array<string, mixed> $component
+ * @return array<string, mixed>
+ */
+function qcUnrunComponent(array $component, string $reason): array
+{
+    return [
+        'id' => $component['id'],
+        'command' => $component['command'],
+        'log' => null,
+        'junit' => null,
+        'started_at' => null,
+        'finished_at' => null,
+        'duration_s' => null,
+        'exit_code' => null,
+        'termination' => 'not_started',
+        'outcome' => 'unrun',
+        'reason' => $reason,
+    ];
+}
+
+/**
  * @param array<string, mixed> $result
  */
 function qcSummaryLine(array $result): string
 {
+    if ($result['outcome'] === 'unrun') {
+        return sprintf('unrun %s exit=not-started reason=%s', $result['id'], $result['reason']);
+    }
     $exitSegment = $result['termination'] === 'signal'
         ? 'exit=signal ' . $result['signal']
         : 'exit=' . ($result['exit_code'] ?? '?');
@@ -509,6 +542,7 @@ $options = [
     'out' => null,
     'base' => null,
     'allow-dirty' => false,
+    'collect-all' => false,
     'help' => false,
 ];
 
@@ -517,6 +551,8 @@ foreach ($rawArguments as $argument) {
         $options['help'] = true;
     } elseif ($argument === '--allow-dirty') {
         $options['allow-dirty'] = true;
+    } elseif ($argument === '--collect-all') {
+        $options['collect-all'] = true;
     } elseif (str_starts_with($argument, '--repo=')) {
         $options['repo'] = substr($argument, strlen('--repo='));
     } elseif (str_starts_with($argument, '--plan=')) {
@@ -609,6 +645,7 @@ $out = $options['out'] !== null ? $options['out'] : $repo . '/build/qualificatio
 
 $dirtyAtStart = $source['status'];
 $allowDirty = $options['allow-dirty'] === true;
+$collectAll = $options['collect-all'] === true;
 $onlyGiven = $options['only'] !== null;
 
 $startedAtRunner = gmdate('Y-m-d\TH:i:s\Z');
@@ -650,6 +687,7 @@ function qcBuildReceipt(
     bool $qualification,
     array $disqualifiers,
     int $jobs,
+    bool $collectAll,
     string $startedAtRunner,
     ?string $finishedAtRunner,
 ): array {
@@ -666,6 +704,7 @@ function qcBuildReceipt(
             'php' => PHP_VERSION,
             'os' => PHP_OS_FAMILY,
             'jobs' => $jobs,
+            'collect_all' => $collectAll,
             'started_at' => $startedAtRunner,
             'finished_at' => $finishedAtRunner,
         ],
@@ -694,6 +733,7 @@ $inProgressReceipt = qcBuildReceipt(
     false,
     [],
     $jobs,
+    $collectAll,
     $startedAtRunner,
     finishedAtRunner: null,
 );
@@ -717,6 +757,7 @@ if ($dirtyAtStart !== [] && !$allowDirty) {
         false,
         [],
         $jobs,
+        $collectAll,
         $startedAtRunner,
         gmdate('Y-m-d\TH:i:s\Z'),
     );
@@ -752,6 +793,7 @@ if ($onlyGiven) {
             false,
             [],
             $jobs,
+            $collectAll,
             $startedAtRunner,
             gmdate('Y-m-d\TH:i:s\Z'),
         );
@@ -787,7 +829,17 @@ if (function_exists('pcntl_async_signals')) {
     pcntl_signal(SIGTERM, $sigHandler);
 }
 
-$pending = $componentsToRun;
+$preflightIndex = array_search('preflight', array_column($componentsToRun, 'id'), true);
+$heldAfterPreflight = [];
+if (!$collectAll && $preflightIndex !== false) {
+    $pending = [$componentsToRun[$preflightIndex]];
+    $heldAfterPreflight = array_values(array_filter(
+        $componentsToRun,
+        static fn(array $component): bool => $component['id'] !== 'preflight',
+    ));
+} else {
+    $pending = $componentsToRun;
+}
 $active = [];
 /** @var array<string, array<string, mixed>> $results */
 $results = [];
@@ -819,6 +871,10 @@ while (($pending !== [] || $active !== []) && !$stopScheduling) {
             $result = qcFinalizeComponent($handle, null);
             $results[$result['id']] = $result;
             unset($active[$key]);
+            if (!$collectAll && $result['id'] === 'preflight') {
+                $stopScheduling = true;
+                break;
+            }
             continue;
         }
 
@@ -853,6 +909,15 @@ while (($pending !== [] || $active !== []) && !$stopScheduling) {
             $driftChanges = $changes;
             $stopScheduling = true;
             break;
+        }
+
+        if (!$collectAll && $result['id'] === 'preflight') {
+            if ($result['outcome'] !== 'passed') {
+                $stopScheduling = true;
+                break;
+            }
+            $pending = $heldAfterPreflight;
+            $heldAfterPreflight = [];
         }
     }
     $active = array_values($active);
@@ -909,7 +974,19 @@ if ($finalSource === null) {
     }
 }
 
-// Preserve plan order in the receipt.
+if ($heldAfterPreflight !== []) {
+    $reason = $sigInterrupted
+        ? 'not scheduled because the runner was interrupted before the preflight barrier opened'
+        : ($driftedFlag
+            ? 'not scheduled because source drifted before the preflight barrier opened'
+            : 'not scheduled because preflight did not pass');
+    foreach ($heldAfterPreflight as $component) {
+        $results[$component['id']] = qcUnrunComponent($component, $reason);
+    }
+}
+
+// Preserve plan order in the receipt, including components held behind a
+// preflight that never opened the scheduling barrier.
 $orderedComponents = [];
 foreach ($componentsToRun as $component) {
     if (isset($results[$component['id']])) {
@@ -974,6 +1051,7 @@ $receipt = qcBuildReceipt(
     $qualification,
     $disqualifiers,
     $jobs,
+    $collectAll,
     $startedAtRunner,
     gmdate('Y-m-d\TH:i:s\Z'),
 );
