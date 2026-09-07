@@ -203,7 +203,7 @@ final class GoogleOAuthProviderTest extends TestCase
             ->method('get')
             ->willReturn(new HttpResponse(200, (string) $responseBody));
 
-        $profile = $this->provider->getUserProfile('ya29.access_token');
+        $profile = $this->provider->getUserProfile('synthetic-test-access-token');
 
         self::assertSame('1234567890', $profile->providerId);
         self::assertSame('', $profile->email);
@@ -219,7 +219,7 @@ final class GoogleOAuthProviderTest extends TestCase
             ->method('get')
             ->willReturn(new HttpResponse(200, (string) $responseBody));
 
-        $profile = $this->provider->getUserProfile('ya29.access_token');
+        $profile = $this->provider->getUserProfile('synthetic-test-access-token');
 
         self::assertSame('1234567890', $profile->providerId);
         self::assertSame('', $profile->email);
@@ -238,7 +238,7 @@ final class GoogleOAuthProviderTest extends TestCase
             ->method('get')
             ->willReturn(new HttpResponse(200, (string) $responseBody));
 
-        $profile = $this->provider->getUserProfile('ya29.access_token');
+        $profile = $this->provider->getUserProfile('synthetic-test-access-token');
 
         self::assertSame('1234567890', $profile->providerId);
         self::assertSame('', $profile->email);
