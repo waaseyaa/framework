@@ -33,10 +33,13 @@ use Waaseyaa\SiteContract\SiteManifestParser;
 final class ApplicationBlueprintCompilerTest extends TestCase
 {
     #[Test]
-    public function baseRowsAreByteIdenticalToTheManifestRendererMinusMetadata(): void
+    public function baseRowsAreByteIdenticalToTheManifestRendererAndOwnershipMetadataIsExcluded(): void
     {
         $manifest = $this->manifest('complete.yaml');
         $plan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+
+        $planPaths = array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $plan->artifacts);
+        self::assertNotContains('.waaseyaa/generated.json', $planPaths);
 
         $rendered = SiteArtifactRendererFactory::create()->render($manifest);
         foreach ($rendered->artifacts as $path => $artifact) {

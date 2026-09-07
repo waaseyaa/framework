@@ -215,7 +215,7 @@ validator, exact-digest decision boundary, initializer, and verifier.
 The blueprint compiler is
 `Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler`: a distinct root
 compiler with its own `generator.fqcn` that composes
-`SiteArtifactRenderer::render()` and pure emitters into the root `site`
+`SiteArtifactRenderer::compile()` and pure emitters into the root `site`
 unit's `ArtifactPlan`, declaring `set_evolution: additive` purely (#2787
 01D-1; design in `docs/change-records/FW-SITE-BLUEPRINT-01.md`). 01D-2
 activates the execution and verification boundaries above under ADR-025 D-13.
