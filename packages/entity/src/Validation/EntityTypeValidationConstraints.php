@@ -6,6 +6,7 @@ namespace Waaseyaa\Entity\Validation;
 
 use Symfony\Component\Validator\Constraint;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
@@ -110,6 +111,7 @@ final class EntityTypeValidationConstraints
             settings: $settings,
             targetEntityTypeId: '',
             required: (bool) ($definition['required'] ?? false),
+            read: ($definition['read'] ?? null) instanceof FieldReadLevel ? $definition['read'] : null,
         );
     }
 }

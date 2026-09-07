@@ -14,6 +14,7 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Validation;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\ConstraintsRequiredTitleFixture;
@@ -119,6 +120,23 @@ final class EntityTypeValidationConstraintsTest extends TestCase
         yield 'canonical snake case' => ['target_entity_type_id'];
         yield 'camel case' => ['targetEntityTypeId'];
         yield 'legacy target type' => ['target_type'];
+    }
+
+    #[Test]
+    public function arrayFieldDefinitionsPreserveExplicitReadLevelAndDefaultWhenAbsent(): void
+    {
+        $normalize = new \ReflectionMethod(EntityTypeValidationConstraints::class, 'normalizeFieldDefinition');
+        $protected = $normalize->invoke(null, 'secret', [
+            'type' => 'string',
+            'read' => FieldReadLevel::Protected,
+        ]);
+        self::assertSame(FieldReadLevel::Protected, $protected->getReadLevel());
+
+        $internal = $normalize->invoke(null, 'body', ['type' => 'text']);
+        self::assertNull($internal->getReadLevel(), 'Absent or malformed read metadata must retain the Internal default.');
+
+        $malformed = $normalize->invoke(null, 'summary', ['type' => 'text', 'read' => 'public']);
+        self::assertNull($malformed->getReadLevel(), 'Malformed read metadata must fail closed to Internal.');
     }
 
     #[Test]
