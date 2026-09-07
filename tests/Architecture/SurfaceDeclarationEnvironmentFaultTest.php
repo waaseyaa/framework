@@ -186,18 +186,24 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
     }
 
     #[Test]
-    public function locate_definition_resolves_the_real_stdin_source_case_through_the_root_autoload_dev_map(): void
+    public function locate_definition_resolves_a_real_case_through_the_root_autoload_dev_map(): void
     {
+        // A live repository case whose ONLY resolvable root is the root
+        // composer.json `autoload-dev` map: packages/cli declares just
+        // `Waaseyaa\\CLI\\Tests\\`, so `Waaseyaa\\CLI\\Testing\\` exists nowhere in the
+        // package's own manifest. This pinned `Waaseyaa\\CLI\\Io\\StdinSource`
+        // until #2961 moved that interface to packages/cli/src/Io/ and dropped
+        // its root mapping; CliTester is the same shape and is still root-only.
         $declarations = SurfaceDeclarations::load($this->repoRoot);
         $scanner = SurfaceScanner::scan($this->repoRoot);
 
-        $located = $declarations->locateDefinition('Waaseyaa\\CLI\\Io\\StdinSource', $scanner);
+        $located = $declarations->locateDefinition('Waaseyaa\\CLI\\Testing\\CliTester', $scanner);
 
-        self::assertNotNull($located, 'StdinSource must resolve to its on-disk definition independently of the autoloader.');
-        self::assertSame('packages/cli/tests/Io/StdinSource.php', $located['file']);
-        self::assertSame('Waaseyaa\\CLI\\Io\\', $located['prefix']);
+        self::assertNotNull($located, 'CliTester must resolve to its on-disk definition independently of the autoloader.');
+        self::assertSame('packages/cli/tests/Testing/CliTester.php', $located['file']);
+        self::assertSame('Waaseyaa\\CLI\\Testing\\', $located['prefix']);
         self::assertSame('composer.json autoload-dev', $located['origin']);
-        self::assertSame('interface', $located['shape']);
+        self::assertSame('final class', $located['shape']);
     }
 
     #[Test]
