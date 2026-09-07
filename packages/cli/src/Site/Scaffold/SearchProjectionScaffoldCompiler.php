@@ -276,7 +276,7 @@ final readonly class SearchProjectionScaffoldCompiler
                     self::assertNotSame(
                         '',
                         \$document->toSearchDocument()['body'],
-                        'The projected body is empty. A registered entity type defaults every undeclared field to FieldReadLevel::Internal, which index-time projection cannot read. Declare read: FieldReadLevel::Public on the #[Field] attributes you index.',
+                        'The projected body is empty: every indexed field is currently unreadable at index time. A registered entity type defaults undeclared fields to FieldReadLevel::Internal, and Internal/Protected fields are deliberately withheld from the index. Decide per field: declare read: FieldReadLevel::Public on the #[Field] attribute of content genuinely meant to be searchable, or leave the field restricted and stop indexing it. Do not widen a field just to make this pass.',
                     );
                 }
 

@@ -44,7 +44,29 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
  */
 final class MakeSearchProjectionHandler extends AbstractMakeHandler
 {
-    public function __construct(private readonly ?string $projectRoot = null) {}
+    /**
+     * Every search symbol the generated projector, provider and test reference.
+     * Checked by name, because the point is to survive the absence being detected.
+     *
+     * @var list<string>
+     */
+    private const array REQUIRED_SEARCH_SYMBOLS = [
+        'Waaseyaa\\Search\\Projection\\EntitySearchProjectorInterface',
+        'Waaseyaa\\Search\\ProvidesEntitySearchProjectorsInterface',
+        'Waaseyaa\\Search\\Document\\SearchDocument',
+        'Waaseyaa\\Search\\Projection\\EntitySearchDocumentId',
+        'Waaseyaa\\Search\\Projection\\SearchTextNormalizer',
+    ];
+
+    /**
+     * @param list<string>|null $requiredSearchSymbols the search surface the generated
+     *   code depends on. Defaults to the real contract; injectable so the
+     *   refusal path can be proven without uninstalling a package.
+     */
+    public function __construct(
+        private readonly ?string $projectRoot = null,
+        private readonly ?array $requiredSearchSymbols = null,
+    ) {}
 
     public function execute(SymfonyCommandIO $io): int
     {
@@ -53,6 +75,23 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
         $force = (bool) $io->option('force');
         $cwd = getcwd();
         $root = $this->projectRoot ?? ($cwd !== false ? $cwd : '.');
+
+        // Negotiate the optional capability before anything else, so a target
+        // without the search extension surface is refused with a stable
+        // diagnostic and an unchanged application rather than receiving code
+        // that references classes it cannot load. `waaseyaa/cli` currently
+        // requires `waaseyaa/search`, so a reachable install always satisfies
+        // this; the guard exists so a narrowed dependency or a partial vendor
+        // tree fails here, loudly, instead of at the consumer's boot.
+        $missing = $this->missingSearchCapability();
+        if ($missing !== null) {
+            $io->error(sprintf(
+                'This project does not provide the search extension surface (%s is unavailable). Require waaseyaa/search, then re-run; nothing has been written.',
+                $missing,
+            ));
+
+            return 1;
+        }
 
         try {
             $this->validateIdentifier($entityType, 'entity-type');
@@ -165,9 +204,11 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
                 : 'Provider already registered in composer.json.');
         }
         $io->writeln('');
-        $io->writeln('Note: a registered entity type defaults every undeclared field to FieldReadLevel::Internal, which index-time projection cannot read.');
-        $io->writeln(sprintf('Add read: FieldReadLevel::Public to the #[Field] attribute on each field %s indexes, or it will be silently omitted from the index.', $projectorClass));
-        $io->writeln('The generated companion test fails loudly if that is not done.');
+        $io->writeln('Note: a registered entity type defaults every undeclared field to FieldReadLevel::Internal, and index-time projection reads no Internal or Protected field. That default is deliberate — it keeps unclassified data out of a public index.');
+        $io->writeln(sprintf('Each field %s indexes therefore needs a deliberate visibility decision, not a blanket one:', $projectorClass));
+        $io->writeln('  - content genuinely meant for the search index: declare read: FieldReadLevel::Public on its #[Field] attribute;');
+        $io->writeln('  - anything else: leave it Internal or Protected and drop it from --fields.');
+        $io->writeln('Do not widen a field to Public merely to silence the omission. The generated companion test fails loudly while an indexed field is still unreadable, so the choice is made rather than defaulted.');
         $io->writeln('Then run "waaseyaa search:reindex" to build the index.');
 
         return 0;
@@ -195,4 +236,23 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
 
         return $fields;
     }
+    /**
+     * The first search symbol this generator's output depends on that the
+     * target cannot load, or null when the whole surface is present.
+     *
+     * Checked by name rather than by importing: the point is to survive the
+     * very absence being detected.
+     */
+    private function missingSearchCapability(): ?string
+    {
+        $required = $this->requiredSearchSymbols ?? self::REQUIRED_SEARCH_SYMBOLS;
+        foreach ($required as $symbol) {
+            if (!interface_exists($symbol) && !class_exists($symbol)) {
+                return $symbol;
+            }
+        }
+
+        return null;
+    }
+
 }

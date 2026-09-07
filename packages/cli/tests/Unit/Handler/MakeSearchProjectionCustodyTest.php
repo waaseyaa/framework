@@ -206,6 +206,54 @@ final class MakeSearchProjectionCustodyTest extends TestCase
         ];
     }
 
+    #[Test]
+    public function anAbsentSearchCapabilityIsRefusedAndLeavesTheApplicationUnchanged(): void
+    {
+        $root = $this->initializedProject();
+        $before = $this->ownership($root);
+
+        $command = new HandlerCommand(
+            name: 'make:search-projection',
+            description: 'Scaffold a search projector',
+            arguments: [new HandlerArgument(name: 'entity-type', mode: HandlerArgumentMode::Required, description: 'entity type id')],
+            options: [
+                new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'body'),
+                new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
+            ],
+            handler: \Closure::fromCallable([
+                new MakeSearchProjectionHandler(
+                    projectRoot: $root,
+                    // Stand in for a target without waaseyaa/search installed.
+                    requiredSearchSymbols: ['Waaseyaa\\Search\\Projection\\AbsentOnPurpose'],
+                ),
+                'execute',
+            ]),
+        );
+        $container = new class implements ContainerInterface {
+            public function get(string $id): mixed
+            {
+                throw new \RuntimeException('not used');
+            }
+
+            public function has(string $id): bool
+            {
+                return false;
+            }
+        };
+
+        $tester = CliTester::for($command, $container)->executeMap(['entity-type' => 'story', '--fields' => 'body']);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getStderr() . $tester->getStdout();
+        self::assertStringContainsString('does not provide the search extension surface', $output);
+        self::assertStringContainsString('Waaseyaa\\Search\\Projection\\AbsentOnPurpose', $output);
+        self::assertStringContainsString('waaseyaa/search', $output);
+
+        // Unchanged application: no artifact, no roster mutation, no registration.
+        self::assertDirectoryDoesNotExist($root . '/src/Search');
+        self::assertSame($before, $this->ownership($root));
+    }
+
     private function ownership(string $root): array
     {
         return json_decode((string) file_get_contents($root . '/.waaseyaa/generated.json'), true, flags: JSON_THROW_ON_ERROR);

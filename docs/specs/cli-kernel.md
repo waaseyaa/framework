@@ -690,13 +690,28 @@ as a D-6.6 `ComposerProviderRegistration`, and the plan populates D-6.6's
 compiler to do so. Publication requires an initialized site for the same
 reason content-type scaffolding does.
 
-Two refusals are specific to this generator. The container resolves exactly one
+Three refusals are specific to this generator, all of them before any write.
+First, the optional capability is negotiated by name: the handler resolves the
+five search symbols the generated projector, provider and test reference and
+refuses with a stable diagnostic naming the first missing one, leaving the
+application untouched. `waaseyaa/cli` currently *requires* `waaseyaa/search`,
+and `core` ships no CLI at all, so no reachable install can fail this today —
+the guard exists so a narrowed dependency or a partial vendor tree fails at
+the generator rather than at the consumer's boot. It is deliberately not
+`GeneratorFeatureNegotiation`, which arbitrates manifest-authored
+generator-feature tokens against the installed generation authority, not the
+presence of an optional runtime package.
+
+Second, the container resolves exactly one
 `ProvidesEntitySearchProjectorsInterface`, so scaffolding a second provider
 would silently shadow the first depending on registration order; the handler
-therefore scans `src/Provider/` and refuses before compiling, naming the
-existing provider and directing the additional projector into its
-`entitySearchProjectors()` list. The generated projector reads every field
-through the guarded `EntityInterface::get()` accessor and catches
+scans `src/Provider/` and refuses before compiling, naming the existing
+provider and directing the additional projector into its
+`entitySearchProjectors()` list. Third, ordinary input validation refuses a
+field name that is not snake_case, a duplicate field, and an empty field list.
+
+The generated projector reads every field through the guarded
+`EntityInterface::get()` accessor and catches
 `FieldReadDenied`/`MissingFieldReadContext`, so index-time projection — which
 runs with no account scope — releases only `FieldReadLevel::Public` fields and
 omits the rest rather than leaking them.
@@ -705,14 +720,30 @@ That omission is silent by design, and it interacts with a live gap: a
 *registered* entity type resolves every undeclared field to
 `FieldReadLevel::Internal` (`EntityReadRuntime`), while `make:content-type`
 currently emits no `read:` argument at all, so a scaffolded entity indexed
-without further edits projects an empty document rather than an error. The
-generated companion test asserts a non-empty projected body against the
-application's real registered entity and carries that diagnosis in its failure
-message, and the command reports the same requirement in its next-step output.
-Closing the emitter side belongs to the entity/content-type generator
-convergence (#2847), not here.
+without further edits projects an empty document rather than an error.
 
-<!-- Spec reviewed 2026-09-07 - #2849: make:search-projection is the second seeded-compiler migration, and the first compiler to populate ADR-025 D-6.6 companion_tests. Recorded rather than hidden: the single-provider refusal (the container resolves one ProvidesEntitySearchProjectorsInterface), and the read-level interaction whereby a registered entity type defaults undeclared fields to Internal so an unedited scaffolded entity indexes empty. Acceptance: MakeSearchProjectionCustodyTest, GenerationUnitActivationBoundaryTest's widened seeded roster, and GenerationStagedActivationBoundaryTest's widened refusal-carrier allowlist. -->
+The framework's answer to that is a **deliberate visibility decision per
+field, not a blanket widening**. The restricted default is the correct one and
+is preserved: it keeps unclassified data out of a public index. The command's
+next-step output and the generated companion test's failure message therefore
+present two options of equal standing — declare `read: FieldReadLevel::Public`
+on content genuinely meant to be searchable, or leave the field restricted and
+stop indexing it — and both say explicitly not to widen a field merely to
+silence the omission. Closing the emitter side belongs to the
+entity/content-type generator convergence (#2847), not here.
+
+Two integration proofs bind this behaviour to a *registered* entity type,
+because read levels resolve differently for registered and unregistered types
+and the unregistered fixture idiom would pass while a real application
+released nothing.
+`tests/Integration/Generation/SearchProjectionScaffoldRuntimeTest.php` drives
+`EntitySearchCandidateResolver` with the real `EntityAccessHandler` and
+`AccountFieldReadScope`; `SearchProjectionReindexTest.php` drives
+`search:reindex` over a real FTS5 index on SQLite and asserts against the
+stored rows, which is the only place "protected content never enters the index
+file" can be checked rather than inferred.
+
+<!-- Spec reviewed 2026-09-07 - #2849: make:search-projection is the second seeded-compiler migration, and the first compiler to populate ADR-025 D-6.6 companion_tests. Recorded rather than hidden: the by-name capability guard and why GeneratorFeatureNegotiation is not the applicable machinery, the single-provider refusal (the container resolves one ProvidesEntitySearchProjectorsInterface), and the read-level interaction whereby a registered entity type defaults undeclared fields to Internal so an unedited scaffolded entity indexes empty. Guidance requires a per-field visibility decision and preserves the restricted default rather than recommending Public. Acceptance: MakeSearchProjectionCustodyTest, SearchProjectionScaffoldRuntimeTest, SearchProjectionReindexTest, GenerationUnitActivationBoundaryTest's widened seeded roster, and GenerationStagedActivationBoundaryTest's widened refusal-carrier allowlist. -->
 
 ## Input And Output
 

@@ -85,8 +85,17 @@ read levels:   title => public     body => public
 document:      ["title"]=> "Fall harvest"   ["body"]=> "Wild rice camp opens Monday."
 ```
 
-Adding `read: FieldReadLevel::Public` to the two `#[Field]` attributes is
-sufficient and changes nothing else.
+Declaring `read: FieldReadLevel::Public` on those two `#[Field]` attributes
+produces that output and changes nothing else.
+
+**This is not a recommendation to widen fields.** The restricted default is
+correct and must be preserved: it is what keeps unclassified data out of a
+public index. The defect is that the classification is never *decided* — the
+emitter leaves it implicit, so the developer neither chose Public nor chose to
+keep the field out of the index. Whatever #2847 does, a field should become
+Public because someone decided its content is publishable, never to make an
+empty index look populated. Fields not meant to be searchable should stay
+restricted and simply not be indexed.
 
 ### Ownership
 
@@ -162,6 +171,30 @@ contracts"; there is not one here yet.
    `make:search-projection` uses.
 
 Step 1 is a decision, and it is the blocker.
+
+## B.1 Retained fixture commands and their narrower purposes
+
+#2849 requires that existing fixture commands be "composed, migrated, or
+explicitly retained with a documented narrower purpose." ADR-025 records all
+three as `keep`
+(`docs/adr/data/025-generation-command-inventory.json:193,203,213`). Their
+narrower purposes, documented here rather than left implied:
+
+| Command | Narrower purpose | Why it is not a generator |
+|---|---|---|
+| `fixture:scaffold` | Emits one deterministic ingestion *scenario document* as JSON, for authoring and reviewing ingestion fixtures | Writes only to a path the operator names via `-o`, or stdout. Produces no application source, mutates no `composer.json`, and records no ownership in `.waaseyaa/generated.json` |
+| `fixture:generate` | Same shape for generated scenario payloads | Same rationale; the ADR records it verbatim as "same shape and rationale as `fixture:scaffold`" |
+| `fixture:pack:refresh` | Re-aggregates an existing directory of scenario `.json` files into a refreshed pack | Reads and re-emits fixture documents only; never touches application source or `composer.json` |
+
+All three are deterministic by construction — timestamps are CLI options with
+fixed defaults and orderings are forced with `ksort`/`usort` before encoding —
+so none is a source of the nondeterminism a seed generator would have to
+solve. None of them seeds a database, and none is a candidate for migration
+into the plan/apply engine: an operator-named output path is not project-owned
+generated state, which is exactly the distinction ADR-025 D-2 draws.
+
+They are therefore **retained, not superseded**, and a future seed generator
+does not replace them.
 
 ## C. Seed — the declarations exist; the emitter is a deferred, named slice
 
@@ -263,3 +296,20 @@ What remains open, phrased so a reviewer can accept or reject each:
 
 Decision 6 is the one that unblocks #2849's seed acceptance; the rest are
 01D-3's to answer.
+
+### Proposed issue relationship (a proposal, not a resolution)
+
+#2849's seed clause and candidate 01D-3 describe one capability: materializing
+blueprint-declared `fixtures` as real rows, development-gated. Two issues
+owning it invites two implementations, which is the failure mode ADR-025
+exists to prevent.
+
+The proposal, for the #2844 program owner to accept or reject, is that 01D-3
+remains the single implementer and #2849's seed clause is re-cut to *depend
+on* it rather than restate it — leaving #2849 responsible only for the
+generator-and-registration surface, if any, that sits above it.
+
+**This is explicitly not a claim that #2849's seed acceptance is satisfied.**
+Nothing in this branch implements seeding. The clause is unmet, and it stays
+unmet until either 01D-3 lands or the clause is deliberately re-scoped. The
+same applies to the ingestion clause in section B.
