@@ -10,8 +10,9 @@
 
 Composer honours `autoload-dev` for the **root package only**. A package's own
 `autoload-dev` never activates when that package is installed as a dependency,
-`require-dev` included. Three classes declared `'disposition' => 'public'`
-are published behind such mappings and are therefore unreachable downstream:
+`require-dev` included. Three classes declared `'disposition' => 'public'` are published behind
+such mappings and are therefore unreachable in a clean dependency consumer
+without a custom root-level mapping:
 
 | FQCN | Package | Mapped by |
 |---|---|---|
@@ -65,12 +66,13 @@ not move.
   `phpunit/phpunit ^13` in its **own** `require-dev`.
 - **Dependency requirements:** none added. PHPUnit stays in each package's
   `require-dev` (root-only, therefore consumer-supplied in practice).
-- **Publication changes:** **none.** No new package, no `split.yml` target, no
-  metapackage decision, no `bin/sync-internal-versions` sweep.
+- **Packaging shape:** no new package, `split.yml` target, metapackage
+  decision, or `bin/sync-internal-versions` sweep. The existing packages'
+  production PSR-4 autoload roots do expand.
 - **Cost:** one line per package.
 - **Residual risk:** a `TestCase` subclass becomes PSR-4-reachable inside a
-  `--no-dev` install of a **production** dependency. Nothing loads it, but its
-  safety rests on constraint 3.4.
+  `--no-dev` install of a **production** dependency. The §6 proof must establish
+  that supported kernel discovery does not reflect or load it.
 
 ### Option A — dedicated test-support packages
 
@@ -96,20 +98,24 @@ Feasible **only** for the entity helper: `waaseyaa/testing` is L1 and already
 requires `waaseyaa/entity`, so no layer or cycle problem arises. It is
 infeasible for `Migration\Testing\*` (L1→L3) and for anything in `cli` (L1→L6).
 
-Assessed and **rejected — it is dominated by Option E for the same helper.**
-Both are cheap, but B additionally: (a) makes two packages map prefixes beneath
-`Waaseyaa\Entity\`, leaving namespace ownership ambiguous; (b) separates the
-translatable-entity contract test from the package that defines the contract it
-tests; (c) applies to one of three helpers, so it cannot be the whole answer and
-would leave the tree with two different mechanisms. It buys nothing that E does
-not, so it does not justify the move.
+Assessed and **not recommended as the uniform answer.** Unlike Option E,
+this placement keeps the entity helper absent from a `--no-dev` consumer when
+`waaseyaa/testing` is required only under that consumer's `require-dev`; that is
+a real isolation benefit. It also: (a) requires explicit ownership for a
+`Waaseyaa\Entity\` prefix mapped by another package; (b) separates the contract
+test from the package defining the contract; and (c) applies to only one of the
+three helpers, leaving two packaging mechanisms. The recommendation below
+rejects that mixed strategy for ownership and maintenance cost, not for lack of
+technical benefit.
 
 ## 5. Recommendation
 
-**Adopt Option E for both packages, gated on the acceptance evidence in §6.**
-Do **not** create test-support packages yet: no concrete benefit over E is
-demonstrated while the `--no-dev` boot proof passes, and §6 converts constraint
-3.4 from an assumption into a per-release empirical check.
+**Adopt Option E for both packages only if the acceptance evidence in §6
+passes.** It is the smallest uniform mechanism. Option B offers stronger
+`--no-dev` isolation for the entity helper, but introduces a mixed ownership and
+packaging model; prefer it only if that isolation is chosen as a product
+requirement. Do **not** create dedicated test-support packages unless the
+escalation conditions below apply.
 
 **Escalate to Option A** if either holds: the `--no-dev` boot proof fails; or
 policy decides that a PHPUnit-extending class must never be PSR-4-reachable in a
@@ -138,11 +144,14 @@ existing packaged-harness files, until file ownership is reconciled.
 
 ## 7. Migration guidance
 
-Purely additive: nothing was loadable downstream before, so no consumer can
-break. Consumers wanting the conformance harnesses add `phpunit/phpunit ^13` to
-their own `require-dev` — the framework packages cannot supply it for them,
-for the same root-only reason that caused this defect. Under Option A they
-additionally add the support package to `require-dev`.
+The intended FQCNs and helper APIs remain unchanged. Compatibility is
+established only for the supported clean-consumer installation exercised by §6;
+custom root mappings, authoritative classmaps, preload lists, or other autoload
+precedence choices may observe duplicate-definition or resolution changes and
+are not covered by that proof. Consumers wanting the conformance harnesses add
+`phpunit/phpunit ^13` to their own `require-dev` — the framework packages cannot
+supply it for them, for the same root-only reason that caused this defect. Under
+Option A they additionally add the support package to `require-dev`.
 
 ## 8. Scanner — deliberately separate, no change proposed
 

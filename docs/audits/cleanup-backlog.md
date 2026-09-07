@@ -211,19 +211,20 @@ not a one-route gate. **Risk:** medium (new authorized-download surface; getting
 `packages/attachment/src/Schema/AttachmentSchema.php`. **Note:** not a claim-vs-code defect — no
 README/spec promises gated downloads — so this is a latent design gap, not a false guarantee.
 
-### CL-14 — audit: `entity.write` emits a `dirty_fields` key that is structurally always `[]`
+### CL-14 — audit: `entity.write` emits `dirty_fields: []` for framework entities and four inspected consumers
 **Found:** 2026-09-06 (adapter/duck-typing sweep). **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
 `packages/audit/src/Listener/EntityLifecycleAuditListener.php:102` writes
 `'dirty_fields' => method_exists($entity, 'getDirty') ? $entity->getDirty() : []`.
 **Evidence (all at this HEAD):** `grep -rn 'function getDirty(' packages/*/src` → **0 definitions**;
 `grep -rn 'dirty' packages/entity/src packages/entity-storage/src` → **0 matches** (the entity system
 has no change-tracking concept at all); `grep -rn dirty_fields packages tests` → **1 match, the emitting
-line itself** (no test asserts it); `grep -rn getDirty docs/specs docs/adr` → **0** (undocumented, so no
-consumer could implement it deliberately); and 0 definitions in the four consumer checkouts on this box
-(`minoo`, `claudriel`, `rhtcircle`, `anokii`). `docs/specs/ocap-audit-log.md:144` types `attributes` as
-"Freeform metadata per event kind" and never names `dirty_fields`, so **nothing is contractually
-promised** — this is a silently-empty key, not a broken contract.
-**Impact:** every `entity.write` audit row carries `dirty_fields: []`. A reader of the OCAP audit log
+line itself** (no test asserts it); `grep -rn getDirty docs/specs docs/adr` → **0**; and 0 definitions
+in the four consumer checkouts inspected on this box (`minoo`, `claudriel`, `rhtcircle`, `anokii`). This
+establishes no documented supported seam at the recorded revision; it does not exclude an unknown consumer
+entity defining `getDirty()`. `docs/specs/ocap-audit-log.md:144` types `attributes` as "Freeform metadata
+per event kind" and never names `dirty_fields`, so the key is not promised by that spec.
+**Impact at the recorded revision and in the inspected consumers:** framework `entity.write` audit rows
+carry `dirty_fields: []`. A reader of the OCAP audit log
 sees a populated-looking field and would reasonably read "no fields changed" on every update. Governance
 surface, so the wrong reading is the costly one. No runtime error, no performance cost.
 **Smallest coherent repair:** the material for a real value is already in hand — `EntityEvent` carries
@@ -239,13 +240,15 @@ key, (3) update-with-no-change records `[]`, (4) the value never contains field 
 **Contract/packaging risk:** low. `attributes` is freeform; the listener is `@internal`-shaped and not in
 `packages/audit/public-surface.php`. Option (b) removes an emitted key — undocumented, but a downstream
 log consumer could still be keying on its presence, so (a) is the safer default.
-**Overlap:** none. No open issue matches (`gh search issues --repo waaseyaa/framework dirty_fields` → 0).
-No active lease touches `packages/audit/`.
-**Confidence:** high that the branch is dead in every known deployment; **medium** that it is dead
-universally — the framework is on Packagist and an unknown consumer entity could define `getDirty()`.
+**Coordination:** no open issue matched at the recorded review
+(`gh search issues --repo waaseyaa/framework dirty_fields` → 0). Re-check current
+file ownership before implementation; a lease-registry observation is not proof
+of ownership.
+**Confidence:** high for the framework revision and four inspected checkouts;
+unknown Packagist consumers may still define `getDirty()`.
 **Open question:** should the diff walk `_data` blob sub-keys or only top-level columns? **Risk:** low.
 
-### CL-15 — ai-tools: three `getValues()` duck-type branches are unreachable, and the comment claims the opposite
+### CL-15 — ai-tools: no `getValues()` implementations found in inspected source
 **Found:** 2026-09-06. **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
 `packages/ai-tools/src/Entity/EntitySearchTool.php:148`, `packages/ai-tools/src/Entity/EntityReadTool.php:162`,
 `packages/ai-tools/src/Relationship/RelationshipTraverseTool.php:195` each guard on
@@ -253,23 +256,30 @@ universally — the framework is on Packagist and an unknown consumer entity cou
 in `packages/*/src`, in `tests/`, in the specs, or in the four local consumer checkouts.
 `EntitySearchTool.php:143-145` carries the comment "Use a curated `getValues()` when present, else the
 guaranteed `toArray()`, so search works for every entity type, **not only those defining `getValues()`**" —
-which asserts a two-population world that does not exist.
-**Impact:** none at runtime — every call falls through to `toArray()`, which is the correct behaviour. The
-cost is comprehension (a reader believes a curated projection path exists) and analysis: an unresolved
-`getValues` call marks every same-named member as used by the dead-code detector.
-**Smallest coherent repair:** delete the three branches, call `toArray()` directly, correct the comment.
-Do **not** widen any interface and do **not** touch the `method_exists` sites that specs justify (below).
-**Acceptance:** the three tools return identical payloads before/after for a revisionable entity, a
-non-revisionable entity, and a translatable entity; existing ai-tools unit tests stay green with no
-assertion edits; the field-access filtering that follows the value read in `EntitySearchTool` is untouched.
-**Contract/packaging risk:** low — internal tool bodies; none of the three are in
-`packages/ai-tools/public-surface.php`. It removes an *undocumented* extension seam, so if the intent was
-"consumers may supply a curated projection", the correct repair is instead to define that seam as a real
-interface — that is a design decision, not cleanup, and should not be taken inside this entry.
+which describes a second population not found in the recorded framework revision or four inspected
+consumer checkouts.
+**Predicted impact from static inspection:** for the inspected entity definitions, each call would take
+the `toArray()` fallback. Runtime reachability was not measured. The cost is comprehension (a reader
+believes a curated projection path exists) and analysis: an unresolved `getValues` call marks every
+same-named member as used by the dead-code detector. An unknown consumer-supplied entity may still define
+the duck-typed method.
+**Candidate repair, conditional on a supported-contract decision:** delete the three branches, call
+`toArray()` directly, and correct the comment. Do **not** widen any interface and do **not** touch the
+`method_exists` sites that specs justify (below).
+**Acceptance:** first decide whether consumer-supplied `getValues()` is supported. If removal is approved,
+the three tools return identical payloads before/after for a revisionable entity, a non-revisionable
+entity, and a translatable entity; focused assertions preserve output and the field-access filtering that
+follows the value read in `EntitySearchTool`.
+**Contract/packaging risk:** unresolved until that decision. None of the three tools is in
+`packages/ai-tools/public-surface.php`, but a consumer-supplied entity could still depend on the duck-typed
+branch. If "consumers may supply a curated projection" is supported intent, define it as a real interface
+instead of deleting it; this backlog entry does not make that decision.
 **Overlap:** adjacent to open **#1606** (`ai-vector` non-turnkey / `vector.search` unwirable), which covers
 the sibling `method_exists($provider,'embed')` duck-check at `packages/ai-tools/src/Vector/VectorSearchTool.php:88`.
-Leave the vector sites to #1606; this entry is the three entity sites only. No active lease touches `packages/ai-tools/`.
-**Confidence:** high. **Risk:** low.
+Leave the vector sites to #1606; this entry is the three entity sites only. Re-check current file
+ownership before implementation; a lease-registry observation is not proof of ownership.
+**Confidence:** high for the inspected framework revision and four checkouts. **Risk:** medium until the
+supported-contract decision is made.
 
 ### CL-16 — database-legacy: the published Packagist description still says "Drupal DBAL"
 **Found:** 2026-09-06. **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
@@ -360,7 +370,7 @@ are retained, not deletion candidates** — including the six `#[FieldType(categ
 legacy items in `packages/field/src/Item/`, which read as unreferenced only because they are resolved by
 string id.
 
-### CL-19 — SUSPECTED: packages promise public test/IO helpers that a packaged consumer cannot autoload
+### CL-19 — SUSPECTED: clean packaged consumers cannot autoload declared public test/IO helpers
 **Forge mirror:** waaseyaa/framework#2961. **Found:** 2026-09-06. **Status: suspected defect, repair deliberately held** pending a packaging design
 and ownership decision (see "Why no repair is proposed yet").
 **Exact source identity:** candidate `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`, reproduced from
@@ -368,9 +378,9 @@ and ownership decision (see "Why no repair is proposed yet").
 
 **Root cause.** Composer's `autoload-dev` is honoured **only for the root package**. A package's own
 `autoload-dev` never activates when that package is installed as a dependency — including under
-`require-dev`. Every first-party consumer-facing test/contract helper is currently published behind a
-package-local `autoload-dev` mapping (or, for `waaseyaa/cli`, behind the *monorepo root's* `autoload-dev`),
-so none of them are reachable downstream.
+`require-dev`. Every first-party consumer-facing test/contract helper examined here is published behind a
+package-local `autoload-dev` mapping (or, for `waaseyaa/cli`, behind the *monorepo root's* `autoload-dev`).
+The clean dependency-consumer reproduction below cannot reach any of them without a custom root mapping.
 
 **Reproduction** (`tests/PackagedForm/check-bimaaji-skill-resources` recipe: `git archive HEAD` → temp
 source tree → consumer with path repositories at `symlink=false`, so `vendor/waaseyaa/*` holds installed
