@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+
+# Packaged runtime acceptance for #2848 (FW-GOVERNANCE-PACKAGED-ACCEPTANCE-01).
+#
+# Adapts check-site-recipe-provider-activation's archive/path-repository
+# consumer pattern (no second package or test authority) to prove that a
+# compiled application_blueprint's generated governance registrations
+# (App\Provider\ApplicationBlueprintGovernanceServiceProvider,
+# App\Provider\ApplicationBlueprintServiceProvider) actually participate in
+# real packaged runtime enforcement, not just generated text or a hand-built
+# provider instance.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-blueprint-governance.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+candidate="${CANDIDATE_SHA:-}"
+if [[ -z "$candidate" ]]; then
+    if [[ -n "$("$root/bin/git" -C "$root" status --porcelain=v1 --untracked-files=all)" ]]; then
+        echo 'The default packaged candidate must be a clean immutable HEAD; commit the reviewed candidate or pass CANDIDATE_SHA.' >&2
+        exit 1
+    fi
+    candidate="HEAD"
+fi
+candidate="$("$root/bin/git" -C "$root" rev-parse --verify "${candidate}^{commit}")"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar "$candidate" \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["extra"]["merge-plugin"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("g", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/blueprint-governance.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
+
+# Installed provenance: every waaseyaa/* package is a real copy from the
+# archived candidate, never a symlink into it.
+php -r '
+    [$consumer, $sourceRoot] = array_slice($argv, 1);
+    $installed = json_decode((string) file_get_contents($consumer . "/vendor/composer/installed.json"), true, flags: JSON_THROW_ON_ERROR);
+    $packages = $installed["packages"] ?? $installed;
+    $sourceRoot = realpath($sourceRoot);
+    foreach ($packages as $package) {
+        $name = $package["name"] ?? null;
+        if (!is_string($name) || !str_starts_with($name, "waaseyaa/") || ($package["type"] ?? null) === "metapackage") {
+            continue;
+        }
+        $installPath = $package["install-path"] ?? null;
+        if (!is_string($installPath) || $installPath === "") {
+            throw new RuntimeException($name . " is missing an install path.");
+        }
+        $raw = dirname($consumer . "/vendor/composer/installed.json") . "/" . $installPath;
+        if (!is_dir($raw) || is_link($raw)) {
+            throw new RuntimeException($name . " was not installed as a real copy.");
+        }
+    }
+    fwrite(STDOUT, "Installed provenance OK: every waaseyaa/* package is a real copy.\n");
+' "$consumer" "$source_root"
+
+# The candidate's own canonical complete blueprint fixture, copied at runtime
+# (not re-authored): packages/site-contract/tests/Fixtures/Blueprint/valid/complete.yaml.
+lock_sha256="$(sha256sum "$consumer/composer.lock" | awk '{print $1}')"
+cp "$source_root/packages/site-contract/tests/Fixtures/Blueprint/valid/complete.yaml" "$consumer/answers.yaml"
+sed -i "s/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/${lock_sha256}/" "$consumer/answers.yaml"
+
+tree_digest() {
+    ( cd "$1" && find . -type f -not -path './vendor/*' -not -name '*.sqlite' | sort | xargs sha256sum | sha256sum | awk '{print $1}' )
+}
+
+# --- Unknown-metadata negative: mutate one policy condition to an
+# already-unit-covered unsupported kind (mirrors
+# packages/site-contract/tests/Fixtures/Blueprint/invalid/unsupported-condition-kind.yaml),
+# run the real packaged dry-run JSON path, require the typed refusal, and
+# prove a byte-identical whole-tree digest with no .waaseyaa. ---
+cp "$consumer/answers.yaml" "$consumer/answers-bad.yaml"
+php -r '
+    $path = $argv[1];
+    $yaml = (string) file_get_contents($path);
+    $needle = "      condition:\n        kind: permission\n        permission: edit article\n";
+    $replacement = "      condition:\n        kind: script\n        script: \"return true;\"\n";
+    if (!str_contains($yaml, $needle)) {
+        fwrite(STDERR, "Could not locate the article_create policy condition to mutate.\n");
+        exit(1);
+    }
+    file_put_contents($path, str_replace($needle, $replacement, $yaml, $count));
+    if ($count !== 1) {
+        fwrite(STDERR, "Expected exactly one mutation site, found {$count}.\n");
+        exit(1);
+    }
+' "$consumer/answers-bad.yaml"
+
+before_bad_digest="$(tree_digest "$consumer")"
+set +e
+( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers-bad.yaml --project-root=. --dry-run ) >"$work/bad-dry-run.json" 2>"$work/bad-dry-run.err"
+bad_exit=$?
+set -e
+if [[ "$bad_exit" -eq 0 ]]; then
+    cat "$work/bad-dry-run.json" "$work/bad-dry-run.err" >&2
+    echo 'FAIL: the mutated unsupported-condition blueprint must refuse dry-run, not succeed.' >&2
+    exit 1
+fi
+if ! grep -Fq 'SITE047_BLUEPRINT_UNSUPPORTED_CONDITION' "$work/bad-dry-run.json" "$work/bad-dry-run.err"; then
+    cat "$work/bad-dry-run.json" "$work/bad-dry-run.err" >&2
+    echo 'FAIL: expected the typed SITE047_BLUEPRINT_UNSUPPORTED_CONDITION refusal.' >&2
+    exit 1
+fi
+if [[ -e "$consumer/.waaseyaa" ]]; then
+    echo 'FAIL: the refused dry-run created .waaseyaa.' >&2
+    exit 1
+fi
+after_bad_digest="$(tree_digest "$consumer")"
+if [[ "$before_bad_digest" != "$after_bad_digest" ]]; then
+    echo 'FAIL: the refused dry-run changed the project tree.' >&2
+    exit 1
+fi
+rm -f "$consumer/answers-bad.yaml"
+echo 'Unknown-metadata dry-run refusal verified (SITE047, byte-identical tree, no .waaseyaa).'
+
+# --- Real decision receipt via the installed production API, not hand JSON. ---
+( cd "$consumer" && php -r '
+    require "vendor/autoload.php";
+    use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
+    use Waaseyaa\SiteContract\SiteManifestParser;
+    $manifest = new SiteManifestParser()->parse((string) file_get_contents("answers.yaml"));
+    $receipt = BlueprintDecisionReceipt::fromArray([
+        "schema" => BlueprintDecisionReceipt::SCHEMA_ID,
+        "version" => BlueprintDecisionReceipt::CONTRACT_VERSION,
+        "decision" => "approved",
+        "blueprint_digest" => $manifest->applicationBlueprint->digest,
+        "manifest_digest" => $manifest->digest,
+        "actor" => "packaged-acceptance-operator",
+        "decided_at" => "2026-09-07T00:00:00Z",
+        "mechanism" => "manual-review",
+    ]);
+    file_put_contents("decision.json", $receipt->canonicalJson() . "\n");
+' )
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers.yaml --decision-receipt=decision.json --project-root=. --dry-run ) >"$work/planned.json" 2>"$work/planned.err"; then
+    cat "$work/planned.json" "$work/planned.err" >&2
+    echo 'FAIL: the real complete blueprint failed to preview.' >&2
+    exit 1
+fi
+grep -Fq '"outcome":"planned"' "$work/planned.json" || { cat "$work/planned.json" >&2; exit 1; }
+[[ ! -e "$consumer/.waaseyaa" ]] || { echo 'FAIL: dry-run created .waaseyaa.' >&2; exit 1; }
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers.yaml --decision-receipt=decision.json --project-root=. --yes ) >"$work/applied.json" 2>"$work/applied.err"; then
+    cat "$work/applied.json" "$work/applied.err" >&2
+    echo 'FAIL: the real complete blueprint failed to apply.' >&2
+    exit 1
+fi
+grep -Fq '"outcome":"applied"' "$work/applied.json" || { cat "$work/applied.json" >&2; exit 1; }
+
+# Literal root composer.json registers both providers exactly once.
+php -r '
+    $composer = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    foreach (["App\\Provider\\ApplicationBlueprintGovernanceServiceProvider", "App\\Provider\\ApplicationBlueprintServiceProvider"] as $fqcn) {
+        $count = count(array_filter($providers, static fn(string $p): bool => $p === $fqcn));
+        if ($count !== 1) {
+            fwrite(STDERR, "{$fqcn}: expected exactly once, found {$count}\n");
+            exit(1);
+        }
+    }
+    fwrite(STDOUT, "Both blueprint providers registered exactly once in literal root composer.json.\n");
+' "$consumer/composer.json"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
+    cat "$work/install-init.out" >&2
+    echo 'FAIL: install:init failed on the blueprint-activated consumer.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/install-init.out"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import ) >"$work/config-import.out" 2>&1; then
+    cat "$work/config-import.out" >&2
+    echo 'FAIL: config:import failed to activate workflows.assignments.' >&2
+    exit 1
+fi
+cat "$work/config-import.out"
+
+editor_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-editor --email=editor@packaged.test --password=governance-editor-pw)"
+viewer_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-viewer --email=viewer@packaged.test --password=governance-viewer-pw)"
+editor_uid="$(sed -n 's/.*ID: \([0-9]*\).*/\1/p' <<<"$editor_out")"
+viewer_uid="$(sed -n 's/.*ID: \([0-9]*\).*/\1/p' <<<"$viewer_out")"
+[[ -n "$editor_uid" && -n "$viewer_uid" ]] || { echo 'FAIL: could not parse created user IDs.' >&2; exit 1; }
+
+( cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$editor_uid" editor ) >"$work/assign-editor.out" 2>&1
+grep -Fq 'Assigned role' "$work/assign-editor.out"
+( cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$viewer_uid" viewer ) >"$work/assign-viewer.out" 2>&1
+grep -Fq 'Assigned role' "$work/assign-viewer.out"
+
+# The probe is test-driver tooling, not runtime under test, so — mirroring
+# check-site-init-profile-acceptance's own `probe=$root/tests/...` reference —
+# it is read from the live checkout rather than the archived candidate.
+cp "$root/tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php" "$consumer/blueprint-governance-enforcement-probe.php"
+
+if ! ( cd "$consumer" && php blueprint-governance-enforcement-probe.php positive "$editor_uid" "$viewer_uid" ) >"$work/probe-positive.out" 2>"$work/probe-positive.err"; then
+    cat "$work/probe-positive.out" "$work/probe-positive.err" >&2
+    echo 'FAIL: the packaged kernel governance probe failed with providers registered.' >&2
+    exit 1
+fi
+cat "$work/probe-positive.out"
+for marker in \
+    'governance-probe kernel boot OK' \
+    'governance-probe role-editor-registered: yes' \
+    'governance-probe role-viewer-registered: yes' \
+    'governance-probe permission-catalogue-edit-article: yes' \
+    'governance-probe permission-catalogue-publish: yes' \
+    'governance-probe article-revisionable: yes' \
+    'governance-probe default-deny-person: yes' \
+    'governance-probe entity-access-viewer-denied: yes' \
+    'governance-probe entity-access-editor-allowed: yes' \
+    'governance-probe workflow-transition-viewer-denied: yes' \
+    'governance-probe workflow-transition-editor-allowed: yes'; do
+    grep -Fq "$marker" "$work/probe-positive.out" || { echo "FAIL: missing marker: $marker" >&2; exit 1; }
+done
+
+# --- Discriminating negative control: remove ONLY the literal-root
+# governance provider entry, clear the manifest cache, leave every generated
+# class/config file untouched, and prove the registry disappears / fails
+# closed. ---
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    $composer["extra"]["waaseyaa"]["providers"] = array_values(array_filter(
+        $providers,
+        static fn(string $p): bool => $p !== "App\\Provider\\ApplicationBlueprintGovernanceServiceProvider",
+    ));
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json"
+rm -f "$consumer/storage/framework/packages.php"
+[[ -f "$consumer/src/Provider/ApplicationBlueprintGovernanceServiceProvider.php" ]] || { echo 'FAIL: rival step must leave the generated class file intact.' >&2; exit 1; }
+
+if ! ( cd "$consumer" && php blueprint-governance-enforcement-probe.php negative ) >"$work/probe-negative.out" 2>"$work/probe-negative.err"; then
+    cat "$work/probe-negative.out" "$work/probe-negative.err" >&2
+    echo 'FAIL: the rival kernel boot must still succeed; only registry observations must change.' >&2
+    exit 1
+fi
+cat "$work/probe-negative.out"
+grep -Fq 'governance-probe kernel boot OK' "$work/probe-negative.out"
+grep -Fq 'governance-probe role-editor-registered: no' "$work/probe-negative.out" || { echo 'FAIL: role registry must disappear after removing the literal-root provider entry.' >&2; exit 1; }
+grep -Fq 'governance-probe role-viewer-registered: no' "$work/probe-negative.out" || { echo 'FAIL: role registry must disappear after removing the literal-root provider entry.' >&2; exit 1; }
+grep -Fq 'governance-probe permission-catalogue-edit-article: no' "$work/probe-negative.out" || { echo 'FAIL: permission catalogue must lose the blueprint permissions.' >&2; exit 1; }
+
+set +e
+new_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-rival --email=rival@packaged.test --password=governance-rival-pw)"
+new_uid="$(sed -n 's/.*ID: \([0-9]*\).*/\1/p' <<<"$new_out")"
+assign_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$new_uid" editor 2>&1)"
+assign_exit=$?
+set -e
+if [[ "$assign_exit" -eq 0 ]]; then
+    echo "$assign_out" >&2
+    echo 'FAIL: assigning the now-unregistered editor role must fail closed.' >&2
+    exit 1
+fi
+grep -Fiq 'unknown role' <<<"$assign_out" || { echo "$assign_out" >&2; echo 'FAIL: expected an Unknown role refusal.' >&2; exit 1; }
+
+printf 'Blueprint governance packaged acceptance passed.\n'
+printf 'Candidate: %s\n' "$candidate"
