@@ -10,6 +10,7 @@ use Waaseyaa\HttpClient\HttpClientInterface;
 use Waaseyaa\HttpClient\HttpResponse;
 use Waaseyaa\OAuthProvider\OAuthToken;
 use Waaseyaa\OAuthProvider\OAuthUserProfile;
+use Waaseyaa\OAuthProvider\Provider\GoogleAccessType;
 use Waaseyaa\OAuthProvider\Provider\GoogleOAuthProvider;
 
 final class GoogleOAuthProviderTest extends TestCase
@@ -22,14 +23,19 @@ final class GoogleOAuthProviderTest extends TestCase
         $this->useHttpClient($this->createStub(HttpClientInterface::class));
     }
 
-    private function useHttpClient(HttpClientInterface $httpClient): void
-    {
+    private function useHttpClient(
+        HttpClientInterface $httpClient,
+        GoogleAccessType $accessType = GoogleAccessType::Offline,
+        bool $forceConsent = true,
+    ): void {
         $this->httpClient = $httpClient;
         $this->provider = new GoogleOAuthProvider(
             clientId: 'test-client-id',
             clientSecret: 'test-client-secret',
             redirectUri: 'https://example.com/callback',
             httpClient: $this->httpClient,
+            accessType: $accessType,
+            forceConsent: $forceConsent,
         );
     }
 
@@ -59,6 +65,40 @@ final class GoogleOAuthProviderTest extends TestCase
         self::assertStringContainsString('access_type=offline', $url);
         self::assertStringContainsString('prompt=consent', $url);
         self::assertStringContainsString('scope=', $url);
+    }
+
+    public function testGetAuthorizationUrlOnlineWithoutForcedConsentOmitsPrompt(): void
+    {
+        $this->useHttpClient(
+            $this->createStub(HttpClientInterface::class),
+            accessType: GoogleAccessType::Online,
+            forceConsent: false,
+        );
+
+        $url = $this->provider->getAuthorizationUrl(['openid'], 'random-state');
+
+        self::assertStringStartsWith('https://accounts.google.com/o/oauth2/v2/auth?', $url);
+        self::assertStringContainsString('client_id=test-client-id', $url);
+        self::assertStringContainsString('response_type=code', $url);
+        self::assertStringContainsString('state=random-state', $url);
+        self::assertStringContainsString('access_type=online', $url);
+        self::assertStringNotContainsString('prompt=', $url);
+    }
+
+    public function testGetAuthorizationUrlOfflineWithoutForcedConsentStillRequestsOfflineAccess(): void
+    {
+        // forceConsent is independent of accessType: disabling the prompt
+        // must not silently flip an offline consumer to online access.
+        $this->useHttpClient(
+            $this->createStub(HttpClientInterface::class),
+            accessType: GoogleAccessType::Offline,
+            forceConsent: false,
+        );
+
+        $url = $this->provider->getAuthorizationUrl(['openid'], 'random-state');
+
+        self::assertStringContainsString('access_type=offline', $url);
+        self::assertStringNotContainsString('prompt=', $url);
     }
 
     public function testExchangeCode(): void
@@ -150,6 +190,59 @@ final class GoogleOAuthProviderTest extends TestCase
         self::assertSame('Test User', $profile->name);
         self::assertSame('https://lh3.googleusercontent.com/photo.jpg', $profile->avatarUrl);
         self::assertTrue($profile->emailVerified);
+    }
+
+    public function testGetUserProfileHandlesMissingEmailAndNameWithoutWarning(): void
+    {
+        // email/name are optional profile fields; their total absence must
+        // not warn (failOnWarning=true would fail this test) and must not
+        // block a valid, stable identity.
+        $responseBody = json_encode(['id' => '1234567890']);
+
+        $this->httpClient
+            ->method('get')
+            ->willReturn(new HttpResponse(200, (string) $responseBody));
+
+        $profile = $this->provider->getUserProfile('synthetic-test-access-token');
+
+        self::assertSame('1234567890', $profile->providerId);
+        self::assertSame('', $profile->email);
+        self::assertSame('', $profile->name);
+        self::assertFalse($profile->emailVerified);
+    }
+
+    public function testGetUserProfileHandlesNullEmailAndName(): void
+    {
+        $responseBody = json_encode(['id' => '1234567890', 'email' => null, 'name' => null]);
+
+        $this->httpClient
+            ->method('get')
+            ->willReturn(new HttpResponse(200, (string) $responseBody));
+
+        $profile = $this->provider->getUserProfile('synthetic-test-access-token');
+
+        self::assertSame('1234567890', $profile->providerId);
+        self::assertSame('', $profile->email);
+        self::assertSame('', $profile->name);
+    }
+
+    public function testGetUserProfileHandlesNonScalarEmailAndName(): void
+    {
+        // A malformed upstream response (email/name as arrays) must not
+        // trigger an "Array to string conversion" warning or coerce into
+        // a nonsense string; it degrades to an empty optional field while
+        // the stable id remains usable.
+        $responseBody = json_encode(['id' => '1234567890', 'email' => ['nested'], 'name' => ['nested']]);
+
+        $this->httpClient
+            ->method('get')
+            ->willReturn(new HttpResponse(200, (string) $responseBody));
+
+        $profile = $this->provider->getUserProfile('synthetic-test-access-token');
+
+        self::assertSame('1234567890', $profile->providerId);
+        self::assertSame('', $profile->email);
+        self::assertSame('', $profile->name);
     }
 
     public function testGetUserProfileThrowsOnErrorResponseInsteadOfDegenerateIdentity(): void

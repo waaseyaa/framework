@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\OAuthProvider\\Provider\\GoogleAccessType', 'disposition' => 'public', 'purpose' => 'Selects online or offline access for Google authorization requests'],
         ['fqcn' => 'Waaseyaa\\OAuthProvider\\OAuthProviderInterface', 'disposition' => 'public', 'purpose' => 'OAuth 2.0 provider abstraction: authorization URL, code exchange, token refresh, user profile'],
         ['fqcn' => 'Waaseyaa\\OAuthProvider\\SessionInterface', 'disposition' => 'public', 'purpose' => 'Manages OAuth session state (CSRF state token and post-auth redirect)'],
     ],
