@@ -508,8 +508,8 @@ initialization uses the same gate after confirmation.
 
 ## Reviewed apply
 
-`SiteServiceProvider` registers `site:apply --request=PATH [--project-root=PATH]
-[--json]` (#2789) — ADR-025 D-6.5's *second process*, installed. It joins the
+`SiteServiceProvider` registers `site:apply --request=PATH [--decision-receipt=PATH]
+[--project-root=PATH] [--json]` (#2789) — ADR-025 D-6.5's *second process*, installed. It joins the
 boot-free command seam with `site:init` and `site:doctor`: `SiteApplyHandler`
 takes only a project root and constructs no renderer, wizard or compiler at
 all, so it must not be routed through restricted boot, which would open the
@@ -518,7 +518,13 @@ database this phase precedes (#2644).
 `--request` names a canonical `waaseyaa.artifact_apply_request` v1 document —
 the reviewed plan with its bytes, `plan_digest` and `project_state_digest` —
 read exactly once and decoded by `ArtifactApplyRequest::fromCanonicalJson()`.
-The command recompiles nothing: a generator that names its target from a
+`--decision-receipt` names the separate approved
+`waaseyaa.blueprint_decision` v1 document, read exactly once and
+decoded by the shared `DecisionReceiptInput` helper with the same closed
+`SITE050` contract as `site:init`. The receipt is never a member of the apply
+request and is passed to `SiteInitializationService::apply()` as its own
+argument; blueprint execution without a matching approval is
+`GEN011_UNAUTHORIZED_SET_DELTA`. The command recompiles nothing: a generator that names its target from a
 compile-time clock reading would otherwise produce a different, equally valid
 plan, and the operator's review would bind nothing. Decoding is fail-closed on
 unknown, missing, duplicate or wrong-typed members, on an invalid nested plan,
@@ -859,3 +865,28 @@ Required coverage:
 ## Migration Companion
 
 The implementation roadmap, current subsystem inventory, one-to-one component mapping, breaking-change analysis, and risk assessment live in [`cli-symfony-console-migration-plan.md`](./cli-symfony-console-migration-plan.md).
+
+
+## Manual governance scaffold output
+
+`make:policy <name> --entity=<id> [--grant=<operation>:<permission>]...`
+requires an explicit entity id; an optional `--entity-class` supplies its application
+class. It renders the canonical access-policy interface and attribute through the
+blueprint emitter. Zero grants return Neutral; entity access remains denied absent
+an explicit allowance. Syntactically valid names do not establish application
+registry membership. Missing entity or malformed grants refuse with usage exit 2.
+
+`scaffold:workflow --id=<id> --entity-type=<id> --bundle=<id>` accepts state,
+transition and initial-state options and returns a JSON `workflow` hydration array
+and `assignment` map keyed by `entity_type.bundle`. Duplicate transition IDs,
+unknown referenced states and undeclared initial states refuse with exit 2.
+The blueprint PHP renderer and manual JSON output share one canonical definition
+transformation; serialization must not duplicate workflow semantics.
+
+Both commands retain ADR-025 D4 stdout-only behavior. Output is not registered or
+applied by printing it. Application admission, registration and activation use the
+existing canonical governance path and require separate evidence. These required
+options and output shapes replace the previously invalid policy interface and
+non-hydratable workflow JSON. See
+[FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01](../change-records/FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01.md)
+for migration, acceptance and remaining packaged proof.

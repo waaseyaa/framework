@@ -445,10 +445,13 @@ Initialization is transactional:
    every target is durable.
 
 Steps 5 and 6 are also reachable on their own, in a later process. `waaseyaa
-site:apply --request=PATH` (#2789) decodes a canonical
+site:apply --request=PATH [--decision-receipt=PATH]` (#2789) decodes a canonical
 `waaseyaa.artifact_apply_request` v1 document — the reviewed plan with its
 bytes, `plan_digest` and `project_state_digest` — and executes exactly those
-bytes through the same controlled apply. It compiles nothing, so a generator
+bytes through the same controlled apply. The separate `--decision-receipt`
+input carries the approved blueprint decision with the same closed
+`SITE050`/read-once contract as `site:init`; it is not embedded in the apply
+request and is passed to the execution authority as its own argument. It compiles nothing, so a generator
 that names its target from a compile-time clock reading cannot produce a
 second, equally valid plan the operator never reviewed. Decoding is fail-closed
 on unknown, missing, duplicate or wrong-typed members, on an invalid nested
