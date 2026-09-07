@@ -7,7 +7,18 @@ namespace Waaseyaa\CLI\Tests\Unit\Site;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\CLI\Site\Recipe\GovernedAuthoringRecipe;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\PageBuilder\Surface\PageBuilderSurface;
+use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
+use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
+use Waaseyaa\Publishing\Preview\PreviewLinkService;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\RecipeSelection;
 use Waaseyaa\SiteContract\SiteManifest;
@@ -61,6 +72,70 @@ final class GovernedAuthoringRecipeTest extends TestCase
             if (str_ends_with($artifact->path, '.php')) {
                 self::assertNotEmpty(token_get_all($artifact->content, TOKEN_PARSE), "Generated PHP must parse: {$artifact->path}");
             }
+        }
+    }
+
+    #[Test]
+    public function itsGeneratedSurfaceComposesAPageScopedPublisherFromCanonicalServices(): void
+    {
+        $site = new SiteArtifactRenderer([new GovernedAuthoringRecipe()])
+            ->render(new SiteManifestParser()->parse($this->manifest()));
+        $root = sys_get_temp_dir() . '/waaseyaa-governed-authoring-provider-' . bin2hex(random_bytes(6));
+        $filesystem = new Filesystem();
+
+        try {
+            foreach ([
+                'config/waaseyaa-recipes/governed-authoring.php',
+                'src/Authoring/GovernedPageDefinitions.php',
+                'src/Authoring/GovernedPagePreviewUrlGenerator.php',
+                'src/Provider/GovernedAuthoringServiceProvider.php',
+            ] as $path) {
+                $target = $root . '/' . $path;
+                if (!is_dir(dirname($target))) {
+                    self::assertTrue(mkdir(dirname($target), 0o755, true));
+                }
+                self::assertNotFalse(file_put_contents($target, $site->artifacts[$path]->content));
+            }
+
+            require $root . '/src/Authoring/GovernedPageDefinitions.php';
+            require $root . '/src/Authoring/GovernedPagePreviewUrlGenerator.php';
+            require $root . '/src/Provider/GovernedAuthoringServiceProvider.php';
+
+            $repository = new \ReflectionClass(EntityRepository::class)->newInstanceWithoutConstructor();
+            $entityTypes = $this->createStub(EntityTypeManagerInterface::class);
+            $entityTypes->method('getRepository')->willReturnCallback(static function (string $entityTypeId) use ($repository): EntityRepository {
+                self::assertSame('node', $entityTypeId);
+
+                return $repository;
+            });
+            $services = [
+                EntityTypeManagerInterface::class => $entityTypes,
+                DatabaseInterface::class => $this->createStub(DatabaseInterface::class),
+                AuditWriterInterface::class => $this->createStub(AuditWriterInterface::class),
+                EntityAccessHandler::class => new \ReflectionClass(EntityAccessHandler::class)->newInstanceWithoutConstructor(),
+                ContentPublicationTransitionerInterface::class => $this->createStub(ContentPublicationTransitionerInterface::class),
+                PreviewLinkService::class => new \ReflectionClass(PreviewLinkService::class)->newInstanceWithoutConstructor(),
+            ];
+
+            $provider = new \App\Provider\GovernedAuthoringServiceProvider();
+            $provider->setKernelContext($root, [], []);
+            $provider->setKernelServices(new class ($services) implements KernelServicesInterface {
+                /** @param array<string, object> $services */
+                public function __construct(private array $services) {}
+
+                public function get(string $abstract): ?object
+                {
+                    return $this->services[$abstract] ?? null;
+                }
+            });
+            $provider->register();
+
+            $registry = $provider->resolve(PageBuilderSurfaceRegistry::class);
+
+            self::assertInstanceOf(PageBuilderSurfaceRegistry::class, $registry);
+            self::assertInstanceOf(PageBuilderSurface::class, $registry->get('page'));
+        } finally {
+            $filesystem->remove($root);
         }
     }
 

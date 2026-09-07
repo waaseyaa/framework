@@ -243,8 +243,12 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, Site
 
             use App\Authoring\GovernedPageDefinitions;
             use App\Authoring\GovernedPagePreviewUrlGenerator;
+            use Waaseyaa\Access\EntityAccessHandler;
             use Waaseyaa\AdminSurface\PageBuilder\GenericPageBuilderSurfaceHost;
             use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
+            use Waaseyaa\Audit\Contract\AuditWriterInterface;
+            use Waaseyaa\Database\DatabaseInterface;
+            use Waaseyaa\Entity\EntityTypeManagerInterface;
             use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
             use Waaseyaa\Field\FieldDefinition;
             use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -256,7 +260,11 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, Site
             use Waaseyaa\PageBuilder\Surface\PageBuilderSurface;
             use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
             use Waaseyaa\PageBuilder\Validation\LayoutValidator;
+            use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
             use Waaseyaa\Publishing\ContentPublisher;
+            use Waaseyaa\Publishing\ContentTypeDescriptor;
+            use Waaseyaa\Publishing\FieldSpec;
+            use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
             use Waaseyaa\Publishing\PageBuilder\PublishingLayoutDraftGateway;
             use Waaseyaa\Publishing\PageBuilder\PublishingPageBuilderRevisionGateway;
             use Waaseyaa\Publishing\PageBuilder\PublishingRevisionPreviewGateway;
@@ -276,7 +284,7 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, Site
                         $codec = new CanonicalLayoutCodec();
                         $validator = new LayoutValidator($definitions);
                         $editor = new LayoutEditor($codec, $validator, $definitions);
-                        $publisher = $this->resolve(ContentPublisher::class);
+                        $publisher = $this->pagePublisher($config);
                         $drafts = new PublishingLayoutDraftGateway($publisher, $config['layout_field']);
                         $historyGateway = new PublishingPageBuilderRevisionGateway($publisher, $config['layout_field']);
                         $previews = new PublishingRevisionPreviewGateway(
@@ -296,6 +304,32 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, Site
 
                         return $registry;
                     });
+                }
+
+                /** @param array<string, mixed> $config */
+                private function pagePublisher(array $config): ContentPublisher
+                {
+                    return new ContentPublisher(
+                        descriptor: new ContentTypeDescriptor(
+                            entityTypeId: 'node',
+                            bundle: $config['bundle'],
+                            slugField: 'slug',
+                            statusField: 'status',
+                            writableFields: [
+                                'slug' => new FieldSpec(type: 'string', required: true),
+                                $config['layout_field'] => new FieldSpec(type: 'text'),
+                            ],
+                            htmlSanitizer: null,
+                            validators: [],
+                            publishCapability: $config['permission'],
+                            authorField: 'uid',
+                        ),
+                        repository: $this->resolve(EntityTypeManagerInterface::class)->getRepository('node'),
+                        idempotency: new IdempotencyStore($this->resolve(DatabaseInterface::class)),
+                        audit: $this->resolve(AuditWriterInterface::class),
+                        accessHandler: $this->resolve(EntityAccessHandler::class),
+                        publicationTransitioner: $this->resolve(ContentPublicationTransitionerInterface::class),
+                    );
                 }
 
                 public function boot(): void

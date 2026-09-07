@@ -44,9 +44,17 @@ that removes the literal-root provider while retaining the generated fragment
 and provider class must fail. It must not attribute already-installed packages
 to recipe activation or duplicate #2787's blueprint approval tests.
 
+The generated governed-authoring provider owns one page-scoped publishing
+composition. It constructs the `node`/`page` descriptor from the generated
+layout-field and permission configuration, selects the canonical `node`
+repository, and requires the kernel's database, audit, entity-access, and
+publication-transition authorities. It does not publish a global
+`ContentPublisher` binding or silently omit an unavailable authority.
+
 #2664 may land a fresh-only boot-free orchestrator after #2857. It invokes
-`site:init` → `install:init` → `composer site-verify`, forwards existing
-input/profile options, stops at the first failure, and preserves that status.
+`site:init` → `install:init`, forwards existing input/profile options, stops at
+the first failure, and preserves that status. `composer site-verify` remains a
+separate qualification step.
 Upgrade and AI update/verify remain later slices after non-root generator
 migrations and accepted #2660/#2663 plan contracts. A Composer activation phase
 requires the new consumer decision described in D-15.4.

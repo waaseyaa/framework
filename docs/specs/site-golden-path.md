@@ -724,6 +724,8 @@ capability rather than generating a site-specific builder. It generates:
 - semantic public renderers bound to application design tokens;
 - one authenticated page-builder surface, exact-revision preview route, and
   ordinary revision/workflow persistence path;
+- a page-scoped publishing composition over the canonical `node` repository,
+  database, audit, entity-access, and publication-transition authorities;
 - the generic Waaseyaa Admin SPA client and, when selected, an Anokii module
   adapter that opens the same drafts and builder workspace;
 - role-scoped content inventory actions for pages and typed high-volume
