@@ -7,15 +7,21 @@ namespace Waaseyaa\Queue\Tests\Unit\Worker;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Envelope\QueueSystemReason;
+use Waaseyaa\Queue\Exception\UnhandledQueueMessage;
+use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Message\GenericMessage;
+use Waaseyaa\Queue\Migration\CreateQueueTables;
 use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
 use Waaseyaa\Queue\Occurrence\OccurrenceContextInterface;
 use Waaseyaa\Queue\Occurrence\OccurrenceRunResult;
@@ -27,10 +33,12 @@ use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingOccurrenceAwareJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\ThrowingFailureHookJob;
+use Waaseyaa\Queue\Transport\DbalTransport;
 use Waaseyaa\Queue\Transport\InMemoryTransport;
 use Waaseyaa\Queue\Worker\Worker;
 use Waaseyaa\Queue\Worker\WorkerOptions;
 
+#[CoversClass(UnhandledQueueMessage::class)]
 #[CoversClass(Worker::class)]
 #[CoversClass(WorkerOptions::class)]
 final class WorkerTest extends TestCase
@@ -233,6 +241,49 @@ final class WorkerTest extends TestCase
 
         self::assertCount(1, $this->failedRepo->all());
         self::assertSame(0, $this->transport->size('default'));
+    }
+
+    #[Test]
+    public function failedRepositoryOutagePreservesUnsupportedDeliveryForLeaseRecovery(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        new CreateQueueTables()->up(new SchemaBuilder($database->getConnection()));
+        $transport = new DbalTransport($database);
+        $failedRepository = new class implements FailedJobRepositoryInterface {
+            public function record(string $queue, string $payload, \Throwable $e): string
+            {
+                TestCase::assertInstanceOf(UnhandledQueueMessage::class, $e);
+                TestCase::assertStringNotContainsString('unsupported', $e->getMessage());
+                throw new \RuntimeException('Failed-job store unavailable.');
+            }
+
+            public function all(): array { return []; }
+            public function find(string $id): ?array { return null; }
+            public function forget(string $id): void {}
+            public function flush(): void {}
+            public function retry(string $id): ?array { return null; }
+            public function claimForRetry(string $id): bool { return false; }
+            public function releaseRetryClaim(string $id): void {}
+        };
+        $worker = new Worker($transport, $failedRepository, [], $this->signer);
+        $transport->push(
+            'default',
+            $this->signer->seal(serialize(new GenericMessage('unsupported'))),
+        );
+
+        $outage = null;
+        try {
+            $worker->runNextJob('default', new WorkerOptions(maxTries: 1));
+        } catch (\RuntimeException $exception) {
+            $outage = $exception;
+        }
+        self::assertNotNull($outage, 'Expected the failed-job repository outage to propagate.');
+        self::assertSame('Failed-job store unavailable.', $outage->getMessage());
+
+        $jobs = $transport->listJobs(10);
+        self::assertSame(1, $jobs['total']);
+        self::assertSame('in_progress', $jobs['data'][0]['status']);
+        self::assertSame(0, $jobs['data'][0]['attempts']);
     }
 
     #[Test]

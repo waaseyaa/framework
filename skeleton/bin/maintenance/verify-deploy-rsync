@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
-# Fail CI if deploy rsync uses an unanchored docs/ exclude (drops templates/docs/, etc.).
-# See docs/specs/per-site-convergence-audit.md in the Waaseyaa monorepo.
+# Fail CI when deploy rsync or export exclusions drift from the canonical policy (#2648).
+# See docs/specs/distribution-exclusion-policy.md and docs/specs/per-site-convergence-audit.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+FRAMEWORK_ROOT=""
+if [[ -f "$ROOT/../bin/check-distribution-exclusion" ]]; then
+    FRAMEWORK_ROOT="$(cd "$ROOT/.." && pwd)"
+elif [[ -f "$ROOT/vendor/waaseyaa/framework/bin/check-distribution-exclusion" ]]; then
+    FRAMEWORK_ROOT="$ROOT/vendor/waaseyaa/framework"
+fi
+
+if [[ -n "$FRAMEWORK_ROOT" ]]; then
+    php "$FRAMEWORK_ROOT/bin/check-distribution-exclusion" \
+        --root="$FRAMEWORK_ROOT" \
+        --deploy-only \
+        --deploy-root="$ROOT"
+    echo "verify-deploy-rsync: OK (policy surfaces)"
+    exit 0
+fi
+
+# Fallback for a skeleton-only checkout without the framework gate.
 if [[ ! -d .github/workflows ]]; then
     echo "verify-deploy-rsync: skip (no .github/workflows)"
     exit 0
@@ -14,8 +31,6 @@ bad=0
 shopt -s nullglob
 for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
     [[ -f "$wf" ]] || continue
-    # After the opening quote, 'docs/' means "any path segment named docs" in rsync.
-    # Use '/docs/' to exclude only the repository-root docs/ tree.
     if grep -qE -- "--exclude=['\"]docs/" "$wf"; then
         echo "verify-deploy-rsync: ERROR: $wf uses unanchored --exclude='docs/' (use --exclude='/docs/' for repo-root docs only)." >&2
         bad=1
