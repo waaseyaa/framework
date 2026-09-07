@@ -253,7 +253,7 @@ if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-
 fi
 grep -Fq 'Installation is complete.' "$work/install-init.out"
 
-cp "$root/tests/PackagedForm/fixtures/recipe-provider-activation-probe.php" "$consumer/recipe-provider-activation-probe.php"
+cp "$source_root/tests/PackagedForm/fixtures/recipe-provider-activation-probe.php" "$consumer/recipe-provider-activation-probe.php"
 
 # (3) Positive proof: a real packaged kernel resolves the governed-authoring
 # page-builder surface and its page_layout field.
