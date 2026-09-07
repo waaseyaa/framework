@@ -19,6 +19,8 @@ use Waaseyaa\CLI\Site\Blueprint\Emitter\EntityClassEmitter;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\RelationshipEmitter;
 use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Search\Projection\NodeSearchProjector;
 use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
 use Waaseyaa\Field\FieldScaffoldProjection;
@@ -40,6 +42,16 @@ use Waaseyaa\SiteContract\SiteManifestParser;
 #[CoversClass(\Waaseyaa\CLI\Provider\MakeServiceProviderB::class)]
 final class MakeContentTypeHandlerTest extends TestCase
 {
+
+    public function test_registered_command_accepts_explicit_field_read_option(): void
+    {
+        $commands = iterator_to_array((new \Waaseyaa\CLI\Provider\MakeServiceProviderB())->consoleCommands());
+        $content = array_values(array_filter($commands, static fn ($command): bool => $command->getName() === 'make:content-type'))[0];
+        self::assertTrue($content->getDefinition()->hasOption('field-read'));
+        self::assertSame('', $content->getDefinition()->getOption('field-read')->getDefault());
+        $input = new \Symfony\Component\Console\Input\ArrayInput(['name' => 'story', '--field-read' => 'title:public'], $content->getDefinition());
+        self::assertSame('title:public', $input->getOption('field-read'));
+    }
     private string $root;
 
     protected function setUp(): void
@@ -108,6 +120,7 @@ final class MakeContentTypeHandlerTest extends TestCase
             arguments: [new HandlerArgument(name: 'name', mode: HandlerArgumentMode::Required, description: 'name')],
             options: [
                 new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string,body:text'),
+                new HandlerOption(name: 'field-read', mode: HandlerOptionMode::Optional, description: 'field read visibility', default: ''),
                 new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
@@ -549,6 +562,7 @@ final class MakeContentTypeHandlerTest extends TestCase
                 arguments: [new HandlerArgument(name: 'name', mode: HandlerArgumentMode::Required, description: 'name')],
                 options: [
                     new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
+                    new HandlerOption(name: 'field-read', mode: HandlerOptionMode::Optional, description: 'field read visibility', default: ''),
                     new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
                 ],
                 handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root, fieldProjection: new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager())), 'execute']),
@@ -643,6 +657,7 @@ final class MakeContentTypeHandlerTest extends TestCase
                 arguments: [new HandlerArgument(name: 'name', mode: HandlerArgumentMode::Required, description: 'name')],
                 options: [
                     new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
+                    new HandlerOption(name: 'field-read', mode: HandlerOptionMode::Optional, description: 'field read visibility', default: ''),
                     new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
                 ],
                 handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root, fieldProjection: new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager())), 'execute']),
@@ -658,6 +673,289 @@ final class MakeContentTypeHandlerTest extends TestCase
         } finally {
             (new Filesystem())->remove($root);
         }
+    }
+
+    #[Test]
+    public function explicitFieldReadSelectionsEmitImportAndAttributeMetadata(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,body:text,summary:text',
+            '--field-read' => 'title:public,body:public,summary:protected',
+        ]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $entity = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        self::assertStringContainsString('use Waaseyaa\\Entity\\FieldReadLevel;', $entity);
+        self::assertStringContainsString("read: FieldReadLevel::Public", $entity);
+        self::assertStringContainsString("read: FieldReadLevel::Protected", $entity);
+        self::assertStringNotContainsString('read: FieldReadLevel::Internal', $entity);
+    }
+
+    #[Test]
+    public function omittedFieldReadSelectionsStayUndeclaredInGeneratedAttributes(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,body:text,internal_note:text',
+            '--field-read' => 'title:public,body:public',
+        ]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $entity = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        self::assertMatchesRegularExpression(
+            "/#\\[Field\\(type: 'text', label: 'Internal Note'\\)\\]/",
+            $entity,
+            'Omitted fields must not receive a read: argument.',
+        );
+    }
+
+    #[Test]
+    public function anExplicitPublicLabelFieldStillEmitsReadMetadata(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,body:text',
+            '--field-read' => 'title:public',
+        ]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $entity = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        self::assertStringContainsString("#[Field(type: 'string', label: 'Title', read: FieldReadLevel::Public)]", $entity);
+    }
+
+    #[Test]
+    public function rejectsDuplicateFieldReadSelections(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,body:text',
+            '--field-read' => 'title:public,title:protected',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('duplicate', strtolower($tester->getStderr()));
+    }
+
+    #[Test]
+    public function rejectsUnknownFieldReadSelections(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,body:text',
+            '--field-read' => 'summary:public',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('summary', $tester->getStderr());
+        self::assertStringContainsString('unknown', strtolower($tester->getStderr()));
+    }
+
+    #[Test]
+    public function rejectsStatusInFieldReadSelections(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string',
+            '--field-read' => 'status:public',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('status', $tester->getStderr());
+        self::assertStringContainsString('reserved', strtolower($tester->getStderr()));
+    }
+
+    #[Test]
+    public function rejectsScalarFieldsWithTargetSegments(): void
+    {
+        foreach (['title:string:ignored', 'title:string:'] as $spec) {
+            $tester = $this->runMake([
+                'name' => 'story',
+                '--fields' => $spec,
+            ]);
+            self::assertSame(1, $tester->getExitCode(), $spec);
+            self::assertStringContainsString('target segment', strtolower($tester->getStderr()));
+        }
+    }
+
+    #[Test]
+    public function rejectsEntityReferenceFieldsWithExtraTargetSegments(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'related:entity_reference:node:ignored',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('too many segments', strtolower($tester->getStderr()));
+    }
+
+    #[Test]
+    public function rejectsEntityReferenceFieldsWithEmptyTargetSegments(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'author:entity_reference:',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('needs a target', $tester->getStderr());
+    }
+
+    #[Test]
+    public function preservesValidScalarAndReferenceFieldSyntax(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title,body:text,author:entity_reference:user',
+        ]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+    }
+
+    #[Test]
+    public function rejectsEmptyCommaSeparatedFieldReadSelections(): void
+    {
+        foreach ([',title:public', 'title:public,', 'title:public,,body:public'] as $spec) {
+            $tester = $this->runMake([
+                'name' => 'story',
+                '--fields' => 'title:string,body:text',
+                '--field-read' => $spec,
+            ]);
+            self::assertSame(1, $tester->getExitCode(), $spec);
+            self::assertStringContainsString('empty selection', strtolower($tester->getStderr()));
+        }
+    }
+
+    #[Test]
+    public function treatsAnEmptyFieldReadSpecAsNoSelections(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,body:text',
+            '--field-read' => '',
+        ]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $entity = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        self::assertStringNotContainsString('FieldReadLevel', $entity);
+    }
+
+    #[Test]
+    public function rejectsMalformedFieldReadEntries(): void
+    {
+        $malformed = [
+            'title',
+            'title:',
+            ':public',
+            'title:public:extra',
+        ];
+        foreach ($malformed as $spec) {
+            $tester = $this->runMake([
+                'name' => 'story',
+                '--fields' => 'title:string,body:text',
+                '--field-read' => $spec,
+            ]);
+            self::assertSame(1, $tester->getExitCode(), $spec);
+        }
+    }
+
+    #[Test]
+    public function rejectsUnsupportedFieldReadWireValues(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string',
+            '--field-read' => 'title:private',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('private', $tester->getStderr());
+    }
+
+    #[Test]
+    public function rejectsDuplicateFieldDeclarationsInTheFieldsSpec(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,title:text',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('duplicate', strtolower($tester->getStderr()));
+    }
+
+    #[Test]
+    public function aRegisteredGeneratedEntityHonoursExplicitAndOmittedReadSemantics(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'read_levels',
+            '--fields' => 'title:string,body:text,internal_note:text,restricted:text',
+            '--field-read' => 'title:public,body:public,restricted:protected',
+        ]);
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+
+        $class = $this->loadGeneratedEntity('ReadLevels');
+        $entity = new $class([
+            'id' => 1,
+            'title' => 'Visible title',
+            'body' => 'Visible body',
+            'internal_note' => 'Hidden internal',
+            'restricted' => 'Hidden protected',
+            'status' => true,
+        ]);
+
+        self::assertSame(FieldReadLevel::Public, $entity->fieldReadLevel('title'));
+        self::assertSame(FieldReadLevel::Public, $entity->fieldReadLevel('body'));
+        self::assertSame(FieldReadLevel::Internal, $entity->fieldReadLevel('internal_note'));
+        self::assertSame(FieldReadLevel::Protected, $entity->fieldReadLevel('restricted'));
+
+        self::assertSame('Visible title', $entity->get('title'));
+        self::assertSame('Visible body', $entity->get('body'));
+
+        $this->expectException(\Waaseyaa\Entity\Exception\FieldReadDenied::class);
+        $entity->get('internal_note');
+    }
+
+    #[Test]
+    public function searchProjectionIndexesOnlyExplicitPublicFieldsFromARegisteredGeneratedEntity(): void
+    {
+        $tester = $this->runMake([
+            'name' => 'searchable',
+            '--fields' => 'title:string,body:text,internal_note:text,restricted:text',
+            '--field-read' => 'title:public,body:public,restricted:protected',
+        ]);
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+
+        $class = $this->loadGeneratedEntity('Searchable');
+        $entity = new $class([
+            'id' => 1,
+            'title' => 'Indexed title',
+            'body' => 'Indexed body',
+            'internal_note' => 'Must not index',
+            'restricted' => 'Must not index protected',
+            'status' => true,
+        ]);
+
+        $projector = new NodeSearchProjector(entityTypeId: 'searchable', bodyFields: ['body', 'internal_note', 'restricted']);
+        $document = $projector->project($entity);
+
+        self::assertNotNull($document);
+        $projected = $document->toSearchDocument();
+        self::assertSame('Indexed title', $projected['title']);
+        self::assertStringContainsString('Indexed body', $projected['body']);
+        self::assertStringNotContainsString('Must not index', $projected['body']);
+    }
+
+    /** @return class-string */
+    private function loadGeneratedEntity(string $className): string
+    {
+        $path = $this->root . '/src/Entity/' . $className . '.php';
+        exec(escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($path) . ' 2>&1', $output, $exit);
+        self::assertSame(0, $exit, implode("\n", $output));
+        require $path;
+
+        return 'App\\Entity\\' . $className;
     }
 }
 

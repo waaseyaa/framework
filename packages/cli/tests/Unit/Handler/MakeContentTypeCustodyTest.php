@@ -217,6 +217,28 @@ final class MakeContentTypeCustodyTest extends TestCase
         self::assertDirectoryDoesNotExist($root . '/src/Provider');
     }
 
+    #[Test]
+    public function fieldReadSelectionChangesThePlanDigest(): void
+    {
+        $fields = [
+            ['name' => 'title', 'type' => 'string', 'target' => null],
+            ['name' => 'body', 'type' => 'text', 'target' => null],
+        ];
+        $compiler = new ContentTypeScaffoldCompiler(new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager()));
+
+        $withoutRead = $compiler->compile('story', 'Story', $fields);
+        $withRead = $compiler->compile('story', 'Story', [
+            ['name' => 'title', 'type' => 'string', 'target' => null, 'read' => 'public'],
+            ['name' => 'body', 'type' => 'text', 'target' => null, 'read' => 'public'],
+        ]);
+
+        self::assertNotSame(
+            $withoutRead->digest,
+            $withRead->digest,
+            'Explicit field-read selections must change the plan digest and stale-approval identity.',
+        );
+    }
+
     /** @return array<string, mixed> */
     private function ownership(string $root): array
     {
@@ -260,6 +282,7 @@ final class MakeContentTypeCustodyTest extends TestCase
             arguments: [new HandlerArgument(name: 'name', mode: HandlerArgumentMode::Required, description: 'name')],
             options: [
                 new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
+                new HandlerOption(name: 'field-read', mode: HandlerOptionMode::Optional, description: 'field read visibility', default: ''),
                 new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
             ],
             handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root, fieldProjection: new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager())), 'execute']),
