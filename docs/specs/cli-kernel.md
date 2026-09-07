@@ -452,6 +452,26 @@ document names, because it is the only one of the three that also activates the
 configuration generation. A site materialized without it passes site
 verification while being an invalid installation.
 
+## Fresh-project orchestration
+
+`project:init` composes `site:init` followed by `install:init` in separate child
+processes through the selected project's installed CLI. The parent runs on the
+boot-free seam and opens no database. Ordinary command discovery and pre-boot
+dispatch share `SiteServiceProvider::projectInitCommand()`. The authoritative
+bounded contract is `FW-PROJECT-INITIALIZER-01`.
+
+The accepted options are `--answers`, `--decision-receipt`, `--preset`,
+`--project-root`, `--dry-run`, `--json`, and `--yes`/`-y`. Site options are
+forwarded as argv values; semantic validation remains in `site:init`.
+`--dry-run` never starts installation. A failed site phase or unconfirmed child
+cleanup prevents installation. Plain mode preserves attached streams; JSON
+mode emits one bounded parent result. Cleanup failure reports the owned PID
+and bounded diagnostic as `PROJECT_INIT006_CHILD_CLEANUP_FAILED`.
+
+Verification remains `composer site-verify` after successful initialization.
+This command adds no cross-phase rollback, private completion ledger, upgrade,
+AI update/verification, or generated-output removal mode. `--upgrade` is unknown.
+
 ## Site initialization
 
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--preset=minimal|editorial]

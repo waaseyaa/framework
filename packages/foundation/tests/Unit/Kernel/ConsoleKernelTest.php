@@ -147,6 +147,7 @@ final class ConsoleKernelTest extends TestCase
         // the case is that it refuses it without opening a database: an apply
         // boundary that booted would create the file the phase precedes.
         yield 'site:apply' => ['site:apply', []];
+        yield 'project:init' => ['project:init', ['--dry-run', '--json']];
     }
 
     #[Test]
