@@ -822,7 +822,7 @@ final class JsonApiController
         $entity = $repository->create($attributes);
 
         // Authored entities created through JSON:API (including the generic
-        // admin host, which delegates here) belong to the authenticated
+        // admin host, which delegates here) belong to the persisted authenticated
         // creator when their declared shape has a `uid` owner field and the
         // client did not explicitly choose an author. This covers node, media,
         // note, and future authored quick-entry types without a type-id list.
@@ -837,7 +837,21 @@ final class JsonApiController
         ) {
             $accountId = $this->account->id();
             if (\is_int($accountId) || \ctype_digit($accountId)) {
-                $entity->set('uid', (int) $accountId);
+                $ownerId = (int) $accountId;
+                if ($ownerId > 0) {
+                    $targetType = $uidDefinition->getSetting('target_entity_type_id')
+                        ?? $uidDefinition->getSetting('targetEntityTypeId')
+                        ?? $uidDefinition->getSetting('target_type')
+                        ?? 'user';
+                    if (is_string($targetType)) {
+                        $targetType = trim($targetType);
+                        if ($targetType !== ''
+                            && $this->entityTypeManager->hasDefinition($targetType)
+                            && $this->identifierResolver->resolve($targetType, $ownerId) !== null) {
+                            $entity->set('uid', $ownerId);
+                        }
+                    }
+                }
             }
         }
 

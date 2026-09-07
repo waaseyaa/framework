@@ -60,6 +60,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Entity\\Testing\\Translation\\TranslatableEntityContractTest', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Entity\\TranslatableEntityTrait', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Entity\\TranslatableInterface', 'disposition' => 'public', 'purpose' => 'Per-language translation access for a translatable entity (M-006 / ADR 017): `getTranslation`, `hasTranslation`, `addTranslation`, `removeTranslation`, `translations`, `defaultLangcode`, `activeLangcode`, `fieldLangcode`. `language()` retained as deprecated alias for `activeLangcode()`'],
+        ['fqcn' => 'Waaseyaa\\Entity\\Validation\\EntityReferenceExistenceChecker', 'disposition' => 'internal', 'purpose' => 'Closed resolver-backed callable admitted for non-Public entity-reference existence validation'],
         ['fqcn' => 'Waaseyaa\\Entity\\Validation\\RedactedInvalidValue', 'disposition' => 'internal', 'purpose' => 'Internal value-free sentinel used when validation reports a restricted invalid field'],
         ['fqcn' => 'Waaseyaa\\Entity\\Validation\\ValidationReadLedgerInterface', 'disposition' => 'internal', 'purpose' => 'Internal validation adapter that reserves an authorized restricted-field read before value access'],
         ['fqcn' => 'Waaseyaa\\Entity\\Validation\\ValidationReadReservationInterface', 'disposition' => 'internal', 'purpose' => 'Internal one-shot reservation that records validation-read success or failure without retaining the value'],

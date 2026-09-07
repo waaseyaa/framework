@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity\Tests\Unit\Validation;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\Constraints\GreaterThan;
@@ -12,11 +13,17 @@ use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Validation;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\ConstraintsRequiredTitleFixture;
+use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Entity\Tests\Unit\Validation\Fixture\FieldableEntityDouble;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Validation\Constraint\EntityExists;
 
 require_once __DIR__ . '/../../Fixtures/AttributeFirstEntities/ValidationConstraintsFixtures.php';
 
@@ -26,6 +33,110 @@ final class EntityTypeValidationConstraintsTest extends TestCase
     protected function setUp(): void
     {
         EntityType::clearFromClassCache();
+    }
+
+    #[Test]
+    public function manualConstraintsComposeWithMandatoryEntityReferenceExistence(): void
+    {
+        $manual = new Length(max: 3);
+        $type = EntityType::fromClass(
+            class: ConstraintsRequiredTitleFixture::class,
+            constraints: ['author_id' => [$manual]],
+        );
+        $fieldDefinitions = [
+            'author_id' => new FieldDefinition(
+                name: 'author_id',
+                type: 'entity_reference',
+                settings: ['target_entity_type_id' => 'user'],
+            ),
+        ];
+
+        $merged = EntityTypeValidationConstraints::forEntityType(
+            $type,
+            $fieldDefinitions,
+            $this->resolverForType('user'),
+        );
+
+        self::assertCount(2, $merged['author_id']);
+        self::assertSame($manual, $merged['author_id'][0]);
+        self::assertInstanceOf(EntityExists::class, $merged['author_id'][1]);
+    }
+
+    #[Test]
+    public function manualConstraintsReplaceDerivedScalarConstraintsButNotExistence(): void
+    {
+        $manual = new Length(max: 3);
+        $type = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            constraints: ['author_id' => [$manual]],
+            _fieldDefinitions: [
+                'author_id' => new FieldDefinition(
+                    name: 'author_id',
+                    type: 'entity_reference',
+                    required: true,
+                    settings: ['target_entity_type_id' => 'user'],
+                ),
+            ],
+        );
+
+        $merged = EntityTypeValidationConstraints::forEntityType(
+            $type,
+            null,
+            $this->resolverForType('user'),
+        );
+
+        self::assertCount(2, $merged['author_id']);
+        self::assertSame($manual, $merged['author_id'][0], 'Manual constraints must still replace derived scalar constraints.');
+        self::assertInstanceOf(EntityExists::class, $merged['author_id'][1], 'Existence must compose after manual precedence.');
+    }
+
+    #[Test]
+    #[DataProvider('referenceTargetAliasProvider')]
+    public function arrayFieldDefinitionsPreserveEverySupportedReferenceTargetAlias(string $alias): void
+    {
+        $type = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+
+        $merged = EntityTypeValidationConstraints::forEntityType(
+            $type,
+            ['author_id' => ['type' => 'entity_reference', $alias => 'user']],
+            $this->resolverForType('user'),
+        );
+
+        self::assertInstanceOf(EntityExists::class, $merged['author_id'][0]);
+        self::assertSame('user', $merged['author_id'][0]->entityTypeId);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function referenceTargetAliasProvider(): iterable
+    {
+        yield 'canonical snake case' => ['target_entity_type_id'];
+        yield 'camel case' => ['targetEntityTypeId'];
+        yield 'legacy target type' => ['target_type'];
+    }
+
+    #[Test]
+    public function arrayFieldDefinitionsPreserveExplicitReadLevelAndDefaultWhenAbsent(): void
+    {
+        $normalize = new \ReflectionMethod(EntityTypeValidationConstraints::class, 'normalizeFieldDefinition');
+        $protected = $normalize->invoke(null, 'secret', [
+            'type' => 'string',
+            'read' => FieldReadLevel::Protected,
+        ]);
+        self::assertSame(FieldReadLevel::Protected, $protected->getReadLevel());
+
+        $internal = $normalize->invoke(null, 'body', ['type' => 'text']);
+        self::assertNull($internal->getReadLevel(), 'Absent or malformed read metadata must retain the Internal default.');
+
+        $malformed = $normalize->invoke(null, 'summary', ['type' => 'text', 'read' => 'public']);
+        self::assertNull($malformed->getReadLevel(), 'Malformed read metadata must fail closed to Internal.');
     }
 
     #[Test]
@@ -41,7 +152,7 @@ final class EntityTypeValidationConstraintsTest extends TestCase
         $merged = EntityTypeValidationConstraints::forEntityType($type);
 
         $entity = $this->stubEntity(['title' => '']);
-        $violations = (new EntityValidator(Validation::createValidator()))->validate($entity, $merged);
+        $violations = new EntityValidator(Validation::createValidator())->validate($entity, $merged);
 
         self::assertCount(0, $violations, 'Manual constraints replaced derived NotBlank; empty title is allowed by Length(max:3).');
     }
@@ -57,7 +168,7 @@ final class EntityTypeValidationConstraintsTest extends TestCase
         $merged = EntityTypeValidationConstraints::forEntityType($type);
         $entity = $this->stubEntity(['title' => 'ok', 'slug' => '']);
 
-        $violations = (new EntityValidator(Validation::createValidator()))->validate($entity, $merged);
+        $violations = new EntityValidator(Validation::createValidator())->validate($entity, $merged);
 
         self::assertGreaterThan(0, $violations->count());
         self::assertSame('slug', $violations->get(0)->getPropertyPath());
@@ -97,9 +208,21 @@ final class EntityTypeValidationConstraintsTest extends TestCase
     {
         $entity = $this->createStub(FieldableEntityDouble::class);
         $entity->method('get')->willReturnCallback(
-            static fn (string $name): mixed => $values[$name] ?? null,
+            static fn(string $name): mixed => $values[$name] ?? null,
         );
 
         return $entity;
+    }
+
+    private function resolverForType(string $entityTypeId): EntityIdentifierResolver
+    {
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::never())->method('find');
+
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->willReturn(TestEntityType::stub($entityTypeId, keys: ['id' => 'id']));
+        $manager->method('getRepository')->willReturn($repository);
+
+        return new EntityIdentifierResolver($manager);
     }
 }

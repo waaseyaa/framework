@@ -40,6 +40,8 @@ use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\Node\NodeAuthorizationSnapshotReader;
 use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
+use Waaseyaa\User\User;
+use Waaseyaa\User\UserServiceProvider;
 use Waaseyaa\Workflows\Access\WorkflowAuthorityAccessPolicy;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Workflow;
@@ -332,6 +334,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
     public function editor_can_complete_the_admin_create_view_list_edit_transition_loop_without_unsealing_fields(): void
     {
         [$entityTypeManager, , $transitionService, $accountContext, $setAccessHandler] = $this->bootWiredProviders();
+        $this->persistUser($entityTypeManager, 42);
         $nodeRepository = $entityTypeManager->getRepository('node');
 
         $publisher = $this->account(90, [
@@ -474,6 +477,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
     public function admin_created_draft_is_attributed_to_the_authenticated_creator(): void
     {
         [$entityTypeManager, , , $accountContext] = $this->bootWiredProviders();
+        $this->persistUser($entityTypeManager, 42);
 
         $creator = $this->account(42, [
             'administer content',
@@ -617,6 +621,21 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         return $rows[array_key_first($rows)];
     }
 
+    private function persistUser(EntityTypeManager $entityTypeManager, int $userId): void
+    {
+        $user = new User([
+            'uid' => $userId,
+            'name' => 'persisted-user-' . $userId,
+            'status' => 1,
+        ]);
+        $user->enforceIsNew();
+        $entityTypeManager->getRepository('user')->save($user);
+        self::assertNotNull(
+            $entityTypeManager->getRepository('user')->find($userId),
+            'The creator fixture must be a real persisted canonical user.',
+        );
+    }
+
     /**
      * @param list<string> $permissions
      */
@@ -692,11 +711,18 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         $nodeProvider->setKernelServices($kernelServices);
         $nodeProvider->register();
 
+        $userProvider = new UserServiceProvider();
+        $userProvider->setKernelServices($kernelServices);
+        $userProvider->register();
+
         $workflowProvider = new WorkflowServiceProvider();
         $workflowProvider->setKernelServices($kernelServices);
         $workflowProvider->register();
 
         foreach ($nodeProvider->getEntityTypes() as $entityType) {
+            $entityTypeManager->registerEntityType($entityType);
+        }
+        foreach ($userProvider->getEntityTypes() as $entityType) {
             $entityTypeManager->registerEntityType($entityType);
         }
         foreach ($workflowProvider->getEntityTypes() as $entityType) {

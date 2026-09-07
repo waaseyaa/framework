@@ -10,6 +10,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Validation\EntityValidator;
@@ -81,6 +82,9 @@ final class EntityTypeManagerFactory
             ? EntityValidator::createDefault(new DatabaseValidationReadLedger($database))
             : null;
 
+        /** @var EntityTypeManager|null $entityTypeManagerRef */
+        $entityTypeManagerRef = null;
+
         $manager = new EntityTypeManager(
             $dispatcher,
             // C-22 WP4: the legacy SqlEntityStorage engine is removed. getStorage()
@@ -88,7 +92,7 @@ final class EntityTypeManagerFactory
             // it remains a "bring your own EntityStorageInterface" extension seam
             // for entity types that explicitly declare a storageClass.
             null,
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, $fieldTypes): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, $fieldTypes, &$entityTypeManagerRef): EntityRepositoryInterface {
                 if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
                     throw new \RuntimeException(\sprintf(
                         'Entity type "%s" declares custom storage "%s"; getRepository() only supports Framework SQL storage. Use getStorage() for the declared backend.',
@@ -125,6 +129,10 @@ final class EntityTypeManagerFactory
                     )
                     : null;
 
+                $entityReferenceResolver = $entityTypeManagerRef === null
+                    ? null
+                    : new EntityIdentifierResolver($entityTypeManagerRef);
+
                 $repository = new EntityRepository(
                     $definition,
                     $driver,
@@ -144,6 +152,7 @@ final class EntityTypeManagerFactory
                     accessHandlerResolver: $accessHandlerResolver,
                     storageBoundary: $storageBoundary,
                     fieldReadScope: $fieldReadScope,
+                    entityReferenceResolver: $entityReferenceResolver,
                 );
                 // revision-audit-provenance-01KTWY5V WP01: forward seam — the
                 // kernel's shared acting-account context is attached once
@@ -171,6 +180,8 @@ final class EntityTypeManagerFactory
             // definitions before its explicit schema transition runs.
             static function (EntityTypeInterface $type): void {},
         );
+
+        $entityTypeManagerRef = $manager;
 
         return $manager;
     }
