@@ -68,41 +68,148 @@ if [[ "$pre_init_status" != 3 ]]; then
 fi
 grep -q 'site:init' "$work_root/pre-init-verify.log"
 
-# The canonical fresh-project lifecycle is site:init then install:init. Stage 1
-# schema authority removed lazy runtime DDL, so a fresh generated site must
-# materialize the reviewed migration catalog explicitly before any kernel-backed
-# acceptance test runs. install:init is the only command that also activates the
-# CFG-02 genesis generation, so db:init + migrate would leave a site that passes
-# verification while being an invalid installation. site:init runs first because
-# its recipes declare the entity types install:init then synchronizes.
-(cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+assert_project_init_json() {
+  local receipt=$1
+  local expected_status=$2
+  local expected_install_status=$3
+  local expected_install_text=$4
 
-# #2644: the site-contract phase is database-free. install:init is the first
-# command allowed to create storage/waaseyaa.sqlite; site:init used to create it
-# as a side effect of restricted boot, leaving behind exactly the zero-table
-# file db:init would then refuse.
-if [[ -e "$consumer_root/storage/waaseyaa.sqlite" ]]; then
-  echo "reference-consumer: site:init must not create the application database" >&2
+  php -r '
+    $bytes = file_get_contents($argv[1]);
+    if (!is_string($bytes) || !str_ends_with($bytes, "\n")) {
+        throw new RuntimeException("project:init must emit one newline-terminated document");
+    }
+    $result = json_decode($bytes, false, 512, JSON_THROW_ON_ERROR);
+    if (!$result instanceof stdClass) {
+        throw new RuntimeException("project:init result must be an object");
+    }
+    $keys = array_keys(get_object_vars($result));
+    sort($keys, SORT_STRING);
+    if ($keys !== ["errors", "phases", "schema", "status", "version"]
+        || $result->schema !== "waaseyaa.project_init_result"
+        || $result->version !== 1
+        || $result->status !== $argv[2]
+        || !is_array($result->errors)
+        || $result->errors !== []
+        || !$result->phases instanceof stdClass
+        || !$result->phases->site instanceof stdClass
+        || !$result->phases->install instanceof stdClass
+        || $result->phases->site->command !== "site:init"
+        || $result->phases->site->status !== "succeeded"
+        || $result->phases->site->exit_code !== 0
+        || !$result->phases->site->result instanceof stdClass
+        || $result->phases->install->command !== "install:init"
+        || $result->phases->install->status !== $argv[3]
+        || $result->phases->install->exit_code !== 0
+        || $result->phases->install->not_run_reason !== null
+        || !str_contains($result->phases->install->stdout, $argv[4])) {
+        throw new RuntimeException("project:init result does not match the completed lifecycle contract");
+    }
+  ' "$receipt" "$expected_status" "$expected_install_status" "$expected_install_text"
+}
+
+assert_generation_state() {
+  php -r '
+    $state = json_decode($argv[1], true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($state)
+        || array_keys($state) !== ["generation_count", "activation_count", "generations", "activations"]
+        || $state["generation_count"] !== 1
+        || $state["activation_count"] !== 1
+        || !is_array($state["generations"])
+        || count($state["generations"]) !== 1
+        || !is_array($state["activations"])
+        || count($state["activations"]) !== 1
+        || ($state["generations"][0]["authority_id"] ?? null) !== ($state["activations"][0]["authority_id"] ?? null)
+        || ($state["generations"][0]["generation_id"] ?? null) !== ($state["activations"][0]["generation_id"] ?? null)
+        || preg_match("/^[a-z0-9._-]{1,64}$/D", $state["activations"][0]["authority_id"] ?? "") !== 1
+        || preg_match("/^[a-f0-9]{64}$/D", $state["activations"][0]["generation_id"] ?? "") !== 1
+        || ($state["activations"][0]["activation_sequence"] ?? null) !== 1) {
+        throw new RuntimeException("fresh installation must expose exactly one canonical active configuration generation");
+    }
+  ' "$1"
+}
+
+# The installed command must retain the real site:init interaction boundary.
+# The wizard currently asks four identity/content questions, one route question
+# for the default page type, and two capability questions before the separate
+# publication confirmation. Eight blank answers therefore accept those seven
+# source-defined defaults and decline publication at the final default-no gate.
+if ! command -v script >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
+  echo "reference-consumer: util-linux script and coreutils timeout are required for the bounded interactive CLI proof" >&2
+  exit 1
+fi
+interactive_status=0
+(
+  cd "$consumer_root"
+  printf '\n\n\n\n\n\n\n\n' \
+    | timeout --signal=TERM --kill-after=5s 30s \
+      script -qefc 'php vendor/bin/waaseyaa project:init' "$work_root/project-init-interactive.log"
+) >"$work_root/project-init-interactive.out" 2>"$work_root/project-init-interactive.err" || interactive_status=$?
+if [[ "$interactive_status" == 124 || "$interactive_status" == 137 ]]; then
+  echo "reference-consumer: interactive project:init exceeded its 30-second bound" >&2
+  cat "$work_root/project-init-interactive.out" "$work_root/project-init-interactive.err" >&2
+  exit 1
+fi
+if [[ "$interactive_status" != 1 ]]; then
+  echo "reference-consumer: declined interactive project:init must exit 1, got $interactive_status" >&2
+  cat "$work_root/project-init-interactive.out" "$work_root/project-init-interactive.err" >&2
+  exit 1
+fi
+grep -Fq 'What is the public name of this application?' "$work_root/project-init-interactive.log"
+grep -Fq 'Publish this complete generated site contract?' "$work_root/project-init-interactive.log"
+grep -Fq 'Site initialization cancelled without publishing new artifacts.' "$work_root/project-init-interactive.log"
+if grep -Fq 'Installation is complete.' "$work_root/project-init-interactive.log"; then
+  echo "reference-consumer: declined interactive project:init continued into install:init" >&2
+  exit 1
+fi
+if [[ -e "$consumer_root/storage/waaseyaa.sqlite" \
+  || -e "$consumer_root/.waaseyaa/generated.json" \
+  || -e "$consumer_root/bin/maintenance/site-verify" ]]; then
+  echo "reference-consumer: declined interactive project:init materialized project state" >&2
   exit 1
 fi
 
-(cd "$consumer_root" && php vendor/bin/waaseyaa install:init --no-interaction)
+# #2664: the freshly installed exact candidate now exercises the composed entry
+# point itself. site:init still owns publication and install:init remains the
+# only materialization phase; the parent only preserves their process boundary.
+(cd "$consumer_root" && php vendor/bin/waaseyaa project:init --answers=site.answers.yaml --project-root="$consumer_root" --yes --json --no-interaction) \
+  >"$work_root/project-init.json" 2>"$work_root/project-init.err"
+if [[ -s "$work_root/project-init.err" ]]; then
+  echo "reference-consumer: successful project:init wrote unexpected parent stderr" >&2
+  cat "$work_root/project-init.err" >&2
+  exit 1
+fi
+assert_project_init_json "$work_root/project-init.json" completed succeeded 'Installation is complete.'
+if [[ ! -e "$consumer_root/storage/waaseyaa.sqlite" \
+  || ! -e "$consumer_root/.waaseyaa/generated.json" \
+  || ! -e "$consumer_root/bin/maintenance/site-verify" ]]; then
+  echo "reference-consumer: project:init did not complete the installed fresh-project lifecycle" >&2
+  exit 1
+fi
 
 before=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" snapshot "$framework_source" "$consumer_root")
+generation_before=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" generation-state "$framework_source" "$consumer_root")
+assert_generation_state "$generation_before"
 export COMPOSER_DISABLE_NETWORK=1
-(cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
-after=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" snapshot "$framework_source" "$consumer_root")
-if [[ "$before" != "$after" ]]; then
-  echo "reference-consumer: offline regeneration is not byte-identical" >&2
+(cd "$consumer_root" && php vendor/bin/waaseyaa project:init --answers=site.answers.yaml --project-root="$consumer_root" --yes --json --no-interaction) \
+  >"$work_root/project-init-repeat.json" 2>"$work_root/project-init-repeat.err"
+if [[ -s "$work_root/project-init-repeat.err" ]]; then
+  echo "reference-consumer: repeated project:init wrote unexpected parent stderr" >&2
+  cat "$work_root/project-init-repeat.err" >&2
   exit 1
 fi
-
-# install:init is the documented materialization phase, so re-running it must be
-# a no-op that reports the already-active genesis generation rather than minting
-# a second one. This is the property that makes the lifecycle safe to repeat
-# after any later site:init.
-(cd "$consumer_root" && php vendor/bin/waaseyaa install:init --no-interaction) >"$work_root/install-repeat.log" 2>&1
-grep -q 'Configuration already initialized' "$work_root/install-repeat.log"
+assert_project_init_json "$work_root/project-init-repeat.json" completed succeeded 'Configuration already initialized'
+after=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" snapshot "$framework_source" "$consumer_root")
+generation_after=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" generation-state "$framework_source" "$consumer_root")
+assert_generation_state "$generation_after"
+if [[ "$before" != "$after" ]]; then
+  echo "reference-consumer: offline project:init retry is not byte-identical" >&2
+  exit 1
+fi
+if [[ "$generation_before" != "$generation_after" ]]; then
+  echo "reference-consumer: configuration generation changed during idempotent project:init retry" >&2
+  exit 1
+fi
 
 (cd "$consumer_root" && php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root="$consumer_root")
 "$consumer_root/bin/maintenance/site-verify"

@@ -54,26 +54,19 @@ final class ConsoleKernel extends AbstractKernel
             return $application->run($input, $output);
         }
 
-        // #2644: the whole site-contract phase runs before the framework has a
-        // database, and neither command needs one. Both handlers take only a
-        // project root, and SiteArtifactRendererFactory composes its recipes
-        // with `new` and no container.
-        //
-        // Booting for them reached AbstractKernel::bootDatabase(), which runs
-        // before every restricted-discovery guard — so `site:doctor` created
-        // the zero-table storage/waaseyaa.sqlite it was supposed to report on,
-        // and `site:init` created it before any bootstrap command had run.
-        // That phantom file is exactly what db:init then had to be taught to
-        // adopt. Running both here means the pre-install phase touches no
-        // database at all, and verification is read-only in the literal sense.
-        // #2789 joins `site:apply` to the same seam: it executes a reviewed
-        // apply request emitted by an earlier process and constructs no
-        // compiler, so it needs a project root and nothing else either.
-        if (in_array($input->getFirstArgument(), ['site:init', 'site:doctor', 'site:apply'], true)) {
+        // Construct these commands before parent framework boot. The site
+        // handlers operate without a database; ordinary boot would create the
+        // storage they must precede or inspect without mutation (#2644).
+        // site:apply executes a previously reviewed request without compiling
+        // it (#2789). project:init also keeps its parent boot-free, but runs
+        // site:init and install:init as separate children: the latter retains
+        // its own schema-sync boot and intentionally materializes the database.
+        if (in_array($input->getFirstArgument(), ['site:init', 'site:doctor', 'site:apply', 'project:init'], true)) {
             $application = new WaaseyaaConsoleApplication(
                 version: new VersionResolver($this->projectRoot)->resolve(),
                 logger: $this->logger,
             );
+            $application->addCommand(SiteServiceProvider::projectInitCommand($this->projectRoot));
             $application->addCommand(SiteServiceProvider::siteInitCommand($this->projectRoot));
             $application->addCommand(SiteServiceProvider::siteDoctorCommand($this->projectRoot));
             $application->addCommand(SiteServiceProvider::siteApplyCommand($this->projectRoot));
