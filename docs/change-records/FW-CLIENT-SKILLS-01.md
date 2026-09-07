@@ -23,4 +23,9 @@ qualification and hosted CI remain required before governed landing.
 
 Shared root guidance ownership (#2686), MCP descriptors (#2663), generated-state
 updates (#2664), and broader client acceptance (#2665) remain separate. No
-release or deployment is included. Agent review is not human approval.
+release or deployment is included. The current packaged proof covers install,
+idempotent rerun, marker-bounded refresh, stale-file removal, ownership, and
+human-content preservation; it does not provide an explicit verify or uninstall
+lifecycle, and it does not run Composer with the issue's literal `--no-dev`
+condition. This checkpoint is therefore part of #2660 rather than closure.
+Agent review is not human approval.
