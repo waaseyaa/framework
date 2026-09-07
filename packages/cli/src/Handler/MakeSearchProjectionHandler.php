@@ -112,7 +112,8 @@ final class MakeSearchProjectionHandler extends AbstractMakeHandler
         // providers land and surprise the developer at boot.
         $providerDir = $root . '/src/Provider';
         if (is_dir($providerDir)) {
-            foreach (glob($providerDir . '/*.php') ?: [] as $candidate) {
+            $candidates = glob($providerDir . '/*.php');
+            foreach ($candidates === false ? [] : $candidates as $candidate) {
                 if (realpath($candidate) === realpath($providerPath)) {
                     continue;
                 }
