@@ -50,6 +50,7 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
         'check-bimaaji-skill-resources',
         'check-cli-ai-commands-optional',
         'check-cli-health-report',
+        'check-cli-io-consumer-contract',
         'check-cli-oidc-commands-optional',
         'check-cli-sync-rules',
         'check-custom-field-admission',
