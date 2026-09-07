@@ -98,7 +98,7 @@ final class MakeContentTypeHandlerTest extends TestCase
     private function command(?FieldScaffoldProjection $fieldProjection = null): HandlerCommand
     {
         $handler = $fieldProjection === null
-            ? new MakeContentTypeHandler(projectRoot: $this->root)
+            ? new MakeContentTypeHandler(projectRoot: $this->root, fieldProjection: new FieldScaffoldProjection(new FieldTypeManager()))
             : new MakeContentTypeHandler(projectRoot: $this->root, fieldProjection: $fieldProjection);
 
         return new HandlerCommand(
@@ -134,6 +134,39 @@ final class MakeContentTypeHandlerTest extends TestCase
         $tester->executeMap($argv);
 
         return $tester;
+    }
+
+    #[Test]
+    public function realCommandProviderUsesTheManifestFieldRegistry(): void
+    {
+        $type = "scaffold'quoted\\kind";
+        $manifest = new \Waaseyaa\Foundation\Discovery\PackageManifest(
+            providers: [\Waaseyaa\CLI\Provider\MakeServiceProviderB::class],
+            fieldTypes: [$type => CliQuotedScaffoldFieldType::class],
+        );
+        $fields = FieldTypeManager::fromManifest($manifest->fieldTypes);
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $entityTypes = new \Waaseyaa\Entity\EntityTypeManager(
+            eventDispatcher: $dispatcher,
+            fieldRegistry: new \Waaseyaa\Field\FieldDefinitionRegistry($fields),
+        );
+        $registry = new \Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry(new \Waaseyaa\Foundation\Log\NullLogger());
+        $providers = $registry->discoverAndRegister(
+            manifest: $manifest,
+            projectRoot: $this->root,
+            config: [],
+            entityTypeManager: $entityTypes,
+            database: $this->createStub(\Waaseyaa\Database\DatabaseInterface::class),
+            dispatcher: $dispatcher,
+        );
+        $registry->boot($providers);
+        $commands = iterator_to_array($providers[0]->consoleCommands(), false);
+        $command = array_values(array_filter($commands, static fn($command): bool => $command->getName() === 'make:content-type'))[0];
+        $tester = CliTester::for($command, $this->emptyContainer());
+        $tester->executeMap(['name' => 'manifestarticle', '--fields' => 'body:' . $type]);
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $source = (string) file_get_contents($this->root . '/src/Entity/Manifestarticle.php');
+        self::assertStringContainsString('type: ' . var_export($type, true), $source);
     }
 
     #[Test]
@@ -517,7 +550,7 @@ final class MakeContentTypeHandlerTest extends TestCase
                     new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
                     new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
                 ],
-                handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root), 'execute']),
+                handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root, fieldProjection: new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager())), 'execute']),
             );
             $tester = CliTester::for($command, $this->emptyContainer());
             $tester->executeMap(['name' => $name, '--fields' => 'title:string']);
@@ -611,7 +644,7 @@ final class MakeContentTypeHandlerTest extends TestCase
                     new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
                     new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
                 ],
-                handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root), 'execute']),
+                handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root, fieldProjection: new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager())), 'execute']),
             );
             $tester = CliTester::for($command, $this->emptyContainer());
             $tester->executeMap(['name' => 'story', '--fields' => 'title:string']);

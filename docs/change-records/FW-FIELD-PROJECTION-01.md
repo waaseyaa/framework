@@ -49,8 +49,6 @@ CI/PackagedForm, public-surface aggregates, or `StdinSource`.
 
 Remaining #2847 integration acceptance after this slice:
 
-- inject the kernel boot-scoped field manager from the command provider so
-  downstream registered field plugins are available in the real command;
 - complete command taxonomy/deprecation decisions from the generator ADR;
 - carry cardinality, enum metadata, authored defaults, revisionability,
   translation, and key prerequisites through the command input contract;
@@ -69,3 +67,36 @@ unknown/unsupported refusal, scalar/cardinality projection, manual versus
 blueprint `text`/`datetime` consistency, and authored-reference versus
 relationship semantics. Run only the focused field and CLI tests, the
 unchanged blueprint-emitter test, and `bin/git diff --check`.
+
+## CI-driven integration correction
+
+Hosted Architecture evidence at 5383f0954b0c4b6851ce0ea628dea6e96db0f437
+requires boot-scoped command-provider injection before this slice can land.
+MakeServiceProviderB is the production construction owner; MakeServiceProviderA
+remains with the separate policy/workflow lane. The repair additionally owns
+the B provider and its focused composition test. It must prove a downstream
+plugin reaches the real command and explicitly resolve standalone-constructor
+compatibility, without extending the static-default roster merely to pass CI.
+
+The two transient FieldDefinition constructions also require explicit semantic
+read classification under the existing field-read contract. Do not exempt
+them from the architecture scanner. Runtime repair and focused evidence remain
+pending; this record does not claim the published checkpoint is qualified.
+
+## Explicit construction compatibility decision
+
+MakeContentTypeHandler and ContentTypeScaffoldCompiler now require a non-null
+FieldScaffoldProjection constructor dependency. This intentionally changes
+their public standalone construction contract; existing direct callers must
+supply a projection. The real command provider lazily injects the boot-scoped
+registry only when make:content-type executes. Isolated tests may explicitly
+construct their own built-ins registry; no production default is inferred.
+No static-default roster exemption or fallback relocation is introduced.
+
+Transient projection definitions carry FieldReadLevel::Internal because they
+are compiler metadata, not a persisted entity or an emitted access policy.
+This does not classify generated attributes or change their existing bytes.
+
+The real ProviderRegistry/manifest regression first failed with an unknown
+manifest field type, then reached successful generation after injection.
+Final focused checks and independent review remain required.

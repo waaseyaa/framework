@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Site\Scaffold;
 
 use Waaseyaa\Field\FieldScaffoldProjection;
-use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldValueKind;
 use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\Generation\ArtifactPlan;
@@ -42,13 +41,7 @@ final readonly class ContentTypeScaffoldCompiler
     /** The D-2.1 unit-id grammar one colon-separated segment must satisfy. */
     private const string UNIT_SEGMENT_GRAMMAR = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/D';
 
-    private FieldScaffoldProjection $fieldProjection;
-
-    public function __construct(?FieldScaffoldProjection $fieldProjection = null)
-    {
-        $this->fieldProjection = $fieldProjection
-            ?? new FieldScaffoldProjection(FieldTypeManager::default());
-    }
+    public function __construct(private FieldScaffoldProjection $fieldProjection) {}
 
     /**
      * @param string $name the validated content-type name as the operator typed it

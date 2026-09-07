@@ -285,7 +285,7 @@ The internal `FieldScaffoldProjection` composes this authority with declared
 property shapes. It validates plugin-owned schema/storage projections and does
 not introduce another field-type-id allowlist. See
 [field-scaffold-projection.md](field-scaffold-projection.md) for admission,
-manual reference semantics and the remaining command-provider integration.
+manual reference semantics and required boot-scoped command-provider injection.
 
 Each field-type plugin may also declare a transport-neutral `FieldValueKind`.
 GraphQL maps that semantic kind to its native scalar or structured type, so a

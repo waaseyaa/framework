@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Field;
 
 use Waaseyaa\Entity\Attribute\FieldTypeInferrer;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Projects registered field definitions into PHP scaffold property metadata.
@@ -49,6 +50,8 @@ final readonly class FieldScaffoldProjection
                 type: $id,
                 settings: $settings,
                 fieldTypeManager: $this->fieldTypes,
+                // Transient projection metadata, not generated entity read policy.
+                read: FieldReadLevel::Internal,
             ));
             $ids[] = $id;
         }
@@ -87,6 +90,8 @@ final readonly class FieldScaffoldProjection
             type: $fieldType,
             settings: $settings,
             fieldTypeManager: $this->fieldTypes,
+            // Transient projection metadata, not generated entity read policy.
+            read: FieldReadLevel::Internal,
         );
     }
 

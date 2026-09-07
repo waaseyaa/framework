@@ -51,12 +51,19 @@ blueprint vocabulary therefore continues to exclude `entity_reference`.
 
 ## Integration boundary
 
-The projection accepts a boot-scoped registered manager so downstream field
-plugins can participate without a generator edit. Wiring the command provider
-to inject the kernel's boot-scoped manager, and the remaining packaged
-create/read/update acceptance for #2847, are separate integration work. This
-slice does not edit the command provider, blueprint compiler/emitter, shared
-golden fixtures, generation engine, or public-surface aggregates.
+The real command must receive the kernel's boot-scoped registered manager so
+downstream field plugins participate without a generator edit. The command
+provider wiring is required acceptance for this slice; it cannot be deferred
+while a production path silently selects the built-ins-only static registry.
+Missing or incompatible registry services must refuse rather than narrow the
+registered vocabulary. A discriminating provider-composition test must exercise
+a downstream plugin through the actual command registration path.
+
+Standalone constructors require an explicit non-null projection dependency;
+moving the static fallback to another helper is not registry injection. The
+remaining packaged create/read/update acceptance for #2847 stays separately
+tracked. Blueprint compiler/emitter, shared golden fixtures, generation engine
+and public-surface aggregates remain outside this repair.
 
 ## Rendering and label custody
 

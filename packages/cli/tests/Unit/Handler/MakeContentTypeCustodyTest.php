@@ -79,7 +79,7 @@ final class MakeContentTypeCustodyTest extends TestCase
     public function theCompilerIsAPureFunctionOfItsValidatedInput(): void
     {
         $fields = [['name' => 'title', 'type' => 'string', 'target' => null]];
-        $compiler = new ContentTypeScaffoldCompiler();
+        $compiler = new ContentTypeScaffoldCompiler(new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager()));
 
         $first = $compiler->compile('story', 'Story', $fields);
         $second = $compiler->compile('story', 'Story', $fields);
@@ -219,7 +219,7 @@ final class MakeContentTypeCustodyTest extends TestCase
                 new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
                 new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
             ],
-            handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root), 'execute']),
+            handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root, fieldProjection: new \Waaseyaa\Field\FieldScaffoldProjection(new \Waaseyaa\Field\FieldTypeManager())), 'execute']),
         );
         $container = new class implements ContainerInterface {
             public function get(string $id): mixed

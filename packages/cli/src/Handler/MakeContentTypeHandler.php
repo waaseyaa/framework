@@ -12,7 +12,6 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\Field\FieldScaffoldProjection;
-use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldValueKind;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 
@@ -42,15 +41,10 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
  */
 final class MakeContentTypeHandler extends AbstractMakeHandler
 {
-    private readonly FieldScaffoldProjection $fieldProjection;
-
     public function __construct(
+        private readonly FieldScaffoldProjection $fieldProjection,
         private readonly ?string $projectRoot = null,
-        ?FieldScaffoldProjection $fieldProjection = null,
-    ) {
-        $this->fieldProjection = $fieldProjection
-            ?? new FieldScaffoldProjection(FieldTypeManager::default());
-    }
+    ) {}
 
     public function execute(SymfonyCommandIO $io): int
     {
