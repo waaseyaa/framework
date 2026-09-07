@@ -32,9 +32,9 @@ namespace Waaseyaa\Bimaaji\Install\Client;
  * `.claude/skills/waaseyaa-<id>.md` and Codex's own `.codex/AGENTS.md`); this
  * layout ships only with the same class of first-party citation #2656
  * required, not on an issue-body sketch alone. See
- * `docs/adr/026-client-guidance-and-skill-conventions.md` (a) — the overall
- * (a)-(c) decision record stays **Proposed**; this transformer implements
- * the review candidate that ADR records, not a maintainer acceptance of it.
+ * `docs/adr/026-client-guidance-and-skill-conventions.md` (a). The accepted
+ * (a)-(c) decision records the root integrator's delegated technical authority;
+ * governed landing still depends on the repository's review and qualification.
  *
  * @api
  */

@@ -70,12 +70,9 @@ Choose the right mechanism:
 
 ### 5. Verify
 
-Run all test suites:
-```bash
-cd /home/fsd42/dev/waaseyaa && ./vendor/bin/phpunit
-cd /home/fsd42/dev/minoo && ./vendor/bin/phpunit
-cd /home/fsd42/dev/claudriel && ./vendor/bin/phpunit
-```
+From each checkout root, run its test suite with `./vendor/bin/phpunit` in
+this order: the Waaseyaa framework, the first consumer application, then the
+second consumer application. Do not assume a machine-specific checkout path.
 
 ### 6. Document
 

@@ -13,7 +13,7 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
 
 /**
  * Shared base for client transformers that emit one consolidated config
- * file per project (Cursor / Codex / Copilot / Gemini / Windsurf / Junie).
+ * file per project (Cursor / Copilot / Gemini / Windsurf / Junie).
  *
  * The body layout is a standardised prelude line, followed by each skill's
  * body separated by `\n\n---\n\n` with the skill name as an H2, framed by
@@ -25,8 +25,8 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  * not code — it is read from {@see ClientCapabilityRegistry} by
  * `clientId()`, so the mapping from client to path lives in exactly one
  * place instead of one `targetPath()` override per subclass (#2660 Part A).
- * All formatting lives here so single-file conventions stay symmetric
- * across the seven supported clients.
+ * All formatting lives here so the five single-file conventions stay
+ * symmetric. Claude and Codex use the per-skill base instead.
  *
  * @api
  */
