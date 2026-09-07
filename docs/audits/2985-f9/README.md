@@ -126,11 +126,40 @@ no policy resolves would break every metapackage consumer that never wanted
 `AuthConfig` and the verified-email concern down with it, widening `user`'s
 surface for one boolean.
 
-## Suggested regression proof
+## Repair scope — do not broaden
 
-Two cases, mirroring the reproducer, in `packages/user/tests/`:
-- disabled user + matching generation + **no** eligibility policy → `AnonymousUser`;
-- disabled user + matching generation + policy wired → `AnonymousUser`.
+The patch is **only** unconditional active-account enforcement, in both
+resolution paths. Explicitly **out of scope** for this repair, each tracked
+separately in the lane report:
 
-Both must hold after the repair; only the second holds today. A test asserting
-only the second would pass today and would not have caught this.
+- **F3** session expiry — no framework-enforced lifetime. Separate decision.
+- **F1 / F2** bearer revocation and the two bearer mechanisms. Separate.
+- **F7** the `/graphql` CSRF question. Separate, and still conditional.
+
+Bundling any of these would make the patch unreviewable and would couple a
+mandatory invariant to three undecided design questions.
+
+## Qualification matrix — required
+
+Four cases. The first three are the agreed acceptance set; the fourth is the
+no-regression control.
+
+| # | Account | Eligibility policy | Required result | Status today |
+|---|---|---|---|---|
+| 1 | **inactive** (`status = 0`) | **not wired** | refused → `AnonymousUser` | **fails** — resolves authenticated, route ALLOWED |
+| 2 | **active** (`status = 1`) | **not wired** | succeeds → authenticated `User` | passes; must not regress |
+| 3 | active, email **unverified**, `require_verified_email = true` | wired | refused → `AnonymousUser` | passes; must not regress |
+| 4 | active, email verified | wired | succeeds → authenticated `User` | passes; must not regress |
+
+Case 2 is the one that makes this a real qualification rather than a
+one-directional assertion: a repair that refuses *everything* when the policy
+is absent would satisfy case 1 and break every metapackage consumer. Case 3
+proves the optional verified-email policy is untouched.
+
+Each case must be exercised **in both resolution paths** — the existing-session
+branch and the generic bearer branch — since the repair changes both. The MCP
+durable path needs no case: it re-queries `status = 1` independently and is
+unaffected either way.
+
+A test suite asserting only case 1 would pass after a repair that is too broad;
+a suite asserting only cases 3–4 would have passed before the defect existed.
