@@ -17,7 +17,9 @@ namespace Waaseyaa\Ingestion;
  *
  * Consumers needing a supported path from foreign records to entities should
  * use the migration substrate's public plugin contracts
- * (`Waaseyaa\Migration\Plugin\SourcePluginInterface` and siblings, ADR-012a).
+ * (`Waaseyaa\Migration\Plugin\SourcePluginInterface` and siblings, ADR-012a)
+ * for one-shot imports. Recurring ingestion remains an unresolved design
+ * decision (#2984); ADR-012a does not promise continuous synchronization.
  *
  * @internal
  */

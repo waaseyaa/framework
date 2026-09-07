@@ -17,7 +17,7 @@ Defines the ingestion pipeline's envelope schema, validation rules, canonical er
 ## Architecture Overview
 
 Three things are described by this spec and are frequently conflated. They are
-separable, and only the first is a contract external tools depend on.
+separable: the wire format and shipped PHP compatibility contracts must be assessed independently.
 
 **1. The canonical envelope schema — authoritative.**
 `defaults/ingestion.envelope.schema.json` (below) is the wire contract that

@@ -113,40 +113,18 @@ reader therefore ships as its own package, which is also what ADR-012a wants.
 
 ### The contract resolution this requires (and it is not "make internals public")
 
-Three foundation types are **unmarked** — carrying neither `@api` nor
-`@internal`, and absent from `packages/foundation/public-surface.php`:
-`MessageEnvelopeValidator`, `PayloadValidator`, `IngestionError`. They are the
-envelope validation entry points (`MessageEnvelopeValidator::validate(array):
-Envelope`, `PayloadValidator::validate(Envelope): array`). Unmarked is the
-worst state: not committed, not disclaimed.
+Four foundation concrete classes have no explicit PHPDoc tier:
+`MessageEnvelopeValidator`, `PayloadValidator`, `IngestionError` and
+`UuidV4TraceIdGenerator`. Under charter §2.4 they are provisional during
+ambiguity. Their absence from `public-surface.php` is intentional for concrete
+classes; it is not a parity defect.
 
-**The envelope wire format being public does not make these classes public.**
-An earlier draft of this proposal argued it did. That was a category error and
-is withdrawn. `CLAUDE.md`'s statement that the framework "defines the ingestion
-envelope contract that external tools (Python harvesters) must follow" commits
-a **JSON document shape** consumed across a process boundary by non-PHP
-programs. `MessageEnvelopeValidator::validate(array): Envelope` is a **PHP
-class contract** — constructor shape, method signature, exception type, return
-type. The two can vary independently: the wire format could stay frozen for
-years while the validating class is replaced, split or re-namespaced, and a
-consumer pinned to the class would break while every harvester kept working.
-Committing the class because the format is public would take on a semver
-obligation nobody asked for, on a class with zero first-party callers.
-
-Proposed resolution, and the choice is genuinely open:
-
-1. **Mark them `@internal` and declare them so.** They are the implementation
-   of a wire contract, not the contract. This is the default answer unless
-   someone identifies a consumer that needs to call them in PHP.
-2. **Commit them `@api`** only if a named consumer requirement exists — an
-   application that must validate an envelope in PHP *before* handing it to a
-   source plugin, and cannot do so through a higher-level seam. That
-   requirement has not been demonstrated; if it is, (2) becomes right.
-
-Either way the outcome is a **decision recorded in
-`packages/foundation/public-surface.php`**. The defect is that they are
-currently neither, which leaves consumers to guess and leaves the framework
-unable to change them safely.
+The public envelope wire format and PHP validator class contracts are distinct.
+A maintainer decision must either commit the PHP tier or explicitly downgrade
+it through the charter §4 compatibility process. No tier change is made by this
+proposal. Concrete classes must not be added to surface declarations merely to
+satisfy a proposed annotation check. See the disposition section below for the
+compatibility requirements.
 
 **`Waaseyaa\Ingestion\EnvelopeValidator` and `PayloadValidatorInterface` stay
 `internal`, and stay *present*.** An earlier draft reasoned that zero
@@ -321,7 +299,7 @@ refresh planning ahead of any write.
   a persistence pipeline.
 - Its collaborators carry no `@api`/`@internal` markers; they are CLI-package
   implementation and should be declared `internal`.
-- **Compatibility:** none. `waaseyaa/cli` ships them; no signature changes.
+- **Compatibility:** an explicit tier change must follow charter §2.4/§4 for shipped ambiguous symbols; unchanged signatures alone do not make a downgrade free.
 
 ### 2. `packages/foundation/src/Ingestion/*` — **decide the markers; do not delete**
 
@@ -413,11 +391,10 @@ For the consolidation work, not for a runtime implementation:
 3. `docs/specs/ingestion-defaults.md` describes the pipeline that actually
    runs, and names the foundation types' status. Verified by review, with the
    spec-drift detector acknowledging the change.
-4. ADR-012a's `SourceIdInterface` reference is corrected, or the interface
-   ships. Verified by a documentation test asserting every type ADR-012a names
-   as stable surface resolves to a real declared-public symbol.
+4. ADR-012a's `SourceIdInterface` reference is corrected to the shipped `SourceId` value object; no new interface is required. Verified by a documentation test asserting every type ADR-012a names
+   as stable surface resolves to its actual shipped type, with PHPDoc tier and declaration-map eligibility assessed separately under the charter.
 5. No class is removed from a published package in this work. Verified by
-   `bin/check-surface-parity` and the release-notes discipline; any future
+   the complete source diff (including concrete classes outside parity coverage) and release-notes review; any future
    removal carries a deprecation window.
 6. #2849's ingestion clause remains open and is explicitly not claimed by this
    work.
