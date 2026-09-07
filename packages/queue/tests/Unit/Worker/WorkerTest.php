@@ -16,6 +16,7 @@ use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Envelope\QueueSystemReason;
+use Waaseyaa\Queue\Exception\UnhandledQueueMessage;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
@@ -37,6 +38,7 @@ use Waaseyaa\Queue\Transport\InMemoryTransport;
 use Waaseyaa\Queue\Worker\Worker;
 use Waaseyaa\Queue\Worker\WorkerOptions;
 
+#[CoversClass(UnhandledQueueMessage::class)]
 #[CoversClass(Worker::class)]
 #[CoversClass(WorkerOptions::class)]
 final class WorkerTest extends TestCase
@@ -250,6 +252,8 @@ final class WorkerTest extends TestCase
         $failedRepository = new class implements FailedJobRepositoryInterface {
             public function record(string $queue, string $payload, \Throwable $e): string
             {
+                TestCase::assertInstanceOf(UnhandledQueueMessage::class, $e);
+                TestCase::assertStringNotContainsString('unsupported', $e->getMessage());
                 throw new \RuntimeException('Failed-job store unavailable.');
             }
 
