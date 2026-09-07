@@ -2,6 +2,18 @@
 <!-- Spec reviewed 2026-09-02 - #2786 contract edge: GraphQL multi-value FormattedText resolvers distinguish list-shaped values from an associative single TextValue map, wrapping the latter as one item while recursively sanitizing both shapes. -->
 # API Layer
 
+<!-- Spec reviewed 2026-09-06 - #2766: authorize (`AuthorizeController`),
+token (`TokenController`, both the `authorization_code` and `refresh_token`
+grants), and revoke (`RevocationController`) all resolve `client_id` through
+the same shared `OidcClientLookup::findByClientId()`. That lookup now throws
+`AmbiguousClientIdException` — a thrown PHP exception, not an OAuth-formatted
+error response — if more than one `oidc_client` row matches, instead of
+silently selecting an arbitrary row. Storage now enforces `client_id`
+uniqueness for the supported `sql-blob`/SQLite layout via a database
+migration (`2026_09_06_000009_oidc_client_id_unique_key`); the exception
+remains a defense-in-depth backstop, e.g. for a database that has not yet
+run it. No route, request, or success-response shape changed. -->
+
 <!-- Spec reviewed 2026-09-04 - #2835: WorkflowDefinitionsController's
 no-provider default changed from `[EditorialWorkflowPreset::create()]` to `[]`
 — a well-formed empty result, never a fictional default. Production wiring

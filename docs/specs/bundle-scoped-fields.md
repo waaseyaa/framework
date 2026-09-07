@@ -36,6 +36,8 @@ Constraints enforced at registration time:
 
 Core field registration continues via `EntityType::fieldDefinitions` on construction, unchanged. A new registry, `FieldDefinitionRegistry`, keys all registered fields by `(entityTypeId, targetBundle)` and exposes `coreFieldsFor($entityTypeId)` and `bundleFieldsFor($entityTypeId, $bundle)`. The contract — `FieldDefinitionRegistryInterface` — lives in `packages/entity/src/Field/` so `EntityTypeManager` can consult it without importing from `waaseyaa/field`; the concrete `FieldDefinitionRegistry` lives in `packages/field/src/`. This follows the existing layer graph (`waaseyaa/field` depends on `waaseyaa/entity`, not the reverse).
 
+In a booted kernel, the `EntityTypeManager` owns the one canonical registry. `FieldServiceProvider` adopts that exact instance from `KernelServicesInterface` for both its registry binding and `BundleTemplateCompiler`; generated template fields, schema materialization, provider-local resolution, and HTTP resolution therefore observe one authority. A standalone provider constructs an isolated built-in registry only when the kernel supplies none, and a non-null service of the wrong type fails closed.
+
 ## Collision rules
 
 Three cases, two outcomes:

@@ -10,8 +10,8 @@
   #2438/ADR-024 (minimal bootable skeleton), ADR-023 (governed application
   blueprints extend `waaseyaa.site` v1), #1625/#2730/#2731 (schema
   migration — a future, separately bound consumer of the D-14 protocol, not
-  authorized here), `docs/specs/site-golden-path.md`,
-  `docs/specs/cli-kernel.md`
+  authorized here), #2857 (first-party recipe provider activation),
+  `docs/specs/site-golden-path.md`, `docs/specs/cli-kernel.md`
 - **Command inventory:** `docs/adr/data/025-generation-command-inventory.json`
   (see "Why the inventory lives here" below)
 - **Decision scope:** this is a decision record only. It authorizes no
@@ -26,6 +26,14 @@ post-publication-traceability claims in D-10, rewrites the migration
 sequence in D-12 into two lanes, and corrects a mis-attributed guard in
 D-11. D-2 is new, so every decision after D-1 shifts by one: the previous
 D-2…D-12 are now D-3…D-13, with their topics unchanged.
+
+**Technical integration amendment candidate (2026-09-06).** D-15 records the
+bounded provider-activation decision required by #2857, corrects the package
+materialization premise against the supported skeleton, and splits D-12's
+#2664 step into a fresh-project slice and later upgrade/AI slices. This is a
+root-authorized technical integration candidate. It does not claim separate
+product-owner or human approval; it becomes part of this accepted ADR only
+through the repository's normal review and merge process.
 
 ## Context
 
@@ -1631,12 +1639,17 @@ What is true under D-2, stated exactly:
    plan/apply lifecycle. If that pass concludes it cannot be expressed as a
    generation unit, that conclusion is an amendment to this ADR, not a
    silently retained second mechanism.
-6. **#2664 — `project:init`, upgrades, AI-verification.** Composes
-   `site:init` + `install:init` per its own acceptance criteria
-   ("project:init composes site:init; it does not fork site-profile
-   semantics"); by this point every `merge` command it might orchestrate
-   already speaks the same contract, and every unit it verifies is recorded
-   in the one generated-state authority it reads.
+6. **#2664 — `project:init`, upgrades, AI-verification.** After #2857,
+   the fresh-project command may land as the narrow composition fixed by D-15:
+   `site:init` → `install:init` → `site-verify`. It does not inspect or migrate
+   non-root generation units and therefore does not wait for steps 3–5.
+   `project:init --upgrade`, `ai:update`, and `ai:verify` remain at this
+   position after steps 3–5; those commands read and reconcile the complete
+   unit roster and also depend on the accepted #2660/#2663 plan contracts.
+   Both slices preserve the issue's existing rule that `project:init` composes
+   `site:init` and never forks site-profile semantics. A future package
+   activation phase may not be inserted without the further decision D-15.4
+   requires.
 7. **Follow-on: mechanical enforcement of D-9.** A CI gate proving no
    `packages/cli/src/Handler/*.php` calls `file_put_contents()`/`mkdir()`
    for an application-source target or touches `composer.json` outside
@@ -2100,6 +2113,113 @@ metadata, and sits beside a per-recipe `SubscriptionRecipe::VERSION` and a
 `SiteManifestSchema::CURRENT_VERSION` on a different axis entirely.
 Consolidating `generator_version` is not authorized here; `authority_version`
 simply does not repeat the mistake.
+
+### D-15. First-party recipe provider activation and package-materialization boundary
+
+This decision authorizes the narrow integration seam #2857 needs on the
+supported fresh-project topology. It does not add package requirements to
+`ArtifactPlan` v1, add a Composer phase, or create a general package-intent
+API.
+
+#### D-15.1 Corrected package premise
+
+The supported skeleton requires `waaseyaa/framework`. The framework package's
+production dependency graph already requires `waaseyaa/admin-surface`,
+`waaseyaa/page-builder`, and `waaseyaa/publishing`, so all three packages are
+resolved, locked and installed by `composer create-project` before
+`governed_authoring` can be selected by `site:init`.
+
+`GovernedAuthoringRecipe` v1 still emits those three `^0.1` requirements in
+`composer.governed-authoring-recipe.json`. On the supported full-framework
+skeleton they are redundant compatibility output, not a load-bearing package
+activation mechanism. This decision preserves their exact current generated
+bytes and does not ratify `^0.1` as the constraint for a future split package
+topology. `composer.site-recipes.json` and
+`composer.subscription-recipe.json` currently contain provider metadata only.
+
+The fragments remain normal root-unit `GeneratedArtifact` rows, so their
+paths and bytes stay inside planning, reviewed identity, collision checks,
+ownership, journalled publication, rollback and drift detection. Their
+`extra.waaseyaa.providers` values are not runtime discovery authority because
+`PackageManifestCompiler` intentionally reads literal root `composer.json`.
+No Composer rerun is needed to satisfy current package requirements, and this
+ADR must not create a no-op lifecycle phase or a packaged test that passes
+merely because the framework metapackage already installed the dependencies.
+
+#### D-15.2 Provider activation uses the existing typed plan
+
+Each enabled first-party recipe contributes its fixed provider through
+`ComposerProviderRegistration` rows in the root `ArtifactPlan`. D-6.6's
+existing transaction merges those rows into literal root `composer.json`,
+which remains the one provider discovery source.
+
+#2857 may add `SiteRecipeProviderRegistrationInterface` for the three current
+recipe classes and `SiteArtifactRenderer::compile(SiteManifest): ArtifactPlan`
+while retaining `render()` compatibility. That interface returns only fixed
+typed provider registrations. It accepts no package name, constraint, raw
+Composer member, manifest-supplied class, or caller-selected merge behavior.
+`SiteInitHandler` passes the compiled plan to the existing
+`SiteInitializationService`; it does not acquire a second lock, journal,
+ownership record or apply path.
+
+`ApplicationBlueprintCompiler` already exists and composes the renderer's
+artifacts with approved blueprint emitter output. Once the base renderer
+compiles registrations, the blueprint compiler preserves all base artifacts
+except `.waaseyaa/generated.json`, which the transaction authority composes;
+it also preserves base retirements, registrations, companion tests and
+reserved schema/config effects before appending blueprint output. It retains
+its own compiler identity, additive evolution, sorting, uniqueness and collision
+checks. Approval and additive-successor eligibility remain exclusively with the
+execution authority under D-13. #2857 adds focused composition coverage for the
+base registration without replacing or weakening #2787's compiler and approval
+tests.
+
+The discriminating packaged proof starts from the real supported skeleton,
+selects `governed_authoring`, verifies the three packages were supplied by the
+existing framework dependency graph, and proves the generated provider is
+present exactly once in literal root `composer.json`. After `install:init`, a
+real kernel must resolve the page-builder surface and expose `page_layout`.
+A rival that removes the literal-root provider while leaving the fragment and
+generated provider class intact must fail. No assertion may describe the
+already-installed dependencies as an effect of recipe activation.
+
+#### D-15.3 Canonical lifecycle and #2664 ownership
+
+The canonical lifecycle remains the existing five phases:
+
+1. `composer create-project waaseyaa/waaseyaa`;
+2. `waaseyaa site:init`;
+3. `waaseyaa install:init`;
+4. `composer site-verify`; and
+5. serve.
+
+#2857 owns only recipe provider registration compilation, renderer and handler
+plan handoff, and focused unit and packaged provider-boot proof. It does not
+own Composer solving, generation transaction internals, provider discovery,
+or a project lifecycle orchestrator.
+
+#2664's first slice owns a boot-free parent process that forwards existing
+profile/input options and invokes the three child phases from `site:init`
+through `site-verify` in order. It stops on the first failure, preserves that
+phase's exit status, and never interprets recipe, compiler, Composer or
+database semantics itself. This fresh-only slice is independent of the
+remaining `make:*`/`scaffold:*` migrations because it neither reads nor
+changes a non-root unit. Upgrade and AI update/verify remain at D-12 step 6,
+after those migrations and after the accepted #2660/#2663 plan contracts.
+
+#### D-15.4 Future thinner consumers require a new decision
+
+No supported `waaseyaa/core`- or `waaseyaa/cms`-based project skeleton is named
+by this decision. Choosing such a consumer is a product and distribution
+decision, not an inference from currently generated fragments. If a supported
+consumer later omits a recipe's packages from its initial dependency graph,
+its proposal must amend this ADR before adding a lifecycle phase. The amendment
+must name the consumer and package-intent source, prove the intent is
+load-bearing in a real packaged fixture, define Composer plugin availability
+without assuming dev dependencies, align constraints with the distributed
+cohort, and fix lock ownership, failure, retry, retirement and upgrade
+semantics. Until then there is no package-materialization gap on the supported
+fresh-project path and no authority to add arbitrary package intent.
 
 ## Consequences
 

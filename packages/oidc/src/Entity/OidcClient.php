@@ -17,7 +17,18 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  * Models a relying-party client registered with the OIDC issuer (Minoo, biindigen, etc.).
  * The `client_id` field is the stable public identifier per OIDC spec — its value is
  * user-defined at creation time and never rewritten. The `id` column is an internal
- * auto-increment primary key for entity-system consistency.
+ * auto-increment primary key for entity-system consistency. Storage-enforced
+ * registry-identity uniqueness on `client_id` is documented on
+ * {@see \Waaseyaa\Oidc\ClientRegistry\OidcClientLookup} and materialized by the
+ * `2026_09_06_000009_oidc_client_id_unique_key` migration (#2766).
+ *
+ * Storage backend: `sql-blob` only (the framework default — no `storageBackend` is
+ * declared below). `redirect_uris`, `scopes`, and `grant_types` are plain PHP `array`
+ * values with no declared column-encoding contract; `sql-column` has no blob to fall
+ * back to and refuses them with `UnstorableFieldException` (pinned by
+ * `OidcClientSqlColumnBoundaryTest`). Do not add `storageBackend:
+ * PrimaryStorageBackend::SQL_COLUMN` to the attribute below without first giving
+ * those three fields a reviewed column-encoding contract.
  */
 #[ContentEntityType(id: 'oidc_client', label: 'OIDC Client', description: 'Relying-party clients registered with the OIDC issuer.', api: true)]
 #[ContentEntityKeys(label: 'name')]

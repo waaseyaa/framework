@@ -165,6 +165,7 @@ function s1SchemaClass(string $path): string
         'packages/oidc/migrations/2026_08_12_000006_oidc_authorization_code_schema.php' => 'coordinator-plan-or-executor',
         'packages/oidc/migrations/2026_08_15_000007_oidc_signing_key_lifecycle.php' => 'coordinator-plan-or-executor',
         'packages/oidc/migrations/2026_08_15_000008_oidc_application_master_custody.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_09_06_000009_oidc_client_id_unique_key.php' => 'coordinator-plan-or-executor',
         'packages/oidc/src/ClientRegistry/OidcClientSeeder.php' => 'explicit-exclusion',
         'packages/oidc/src/Consent/ConsentRepository.php' => 'authoritative-bypass-remediation-required',
         'packages/oidc/src/Key/SigningKeyRepository.php' => 'authoritative-bypass-remediation-required',

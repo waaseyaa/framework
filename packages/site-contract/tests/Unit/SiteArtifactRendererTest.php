@@ -7,9 +7,16 @@ namespace Waaseyaa\SiteContract\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\SiteContract\Generation\ArtifactSetEvolution;
+use Waaseyaa\SiteContract\Generation\ComposerProviderRegistration;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\Generation\GeneratedSite;
+use Waaseyaa\SiteContract\Generation\GenerationUnitDisposition;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
+use Waaseyaa\SiteContract\Generation\SiteRecipeProviderRegistrationInterface;
+use Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface;
+use Waaseyaa\SiteContract\RecipeSelection;
+use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 use Waaseyaa\SiteContract\SiteManifestSchema;
 
@@ -135,6 +142,124 @@ final class SiteArtifactRendererTest extends TestCase
         $this->expectExceptionMessage('Unsupported first-party recipe: private_fork');
 
         new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($manifest));
+    }
+
+    /** ADR-025 D-15.2: {@see SiteArtifactRenderer::compile()} is the root-unit plan the execution authority publishes. */
+    #[Test]
+    public function itCompilesABaseArtifactPlanWithNoRegistrationsWhenNoRecipeContributesOne(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+        $renderer = new SiteArtifactRenderer();
+
+        $plan = $renderer->compile($manifest);
+        $rendered = $renderer->render($manifest);
+
+        self::assertSame(SiteArtifactRenderer::class, $plan->generatorFqcn);
+        self::assertSame('site', $plan->unitId);
+        self::assertSame(GenerationUnitDisposition::Managed, $plan->disposition);
+        self::assertSame(ArtifactSetEvolution::Additive, $plan->setEvolution);
+        self::assertSame($manifest->generatorVersion, $plan->generatorVersion);
+        self::assertSame($manifest->digest, $plan->inputDigest);
+        self::assertSame([], $plan->registrations);
+
+        $expectedPaths = array_values(array_filter(
+            array_keys($rendered->artifacts),
+            static fn(string $path): bool => $path !== '.waaseyaa/generated.json',
+        ));
+        sort($expectedPaths, SORT_STRING);
+        self::assertSame($expectedPaths, array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $plan->artifacts));
+        foreach ($plan->artifacts as $artifact) {
+            self::assertSame($rendered->artifacts[$artifact->path]->content, $artifact->content, $artifact->path);
+            self::assertSame($rendered->artifacts[$artifact->path]->mode, $artifact->mode, $artifact->path);
+        }
+    }
+
+    /** Exactly one registration per recipe that contributes one — not one per recipe wired, and not zero when a recipe is selected. */
+    #[Test]
+    public function itCompilesExactlyOneRegistrationPerRecipeThatContributesOne(): void
+    {
+        $makeRecipe = static fn(string $id, string $fqcn): SiteRecipeRendererInterface&SiteRecipeProviderRegistrationInterface => new class($id, $fqcn) implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface {
+            public function __construct(private string $recipeId, private string $providerFqcn) {}
+
+            public function id(): string
+            {
+                return $this->recipeId;
+            }
+
+            public function render(SiteManifest $manifest): array
+            {
+                return isset($manifest->recipes[$this->recipeId]) ? [new GeneratedArtifact("stub/{$this->recipeId}.php", "<?php\n")] : [];
+            }
+
+            public function providerRegistrations(SiteManifest $manifest): array
+            {
+                return isset($manifest->recipes[$this->recipeId]) ? [new ComposerProviderRegistration($this->providerFqcn)] : [];
+            }
+        };
+        $renderer = new SiteArtifactRenderer([
+            $makeRecipe('stub_a', 'App\\Provider\\StubAProvider'),
+            $makeRecipe('stub_b', 'App\\Provider\\StubBProvider'),
+        ]);
+        $manifest = $this->withRecipes(new SiteManifestParser()->parse($this->manifest()), [
+            'stub_a' => new RecipeSelection('stub_a', 1, 'stub_a', str_repeat('a', 64)),
+        ]);
+
+        $plan = $renderer->compile($manifest);
+
+        self::assertCount(1, $plan->registrations);
+        self::assertSame('App\\Provider\\StubAProvider', $plan->registrations[0]->fqcn);
+    }
+
+    /** D-2.1a rule 2: an fqcn appears at most once across the entire roster — two recipes declaring the same provider is a plan-construction refusal, not a silent merge. */
+    #[Test]
+    public function duplicateProviderRegistrationsAcrossRecipesAreRefused(): void
+    {
+        $makeRecipe = static fn(string $id): SiteRecipeRendererInterface&SiteRecipeProviderRegistrationInterface => new class($id) implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface {
+            public function __construct(private string $recipeId) {}
+
+            public function id(): string
+            {
+                return $this->recipeId;
+            }
+
+            public function render(SiteManifest $manifest): array
+            {
+                return [];
+            }
+
+            public function providerRegistrations(SiteManifest $manifest): array
+            {
+                return isset($manifest->recipes[$this->recipeId]) ? [new ComposerProviderRegistration('App\\Provider\\SharedProvider')] : [];
+            }
+        };
+        $renderer = new SiteArtifactRenderer([$makeRecipe('stub_a'), $makeRecipe('stub_b')]);
+        $manifest = $this->withRecipes(new SiteManifestParser()->parse($this->manifest()), [
+            'stub_a' => new RecipeSelection('stub_a', 1, 'stub_a', str_repeat('a', 64)),
+            'stub_b' => new RecipeSelection('stub_b', 1, 'stub_b', str_repeat('b', 64)),
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('registrations must declare each fqcn once');
+
+        $renderer->compile($manifest);
+    }
+
+    /** @param array<string, RecipeSelection> $recipes */
+    private function withRecipes(SiteManifest $manifest, array $recipes): SiteManifest
+    {
+        return new SiteManifest(
+            $manifest->schemaVersion,
+            $manifest->generatorVersion,
+            $manifest->application,
+            $manifest->framework,
+            $manifest->contentTypes,
+            $manifest->capabilities,
+            $manifest->personalDataStores,
+            $recipes,
+            $manifest->verificationCommand,
+            $manifest->canonicalJson,
+            $manifest->digest,
+        );
     }
 
     private function manifest(): string
