@@ -414,13 +414,11 @@ final class GeneratedStateVerifier
                 continue;
             }
 
-            if (isset($this->transformersByClientId[$requested])) {
-                $findings[] = new VerifyFinding(
-                    code: VerifyFindingCode::ClientNotInstalled,
-                    clientId: $requested,
-                    detail: 'requested client is not recorded in the ownership manifest',
-                );
-            }
+            $findings[] = new VerifyFinding(
+                code: VerifyFindingCode::ClientNotInstalled,
+                clientId: $requested,
+                detail: 'requested client is not recorded in the ownership manifest',
+            );
         }
 
         return $findings;

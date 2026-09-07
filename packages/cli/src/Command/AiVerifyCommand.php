@@ -16,6 +16,12 @@ final class AiVerifyCommand
      */
     public function __construct(private readonly \Closure $verify) {}
 
+    /**
+     * Public command entrypoint resolved from BimaajiServiceProvider's
+     * HandlerCommand callable metadata by the CLI container.
+     *
+     * @api
+     */
     public function execute(SymfonyCommandIO $io): int
     {
         $root = realpath((string) getcwd());

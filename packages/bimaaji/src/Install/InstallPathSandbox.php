@@ -85,7 +85,10 @@ final class InstallPathSandbox
             return false;
         }
 
-        $segments = preg_split('#[\\\\/]#', $path) ?: [];
+        $segments = preg_split('#[\\\\/]#', $path);
+        if ($segments === false) {
+            return false;
+        }
 
         return !in_array('..', $segments, true);
     }
@@ -111,13 +114,6 @@ final class InstallPathSandbox
 
         return $resolved !== false
             && str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR);
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        return str_starts_with($path, '/')
-            || preg_match('#^[A-Za-z]:[\\\\/]#', $path) === 1
-            || str_starts_with($path, '\\\\');
     }
 
     private function findNearestExistingAncestor(string $path): ?string
