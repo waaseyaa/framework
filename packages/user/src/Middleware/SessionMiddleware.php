@@ -94,6 +94,14 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 
         $existingAccount = $request->attributes->get('_account');
         if ($existingAccount instanceof AccountInterface && $existingAccount->isAuthenticated()) {
+            if ($existingAccount instanceof User && !$this->isActiveAuthenticatedUser($existingAccount)) {
+                $account = new AnonymousUser();
+                $request->attributes->set('_account', $account);
+                $this->accountContext?->set($account);
+
+                return $next->handle($request);
+            }
+
             if (
                 $existingAccount instanceof User
                 && $this->authenticationEligibility !== null
@@ -245,6 +253,12 @@ final class SessionMiddleware implements HttpMiddlewareInterface
                 return new AnonymousUser();
             }
 
+            if (!$this->isActiveAuthenticatedUser($user)) {
+                $this->clearSessionIdentity($request, $session);
+                $this->logger->info(sprintf('SessionMiddleware: revoked inactive session for user %s.', $uid));
+                return new AnonymousUser();
+            }
+
             if (
                 $this->authenticationEligibility !== null
                 && !$this->authenticationEligibility->allows($user, AuthenticationStage::ExistingSession)
@@ -258,6 +272,15 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         return new AnonymousUser();
+    }
+
+    private function isActiveAuthenticatedUser(User $user): bool
+    {
+        if ($this->internalFields === null) {
+            return false;
+        }
+
+        return $this->internalFields->verification($user)->active;
     }
 
     /** @param array<string, mixed> $session */
