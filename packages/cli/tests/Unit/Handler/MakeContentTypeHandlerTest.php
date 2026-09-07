@@ -15,7 +15,26 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\MakeContentTypeHandler;
+use Waaseyaa\CLI\Site\Blueprint\Emitter\EntityClassEmitter;
+use Waaseyaa\CLI\Site\Blueprint\Emitter\RelationshipEmitter;
+use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Field\AbstractFieldType;
+use Waaseyaa\Field\Attribute\FieldType;
+use Waaseyaa\Field\FieldScaffoldProjection;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldValueKind;
+use Waaseyaa\Field\FieldValueKindProviderInterface;
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
+use Waaseyaa\SiteContract\Blueprint\BlueprintEntity;
+use Waaseyaa\SiteContract\Blueprint\BlueprintEntityKeys;
+use Waaseyaa\SiteContract\Blueprint\BlueprintField;
+use Waaseyaa\SiteContract\Blueprint\BlueprintFieldType;
+use Waaseyaa\SiteContract\Blueprint\BlueprintOnDelete;
+use Waaseyaa\SiteContract\Blueprint\BlueprintRelationship;
+use Waaseyaa\SiteContract\Blueprint\BlueprintStorage;
+use Waaseyaa\SiteContract\SiteManifest;
+use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(MakeContentTypeHandler::class)]
 final class MakeContentTypeHandlerTest extends TestCase
@@ -76,8 +95,12 @@ final class MakeContentTypeHandlerTest extends TestCase
 (new Filesystem())->remove($this->root);
     }
 
-    private function command(): HandlerCommand
+    private function command(?FieldScaffoldProjection $fieldProjection = null): HandlerCommand
     {
+        $handler = $fieldProjection === null
+            ? new MakeContentTypeHandler(projectRoot: $this->root)
+            : new MakeContentTypeHandler(projectRoot: $this->root, fieldProjection: $fieldProjection);
+
         return new HandlerCommand(
             name: 'make:content-type',
             description: 'Scaffold a content type',
@@ -86,7 +109,7 @@ final class MakeContentTypeHandlerTest extends TestCase
                 new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string,body:text'),
                 new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
             ],
-            handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $this->root), 'execute']),
+            handler: \Closure::fromCallable([$handler, 'execute']),
         );
     }
 
@@ -105,12 +128,215 @@ final class MakeContentTypeHandlerTest extends TestCase
         };
     }
 
-    private function runMake(array $argv): CliTester
+    private function runMake(array $argv, ?FieldScaffoldProjection $fieldProjection = null): CliTester
     {
-        $tester = CliTester::for($this->command(), $this->emptyContainer());
+        $tester = CliTester::for($this->command($fieldProjection), $this->emptyContainer());
         $tester->executeMap($argv);
 
         return $tester;
+    }
+
+    #[Test]
+    public function registryFieldIdsRemainLiteralInGeneratedPhp(): void
+    {
+        $type = "scaffold'quoted\\kind";
+        $projection = new FieldScaffoldProjection(new FieldTypeManager(
+            extensionClasses: [$type => CliQuotedScaffoldFieldType::class],
+        ));
+        $tester = $this->runMake(['name' => 'quoted', '--fields' => 'body:' . $type], $projection);
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $file = $this->root . '/src/Entity/Quoted.php';
+        exec('php -l ' . escapeshellarg($file) . ' 2>&1', $output, $exit);
+        self::assertSame(0, $exit, implode("\n", $output));
+        require $file;
+        $attribute = new \ReflectionProperty(\App\Entity\Quoted::class, 'body')
+            ->getAttributes(\Waaseyaa\Entity\Attribute\Field::class)[0]->newInstance();
+        self::assertSame($type, $attribute->type);
+    }
+
+    #[Test]
+    public function scalarProjectionDoesNotChangeTheAuthoredLabelSelection(): void
+    {
+        $tester = $this->runMake(['name' => 'labelled', '--fields' => 'body:text,title:string']);
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $source = (string) file_get_contents($this->root . '/src/Entity/Labelled.php');
+        self::assertStringContainsString("label: 'title'", $source);
+    }
+
+    #[Test]
+    public function manualTextAndDatetimePropertiesMatchTheBlueprintProjection(): void
+    {
+        $constructorParameters = array_map(
+            static fn(\ReflectionParameter $parameter): string => $parameter->getName(),
+            new \ReflectionClass(MakeContentTypeHandler::class)->getConstructor()?->getParameters() ?? [],
+        );
+        self::assertContains('fieldProjection', $constructorParameters);
+
+        $tester = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'body:text,published_at:datetime',
+        ]);
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+
+        $manual = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        $blueprint = $this->blueprintEntitySource([
+            'body' => new BlueprintField('body', BlueprintFieldType::Text, false, 1, false, false, false),
+            'published_at' => new BlueprintField('published_at', BlueprintFieldType::DateTime, false, 1, false, false, false),
+        ]);
+
+        foreach (['body', 'published_at'] as $fieldName) {
+            self::assertSame(
+                self::propertyLine($blueprint, $fieldName),
+                self::propertyLine($manual, $fieldName),
+                "{$fieldName} must use the same PHP property projection in both authoring paths.",
+            );
+        }
+    }
+
+    #[Test]
+    public function aRegisteredExtensionIsAdmittedWithoutEditingTheScaffoldCompiler(): void
+    {
+        $constructorParameters = array_map(
+            static fn(\ReflectionParameter $parameter): string => $parameter->getName(),
+            new \ReflectionClass(MakeContentTypeHandler::class)->getConstructor()?->getParameters() ?? [],
+        );
+        self::assertContains('fieldProjection', $constructorParameters);
+
+        $projection = new FieldScaffoldProjection(new FieldTypeManager(
+            extensionClasses: ['scaffold_markdown' => CliScaffoldMarkdownFieldType::class],
+        ));
+        $tester = $this->runMake(
+            ['name' => 'story', '--fields' => 'body:scaffold_markdown'],
+            $projection,
+        );
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $entity = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        self::assertStringContainsString("type: 'scaffold_markdown'", $entity);
+        self::assertStringContainsString('public mixed $body = null;', $entity);
+        self::assertFalse(new \ReflectionClass(ContentTypeScaffoldCompiler::class)->hasConstant('TYPE_MAP'));
+    }
+
+    #[Test]
+    public function authoredReferencesKeepTargetMetadataWhileBlueprintRelationshipsKeepRelationshipSemantics(): void
+    {
+        $manualResult = $this->runMake([
+            'name' => 'story',
+            '--fields' => 'title:string,author:entity_reference:user',
+        ]);
+        self::assertSame(0, $manualResult->getExitCode(), $manualResult->getStderr());
+        $manual = (string) file_get_contents($this->root . '/src/Entity/Story.php');
+        self::assertStringContainsString("settings: ['target_entity_type_id' => 'user']", $manual);
+
+        $manifest = $this->blueprintManifest();
+        $blueprint = new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: [
+                'story' => new BlueprintEntity(
+                    id: 'story',
+                    label: 'Story',
+                    storage: BlueprintStorage::SqlBlob,
+                    revisionable: false,
+                    translatable: false,
+                    keys: new BlueprintEntityKeys(id: 'id', uuid: 'uuid', label: 'title'),
+                    fields: [
+                        'title' => new BlueprintField('title', BlueprintFieldType::String, false, 1, false, false, false),
+                    ],
+                ),
+                'user' => new BlueprintEntity(
+                    id: 'user',
+                    label: 'User',
+                    storage: BlueprintStorage::SqlBlob,
+                    revisionable: false,
+                    translatable: false,
+                    keys: new BlueprintEntityKeys(id: 'id', uuid: 'uuid', label: 'name'),
+                    fields: [
+                        'name' => new BlueprintField('name', BlueprintFieldType::String, false, 1, false, false, false),
+                    ],
+                ),
+            ],
+            relationships: [
+                'story_author' => new BlueprintRelationship(
+                    id: 'story_author',
+                    fromEntity: 'story',
+                    fromField: 'author',
+                    toEntity: 'user',
+                    cardinality: 1,
+                    required: true,
+                    onDelete: BlueprintOnDelete::Restrict,
+                ),
+            ],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [],
+            fixtures: [],
+            checks: [],
+        );
+
+        $entityEmission = new EntityClassEmitter()->emit($blueprint, $manifest);
+        $story = array_values(array_filter(
+            $entityEmission->artifacts,
+            static fn(object $artifact): bool => $artifact->path === 'src/Entity/Story.php',
+        ))[0]->content;
+        self::assertStringContainsString("settings: ['target_entity_type_id' => 'user']", $story);
+
+        $relationshipEmission = new RelationshipEmitter()->emit($blueprint, $manifest);
+        self::assertStringContainsString("'cardinality' => 1", $relationshipEmission->artifacts[0]->content);
+        self::assertStringContainsString("'required' => true", $relationshipEmission->artifacts[0]->content);
+        self::assertStringContainsString("'on_delete' => 'restrict'", $relationshipEmission->artifacts[0]->content);
+    }
+
+    /** @param array<string, BlueprintField> $fields */
+    private function blueprintEntitySource(array $fields): string
+    {
+        $blueprint = new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: [
+                'story' => new BlueprintEntity(
+                    id: 'story',
+                    label: 'Story',
+                    storage: BlueprintStorage::SqlBlob,
+                    revisionable: false,
+                    translatable: false,
+                    keys: new BlueprintEntityKeys(id: 'id', uuid: 'uuid', label: array_key_first($fields)),
+                    fields: $fields,
+                ),
+            ],
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [],
+            fixtures: [],
+            checks: [],
+        );
+
+        return new EntityClassEmitter()->emit($blueprint, $this->blueprintManifest())->artifacts[0]->content;
+    }
+
+    private function blueprintManifest(): SiteManifest
+    {
+        $repoRoot = (string) realpath(__DIR__ . '/../../../../../');
+
+        return new SiteManifestParser()->parse(
+            (string) file_get_contents($repoRoot . '/packages/site-contract/tests/Fixtures/Blueprint/valid/minimal.yaml'),
+        );
+    }
+
+    private static function propertyLine(string $source, string $fieldName): string
+    {
+        self::assertMatchesRegularExpression(
+            '/^    public [^\n]+ \\$' . preg_quote($fieldName, '/') . ' = [^\n]+;$/m',
+            $source,
+        );
+        preg_match(
+            '/^    public [^\n]+ \\$' . preg_quote($fieldName, '/') . ' = [^\n]+;$/m',
+            $source,
+            $matches,
+        );
+
+        return $matches[0];
     }
 
     #[Test]
@@ -135,7 +361,7 @@ final class MakeContentTypeHandlerTest extends TestCase
         // Requested fields with correct PHP types.
         self::assertStringContainsString('public string $title', $entity);
         self::assertStringContainsString("type: 'text'", $entity);
-        self::assertStringContainsString('public ?string $body', $entity);
+        self::assertStringContainsString("public string \$body = '';", $entity);
         // entity_reference carries target metadata — no constructor spelunking.
         self::assertStringContainsString("settings: ['target_entity_type_id' => 'user']", $entity);
         self::assertStringContainsString('public ?int $author', $entity);
@@ -398,5 +624,53 @@ final class MakeContentTypeHandlerTest extends TestCase
         } finally {
             (new Filesystem())->remove($root);
         }
+    }
+}
+
+#[FieldType(id: 'scaffold_markdown', label: 'Scaffold markdown')]
+final class CliScaffoldMarkdownFieldType extends AbstractFieldType implements FieldValueKindProviderInterface
+{
+    public static function valueKind(): FieldValueKind
+    {
+        return FieldValueKind::FormattedText;
+    }
+
+    public static function schema(): array
+    {
+        return ['value' => ['type' => 'text']];
+    }
+
+    public static function jsonSchema(): array
+    {
+        return ['type' => 'string'];
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string'];
+    }
+}
+
+#[FieldType(id: "scaffold'quoted\\kind", label: 'Quoted scaffold')]
+final class CliQuotedScaffoldFieldType extends AbstractFieldType implements FieldValueKindProviderInterface
+{
+    public static function valueKind(): FieldValueKind
+    {
+        return FieldValueKind::FormattedText;
+    }
+
+    public static function schema(): array
+    {
+        return ['value' => ['type' => 'text']];
+    }
+
+    public static function jsonSchema(): array
+    {
+        return ['type' => 'string'];
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string'];
     }
 }
