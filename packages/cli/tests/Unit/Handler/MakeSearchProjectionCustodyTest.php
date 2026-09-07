@@ -73,12 +73,22 @@ final class MakeSearchProjectionCustodyTest extends TestCase
         self::assertSame(
             ['src/Provider/StorySearchServiceProvider.php', 'src/Search/StorySearchProjector.php', 'tests/Search/StorySearchProjectorTest.php'],
             $owned,
+            'The unit owns exactly the projector, its provider binding and its companion test.',
         );
         self::assertSame(
             [['fqcn' => 'App\\Provider\\StorySearchServiceProvider', 'unit' => 'scaffold:search-projection:story']],
             $metadata['registrations'],
             'The provider registration is owned by the unit that declared it.',
         );
+
+        // Create-on-first-use: an initialized project has neither src/Search nor
+        // tests/Search, so the roster is only half the claim — the bytes must be
+        // on disk, under directories this publish created.
+        foreach ($owned as $relative) {
+            self::assertFileExists($root . '/' . $relative);
+        }
+        self::assertDirectoryExists($root . '/src/Search');
+        self::assertDirectoryExists($root . '/tests/Search');
     }
 
     #[Test]
