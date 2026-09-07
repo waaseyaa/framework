@@ -10759,6 +10759,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/oidc/migrations/2026_09_06_000009_oidc_client_id_unique_key.php",
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 1
+        },
+        {
             "path": "packages/oidc/src/ClientRegistry/OidcClientSeeder.php",
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
@@ -10774,6 +10781,20 @@
         },
         {
             "path": "packages/oidc/tests/Integration/Authorize/AuthorizeControllerTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/oidc/tests/Integration/ClientRegistry/ClientIdentityCompositionTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/oidc/tests/Integration/ClientRegistry/ClientIdentityCompositionTest.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
@@ -10815,7 +10836,28 @@
             "occurrence": 5
         },
         {
+            "path": "packages/oidc/tests/Integration/ClientRegistry/OidcClientSeederConcurrencyTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/oidc/tests/Integration/ClientRegistry/OidcClientSeederConcurrencyTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 1
+        },
+        {
             "path": "packages/oidc/tests/Integration/ClientRegistry/OidcClientSeederTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/oidc/tests/Integration/ClientRegistry/OidcClientSqlColumnBoundaryTest.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
