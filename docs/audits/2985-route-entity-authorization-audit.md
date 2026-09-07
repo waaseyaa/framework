@@ -17,7 +17,9 @@ HTTP — is **disproved** in §5.
 
 Two confirmed behaviours do need a decision, and one undocumented asymmetry is
 the substantive finding: **entity writes are enforced by callers, not by the
-repository, and only the JSON:API caller enforces them.**
+repository.** Whether JSON:API is the *only* enforcing caller is provisional
+(§6 F1) — the caller enumeration is incomplete and carried as residual work
+(§13).
 
 ## 1. Scope and coverage matrix
 
@@ -137,7 +139,18 @@ warranted, because there is no defect here to prove.**
 ## 6. Confirmed findings
 
 ### F1 — Entity writes are enforced by callers, not by the repository
-**CONFIRMED. Undocumented asymmetry. The substantive finding.**
+**PROVISIONAL. The repository half is confirmed; the "only JSON:API" half is not.**
+
+The claim that `EntityRepository::save()`/`delete()` perform no access check is
+**CONFIRMED**. The claim that **only** the JSON:API caller enforces writes is
+**provisional**: this audit enumerated the JSON:API, CLI, classification-job and
+backfill callers, and did not exhaustively enumerate every `save()`/`delete()`
+caller in the framework — `publishing`'s `ContentPublisher`, `admin-surface`,
+`workflows`, `relationship`, `engagement`, `graphql` and MCP tool writes were
+not each traced to determine whether they add their own pre-check. Until they
+are, "only JSON:API enforces writes" must be read as *"the enforced callers
+found so far are JSON:API's"*, not as a completeness statement. Completing that
+enumeration is residual work (§13).
 
 `EntityRepository::save()`/`delete()` perform no access check. Enforcement
 exists only where a caller adds it, and **only the JSON:API controller does**
@@ -263,6 +276,16 @@ Deliberately **not** a global Neutral change.
    now converge on the same root cause: `make:content-type` emits no read-level
    classification. Recorded for Codex; not adjudicated.
 
+   **Pending PR #2987** is cross-referenced here as addressing explicit scaffold
+   visibility. It is noted, **not** relied on: this audit did not review it, and
+   its existence does **not** establish that #2159 is resolved. #2159 concerns
+   the *runtime* resolution of an anonymous published read against a compiled
+   protected-entity-read subject; a scaffold that emits explicit visibility
+   changes what *newly generated* entities declare, and says nothing about
+   entities already generated, hand-written entities, or whether the runtime
+   path itself needs a change. #2159 should stay open on its own evidence until
+   someone demonstrates the anonymous read succeeding end to end.
+
 ## 9. Existing issues affected
 
 | Issue | State | Relationship | Evidence |
@@ -317,6 +340,23 @@ authorized control — a direct handler call proves nothing.**
    makes the undecided contract explicit either way.
 
 None should be implemented under this audit.
+
+## 13. Residual work — carried, not closed
+
+Recorded so these are not mistaken for cleared ground:
+
+1. **~12 `allowAll()` registrations were not traced to their handler**
+   (`workspace`, `wayfinding`, remaining `api` and recipe sites). None sits in a
+   high-risk-named package, but "not traced" is not "safe", and route
+   classification in §4 is therefore incomplete by exactly that set.
+2. **The `save()`/`delete()` caller enumeration is incomplete** (F1). The
+   packages named above must each be checked for a pre-write authorization call
+   before any completeness claim is made.
+3. **SSR's authorization path** was not traced.
+4. **Tenancy scoping** (#2815/#2816) was not reviewed, though
+   `AuthorizationPrincipalInterface` already carries `tenantId()`.
+5. **#2159's runtime resolution** was not proven end to end in either
+   direction — see §8.3.
 
 ## 12. Next disjoint lane — recommendation
 
