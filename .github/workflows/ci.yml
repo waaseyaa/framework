@@ -1277,7 +1277,7 @@ jobs:
               [string] $ExpectedStatus,
               [string] $ExpectedInstallStatus,
               [AllowNull()] [Nullable[int]] $ExpectedInstallExit,
-              [AllowNull()] [string] $ExpectedNotRunReason,
+              [AllowNull()] [object] $ExpectedNotRunReason,
               [string] $ExpectedInstallText = ''
             )
             try {

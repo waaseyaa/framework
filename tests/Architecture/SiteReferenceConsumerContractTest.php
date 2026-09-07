@@ -238,6 +238,11 @@ final class SiteReferenceConsumerContractTest extends TestCase
         // command through the installed provider and production runner.
         self::assertStringContainsString('project:init --dry-run --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction', $windowsGate);
         self::assertStringContainsString('project:init --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction', $windowsGate);
+        self::assertStringContainsString('[AllowNull()] [object] $ExpectedNotRunReason', $windowsGate);
+        $completedProjectInitAssertion = <<<'POWERSHELL'
+            Read-ProjectInitEnvelope $projectRepeatOut 'completed' 'succeeded' 0 $null
+            POWERSHELL;
+        self::assertStringContainsString($completedProjectInitAssertion, $windowsGate);
         $windowsDirectSite = strpos($windowsGate, 'php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root=$work --yes');
         $windowsNoDatabase = strpos($windowsGate, "throw 'site:init created the application database before install:init.'");
         $windowsDirectInstall = strpos($windowsGate, 'php vendor/bin/waaseyaa install:init --no-interaction');

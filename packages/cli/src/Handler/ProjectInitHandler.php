@@ -133,9 +133,9 @@ final readonly class ProjectInitHandler
             'site:init',
         ];
 
-        $this->forwardOption($io, $command, 'answers', '--answers');
-        $this->forwardOption($io, $command, 'decision-receipt', '--decision-receipt');
-        $this->forwardOption($io, $command, 'preset', '--preset');
+        $command = $this->forwardOption($io, $command, 'answers', '--answers');
+        $command = $this->forwardOption($io, $command, 'decision-receipt', '--decision-receipt');
+        $command = $this->forwardOption($io, $command, 'preset', '--preset');
 
         $command[] = '--project-root';
         $command[] = $projectRoot;
@@ -189,17 +189,20 @@ final readonly class ProjectInitHandler
     }
 
     /**
-     * @param non-empty-list<string> $command
+     * @param  non-empty-list<string> $command
+     * @return non-empty-list<string>
      */
-    private function forwardOption(SymfonyCommandIO $io, array &$command, string $name, string $flag): void
+    private function forwardOption(SymfonyCommandIO $io, array $command, string $name, string $flag): array
     {
         $value = $io->option($name);
         if ($value === null) {
-            return;
+            return $command;
         }
 
         $command[] = $flag;
         $command[] = (string) $value;
+
+        return $command;
     }
 
     /**
