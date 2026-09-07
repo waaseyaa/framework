@@ -408,7 +408,6 @@
         "psr-4": {
             "Waaseyaa\\Publishing\\Tests\\": "packages/publishing/tests/",
             "Waaseyaa\\Tools\\PHPStan\\": "tools/phpstan/",
-            "Waaseyaa\\CLI\\Io\\": "packages/cli/tests/Io/",
             "Waaseyaa\\CLI\\Testing\\": "packages/cli/tests/Testing/",
             "Waaseyaa\\Cache\\Tests\\": "packages/cache/tests/",
             "Waaseyaa\\CLI\\Tests\\": "packages/cli/tests/",

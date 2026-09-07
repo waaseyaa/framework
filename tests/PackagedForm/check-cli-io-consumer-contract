@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+
+# Packaged-form proof for `Waaseyaa\CLI\Io\StdinSource` (#2961).
+#
+# Before this change the interface lived at packages/cli/tests/Io/StdinSource.php and was
+# mapped ONLY by the monorepo root's `autoload-dev`. Composer honours `autoload-dev` for the
+# root package alone, so a consumer of the split `waaseyaa/cli` could never autoload a class
+# that `packages/cli/public-surface.php` declares `public`.
+#
+# This proof builds a disposable consumer from the EXACT candidate tree with path repositories
+# at symlink=false (installed bytes, not a link back into the checkout) and NO root-level
+# namespace mapping of its own, then:
+#
+#   A. dev install  — the consumer IMPLEMENTS the interface and CALLS both methods through a
+#      StdinSource-typed parameter, under PHPUnit. Autoload success alone is not the assertion;
+#      the contract is exercised. A deliberately non-conforming implementation must be rejected
+#      by PHP's own type system (TypeError), proving the interface is load-bearing downstream.
+#   B. --no-dev install — the console kernel boots. This is the regression guard for moving a
+#      file into src/: PackageManifestCompiler walks production PSR-4 roots, so anything added
+#      to src/ is reflected during discovery in a consumer that has no dev dependencies.
+#      It also asserts the interface IS reachable in that production install — the repair itself.
+#
+# Run: bash tests/PackagedForm/check-cli-io-consumer-contract
+
+set -uo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-cli-io.XXXXXX")"
+source_root="$work/source"; consumer="$work/consumer"; nodev="$work/nodev"
+
+composer_bin="${COMPOSER_BIN:-$(command -v composer)}"
+
+cleanup() { rm -rf -- "$work" || echo "warning: failed to remove $work" >&2; }
+trap cleanup EXIT
+fail() { echo "FAIL: $1" >&2; exit 1; }
+
+candidate="$(git -C "$root" rev-parse HEAD)"
+echo "candidate: $candidate"
+
+mkdir -p "$source_root"
+git -C "$root" archive --format=tar HEAD | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+[ -f "$source_root/packages/cli/src/Io/StdinSource.php" ] \
+  || fail "candidate does not carry packages/cli/src/Io/StdinSource.php"
+grep -q 'namespace Waaseyaa\\CLI\\Io;' "$source_root/packages/cli/src/Io/StdinSource.php" \
+  || fail "FQCN namespace changed"
+
+build_consumer() {
+    local dir="$1"; mkdir -p "$dir"
+    python3 - "$source_root" "$dir" "$2" <<'PY'
+import json,sys,glob,os
+src,con,dev=sys.argv[1],sys.argv[2],sys.argv[3]
+repos=[{"type":"path","url":p,"options":{"symlink":False}} for p in sorted(glob.glob(os.path.join(src,'packages','*')))]
+m={"name":"repro/cli-io-consumer","type":"project","repositories":repos,
+   "require":{"php":">=8.5","waaseyaa/cli":"*"},
+   "autoload":{"psr-4":{"Consumer\\":"src/"}},
+   "minimum-stability":"dev","prefer-stable":True,
+   "config":{"allow-plugins":{"*":True}}}
+if dev=="dev":
+    m["require-dev"]={"phpunit/phpunit":"^13.0"}
+    m["autoload-dev"]={"psr-4":{"Consumer\\Tests\\":"tests/"}}
+json.dump(m, open(os.path.join(con,'composer.json'),'w'), indent=2)
+PY
+}
+
+############ A. dev install: implement and call the interface ############
+echo "== A. installed-consumer contract exercise =="
+build_consumer "$consumer" dev
+mkdir -p "$consumer/src" "$consumer/tests"
+
+cat > "$consumer/src/ScriptedStdin.php" <<'PHP'
+<?php
+declare(strict_types=1);
+namespace Consumer;
+use Waaseyaa\CLI\Io\StdinSource;
+final class ScriptedStdin implements StdinSource
+{
+    /** @param list<string> $lines */
+    public function __construct(private array $lines, private bool $tty = false) {}
+    public function readLine(): ?string { return array_shift($this->lines); }
+    public function isInteractive(): bool { return $this->tty; }
+}
+PHP
+
+cat > "$consumer/src/Prompt.php" <<'PHP'
+<?php
+declare(strict_types=1);
+namespace Consumer;
+use Waaseyaa\CLI\Io\StdinSource;
+final class Prompt
+{
+    /** Consumes the interface through a StdinSource-typed parameter. */
+    public static function drain(StdinSource $stdin): array
+    {
+        $seen = [];
+        while (($line = $stdin->readLine()) !== null) { $seen[] = $line; }
+        return ['lines' => $seen, 'interactive' => $stdin->isInteractive()];
+    }
+}
+PHP
+
+cat > "$consumer/tests/StdinSourceContractTest.php" <<'PHP'
+<?php
+declare(strict_types=1);
+namespace Consumer\Tests;
+use Consumer\Prompt;
+use Consumer\ScriptedStdin;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Waaseyaa\CLI\Io\StdinSource;
+
+final class StdinSourceContractTest extends TestCase
+{
+    #[Test] public function consumer_implementation_satisfies_the_published_interface(): void
+    {
+        $stdin = new ScriptedStdin(['alpha', 'beta'], true);
+        self::assertInstanceOf(StdinSource::class, $stdin);
+    }
+
+    #[Test] public function the_interface_is_callable_through_its_own_type(): void
+    {
+        $result = Prompt::drain(new ScriptedStdin(['alpha', 'beta'], true));
+        self::assertSame(['alpha', 'beta'], $result['lines']);
+        self::assertTrue($result['interactive']);
+    }
+
+    #[Test] public function a_non_conforming_implementation_is_rejected_by_the_type_system(): void
+    {
+        $notAStdinSource = new class { public function readLine(): ?string { return null; } };
+        $this->expectException(\TypeError::class);
+        /** @phpstan-ignore-next-line deliberate contract violation */
+        Prompt::drain($notAStdinSource);
+    }
+}
+PHP
+
+cat > "$consumer/phpunit.xml" <<'XML'
+<?xml version="1.0"?>
+<phpunit bootstrap="vendor/autoload.php" colors="false" failOnWarning="true">
+  <testsuites><testsuite name="consumer"><directory>tests</directory></testsuite></testsuites>
+</phpunit>
+XML
+
+( cd "$consumer" && "$composer_bin" install --no-interaction --no-progress --no-scripts ) >"$work/a-install.log" 2>&1 \
+  || { tail -20 "$work/a-install.log"; fail "consumer dev install failed"; }
+
+( cd "$consumer" && ./vendor/bin/phpunit --no-coverage ) >"$work/a-phpunit.log" 2>&1
+a_exit=$?
+tail -8 "$work/a-phpunit.log" | sed 's/^/    /'
+[ $a_exit -eq 0 ] || fail "consumer contract tests did not pass (exit $a_exit)"
+grep -qE 'OK \(3 tests' "$work/a-phpunit.log" || fail "expected 3 passing contract tests"
+
+############ B. --no-dev install: production reachability + kernel boot ############
+echo "== B. --no-dev reachability and console-kernel boot =="
+build_consumer "$nodev" nodev
+( cd "$nodev" && "$composer_bin" install --no-interaction --no-progress --no-scripts --no-dev ) >"$work/b-install.log" 2>&1 \
+  || { tail -20 "$work/b-install.log"; fail "consumer --no-dev install failed"; }
+
+[ -d "$nodev/vendor/phpunit" ] && fail "--no-dev install still carries phpunit; proof is void"
+
+( cd "$nodev" && php -r '
+require "vendor/autoload.php";
+if (!interface_exists("Waaseyaa\\CLI\\Io\\StdinSource")) { fwrite(STDERR, "StdinSource unreachable in --no-dev install\n"); exit(1); }
+$r = new ReflectionClass("Waaseyaa\\CLI\\Io\\StdinSource");
+$names = array_map(fn($m) => $m->getName(), $r->getMethods());
+sort($names);
+if ($names !== ["isInteractive", "readLine"]) { fwrite(STDERR, "method set changed: " . implode(",", $names) . "\n"); exit(1); }
+echo "    StdinSource reachable in --no-dev, methods intact\n";
+' ) || fail "production reachability probe failed"
+
+( cd "$nodev" && php vendor/bin/waaseyaa --version ) >"$work/b-boot.log" 2>&1
+b_exit=$?
+sed 's/^/    /' "$work/b-boot.log" | head -5
+[ $b_exit -eq 0 ] || fail "console kernel failed to boot in a --no-dev consumer (exit $b_exit)"
+
+echo "PASS: StdinSource is reachable, implementable and callable downstream; --no-dev boot clean."
