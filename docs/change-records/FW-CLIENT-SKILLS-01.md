@@ -26,9 +26,12 @@ the installed catalogue, checks manifest-backed drift and marker-bounded
 update, and preserves human content before a literal
 `composer install --no-dev` removes both the development bundle and Bimaaji
 from the installed package graph without deleting the portable generated
-guidance. Focused verification passed
-292 tests; the original packaged proof and 42 preflight checks passed. The
-expanded lifecycle proof, full exact-commit qualification, and hosted CI remain
+guidance. Focused verification passed 292 tests; the original packaged proof
+and 42 preflight checks passed. The expanded lifecycle proof passed at exact
+clean `561e006df68935884252b701bc554f6a390eda09`. The patch remained
+byte-identical through current-base checkpoint
+`fb77f56a2f8b7d130c40a332c09923cbc00a71ba`; the packaged proof was not
+repeated there. Full exact-head qualification and current hosted CI remain
 required before governed landing.
 
 ## Residual scope
@@ -37,13 +40,20 @@ Shared root guidance ownership (#2686), MCP descriptors (#2663), generated-state
 updates (#2664), and broader client acceptance (#2665) remain separate. No
 release or deployment is included. The current packaged proof covers install,
 idempotent rerun, marker-bounded refresh, stale-file removal, ownership, and
-human-content preservation. The added minimal-consumer lifecycle checks the
-existing manifest hashes, observes a seeded drift failure, reconciles through a
-real update, and proves the development bundle and Bimaaji are absent after
-literal `composer install --no-dev`. Package removal intentionally preserves
-portable generated guidance and consumer-authored content. It is not a new
-generated-output uninstall command: reconciliation and removal of generated
-state remain owned by #2664. Agent review is not human approval.
+human-content preservation when a target disappears from the current skill
+inventory. Those retirement runs remove or neutralize individual stale targets;
+they do not provide a whole-client generated-output uninstall operation. The
+added minimal-consumer lifecycle checks the existing manifest hashes, observes a
+seeded drift failure, reconciles through a real update, and proves the
+development bundle and Bimaaji are absent after literal
+`composer install --no-dev`. Its inline manifest verifier is test evidence, not
+the shipped `ai:verify` surface. Package removal intentionally preserves
+portable generated guidance and consumer-authored content: it proves
+development-package removal, not generated-output uninstall. The shared
+update/check/apply, shipped verification, and whole generated-state removal
+lifecycle remain owned by #2664. #2660 remains open until that linked lifecycle
+satisfies its remaining verification/uninstall acceptance or the live criteria
+are explicitly revised. Agent review is not human approval.
 
 Containment evidence is deliberately split. This packaged lifecycle checks its
 manifest verifier's rejection of absolute, traversal, symlinked, and resolved
