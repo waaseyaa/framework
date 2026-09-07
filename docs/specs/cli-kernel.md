@@ -859,3 +859,28 @@ Required coverage:
 ## Migration Companion
 
 The implementation roadmap, current subsystem inventory, one-to-one component mapping, breaking-change analysis, and risk assessment live in [`cli-symfony-console-migration-plan.md`](./cli-symfony-console-migration-plan.md).
+
+
+## Manual governance scaffold output
+
+`make:policy <name> --entity=<id> [--grant=<operation>:<permission>]...`
+requires an explicit entity id; an optional `--entity-class` supplies its application
+class. It renders the canonical access-policy interface and attribute through the
+blueprint emitter. Zero grants return Neutral; entity access remains denied absent
+an explicit allowance. Syntactically valid names do not establish application
+registry membership. Missing entity or malformed grants refuse with usage exit 2.
+
+`scaffold:workflow --id=<id> --entity-type=<id> --bundle=<id>` accepts state,
+transition and initial-state options and returns a JSON `workflow` hydration array
+and `assignment` map keyed by `entity_type.bundle`. Duplicate transition IDs,
+unknown referenced states and undeclared initial states refuse with exit 2.
+The blueprint PHP renderer and manual JSON output share one canonical definition
+transformation; serialization must not duplicate workflow semantics.
+
+Both commands retain ADR-025 D4 stdout-only behavior. Output is not registered or
+applied by printing it. Application admission, registration and activation use the
+existing canonical governance path and require separate evidence. These required
+options and output shapes replace the previously invalid policy interface and
+non-hydratable workflow JSON. See
+[FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01](../change-records/FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01.md)
+for migration, acceptance and remaining packaged proof.
