@@ -601,9 +601,20 @@ compile, evaluate and apply happen once in one process through the same
 two-digest gate a transported plan passes. There is one publication engine, not
 a scaffold-shaped second one.
 
-The compiler is a pure function of its validated input plus its own version: no
-filesystem observation, no clock, so the same request always compiles to the
-same plan digest. The unit is `scaffold:content-type:<name>` with disposition
+Field type admission and PHP property metadata are derived through the field
+package's [canonical scaffold projection](field-scaffold-projection.md)
+(FW-FIELD-PROJECTION-01). The manual command preserves authored reference
+settings and label-key selection. Registered type ids are escaped as PHP
+literals; `text` and `datetime` property representations match blueprint output.
+`MakeServiceProviderB` lazily supplies the real command with the boot-scoped
+registered field manager. Missing or incompatible registry services refuse.
+Standalone `MakeContentTypeHandler` and `ContentTypeScaffoldCompiler` callers
+must supply an explicit `FieldScaffoldProjection`; no production built-ins
+fallback remains.
+
+The compiler is a pure function of its validated input, resolved registered
+field metadata and its own version: no filesystem observation or clock. Equal
+inputs produce the same plan digest. The unit is `scaffold:content-type:<name>` with disposition
 **seeded** and `Frozen` set evolution. Seeded is the substantive change: D-2.2
 publishes a scaffold exactly once and then treats it as the developer's, so the
 authority never re-renders it and `--force` can no longer overwrite an edited
