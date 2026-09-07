@@ -330,14 +330,37 @@ carry `@api`. `MessageEnvelopeValidator`, `PayloadValidator`, `IngestionError`,
 `UuidV4TraceIdGenerator` carry nothing. `IngestionErrorCode` and
 `TraceIdGeneratorInterface` are declared `public`.
 
-- Give the unmarked four a disposition — `internal` unless a consumer
-  requirement is named (see above).
+Two corrections to an earlier draft, both from checking package policy rather
+than assuming it:
+
+**Their absence from `public-surface.php` is not a declaration gap.** Charter
+§2 is explicit that the tracked surface is contract *shapes* — interfaces,
+abstract classes, traits, enums — and that "Concrete `final`/plain classes are
+implementations, not extension points, and are intentionally **not** tracked by
+the parity gate (audit C-16)". Every one of these is a concrete final class, so
+the parity gate is behaving correctly and there is nothing for it to enforce.
+The ambiguity is in the **PHPDoc tier**, not the declaration plane.
+
+**Marking them `@internal` is not free.** Charter §2.4: "A symbol whose tier is
+unclear is treated as **provisional** until a maintainer files a
+public-surface-map update. The default during ambiguity favors the consumer:
+maintainers must either commit to stability or downgrade to internal
+explicitly." So an unmarked shipped class is *already provisional*, not
+unclassified — and §4 requires that "any deliberate reshape of a provisional
+one" follow the full introduce/shim/emit/document/remove cycle. Downgrading to
+`internal` is such a reshape.
+
+- Give the unmarked four a deliberate tier — recommended `@internal` unless a
+  consumer requirement is named (see above) — and treat it as a **provisional
+  downgrade under §4**, with a `deprecated` changelog fragment and an upgrade-
+  guide entry, not as a silent annotation.
 - **Do not remove anything.** `waaseyaa/foundation` is the most widely
   installed package in the graph; every metapackage requires it.
-- **Compatibility:** marking an unmarked class `@internal` is not a break — it
-  removes an implied promise that was never made. It should still appear in
-  release notes, because consumers may have inferred a promise from the class
-  being shipped and documented in `ingestion-defaults.md`.
+- **Compatibility:** real, and previously understated here. §2.4 makes these
+  provisional by default, which is a consumer-facing position; withdrawing it
+  is a downgrade that consumers are entitled to see announced. §2.4 also calls
+  indefinite ambiguity "a charter violation", so leaving them unmarked is not a
+  neutral option either.
 
 ### 3. `packages/ingestion` (`EnvelopeValidator`, `PayloadValidatorInterface`) — **keep, stop advertising, deprecate deliberately if at all**
 
@@ -373,9 +396,17 @@ For the consolidation work, not for a runtime implementation:
 
 1. Every class under `packages/foundation/src/Ingestion/`,
    `packages/ingestion/src/` and `packages/cli/src/Ingestion/` carries exactly
-   one disposition — `@api` or `@internal` — and every scanned contract shape
-   among them appears in its package's `public-surface.php`. Verified by an
-   architecture test that fails on an unmarked class in those three trees.
+   one PHPDoc tier — `@api` or `@internal` — so charter §2.4's "indefinite
+   ambiguity is a charter violation" is discharged for these three trees.
+   **Verified by extending the existing surface tooling, not by adding a
+   scanner:** `tools/lib/SurfaceScanner.php` already walks `packages/*/src`,
+   `tools/check-surface-parity.php` already gates it, and the
+   `tests/Architecture/SurfaceDeclaration*` / `SurfaceParity*` suite already
+   asserts over that walk. The tier check belongs there as an additional
+   assertion over the existing traversal. Contract *shapes* among them must
+   also appear in their package's `public-surface.php`, which the parity gate
+   already enforces; concrete finals are deliberately untracked (§2, C-16) and
+   must not be added to the declaration files to satisfy this criterion.
 2. No first-party source or spec advertises extension of a type declared
    `internal`. Verified by an architecture test asserting
    `EnvelopeValidator`'s docblock carries no "Applications extend" claim.
