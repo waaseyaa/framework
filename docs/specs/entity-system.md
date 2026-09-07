@@ -2364,6 +2364,8 @@ Bundle-scoped field definitions can be declared declaratively using PHP attribut
 
 `Waaseyaa\Field\BundleTemplateCompiler` accepts an explicit list of class names and registers the resulting `FieldDefinition` objects with `FieldDefinitionRegistry::registerBundleFields()`. Compilation is idempotent — subsequent calls are no-ops.
 
+In a booted kernel, `FieldServiceProvider` constructs the compiler with the exact `FieldDefinitionRegistryInterface` owned by `EntityTypeManager` and exposed through `KernelServicesInterface`; provider-local, HTTP, listing, schema, and storage consumers therefore observe the same compiled bundle definitions. Only standalone provider use with no kernel registry constructs an isolated built-in registry. A non-null kernel service that does not implement the interface fails closed.
+
 ```php
 $compiler = new BundleTemplateCompiler($fieldDefinitionRegistry);
 $compiler->compile([ProfileTemplate::class, ArticleTemplate::class]);

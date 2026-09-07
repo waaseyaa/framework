@@ -230,13 +230,41 @@ final class CheckVendorFreshTest extends TestCase
                     'dev' => true,
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
             );
-            $entries = '';
-            foreach ($dumpedNamespaces as $ns) {
-                $entries .= '    ' . var_export($ns, true) . " => array('x'),\n";
+            $compatibilityPsr4 = [];
+            $runtimePsr4 = [];
+            foreach ($dumpedNamespaces as $namespace) {
+                $compatibilityPsr4[$namespace] = [$base . '/x'];
+                $runtimePsr4[$namespace] = [$base . '/x'];
             }
             file_put_contents(
                 $base . '/vendor/composer/autoload_psr4.php',
-                "<?php\n\nreturn array(\n{$entries});\n",
+                "<?php\n\nreturn " . var_export($compatibilityPsr4, true) . ";\n",
+            );
+            file_put_contents($base . '/vendor/composer/autoload_classmap.php', "<?php\n\nreturn [];\n");
+
+            $staticClass = 'ComposerStaticInit' . md5($base);
+            file_put_contents(
+                $base . '/vendor/composer/autoload_static.php',
+                "<?php\n\nnamespace Composer\\Autoload;\n\nfinal class {$staticClass}\n{\n"
+                . '    public static $prefixDirsPsr4 = ' . var_export($runtimePsr4, true) . ";\n"
+                . "    public static \$classMap = [];\n"
+                . "    public static \$files = [];\n\n"
+                . "    public static function getInitializer(object \$loader): \Closure\n    {\n"
+                . "        return static function () use (\$loader): void {};\n    }\n}\n",
+            );
+            $realClass = 'ComposerAutoloaderInit' . md5($base);
+            file_put_contents(
+                $base . '/vendor/composer/autoload_real.php',
+                "<?php\n\nfinal class {$realClass}\n{\n"
+                . "    public static function getLoader(): object\n    {\n"
+                . "        require_once __DIR__ . '/autoload_static.php';\n"
+                . "        \$loader = new \stdClass();\n"
+                . "        \$initializer = \Composer\\Autoload\\{$staticClass}::getInitializer(\$loader);\n"
+                . "        \$initializer();\n\n        return \$loader;\n    }\n}\n",
+            );
+            file_put_contents(
+                $base . '/vendor/autoload.php',
+                "<?php\nrequire_once __DIR__ . '/composer/autoload_real.php';\nreturn {$realClass}::getLoader();\n",
             );
         }
 

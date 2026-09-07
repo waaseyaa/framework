@@ -8,9 +8,10 @@
 # prepared bytes. The archived source is deleted before site:init runs, so an
 # installed command cannot fall back into the monorepo.
 #
-# This proof intentionally stops at generated declarations and governed bytes.
-# It does not boot the generated provider or claim authenticated authoring;
-# activation remains blocked by #2857.
+# This proof verifies generated declarations, governed bytes, and the selected
+# providers' exact literal-root registrations. It does not boot those providers
+# or claim authenticated authoring; #2857's separate packaged proof owns runtime
+# activation.
 
 set -euo pipefail
 
@@ -283,4 +284,4 @@ grep -Fq 'Generated artifact was edited outside an extension region' "$work/tamp
 
 printf 'site:init profile packaged acceptance passed.\n'
 printf 'Candidate: %s\n' "$candidate"
-printf 'Residual boundary: #2857 still blocks provider activation and authenticated authoring.\n'
+printf 'Residual boundary: this profile proof does not boot providers or claim authenticated authoring; runtime activation is proven separately.\n'

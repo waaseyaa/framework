@@ -20,6 +20,7 @@ use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as FoundationServiceProvider;
 
 /**
@@ -28,14 +29,23 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as FoundationServiceProv
  * Closes the M-007 implementation loop: binds every listing-pipeline service
  * via DI, registers the cache invalidator as an event listener for entity
  * lifecycle events, seeds canonical cache-context names, and runs the
- * boot-time {@see ListingDefinitionValidator} so the kernel fails fast on
- * misconfigured listings (FR-052 + FR-053).
+ * {@see ListingDefinitionValidator} at the kernel's after-all-provider-boots
+ * finalization boundary so the kernel fails fast on misconfigured listings
+ * (FR-052 + FR-053).
  *
  * Boot order — {@see \Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry}
  * runs `register()` on every provider first (entity types registered then),
- * then `boot()` on every provider. The validator therefore sees the fully
- * populated {@see EntityTypeManager} at boot time, satisfying FR-052's
- * "after entity-type registration but before route dispatch" constraint.
+ * then `boot()` on every provider, and only then
+ * {@see FinalizesProviderBootInterface::finalizeProviderBoot()} on every
+ * provider that implements it. `PackageManifestCompiler` places installed
+ * package providers (this one included) before root App providers, so an
+ * App provider's own `boot()` — e.g. registering its bundle's fields — can
+ * still be pending when THIS provider's ordinary `boot()` returns (#2857
+ * packaged-proof lifecycle defect). Validating from `finalizeProviderBoot()`
+ * instead means the validator sees registrations contributed by every
+ * provider's ordinary `boot()`, regardless of manifest order, while still
+ * running strictly before route dispatch. It makes no ordering claim about
+ * other providers' later finalizers.
  *
  * Discovered listings — gathered by {@see ListingDiscoverer} from every
  * registered service provider implementing {@see HasListingsInterface}.
@@ -46,7 +56,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as FoundationServiceProv
  *
  * @api
  */
-final class ServiceProvider extends FoundationServiceProvider
+final class ServiceProvider extends FoundationServiceProvider implements FinalizesProviderBootInterface
 {
     /**
      * Event-listener priority. The codebase uses positive priorities to run
@@ -180,13 +190,20 @@ final class ServiceProvider extends FoundationServiceProvider
             // register() is idempotent — re-registration is a no-op.
             $registry->register($name);
         }
+    }
 
-        // 3. FR-052 + FR-053 — boot-time validator. Runs AFTER every
-        //    provider's register() has completed (entity types registered)
-        //    and AFTER every provider's earlier boot() has run (sibling
-        //    services bound). Throws UnsupportedListingException on the
-        //    first misconfigured listing; the kernel logs the full message
-        //    and aborts boot. There is no silent fallback.
+    /**
+     * FR-052 + FR-053 — after-all-provider-boots validator. Runs once every
+     * provider's ordinary `boot()` has returned (see
+     * {@see \Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry::boot()}),
+     * so a bundle's fields registered inside a later App provider's `boot()`
+     * are already visible here regardless of manifest order. Throws
+     * `UnsupportedListingException` on the first misconfigured listing; the
+     * kernel logs the full message and aborts boot before route dispatch.
+     * There is no silent fallback.
+     */
+    public function finalizeProviderBoot(): void
+    {
         $registryDefinitions = $this->resolve(ListingDefinitionRegistry::class);
         $validator = $this->resolve(ListingDefinitionValidator::class);
         $validator->validate($registryDefinitions);

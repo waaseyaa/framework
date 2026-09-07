@@ -12,6 +12,7 @@ use Psr\Container\ContainerInterface;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\SiteInitHandler;
 use Waaseyaa\CLI\Provider\SiteServiceProvider;
+use Waaseyaa\CLI\Site\Recipe\GovernedAuthoringRecipe;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteManifestWizard;
 use Waaseyaa\CLI\Site\SitePreset;
@@ -62,6 +63,51 @@ final class SiteInitHandlerTest extends TestCase
         self::assertFileExists($root . '/.waaseyaa/site.yaml');
         self::assertFileExists($root . '/bin/maintenance/site-verify');
         self::assertStringContainsString('Initialized 7 generated artifacts', $tester->getStdout());
+    }
+
+    /**
+     * ADR-025 D-15.2 / FW-RECIPE-ACTIVATION-AUTHORITY-01: the ordinary
+     * (non-blueprint) `site:init` path must hand the execution authority a
+     * compiled plan carrying the selected recipe's fixed provider
+     * registration, so the provider lands in literal root `composer.json` —
+     * the one source `PackageManifestCompiler` reads for provider discovery
+     * — rather than only in the recipe's own Composer fragment file, which
+     * remains a generated compatibility artifact and is not itself
+     * provider-discovery authority.
+     */
+    #[Test]
+    public function ordinarySiteInitRegistersTheSelectedRecipesProviderInLiteralRootComposerJsonExactlyOnce(): void
+    {
+        $root = $this->root();
+        $answers = $root . '/answers.yaml';
+        file_put_contents($answers, $this->manifestWithGovernedAuthoring());
+        $tester = $this->tester($root);
+
+        $tester->execute(["--answers={$answers}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $composer = json_decode((string) file_get_contents($root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        $providers = $composer['extra']['waaseyaa']['providers'] ?? [];
+        self::assertSame(1, count(array_filter(
+            $providers,
+            static fn(string $provider): bool => $provider === 'App\\Provider\\GovernedAuthoringServiceProvider',
+        )), 'Expected the recipe provider exactly once in ' . var_export($providers, true));
+    }
+
+    /** No selected recipe must yield no added registration, and composer.json must be left untouched. */
+    #[Test]
+    public function ordinarySiteInitAddsNoRegistrationWhenNoRecipeIsSelected(): void
+    {
+        $root = $this->root();
+        $composerJson = (string) file_get_contents($root . '/composer.json');
+        $answers = $root . '/answers.yaml';
+        file_put_contents($answers, $this->manifest());
+        $tester = $this->tester($root);
+
+        $tester->execute(["--answers={$answers}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertSame($composerJson, file_get_contents($root . '/composer.json'));
     }
 
     #[Test]
@@ -260,12 +306,11 @@ final class SiteInitHandlerTest extends TestCase
      * recipe and never from backend auth/security implementation code of
      * its own.
      *
-     * This asserts the DECLARATION and the published artifact set only. It
-     * deliberately does not assert a running authoring surface: the
-     * canonical lifecycle never activates a recipe-declared provider or its
-     * Composer requirements (#2857), so no unit test here can honestly
-     * prove one. See docs/specs/site-golden-path.md "What a preset does not
-     * do".
+     * This unit test pins the declaration and published artifact set. The
+     * selected recipe's fixed provider-plan contribution is asserted by the
+     * ordinary site:init test above; real provider discovery and boot are
+     * asserted by the packaged #2857 proof. Package requirements remain the
+     * existing framework dependency graph, outside recipe activation.
      */
     #[Test]
     public function editorialPresetSeedDocumentPublishesTheGovernedAuthoringDeclaration(): void
@@ -645,6 +690,12 @@ final class SiteInitHandlerTest extends TestCase
         $root = sys_get_temp_dir() . '/waaseyaa_site_init_handler_' . bin2hex(random_bytes(8));
         mkdir($root, 0o777, true);
         $this->roots[] = $root;
+        // Every canonical-lifecycle project already has a literal root
+        // composer.json before site:init ever runs (`composer create-project`
+        // writes it). A selected recipe's fixed provider registration
+        // (ADR-025 D-15.2) merges into this file, so every fixture needs one
+        // present, exactly as a real fresh project does.
+        file_put_contents($root . '/composer.json', json_encode(['name' => 'test/app'], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n");
 
         return $root;
     }
@@ -678,5 +729,40 @@ final class SiteInitHandlerTest extends TestCase
             recipes: []
             verification: {command: bin/maintenance/site-verify}
             YAML;
+    }
+
+    private function manifestWithGovernedAuthoring(): string
+    {
+        return sprintf(<<<'YAML'
+            schema: waaseyaa.site
+            version: 1
+            generator_version: 1
+            application:
+              id: example
+              name: Example
+              canonical_origin: {config_key: APP_ORIGIN}
+            framework:
+              revision_policy: exact-lock
+              observed_lock_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            content_types:
+              - {id: page, canonical_route: '/{slug}'}
+            capabilities:
+              - id: governed_authoring
+                state: active
+                package: waaseyaa/page-builder
+                provider: site.page_builder
+                configuration_authority: .waaseyaa/site.yaml#/capabilities/governed_authoring
+                public_routes: []
+                data_classification: public
+                lifecycle: [create, revise, publish, archive]
+                verification: [tests/Acceptance/SiteGoldenPathTest.php]
+            personal_data_stores: []
+            recipes:
+              - id: governed_authoring
+                version: 1
+                capability: governed_authoring
+                artifact_digest: %s
+            verification: {command: bin/maintenance/site-verify}
+            YAML, GovernedAuthoringRecipe::digest());
     }
 }
