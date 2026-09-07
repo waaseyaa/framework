@@ -14,9 +14,11 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Access\User\UserSessionSnapshot;
+use Waaseyaa\Access\User\UserVerificationSnapshot;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
@@ -27,11 +29,62 @@ use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 #[CoversClass(SessionMiddleware::class)]
 final class SessionMiddlewareTest extends TestCase
 {
-    private function internalFields(int $generation = 0): UserInternalFieldReaderInterface
-    {
+    private function internalFields(
+        int $generation = 0,
+        bool $active = true,
+        bool $emailVerified = true,
+    ): UserInternalFieldReaderInterface {
         $reader = $this->createStub(UserInternalFieldReaderInterface::class);
         $reader->method('sessionIdentity')->willReturn(new UserSessionSnapshot('', '', [], $generation));
+        $reader->method('verification')->willReturn(new UserVerificationSnapshot(
+            'test@example.test',
+            $emailVerified,
+            $active,
+        ));
+
         return $reader;
+    }
+
+    /** @return array{0: ?AccountInterface, 1: Request} */
+    private function processSession(
+        EntityRepositoryInterface $repository,
+        Request $request,
+        ?UserInternalFieldReaderInterface $internalFields = null,
+        ?AuthenticationEligibilityInterface $authenticationEligibility = null,
+        ?RequestAccountContext $accountContext = null,
+    ): array {
+        $captured = null;
+        new SessionMiddleware(
+            $repository,
+            internalFields: $internalFields,
+            authenticationEligibility: $authenticationEligibility,
+            accountContext: $accountContext,
+        )->process($request, new class($captured) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$captured) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->captured = $request->attributes->get('_account');
+
+                return new Response();
+            }
+        });
+
+        return [$captured, $request];
+    }
+
+    /** @return array{0: ?AccountInterface, 1: Request} */
+    private function processBearer(
+        User $user,
+        ?UserInternalFieldReaderInterface $internalFields = null,
+        ?AuthenticationEligibilityInterface $authenticationEligibility = null,
+        ?RequestAccountContext $accountContext = null,
+    ): array {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $request = Request::create('/protected');
+        $request->attributes->set('_account', $user);
+
+        return $this->processSession($repository, $request, $internalFields, $authenticationEligibility, $accountContext);
     }
 
     protected function setUp(): void
@@ -169,7 +222,7 @@ final class SessionMiddlewareTest extends TestCase
         $captured = null;
         new SessionMiddleware(
             $repository,
-            internalFields: $this->internalFields(),
+            internalFields: $this->internalFields(active: true),
             authenticationEligibility: AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
         )->process($request, new class($captured) implements HttpHandlerInterface {
             public function __construct(private ?AccountInterface &$captured) {}
@@ -198,6 +251,7 @@ final class SessionMiddlewareTest extends TestCase
         $captured = null;
         new SessionMiddleware(
             $repository,
+            internalFields: $this->internalFields(active: true),
             authenticationEligibility: AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
         )->process($request, new class($captured) implements HttpHandlerInterface {
             public function __construct(private ?AccountInterface &$captured) {}
@@ -209,6 +263,152 @@ final class SessionMiddlewareTest extends TestCase
         });
 
         self::assertInstanceOf(AnonymousUser::class, $captured);
+    }
+
+    #[Test]
+    public function rejects_an_inactive_existing_session_when_no_eligibility_policy_is_wired(): void
+    {
+        $user = new User(['uid' => 42, 'status' => 0, 'session_generation' => 7]);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/protected');
+        $request->attributes->set('_session', [
+            'waaseyaa_uid' => 42,
+            'waaseyaa_session_generation' => 7,
+            'unrelated' => 'preserved',
+        ]);
+
+        [$captured] = $this->processSession(
+            $repository,
+            $request,
+            $this->internalFields(generation: 7, active: false),
+        );
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
+        self::assertSame(['unrelated' => 'preserved'], $request->attributes->get('_session'));
+    }
+
+    #[Test]
+    public function accepts_an_active_existing_session_when_no_eligibility_policy_is_wired(): void
+    {
+        $user = new User(['uid' => 42, 'status' => 1, 'session_generation' => 7]);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/protected');
+        $request->attributes->set('_session', [
+            'waaseyaa_uid' => 42,
+            'waaseyaa_session_generation' => 7,
+        ]);
+
+        [$captured] = $this->processSession(
+            $repository,
+            $request,
+            $this->internalFields(generation: 7, active: true),
+        );
+
+        self::assertInstanceOf(User::class, $captured);
+        self::assertSame(42, $captured->id());
+    }
+
+    #[Test]
+    public function accepts_an_active_verified_existing_session_when_eligibility_requires_verification(): void
+    {
+        $user = new User(['uid' => 42, 'status' => 1, 'email_verified' => true, 'session_generation' => 0]);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/protected');
+        $request->attributes->set('_session', [
+            'waaseyaa_uid' => 42,
+            'waaseyaa_session_generation' => 0,
+        ]);
+
+        [$captured] = $this->processSession(
+            $repository,
+            $request,
+            $this->internalFields(generation: 0, active: true, emailVerified: true),
+            AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
+        );
+
+        self::assertInstanceOf(User::class, $captured);
+        self::assertSame(42, $captured->id());
+    }
+
+    #[Test]
+    public function rejects_an_inactive_bearer_user_when_no_eligibility_policy_is_wired(): void
+    {
+        [$captured, $request] = $this->processBearer(
+            new User(['uid' => 42, 'status' => 0]),
+            $this->internalFields(active: false),
+        );
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
+        self::assertInstanceOf(AnonymousUser::class, $request->attributes->get('_account'));
+    }
+
+    #[Test]
+    public function accepts_an_active_bearer_user_when_no_eligibility_policy_is_wired(): void
+    {
+        $user = new User(['uid' => 42, 'status' => 1]);
+        [$captured] = $this->processBearer(
+            $user,
+            $this->internalFields(active: true),
+        );
+
+        self::assertSame($user, $captured);
+    }
+
+    #[Test]
+    public function accepts_an_active_verified_bearer_user_when_eligibility_requires_verification(): void
+    {
+        $user = new User(['uid' => 42, 'status' => 1, 'email_verified' => true]);
+        [$captured] = $this->processBearer(
+            $user,
+            $this->internalFields(active: true, emailVerified: true),
+            AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
+        );
+
+        self::assertSame($user, $captured);
+    }
+
+    #[Test]
+    public function mirrors_anonymous_bearer_replacement_into_account_context(): void
+    {
+        $context = new RequestAccountContext();
+        [$captured] = $this->processBearer(
+            new User(['uid' => 42, 'status' => 0]),
+            $this->internalFields(active: false),
+            accountContext: $context,
+        );
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
+        self::assertInstanceOf(AnonymousUser::class, $context->current());
+    }
+
+    #[Test]
+    public function rejects_an_existing_session_when_no_internal_reader_is_wired(): void
+    {
+        $user = new User(['uid' => 42, 'status' => 1, 'session_generation' => 0]);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/protected');
+        $request->attributes->set('_session', [
+            'waaseyaa_uid' => 42,
+            'waaseyaa_session_generation' => 0,
+        ]);
+
+        [$captured] = $this->processSession($repository, $request);
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
+        self::assertSame([], $request->attributes->get('_session'));
+    }
+
+    #[Test]
+    public function rejects_a_bearer_user_when_no_internal_reader_is_wired(): void
+    {
+        [$captured, $request] = $this->processBearer(new User(['uid' => 42, 'status' => 1]));
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
+        self::assertInstanceOf(AnonymousUser::class, $request->attributes->get('_account'));
     }
 
     #[Test]
@@ -416,7 +616,7 @@ final class SessionMiddlewareTest extends TestCase
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects($this->never())->method('find');
 
-        $middleware = new SessionMiddleware($repository);
+        $middleware = new SessionMiddleware($repository, internalFields: $this->internalFields(active: true));
         $request = Request::create('/test');
         $request->attributes->set('_account', $existing);
 
@@ -610,7 +810,7 @@ final class SessionMiddlewareTest extends TestCase
         $repository->expects($this->never())->method('find');
 
         $context = new RequestAccountContext();
-        $middleware = new SessionMiddleware($repository, accountContext: $context);
+        $middleware = new SessionMiddleware($repository, accountContext: $context, internalFields: $this->internalFields(active: true));
         $request = Request::create('/test');
         $request->attributes->set('_account', $existing);
 
