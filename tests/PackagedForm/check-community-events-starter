@@ -171,6 +171,49 @@ php -r '
 ' "$consumer"
 
 echo '== Phase 6/6: generated runtime checks exercise CRUD and workflow grants'
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    $case = (new ReflectionClass(App\Tests\Blueprint\WorkflowTransitionChecksTest::class))->newInstanceWithoutConstructor();
+    $boot = new ReflectionMethod($case, "bootTransitionService");
+    $provider = new App\Provider\ApplicationBlueprintGovernanceServiceProvider();
+    $roles = Waaseyaa\User\RoleRepository::fromProviders([$provider]);
+    $principal = static function (string $roleId) use ($roles): Waaseyaa\Access\AccountInterface {
+        $role = $roles->get($roleId);
+        if ($role === null) { throw new RuntimeException("missing role {$roleId}"); }
+        return Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory::authenticated(1, roles: [$role->id], permissions: $role->permissions);
+    };
+    $newFlow = static function () use ($boot, $case): array {
+        [$service, $repository, $database] = $boot->invoke(
+            $case, App\Entity\Event::class, "event", "event_editorial",
+            App\Workflow\EventEditorialWorkflowDefinition::DEFINITION,
+        );
+        $event = $repository->create(["id" => 1]);
+        $event->enforceIsNew();
+        $repository->save($event, validate: false);
+        return [$service, $repository, $database, $event];
+    };
+    $contributor = $principal("contributor");
+    $reviewer = $principal("reviewer");
+
+    [$service, $repository, $database, $event] = $newFlow();
+    $submitted = $service->transition($event, "submit_for_review", $contributor);
+    if ($submitted->fromState !== "draft" || $submitted->toState !== "review") { throw new RuntimeException("submit transition mismatch"); }
+    $reviewCopy = $repository->loadWorkingCopy("1") ?? throw new RuntimeException("review working copy missing");
+    try {
+        $service->transition($reviewCopy, "publish", $contributor);
+        throw new RuntimeException("contributor published a reviewed event");
+    } catch (Waaseyaa\Workflows\Transition\TransitionDeniedException $exception) {
+        if ($exception->reason !== Waaseyaa\Workflows\Transition\TransitionDeniedException::REASON_PERMISSION) { throw $exception; }
+    }
+    $published = $service->transition($reviewCopy, "publish", $reviewer);
+    if ($published->fromState !== "review" || $published->toState !== "published") { throw new RuntimeException("publish transition mismatch"); }
+
+    [$service, $repository, $database, $event] = $newFlow();
+    $service->transition($event, "submit_for_review", $contributor);
+    $reviewCopy = $repository->loadWorkingCopy("1") ?? throw new RuntimeException("review working copy missing");
+    $returned = $service->transition($reviewCopy, "return_to_draft", $reviewer);
+    if ($returned->fromState !== "review" || $returned->toState !== "draft") { throw new RuntimeException("return transition mismatch"); }
+' "$consumer"
 ( cd "$consumer" && vendor/bin/phpunit --no-coverage \
     tests/Blueprint/EntityAccessChecksTest.php \
     tests/Blueprint/GovernanceDefaultDenyTest.php \

@@ -45,8 +45,6 @@ final class CommunityEventsStarterContractTest extends TestCase
         self::assertSame('event', $workflow->bindings[0]->entity);
 
         self::assertSame('allowed', $blueprint->checks['contributor_submits']->expect);
-        self::assertSame('denied', $blueprint->checks['contributor_cannot_publish']->expect);
-        self::assertSame('allowed', $blueprint->checks['reviewer_publishes']->expect);
         self::assertSame('denied', $blueprint->checks['reviewer_cannot_submit']->expect);
     }
 
