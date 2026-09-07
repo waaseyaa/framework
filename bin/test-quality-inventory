@@ -179,6 +179,11 @@ foreach ($phpTestFiles as $path) {
             // exit — bounded and deterministic, never a retry loop; closest of
             // the two available buckets is subprocess_polling.
             'tests/Architecture/QualifyCandidateRunnerTest.php' => 'subprocess_polling',
+            // #2664: usleep() appears only inside disposable php -r child
+            // programs that exercise timeout, signal escalation, cancellation,
+            // and exact-child cleanup. The runner owns a bounded deadline; these
+            // literals do not retry an assertion until it passes.
+            'packages/cli/tests/Unit/ProjectInit/ProcOpenProjectInitProcessRunnerTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;

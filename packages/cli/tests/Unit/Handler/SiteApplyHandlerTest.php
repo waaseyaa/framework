@@ -164,7 +164,7 @@ final class SiteApplyHandlerTest extends TestCase
         $commands = iterator_to_array(new SiteServiceProvider($this->fixture())->consoleCommands());
 
         self::assertSame(
-            ['site:init', 'site:doctor', 'site:apply'],
+            ['site:init', 'site:doctor', 'site:apply', 'project:init'],
             array_map(static fn($command): string => (string) $command->getName(), $commands),
         );
         $definition = $commands[2]->getDefinition();
