@@ -15,6 +15,7 @@ use Waaseyaa\CLI\Handler\MakeEntityTypeHandler;
 use Waaseyaa\CLI\Handler\MakePluginHandler;
 use Waaseyaa\CLI\Handler\MakeProviderHandler;
 use Waaseyaa\CLI\Handler\MakePublicHandler;
+use Waaseyaa\CLI\Handler\MakeSearchProjectionHandler;
 use Waaseyaa\CLI\Handler\MakeTestHandler;
 use Waaseyaa\Field\FieldScaffoldProjection;
 use Waaseyaa\Field\FieldTypeManagerInterface;
@@ -64,6 +65,35 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                     projectRoot: $projectRoot,
                 )->execute($io);
             },
+        );
+
+        yield new HandlerCommand(
+            name: 'make:search-projection',
+            description: 'Scaffold an application search projector, its provider binding and a companion test',
+            arguments: [
+                new HandlerArgument(
+                    name: 'entity-type',
+                    mode: HandlerArgumentMode::Required,
+                    description: 'The entity type id to project (e.g. "story")',
+                ),
+            ],
+            options: [
+                new HandlerOption(
+                    name: 'fields',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Comma-separated field names concatenated into the indexed body, in order (e.g. "summary,body")',
+                    default: 'body',
+                ),
+                new HandlerOption(
+                    name: 'force',
+                    mode: HandlerOptionMode::None,
+                    description: 'Overwrite existing generated files',
+                ),
+            ],
+            // MakeSearchProjectionHandler takes a scalar string $projectRoot the
+            // kernel handler container cannot auto-wire — same eager-construction
+            // pattern as make:content-type and make:public above.
+            handler: \Closure::fromCallable([new MakeSearchProjectionHandler(projectRoot: $projectRoot), 'execute']),
         );
 
         yield new HandlerCommand(

@@ -666,6 +666,54 @@ already prescribes.
 
 <!-- Spec reviewed 2026-09-06 - #2789 phase 2: make:content-type is the first seeded-compiler migration ADR-025 D-2.2/D-6.6 anticipated. Two behaviour consequences are deliberate and recorded here rather than hidden: an uninitialized project is now refused, and --force no longer overwrites a published scaffold. Acceptance: MakeContentTypeCustodyTest, plus the unchanged assertions of MakeContentTypeHandlerTest whose fixtures now start from an initialized site. -->
 
+## Scaffolded search projections
+
+`make:search-projection <entity-type> --fields=… [--force]` scaffolds an
+application-owned search extension: an `EntitySearchProjectorInterface`
+implementation under `src/Search/`, a `ProvidesEntitySearchProjectorsInterface`
+provider under `src/Provider/` that binds it, and a companion test under
+`tests/Search/`. Both consumed contracts are declared `public` by
+`packages/search/public-surface.php`; the generator scaffolds *against* the
+search package's extension points and never copies its internals, so
+`EntitySearchProjectionRegistry`, `EntitySearchCandidateResolver` and the
+FTS5 indexer stay framework-owned.
+
+`SearchProjectionScaffoldCompiler` (`packages/cli/src/Site/Scaffold/`) is a pure
+function of its validated input and its own version, and
+`SiteInitializationService::initialize()` publishes the plan — the same
+single-invocation flow as `make:content-type`, through the one publication
+engine. The unit is `scaffold:search-projection:<entity-type>` with disposition
+**seeded** and `Frozen` set evolution, making the compiler the second member of
+the closed `SEEDED_COMPILERS` admission list. The provider registration travels
+as a D-6.6 `ComposerProviderRegistration`, and the plan populates D-6.6's
+`companion_tests` member with the generated test path — the first non-blueprint
+compiler to do so. Publication requires an initialized site for the same
+reason content-type scaffolding does.
+
+Two refusals are specific to this generator. The container resolves exactly one
+`ProvidesEntitySearchProjectorsInterface`, so scaffolding a second provider
+would silently shadow the first depending on registration order; the handler
+therefore scans `src/Provider/` and refuses before compiling, naming the
+existing provider and directing the additional projector into its
+`entitySearchProjectors()` list. The generated projector reads every field
+through the guarded `EntityInterface::get()` accessor and catches
+`FieldReadDenied`/`MissingFieldReadContext`, so index-time projection — which
+runs with no account scope — releases only `FieldReadLevel::Public` fields and
+omits the rest rather than leaking them.
+
+That omission is silent by design, and it interacts with a live gap: a
+*registered* entity type resolves every undeclared field to
+`FieldReadLevel::Internal` (`EntityReadRuntime`), while `make:content-type`
+currently emits no `read:` argument at all, so a scaffolded entity indexed
+without further edits projects an empty document rather than an error. The
+generated companion test asserts a non-empty projected body against the
+application's real registered entity and carries that diagnosis in its failure
+message, and the command reports the same requirement in its next-step output.
+Closing the emitter side belongs to the entity/content-type generator
+convergence (#2847), not here.
+
+<!-- Spec reviewed 2026-09-07 - #2849: make:search-projection is the second seeded-compiler migration, and the first compiler to populate ADR-025 D-6.6 companion_tests. Recorded rather than hidden: the single-provider refusal (the container resolves one ProvidesEntitySearchProjectorsInterface), and the read-level interaction whereby a registered entity type defaults undeclared fields to Internal so an unedited scaffolded entity indexes empty. Acceptance: MakeSearchProjectionCustodyTest, GenerationUnitActivationBoundaryTest's widened seeded roster, and GenerationStagedActivationBoundaryTest's widened refusal-carrier allowlist. -->
+
 ## Input And Output
 
 Commands use Symfony Console input/output:
