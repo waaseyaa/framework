@@ -167,11 +167,10 @@ separate piece of work.
 
 ## 9. Residual work
 
-- `docs/specs/public-surface-declarations.md` §"root that a consumer is expected
-  to honour" cites `Waaseyaa\CLI\Io\StdinSource` at `packages/cli/tests/Io/…` as
-  its worked example; lane 1 moved that file. The edit is **deferred** —
-  `codex/2901-integration` carries 9 unmerged commits adding 219 lines to that
-  file and ownership is unreconciled.
+- The lane-1 `StdinSource` source move and
+  `docs/specs/public-surface-declarations.md` correction to the still-root-only
+  `Waaseyaa\CLI\Testing\CliTester` example belong to PR #2966. This
+  conformance design neither duplicates nor qualifies that separate change.
 - `CLI\Testing\CliTester`, `EntityStorage\Testing\Contract\*` — internal, unfixed.
 - CLAUDE.md orchestration table lists `packages/cli/src/CommandDefinition.php`
   and `src/CliKernel.php` (removed by the Symfony Console migration).
