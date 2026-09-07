@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Provider;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\ProjectInitHandler;
 use Waaseyaa\CLI\Handler\SiteApplyHandler;
 use Waaseyaa\CLI\Handler\SiteDoctorHandler;
 use Waaseyaa\CLI\Handler\SiteInitHandler;
@@ -43,6 +44,28 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
         yield self::siteInitCommand($projectRoot);
         yield self::siteDoctorCommand($projectRoot);
         yield self::siteApplyCommand($projectRoot);
+        yield self::projectInitCommand($projectRoot);
+    }
+
+    /** Fresh project orchestration; also used by the boot-free kernel seam. */
+    public static function projectInitCommand(string $projectRoot): HandlerCommand
+    {
+        $handler = new ProjectInitHandler($projectRoot);
+
+        return new HandlerCommand(
+            name: 'project:init',
+            description: 'Initialize a fresh project through site initialization and installation',
+            options: [
+                new HandlerOption('answers', mode: HandlerOptionMode::Required, description: 'Answer document forwarded to site:init'),
+                new HandlerOption('decision-receipt', mode: HandlerOptionMode::Required, description: 'Approval receipt forwarded to site:init'),
+                new HandlerOption('preset', mode: HandlerOptionMode::Required, description: 'Initialization preset forwarded to site:init'),
+                new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Existing application project root'),
+                new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Preview site initialization without running installation'),
+                new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit one result describing both initialization phases'),
+                new HandlerOption('yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Forward publication confirmation to site:init'),
+            ],
+            handler: \Closure::fromCallable([$handler, 'execute']),
+        );
     }
 
     /**

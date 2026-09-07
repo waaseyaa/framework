@@ -6865,6 +6865,13 @@
             "occurrence": 3
         },
         {
+            "path": "tests/Architecture/SiteReferenceConsumerContractTest.php",
+            "pattern": "sqlite3_constructor",
+            "class": "test",
+            "match_sha256": "94ede24d60640a05efa83ab334e2a21357230da113e9cd6c6e01095f8860ead2",
+            "occurrence": 1
+        },
+        {
             "path": "tests/CoreOnlyBoot/prepare-runtime-schema.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -8151,6 +8158,13 @@
             "class": "test",
             "match_sha256": "b69da86bc72fe6da8529766029a85cfa120fdcd17522d38ad1f665602cf97a94",
             "occurrence": 3
+        },
+        {
+            "path": "tests/ReferenceConsumer/prepare.php",
+            "pattern": "sqlite3_constructor",
+            "class": "test",
+            "match_sha256": "965f22387e9af7317da59fea93ed2e43ca577f2245780397a098828fa85e19d5",
+            "occurrence": 1
         },
         {
             "path": "tools/lib/DevRuntime.php",
