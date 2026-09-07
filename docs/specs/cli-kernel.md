@@ -616,7 +616,7 @@ Forge, release, and deployment behavior are outside this command.
 
 ## Scaffolded content types
 
-`make:content-type <name> --fields=… [--force]` keeps its surface, its generated
+`make:content-type <name> --fields=… [--field-read=…] [--force]` preserves generated
 entity and provider semantics, its Indigenous-orthography support, its
 no-overwrite refusal and its next-step output, but it no longer writes anything
 itself (#2789 phase 2). `ContentTypeScaffoldCompiler`
@@ -637,6 +637,17 @@ registered field manager. Missing or incompatible registry services refuse.
 Standalone `MakeContentTypeHandler` and `ContentTypeScaffoldCompiler` callers
 must supply an explicit `FieldScaffoldProjection`; no production built-ins
 fallback remains.
+
+`--field-read="title:public,summary:protected"` declares explicit per-field
+read visibility using canonical `FieldReadLevel` values (`public`, `protected`,
+`internal`). Each selection must name a field declared by `--fields`; duplicate
+selections, unknown fields, reserved `status`, unsupported levels and malformed
+entries refuse before publication. Omitted selections retain the registered
+entity runtime's `Internal` default; the generator never widens fields merely
+because a search projector requests them. Selected levels are emitted in field
+attributes and participate in the artifact plan digest. Reordering selections
+alone does not change their meaning or generated field order. Existing seeded
+ownership and no-overwrite rules still apply.
 
 The compiler is a pure function of its validated input, resolved registered
 field metadata and its own version: no filesystem observation or clock. Equal
@@ -718,8 +729,8 @@ omits the rest rather than leaking them.
 
 That omission is silent by design, and it interacts with a live gap: a
 *registered* entity type resolves every undeclared field to
-`FieldReadLevel::Internal` (`EntityReadRuntime`), while `make:content-type`
-currently emits no `read:` argument at all, so a scaffolded entity indexed
+`FieldReadLevel::Internal` (`EntityReadRuntime`), while `make:content-type` without explicit `--field-read` selections
+emits no `read:` argument for those fields, so a scaffolded entity indexed
 without further edits projects an empty document rather than an error.
 
 The framework's answer to that is a **deliberate visibility decision per
