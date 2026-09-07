@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Publishing\Idempotency;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 
@@ -51,6 +52,7 @@ final class IdempotencyStore
      * @return T
      *
      * @throws IdempotencyConflictException Same key, different request payload.
+     * @throws TransactionCompletionException The transaction committed but completion work failed.
      */
     public function execute(string $idempotencyKey, string $operationName, array $request, \Closure $operation, string $namespace = ''): array
     {
@@ -73,37 +75,44 @@ final class IdempotencyStore
                     throw new IdempotencyConflictException($idempotencyKey);
                 }
 
-                /** @var array<string, mixed> $replay */
-                $replay = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
-                $transaction->commit();
+                /** @var array<string, mixed> $response */
+                $response = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
+            } else {
+                $response = $operation();
 
-                return $replay;
+                // The mutation and its replay record share one database
+                // transaction. A projection or serialization failure after an entity
+                // save cannot strand persisted content outside the idempotency
+                // contract, and a racing duplicate-key insert rolls its mutation
+                // back with it.
+                $this->database->query(
+                    'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
+                    [
+                        $storageKey,
+                        $operationName,
+                        $requestHash,
+                        json_encode($response, JSON_THROW_ON_ERROR),
+                        ($this->clock)(),
+                    ],
+                );
             }
-
-            $response = $operation();
-
-            // The mutation and its replay record share one database
-            // transaction. A projection or serialization failure after an entity
-            // save cannot strand persisted content outside the idempotency
-            // contract, and a racing duplicate-key insert rolls its mutation
-            // back with it.
-            $this->database->query(
-                'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
-                [
-                    $storageKey,
-                    $operationName,
-                    $requestHash,
-                    json_encode($response, JSON_THROW_ON_ERROR),
-                    ($this->clock)(),
-                ],
-            );
-            $transaction->commit();
-
-            return $response;
         } catch (\Throwable $exception) {
             $transaction->rollBack();
             throw $exception;
         }
+
+        try {
+            $transaction->commit();
+        } catch (TransactionCompletionException $failure) {
+            // The database is already committed; never report or attempt a
+            // fictional rollback for completion work that ran afterward.
+            throw $failure;
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
+        }
+
+        return $response;
     }
 
     /** @param array<string, mixed> $request */
