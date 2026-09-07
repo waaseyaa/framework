@@ -37,6 +37,7 @@ use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(MakeContentTypeHandler::class)]
+#[CoversClass(\Waaseyaa\CLI\Provider\MakeServiceProviderB::class)]
 final class MakeContentTypeHandlerTest extends TestCase
 {
     private string $root;

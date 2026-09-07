@@ -61,6 +61,41 @@ final class FieldScaffoldProjectionTest extends TestCase
     }
 
     #[Test]
+    public function referenceDefinitionPreservesTheAuthoredTargetAndProjectsItsStorageKind(): void
+    {
+        $projection = new FieldScaffoldProjection(new FieldTypeManager());
+        $definition = $projection->definition('author', 'entity_reference', 'user');
+
+        self::assertSame('author', $definition->getName());
+        self::assertSame('entity_reference', $definition->getType());
+        self::assertSame('user', $definition->getSetting('target_entity_type_id'));
+        self::assertSame(FieldValueKind::EntityReference, $projection->valueKind($definition->getType()));
+        self::assertSame(['phpType' => '?int', 'defaultLiteral' => 'null'], $projection->property($definition));
+    }
+
+    #[Test]
+    public function referenceDefinitionWithoutATargetIsRefusedBeforeGeneratingAProperty(): void
+    {
+        $projection = new FieldScaffoldProjection(new FieldTypeManager());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('requires a target entity type');
+        $projection->definition('author', 'entity_reference');
+    }
+
+    #[Test]
+    public function registeredTypeRequiringMissingMetadataCannotProduceADefinition(): void
+    {
+        $projection = new FieldScaffoldProjection(new FieldTypeManager(
+            extensionClasses: ['scaffold_configured' => ScaffoldConfiguredFieldType::class],
+        ));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('cannot be scaffolded without additional metadata');
+        $projection->definition('configuration', 'scaffold_configured');
+    }
+
+    #[Test]
     public function unknownTypesFailClosedThroughTheRegisteredAuthority(): void
     {
         self::assertTrue(class_exists(FieldScaffoldProjection::class), 'The canonical scaffold projection must exist.');
