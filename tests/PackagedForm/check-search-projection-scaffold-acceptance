@@ -113,6 +113,12 @@ framework:
 content_types:
   - id: page
     canonical_route: /{slug}
+capabilities:
+  - id: search
+    state: not_needed
+    reason: This proof exercises an application-owned search projection, not a first-party capability.
+personal_data_stores: []
+recipes: []
 verification:
   command: bin/maintenance/site-verify
 SITEYAML
