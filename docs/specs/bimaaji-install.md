@@ -228,24 +228,29 @@ when a downstream operator integrates a new MCP client).
 |---|---|---|---|
 | `claude` | `ClaudeClientTransformer` | `.claude/skills/waaseyaa-<id>/SKILL.md` — one **directory** per skill — plus a shared `.claude/CLAUDE-WAASEYAA.md` index | <https://code.claude.com/docs/en/skills> (verified 2026-08-29) |
 | `cursor` | `CursorClientTransformer` | `.cursorrules` (single file) — **legacy, see Convention drift** | <https://cursor.com/help/customization/rules> (verified 2026-08-29) |
-| `codex` | `CodexClientTransformer` | `AGENTS.md` at the repository root (single file, shared with other AGENTS.md readers) | <https://learn.chatgpt.com/docs/agent-configuration/agents-md>, <https://agents.md> (verified 2026-08-29) |
+| `codex` | `CodexClientTransformer` | Concise root `AGENTS.md` (shared with other `AGENTS.md` readers) plus `.agents/skills/waaseyaa-<id>/SKILL.md` — one **directory** per skill (#2660 Part B) | <https://learn.chatgpt.com/docs/agent-configuration/agents-md>, <https://agents.md> (verified 2026-08-29); per-skill discovery: <https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills> (verified 2026-09-05) |
 | `copilot` | `CopilotClientTransformer` | `.github/copilot-instructions.md` (single file) | <https://docs.github.com/en/copilot/how-tos/configure-custom-instructions-in-your-ide/add-repository-instructions-in-your-ide> (verified 2026-08-29) |
 | `gemini` | `GeminiClientTransformer` | `GEMINI.md` (single file) | <https://geminicli.com/docs/cli/gemini-md/> (verified 2026-08-29) |
 | `windsurf` | `WindsurfClientTransformer` | `.windsurfrules` (single file) — **legacy, see Convention drift** | <https://docs.devin.ai/desktop/devin-desktop-faq> (verified 2026-08-29) |
 | `junie` | `JunieClientTransformer` | `.junie/guidelines.md` (single file) — **legacy, see Convention drift** | <https://junie.jetbrains.com/docs/guidelines-and-memory.html> (verified 2026-08-29) |
 
-`ClaudeClientTransformer` is the only multi-file transformer. A Claude
-Code project skill is a **directory** — `.claude/skills/<skill-name>/SKILL.md`
-— and the command a user types comes from the directory name; the
-frontmatter `name` is only the display label. A flat
-`.claude/skills/<name>.md` is not a documented layout and is not
+`ClaudeClientTransformer` and `CodexClientTransformer` are the two
+multi-file transformers, sharing `AbstractPerSkillClientTransformer` (#2660
+Part B). A Claude Code project skill is a **directory** —
+`.claude/skills/<skill-name>/SKILL.md` — and the command a user types comes
+from the directory name; the frontmatter `name` is only the display label. A
+flat `.claude/skills/<name>.md` is not a documented layout and is not
 discovered, which is exactly what this transformer emitted until the #2656
 review: the install reported files written that Claude Code would never
 load. The directory-per-skill shape also matches how the canonical set
 ships inside the package, so the install is a structural rename rather
-than a flattening. The other six clients use the shared
-`AbstractSingleFileClientTransformer` base — one consolidated file per
-project. Both shapes are marker-bounded; see
+than a flattening. Codex now receives the same shape under
+`.agents/skills/waaseyaa-<id>/SKILL.md`, backed by the verified per-skill
+discovery citation above (see "Client capability model and skill inventory"
+below and the accepted implementation decision in
+`docs/adr/026-client-guidance-and-skill-conventions.md`). The other
+five clients use the shared `AbstractSingleFileClientTransformer` base —
+one consolidated file per project. All shapes are marker-bounded; see
 [Marker-bounded installation](#marker-bounded-installation).
 
 ### Convention drift
@@ -293,15 +298,19 @@ public function targetFiles(array $skills): array;
 `ParsedSkill` and `TargetFile` DTOs accompany the interface. See
 `packages/bimaaji/src/Install/` after M5 WP02 lands.
 
-## Client capability model and skill inventory (#2660 Part A)
+## Client capability model and skill inventory (#2660)
 
 Two seams introduced by #2660 Part A sit underneath the transformer
-contract without changing it. Both are **behaviour-preserving**: the
-per-client `targetFiles()` output described throughout this document did
-not change a single byte when they were introduced —
+contract without changing it, plus three additions from Part B that
+**do** intentionally change Claude's and Codex's shipped bytes (see below).
+
+**Part A** is **behaviour-preserving**: the per-client `targetFiles()`
+output described throughout this document did not change a single byte
+when it was introduced —
 `packages/bimaaji/tests/Unit/Install/TransformerOutputRegressionTest.php`
-diffs every client's output against a golden snapshot captured from the
-pre-refactor implementation to prove it.
+diffs every **single-file** client's output against a golden snapshot
+captured from the pre-refactor implementation to prove it (Claude and Codex
+are no longer covered there as of Part B — see that test's docblock).
 
 **`Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry`** (with
 `ClientCapabilities` and the `SkillDeliveryMode` enum) is the single,
@@ -313,16 +322,37 @@ registry, that mapping was encoded as PHP control flow spread across seven
 transformer classes: an abstract single-file base with one `targetPath()`
 override per subclass, plus a Claude transformer duplicating the same
 shape with its own `DIRECTORY_PREFIX` constant. `AbstractSingleFileClientTransformer`
-and `ClaudeClientTransformer` now read `ClientCapabilityRegistry::default()->for($this->clientId())`
-instead. `ClientCapabilityRegistry::default()` mirrors the **currently
-shipped** convention in the "Supported clients" table above — it is not an
-aspirational target, and it intentionally does not encode the `.agents/skills/`-style
-Codex layout, an unsupported-capability diagnostic, or a guidance/skill-body
-split for single-file clients. Those three remain maintainer-owned open
-questions; see
-[docs/adr/026-client-guidance-and-skill-conventions.md](../adr/026-client-guidance-and-skill-conventions.md)
-for the options, tradeoffs, and recommendation on each, and #2660 for
-tracking.
+and `AbstractPerSkillClientTransformer` now read
+`ClientCapabilityRegistry::default()->for($this->clientId())` instead.
+`ClientCapabilityRegistry::default()` mirrors the **currently shipped**
+convention in the "Supported clients" table above.
+
+**Part B (#2660, accepted implementation decision — see
+[ADR-026](../adr/026-client-guidance-and-skill-conventions.md)):** the registry now records `codex => PerSkillFile` (was
+`SingleConsolidatedFile`), backed by the verified `.agents/skills`
+discovery citation on `CodexClientTransformer`. This implements the accepted
+answer to the ADR's question (a). Two more additions implement its answers to
+(b) and (c):
+
+- **`Waaseyaa\Bimaaji\Install\ClientCapabilitySurface`** (an enum:
+  `Guidelines`, `Skills`, `McpConfiguration`) and
+  **`Waaseyaa\Bimaaji\Install\ClientCapabilityDiagnostics::warnings()`**
+  implement decision (b): requesting `skills` in `--features` against a
+  `SingleConsolidatedFile` client, or `mcp_configuration`/`mcp` against any
+  client, prints a `Warning:` line via `BimaajiInstallCommand` rather than
+  silently folding or omitting the capability. Warning severity, not a hard
+  error — a default hard error would make all five
+  `SingleConsolidatedFile` clients fail out of the box, which is not a bug
+  to fix, it is the shape their vendor supports.
+- **`Waaseyaa\Bimaaji\Install\Client\AbstractPerSkillClientTransformer`**
+  implements decision (c) for the two `PerSkillFile` clients: it renders
+  one concise, always-loaded guidance file (an index naming every skill's
+  target path and *source* sha256) plus one on-demand skill file per
+  canonical inventory entry. `ClientCapabilities::supportedSurfaces()`
+  makes this scoping explicit — `Guidelines` always, `Skills` only for a
+  `PerSkillFile` client — so the split is never asserted against a
+  single-file client, which has no on-demand loading mechanism to split
+  against.
 
 `ClientCapabilities` is a **closed** shape, enforced in its constructor and
 signalled by `ClientCapabilityException`: ids and paths may not be blank,
@@ -335,15 +365,22 @@ every field drives output, so a contradictory instance is a silently wrong
 install rather than an unread field.
 
 `requiresFrontmatterAtByteZero` is one of those output-driving fields:
-`ClaudeClientTransformer::renderSkillFile()` **derives** the leading
-`---\nname: …\ndescription: …\n---` block from it, and emits the managed
-body alone when a per-skill client does not require it. The transformer
-accepts an optional `ClientCapabilities` through its constructor (production
-resolves the registered entry; an override declaring another client id is a
-`\LogicException`) so that derivation is provable: with the flag cleared the
-per-skill file is exactly `ManagedRegion::wrap($skill->body)`, and with the
-shipped registry entry it opens at byte 0 with frontmatter. The registry and
-the shipped bytes therefore cannot silently disagree.
+`AbstractPerSkillClientTransformer::renderSkillFile()` **derives** the
+leading `---\nname: …\ndescription: …\n---` block from it, and emits the
+managed body plus a source-inventory provenance footer alone when a
+per-skill client does not require it. Both `ClaudeClientTransformer` and
+`CodexClientTransformer` share that one renderer (the transformer accepts
+an optional `ClientCapabilities` override through its constructor —
+production resolves the registered entry; an override declaring another
+client id is a `\LogicException`), so their per-skill output is provably
+byte-identical for the same inventory (`CodexClientTransformerTest::claudeAndCodexEmitByteIdenticalPerSkillContentForTheSameInventory`).
+Every per-skill file carries a one-line HTML-comment footer
+(`<!-- waaseyaa:bimaaji:source-inventory sha256=… -->`) naming
+`SkillInventory::inventorySha256()` — a sha256 over every skill's own
+*source* sha256 (`ParsedSkill::$sourceSha256`, computed by `SkillSetParser`
+from the raw `SKILL.md` bytes). Together these prove Claude and Codex
+regenerated their per-skill output from one canonical source set, which is
+the "Codex/Claude skill-id and source-hash parity" #2660 asks for.
 
 **`Waaseyaa\Bimaaji\Install\SkillInventory`** is a typed collection over
 `SkillSetParser::parse()`'s result (`fromParser()` calls `parse()` exactly
@@ -370,7 +407,7 @@ authority — #2664 owns the single generated-state hash/version engine.
 | Flag | Mode | Default | Behavior |
 |---|---|---|---|
 | `--client=<id>` | `Array_` (repeatable, accepts comma-separated values) | (none) | Clients to install for. Comma-separated values are split (`--client=cursor,codex`); repetition accumulates (`--client=cursor --client=codex`). When omitted on an interactive TTY, the command asks `"Install for which client(s)? (comma-separated; available: ...)"`. When omitted on a non-TTY stdin, the command errors with `--client is required when stdin is non-TTY` and exits non-zero. |
-| `--features=<csv>` | Required value | `guidelines,skills` | Comma-separated feature filter. Currently advisory; reserved for future-skill-categorisation work. |
+| `--features=<csv>` | Required value | `guidelines,skills` | Comma-separated feature filter. Drives `ClientCapabilityDiagnostics` (#2660 Part B): requesting `skills` against a `SingleConsolidatedFile` client, or `mcp_configuration`/`mcp` against any client, prints a `Warning: …` line naming the gap rather than silently folding or omitting it. Warnings never affect the exit code. |
 | `--dry-run` | Boolean | off | Print the would-be write set as `[DRY-RUN] would write <path> (<bytes> bytes from skill=<source>)` lines without touching the filesystem. Returns exit 0. Per-client summary still reports `written` (would-write count), `unchanged` (sha1 matches existing), `skipped` (sandbox-rejected). |
 | `--force` | Boolean | off | Skip every confirmation prompt and overwrite existing files unconditionally. Required when running non-interactively against a project that has a diverging existing target file — without `--force` on non-TTY stdin, the command errors and exits non-zero rather than silently overwriting. |
 
@@ -465,6 +502,7 @@ The command never:
 | Packaged-form proof | Shipped (#2656) — `tests/PackagedForm/check-bimaaji-skill-resources` (CI job `ci/bimaaji-skill-resources`) drives the command from a consumer built out of the candidate tree with no seeded fixtures, and asserts the exact installed directory structure rather than mere presence. |
 | Client convention audit | Re-verified 2026-08-29 (#2656). `claude` and `codex` were emitting paths their client does not read and were corrected; `cursor`, `windsurf` and `junie` are vendor-documented legacy-but-read and are tracked as follow-up. See [Convention drift](#convention-drift). |
 | Retired-target pruning | Shipped (#2656) — `InstalledManifest` records ownership; see [Ownership and pruning retired targets](#ownership-and-pruning-retired-targets). |
+| Codex per-skill delivery (#2660 Part B) | **Accepted implementation decision; candidate qualification and governed landing remain required.** `codex` moved to `PerSkillFile` behind a verified citation; `ClientCapabilityDiagnostics` and `AbstractPerSkillClientTransformer` implement decisions (b) and (c). Manifest ownership, dry-run, and stale-target retirement needed no changes — they already operate on `targetFiles()`'s declared paths regardless of delivery mode. `tests/PackagedForm/check-bimaaji-skill-resources` now installs the exact candidate as copied package bytes and proves Claude/Codex skill-id, source-hash, and per-skill-byte parity without a monorepo skills fallback; it also bounds generated root `AGENTS.md` at 16 KiB. `CodexClientTransformerTest` supplies the matching unit-level parity proof. |
 
 PR provenance: `#1557` (WP02), `#1563` (WP03), `#1564` (WP04), the
 WP05 close-out PR, and `#2656` (packaged skill resources). Full M5

@@ -95,7 +95,7 @@ final class SkillSetParser
                 throw SkillResourceException::corruptSkill($this->skillsDirectory, $skillFile, 'the file could not be read');
             }
 
-            $skills[] = $this->parseSkill($entry, $contents, $skillFile);
+            $skills[] = $this->parseSkill($entry, $contents, $skillFile, hash('sha256', $contents));
         }
 
         if ($skills === []) {
@@ -107,7 +107,7 @@ final class SkillSetParser
         return $skills;
     }
 
-    private function parseSkill(string $id, string $contents, string $file): ParsedSkill
+    private function parseSkill(string $id, string $contents, string $file, string $sourceSha256): ParsedSkill
     {
         $contents = ltrim($contents);
 
@@ -124,6 +124,7 @@ final class SkillSetParser
                 description: '',
                 frontmatter: [],
                 body: trim($contents),
+                sourceSha256: $sourceSha256,
             );
         }
 
@@ -148,6 +149,7 @@ final class SkillSetParser
             description: $this->stringField($frontmatter, 'description', ''),
             frontmatter: $frontmatter,
             body: trim($body),
+            sourceSha256: $sourceSha256,
         );
     }
 

@@ -22,7 +22,8 @@
 # an earlier revision of this proof passed — "12 written" — while producing
 # files Claude Code would never load.
 #
-# Proofs, in order: install from installed resources; idempotent re-run;
+# Proofs, in order: install from installed resources; packaged Codex/Claude
+# inventory, source-hash, and byte parity with concise root guidance; idempotent re-run;
 # marker-bounded refresh; prune of an upstream removal; neutralisation of a
 # retired target the consumer has edited; a look-alike file the ownership
 # manifest does not claim staying untouched; corrupt- and missing-resource
@@ -112,16 +113,18 @@ if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-
 fi
 
 # 1. The install succeeds from installed package resources alone.
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,cursor --force ) \
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,codex,cursor --force ) \
         >"$work/install.out" 2>&1; then
     cat "$work/install.out" >&2
     fail 'bimaaji:install failed from a packaged consumer.'
 fi
 grep -Fq 'Client claude:' "$work/install.out"
+grep -Fq 'Client codex:' "$work/install.out"
 grep -Fq 'Client cursor:' "$work/install.out"
 
 [[ -f "$consumer/.cursorrules" ]] || fail 'bimaaji:install wrote no .cursorrules.'
 [[ -f "$consumer/.claude/CLAUDE-WAASEYAA.md" ]] || fail 'bimaaji:install wrote no Claude index.'
+[[ -f "$consumer/AGENTS.md" ]] || fail 'bimaaji:install wrote no Codex AGENTS.md index.'
 
 # Claude Code discovers a project skill ONLY at
 # `.claude/skills/<skill-name>/SKILL.md` — the command name comes from the
@@ -154,6 +157,39 @@ while IFS= read -r skill_id; do
         || fail "$target carries no managed-region marker."
 done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 
+# Codex must receive the exact same packaged inventory as project-local
+# Agent Skills, without reading any monorepo path. For each canonical source
+# id, both clients get exactly one target, the target bytes match, and both
+# concise indexes name the sha256 of the raw installed source.
+codex_skill_files="$(find "$consumer/.agents/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' | wc -l | tr -d ' ')"
+[[ "$codex_skill_files" -eq "$shipped" ]] \
+    || fail "Expected $shipped Codex skill directories each holding SKILL.md, found $codex_skill_files."
+
+if find "$consumer/.agents/skills" -maxdepth 1 -type f -name '*.md' -print -quit | grep -q .; then
+    fail 'A flat .md sits directly in .agents/skills/; Codex does not discover that layout.'
+fi
+
+while IFS= read -r skill_id; do
+    source="$resources/$skill_id/SKILL.md"
+    claude_target="$consumer/.claude/skills/waaseyaa-$skill_id/SKILL.md"
+    codex_target="$consumer/.agents/skills/waaseyaa-$skill_id/SKILL.md"
+    [[ -f "$codex_target" ]] || fail "No Codex SKILL.md for shipped skill $skill_id."
+    cmp -s "$claude_target" "$codex_target" \
+        || fail "Claude and Codex received different bytes for shipped skill $skill_id."
+    source_sha256="$(sha256sum "$source" | cut -d ' ' -f 1)"
+    grep -Fq "$source_sha256" "$consumer/.claude/CLAUDE-WAASEYAA.md" \
+        || fail "Claude index omits the installed source hash for $skill_id."
+    grep -Fq "$source_sha256" "$consumer/AGENTS.md" \
+        || fail "Codex index omits the installed source hash for $skill_id."
+done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
+# The root guidance is an index, never the detailed body. This ceiling is
+# deliberately far below the historical ~116 KiB flattened AGENTS.md and
+# leaves ample room for the current packaged inventory to grow.
+agents_bytes="$(wc -c < "$consumer/AGENTS.md" | tr -d ' ')"
+[[ "$agents_bytes" -le 16384 ]] \
+    || fail "Codex AGENTS.md is $agents_bytes bytes; expected a concise index no larger than 16384 bytes."
+
 first_skill_id="$(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | head -1)"
 grep -Fq '<!-- waaseyaa:bimaaji:install BEGIN -->' "$consumer/.cursorrules"
 grep -Fq '<!-- waaseyaa:bimaaji:install END -->' "$consumer/.cursorrules"
@@ -164,6 +200,10 @@ manifest="$consumer/.waaseyaa/bimaaji-install.json"
 [[ -f "$manifest" ]] || fail "bimaaji:install wrote no ownership manifest at $manifest."
 grep -Fq ".claude/skills/waaseyaa-$first_skill_id/SKILL.md" "$manifest" \
     || fail 'The ownership manifest does not record the Claude skill targets.'
+grep -Fq ".agents/skills/waaseyaa-$first_skill_id/SKILL.md" "$manifest" \
+    || fail 'The ownership manifest does not record the Codex skill targets.'
+grep -Fq 'AGENTS.md' "$manifest" \
+    || fail 'The ownership manifest does not record the Codex guidance target.'
 grep -Fq '.cursorrules' "$manifest" \
     || fail 'The ownership manifest does not record the cursor target.'
 

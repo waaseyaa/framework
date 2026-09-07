@@ -12,6 +12,7 @@ use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\SkillDeliveryMode;
+use Waaseyaa\Bimaaji\Install\SkillInventory;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
 #[CoversClass(ClaudeClientTransformer::class)]
@@ -191,11 +192,28 @@ final class ClaudeClientTransformerTest extends TestCase
         self::assertNotNull($alpha);
         self::assertStringStartsNotWith('---', $alpha->content);
         self::assertStringNotContainsString('name: waaseyaa-skill-alpha', $alpha->content);
-        self::assertSame(
-            ManagedRegion::wrap(InstallSkillFixtures::alpha()->body),
-            $alpha->content,
-            'With the capability off, a per-skill file is exactly the managed body and nothing else.',
+        $footer = sprintf(
+            '<!-- waaseyaa:bimaaji:source-inventory sha256=%s -->',
+            SkillInventory::fromSkills([InstallSkillFixtures::alpha()])->inventorySha256(),
         );
+        self::assertSame(
+            ManagedRegion::wrap(trim(InstallSkillFixtures::alpha()->body) . "\n\n" . $footer),
+            $alpha->content,
+            'With the capability off, a per-skill file is exactly the managed body plus the provenance footer.',
+        );
+    }
+
+    #[Test]
+    public function perSkillFileCarriesTheSourceInventoryProvenanceFooter(): void // #2660 Part B
+    {
+        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
+        $index = $this->findByPath($files, '.claude/CLAUDE-WAASEYAA.md');
+
+        self::assertNotNull($alpha);
+        self::assertNotNull($index);
+        self::assertStringContainsString('waaseyaa:bimaaji:source-inventory sha256=', $alpha->content);
+        self::assertStringContainsString(InstallSkillFixtures::alpha()->sourceSha256, $index->content);
     }
 
     #[Test]
