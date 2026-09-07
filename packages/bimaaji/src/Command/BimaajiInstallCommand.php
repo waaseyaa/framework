@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Bimaaji\Command;
 
+use Waaseyaa\Bimaaji\Install\ClientCapabilityDiagnostics;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\InstalledManifest;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
@@ -34,8 +36,12 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  *
  * - `--client=<id>` — repeatable; selects which transformer(s) to run. When
  *   omitted, prompts interactively (aborts on non-TTY unless `--force`).
- * - `--features=<csv>` — `guidelines,skills` (default). Reserved for future
- *   filtering when the skill set carries category tags.
+ * - `--features=<csv>` — `guidelines,skills` (default). Drives
+ *   {@see \Waaseyaa\Bimaaji\Install\ClientCapabilityDiagnostics}: requesting
+ *   `skills` against a single-consolidated-file client, or
+ *   `mcp_configuration`/`mcp` against any client, prints a `Warning:` line
+ *   naming the gap (#2660 open question (b)) rather than silently folding or
+ *   omitting it. Warnings never affect the exit code.
  * - `--dry-run` — print the would-be write set without touching the
  *   filesystem; returns exit 0.
  * - `--force` — skip every confirmation prompt and overwrite existing
@@ -93,6 +99,7 @@ final class BimaajiInstallCommand
 
         $dryRun = (bool) $io->option('dry-run');
         $force = (bool) $io->option('force');
+        $requestedFeatures = $this->resolveRequestedFeatures($io);
 
         try {
             // SkillInventory is the one enumeration every transformer and
@@ -118,6 +125,13 @@ final class BimaajiInstallCommand
             if ($transformer === null) {
                 $exitCode = 1;
                 continue;
+            }
+
+            $capabilities = ClientCapabilityRegistry::default()->for($clientId);
+            if ($capabilities !== null) {
+                foreach (ClientCapabilityDiagnostics::warnings($capabilities, $requestedFeatures) as $warning) {
+                    $io->writeln('Warning: ' . $warning);
+                }
             }
 
             $summary = $this->installForClient(
@@ -163,6 +177,19 @@ final class BimaajiInstallCommand
         }
 
         return $exitCode;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveRequestedFeatures(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): array
+    {
+        $raw = $io->option('features');
+        if (!is_string($raw) || trim($raw) === '') {
+            return ['guidelines', 'skills'];
+        }
+
+        return $this->splitCsv($raw);
     }
 
     /**

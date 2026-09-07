@@ -7,27 +7,30 @@ namespace Waaseyaa\Bimaaji\Tests\Unit\Install;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Bimaaji\Install\Client\AbstractPerSkillClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
 use Waaseyaa\Bimaaji\Install\ClientCapabilities;
 use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
-use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\SkillDeliveryMode;
+use Waaseyaa\Bimaaji\Install\SkillInventory;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
 #[CoversClass(ClaudeClientTransformer::class)]
+#[CoversClass(AbstractPerSkillClientTransformer::class)]
 final class ClaudeClientTransformerTest extends TestCase
 {
     #[Test]
     public function returnsCorrectClientId(): void
     {
-        self::assertSame('claude', (new ClaudeClientTransformer())->clientId());
+        self::assertSame('claude', new ClaudeClientTransformer()->clientId());
     }
 
     #[Test]
     public function producesOnePerSkillPlusOneIndexFile(): void // FR-003
     {
         $skills = InstallSkillFixtures::all(); // 3 skills
-        $files = (new ClaudeClientTransformer())->targetFiles($skills);
+        $files = new ClaudeClientTransformer()->targetFiles($skills);
 
         self::assertCount(4, $files, 'Claude emits one file per skill plus one shared index — 3 + 1 = 4.');
 
@@ -47,7 +50,7 @@ final class ClaudeClientTransformerTest extends TestCase
         // layout and is never loaded — the shape this transformer emitted
         // before the #2656 review. Pin the exact structure, not mere presence.
         // <https://code.claude.com/docs/en/skills> (verified 2026-08-29).
-        $files = (new ClaudeClientTransformer())->targetFiles(InstallSkillFixtures::all());
+        $files = new ClaudeClientTransformer()->targetFiles(InstallSkillFixtures::all());
 
         $skillTargets = array_values(array_filter(
             $files,
@@ -77,7 +80,7 @@ final class ClaudeClientTransformerTest extends TestCase
     #[Test]
     public function theFrontmatterNameMatchesTheSkillDirectory(): void
     {
-        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $files = new ClaudeClientTransformer()->targetFiles([InstallSkillFixtures::alpha()]);
         $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
 
         self::assertNotNull($alpha);
@@ -89,7 +92,7 @@ final class ClaudeClientTransformerTest extends TestCase
     #[Test]
     public function producesNonEmptyContentForEachTarget(): void
     {
-        $files = (new ClaudeClientTransformer())->targetFiles(InstallSkillFixtures::all());
+        $files = new ClaudeClientTransformer()->targetFiles(InstallSkillFixtures::all());
         foreach ($files as $file) {
             self::assertNotSame('', $file->content, sprintf('Target file %s must have non-empty content.', $file->path));
         }
@@ -98,7 +101,7 @@ final class ClaudeClientTransformerTest extends TestCase
     #[Test]
     public function perSkillFileEmbedsSkillBody(): void
     {
-        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $files = new ClaudeClientTransformer()->targetFiles([InstallSkillFixtures::alpha()]);
         $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
 
         self::assertNotNull($alpha);
@@ -113,7 +116,7 @@ final class ClaudeClientTransformerTest extends TestCase
         // emitted body verbatim. Claude re-emits its own minimal frontmatter
         // (`name` + `description`) but the *source* frontmatter keys are
         // not transcribed.
-        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $files = new ClaudeClientTransformer()->targetFiles([InstallSkillFixtures::alpha()]);
         $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
 
         self::assertNotNull($alpha);
@@ -129,7 +132,7 @@ final class ClaudeClientTransformerTest extends TestCase
     #[Test]
     public function sourceSkillIsRecordedForPerSkillFilesOnly(): void
     {
-        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $files = new ClaudeClientTransformer()->targetFiles([InstallSkillFixtures::alpha()]);
         $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
         $index = $this->findByPath($files, '.claude/CLAUDE-WAASEYAA.md');
 
@@ -140,7 +143,7 @@ final class ClaudeClientTransformerTest extends TestCase
     #[Test]
     public function handlesEmptySkillSetGracefully(): void
     {
-        $files = (new ClaudeClientTransformer())->targetFiles([]);
+        $files = new ClaudeClientTransformer()->targetFiles([]);
         self::assertCount(1, $files, 'Empty skill set still emits the index file.');
         self::assertStringContainsString('_No skills installed._', $files[0]->content);
     }
@@ -156,7 +159,7 @@ final class ClaudeClientTransformerTest extends TestCase
         $capabilities = ClientCapabilityRegistry::default()->for('claude');
         self::assertNotNull($capabilities, 'The "claude" client must be registered.');
 
-        $files = (new ClaudeClientTransformer())->targetFiles(InstallSkillFixtures::all());
+        $files = new ClaudeClientTransformer()->targetFiles(InstallSkillFixtures::all());
 
         $skillTargets = array_values(array_filter($files, static fn($file): bool => $file->sourceSkill !== null));
         self::assertCount(3, $skillTargets);
@@ -191,11 +194,28 @@ final class ClaudeClientTransformerTest extends TestCase
         self::assertNotNull($alpha);
         self::assertStringStartsNotWith('---', $alpha->content);
         self::assertStringNotContainsString('name: waaseyaa-skill-alpha', $alpha->content);
-        self::assertSame(
-            ManagedRegion::wrap(InstallSkillFixtures::alpha()->body),
-            $alpha->content,
-            'With the capability off, a per-skill file is exactly the managed body and nothing else.',
+        $footer = sprintf(
+            '<!-- waaseyaa:bimaaji:source-inventory sha256=%s -->',
+            SkillInventory::fromSkills([InstallSkillFixtures::alpha()])->inventorySha256(),
         );
+        self::assertSame(
+            ManagedRegion::wrap(trim(InstallSkillFixtures::alpha()->body) . "\n\n" . $footer),
+            $alpha->content,
+            'With the capability off, a per-skill file is exactly the managed body plus the provenance footer.',
+        );
+    }
+
+    #[Test]
+    public function perSkillFileCarriesTheSourceInventoryProvenanceFooter(): void // #2660 Part B
+    {
+        $files = new ClaudeClientTransformer()->targetFiles([InstallSkillFixtures::alpha()]);
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
+        $index = $this->findByPath($files, '.claude/CLAUDE-WAASEYAA.md');
+
+        self::assertNotNull($alpha);
+        self::assertNotNull($index);
+        self::assertStringContainsString('waaseyaa:bimaaji:source-inventory sha256=', $alpha->content);
+        self::assertStringContainsString(InstallSkillFixtures::alpha()->sourceSha256, $index->content);
     }
 
     #[Test]
@@ -208,7 +228,7 @@ final class ClaudeClientTransformerTest extends TestCase
         self::assertNotNull($capabilities);
         self::assertTrue($capabilities->requiresFrontmatterAtByteZero);
 
-        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $files = new ClaudeClientTransformer()->targetFiles([InstallSkillFixtures::alpha()]);
         $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
 
         self::assertNotNull($alpha);

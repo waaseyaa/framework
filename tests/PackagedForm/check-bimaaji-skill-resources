@@ -22,7 +22,8 @@
 # an earlier revision of this proof passed — "12 written" — while producing
 # files Claude Code would never load.
 #
-# Proofs, in order: install from installed resources; idempotent re-run;
+# Proofs, in order: install from installed resources; packaged Codex/Claude
+# inventory, source-hash, and byte parity with concise root guidance; idempotent re-run;
 # marker-bounded refresh; prune of an upstream removal; neutralisation of a
 # retired target the consumer has edited; a look-alike file the ownership
 # manifest does not claim staying untouched; corrupt- and missing-resource
@@ -36,6 +37,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-bimaaji-skills.XXXXXX")"
 source_root="$work/source"
 consumer="$work/consumer"
+devtool_consumer="$work/devtool-consumer"
 
 composer_bin="${COMPOSER_BIN:-}"
 if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
@@ -106,22 +108,37 @@ shipped="$(find "$resources" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr
 [[ "$shipped" -gt 0 ]] || fail "No <skill-id>/SKILL.md documents inside $resources."
 printf 'Installed package ships %s Agent Skill documents.\n' "$shipped"
 
+# Canonical guidance is portable source, not a snapshot of one maintainer's
+# workstation. Machine-specific checkout paths would be copied byte-for-byte
+# into every supported client's generated output.
+if grep -R -En -- '(/home/[^/]+/|/Users/[^/]+/|/mnt/[A-Za-z]/Users/[^/]+/|[A-Za-z]:\\Users\\[^\\]+\\|/workspaces/[^/]+/|/builds/[^/]+/)' "$resources" \
+        >"$work/machine-paths.out"; then
+    cat "$work/machine-paths.out" >&2
+    fail 'A packaged Agent Skill contains a machine-specific absolute path.'
+fi
+
 if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
     cat "$work/install-init.out" >&2
     fail 'The governed installation phase failed on the packaged-form consumer.'
 fi
 
 # 1. The install succeeds from installed package resources alone.
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,cursor --force ) \
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,codex,cursor,copilot,gemini,windsurf,junie --force ) \
         >"$work/install.out" 2>&1; then
     cat "$work/install.out" >&2
     fail 'bimaaji:install failed from a packaged consumer.'
 fi
 grep -Fq 'Client claude:' "$work/install.out"
+grep -Fq 'Client codex:' "$work/install.out"
 grep -Fq 'Client cursor:' "$work/install.out"
+grep -Fq 'Client copilot:' "$work/install.out"
+grep -Fq 'Client gemini:' "$work/install.out"
+grep -Fq 'Client windsurf:' "$work/install.out"
+grep -Fq 'Client junie:' "$work/install.out"
 
 [[ -f "$consumer/.cursorrules" ]] || fail 'bimaaji:install wrote no .cursorrules.'
 [[ -f "$consumer/.claude/CLAUDE-WAASEYAA.md" ]] || fail 'bimaaji:install wrote no Claude index.'
+[[ -f "$consumer/AGENTS.md" ]] || fail 'bimaaji:install wrote no Codex AGENTS.md index.'
 
 # Claude Code discovers a project skill ONLY at
 # `.claude/skills/<skill-name>/SKILL.md` — the command name comes from the
@@ -154,6 +171,96 @@ while IFS= read -r skill_id; do
         || fail "$target carries no managed-region marker."
 done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 
+# Every canonical body appears exactly once in each supported client's
+# installed output. Per-skill clients get one file per source; consolidated
+# clients get one file containing the same full inventory. This assertion is
+# content-based, so a duplicate/missing body cannot hide behind a correct file
+# count or a plausible index.
+verify_client_inventory() {
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    $consumer = $argv[1];
+    $resources = $argv[2];
+    $skills = (new Waaseyaa\Bimaaji\Install\SkillSetParser($resources))->parse();
+    $clientDocuments = [
+        "claude" => glob($consumer . "/.claude/skills/*/SKILL.md") ?: [],
+        "codex" => glob($consumer . "/.agents/skills/*/SKILL.md") ?: [],
+        "cursor" => [$consumer . "/.cursorrules"],
+        "copilot" => [$consumer . "/.github/copilot-instructions.md"],
+        "gemini" => [$consumer . "/GEMINI.md"],
+        "windsurf" => [$consumer . "/.windsurfrules"],
+        "junie" => [$consumer . "/.junie/guidelines.md"],
+    ];
+    foreach ($skills as $skill) {
+        foreach ($clientDocuments as $client => $documents) {
+            if ($documents === []) {
+                fwrite(STDERR, sprintf("Client %s has no installed output documents.\n", $client));
+                exit(1);
+            }
+            $occurrences = 0;
+            foreach ($documents as $path) {
+                if (!is_file($path)) {
+                    fwrite(STDERR, sprintf("Client %s has no installed target %s.\n", $client, $path));
+                    exit(1);
+                }
+                $occurrences += substr_count((string) file_get_contents($path), trim($skill->body));
+            }
+            if ($occurrences !== 1) {
+                fwrite(STDERR, sprintf("Client %s contains skill %s body %d times; expected exactly once.\n", $client, $skill->id, $occurrences));
+                exit(1);
+            }
+        }
+    }
+' "$consumer" "$resources"
+}
+
+verify_client_inventory
+mapfile -t installed_codex_skills < <(find "$consumer/.agents/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md | sort)
+[[ "${#installed_codex_skills[@]}" -ge 2 ]] \
+    || fail 'Need at least two installed Codex skills for the duplicate-body negative control.'
+cp "${installed_codex_skills[1]}" "$work/second-codex-skill.bak"
+cat "${installed_codex_skills[0]}" >> "${installed_codex_skills[1]}"
+if verify_client_inventory >"$work/duplicate-body.out" 2>&1; then
+    fail 'The exact-once inventory check accepted a duplicate body in another Codex skill file.'
+fi
+grep -Fq 'body 2 times; expected exactly once' "$work/duplicate-body.out" \
+    || { cat "$work/duplicate-body.out" >&2; fail 'The exact-once negative control failed for an unexpected reason.'; }
+mv "$work/second-codex-skill.bak" "${installed_codex_skills[1]}"
+verify_client_inventory
+
+# Codex must receive the exact same packaged inventory as project-local
+# Agent Skills, without reading any monorepo path. For each canonical source
+# id, both clients get exactly one target, the target bytes match, and both
+# concise indexes name the sha256 of the raw installed source.
+codex_skill_files="$(find "$consumer/.agents/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' | wc -l | tr -d ' ')"
+[[ "$codex_skill_files" -eq "$shipped" ]] \
+    || fail "Expected $shipped Codex skill directories each holding SKILL.md, found $codex_skill_files."
+
+if find "$consumer/.agents/skills" -maxdepth 1 -type f -name '*.md' -print -quit | grep -q .; then
+    fail 'A flat .md sits directly in .agents/skills/; Codex does not discover that layout.'
+fi
+
+while IFS= read -r skill_id; do
+    source="$resources/$skill_id/SKILL.md"
+    claude_target="$consumer/.claude/skills/waaseyaa-$skill_id/SKILL.md"
+    codex_target="$consumer/.agents/skills/waaseyaa-$skill_id/SKILL.md"
+    [[ -f "$codex_target" ]] || fail "No Codex SKILL.md for shipped skill $skill_id."
+    cmp -s "$claude_target" "$codex_target" \
+        || fail "Claude and Codex received different bytes for shipped skill $skill_id."
+    source_sha256="$(sha256sum "$source" | cut -d ' ' -f 1)"
+    grep -Fq "$source_sha256" "$consumer/.claude/CLAUDE-WAASEYAA.md" \
+        || fail "Claude index omits the installed source hash for $skill_id."
+    grep -Fq "$source_sha256" "$consumer/AGENTS.md" \
+        || fail "Codex index omits the installed source hash for $skill_id."
+done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
+# The root guidance is an index, never the detailed body. This ceiling is
+# deliberately far below the historical ~116 KiB flattened AGENTS.md and
+# leaves ample room for the current packaged inventory to grow.
+agents_bytes="$(wc -c < "$consumer/AGENTS.md" | tr -d ' ')"
+[[ "$agents_bytes" -le 16384 ]] \
+    || fail "Codex AGENTS.md is $agents_bytes bytes; expected a concise index no larger than 16384 bytes."
+
 first_skill_id="$(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | head -1)"
 grep -Fq '<!-- waaseyaa:bimaaji:install BEGIN -->' "$consumer/.cursorrules"
 grep -Fq '<!-- waaseyaa:bimaaji:install END -->' "$consumer/.cursorrules"
@@ -164,6 +271,10 @@ manifest="$consumer/.waaseyaa/bimaaji-install.json"
 [[ -f "$manifest" ]] || fail "bimaaji:install wrote no ownership manifest at $manifest."
 grep -Fq ".claude/skills/waaseyaa-$first_skill_id/SKILL.md" "$manifest" \
     || fail 'The ownership manifest does not record the Claude skill targets.'
+grep -Fq ".agents/skills/waaseyaa-$first_skill_id/SKILL.md" "$manifest" \
+    || fail 'The ownership manifest does not record the Codex skill targets.'
+grep -Fq 'AGENTS.md' "$manifest" \
+    || fail 'The ownership manifest does not record the Codex guidance target.'
 grep -Fq '.cursorrules' "$manifest" \
     || fail 'The ownership manifest does not record the cursor target.'
 
@@ -295,3 +406,274 @@ fi
 
 printf 'Bimaaji packaged skill-resource proof passed.\n'
 printf 'Candidate: %s\n' "$candidate"
+
+# 9. The sync tool is a development dependency in a minimal consumer. This
+#    is intentionally a second consumer: the full waaseyaa/framework package
+#    includes Bimaaji runtime introspection, so using the first consumer would
+#    make `--no-dev` a cosmetic flag rather than evidence for #2660's
+#    development-tool boundary. Start from the real skeleton so the governed
+#    configuration-authority files are identical to a supported consumer,
+#    then narrow only its application code and dependency graph.
+mkdir -p "$devtool_consumer"
+cp -R "$source_root/skeleton/." "$devtool_consumer/"
+rm -f "$devtool_consumer/composer.lock" "$devtool_consumer/composer.local.json.example"
+rm -rf "$devtool_consumer/src" "$devtool_consumer/tests"
+mkdir -p "$devtool_consumer/storage/framework" "$devtool_consumer/storage/files" "$devtool_consumer/config/sync"
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["name"] = "waaseyaa/bimaaji-devtool-consumer";
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    unset($composer["require"]["waaseyaa/framework"]);
+    $composer["require"]["waaseyaa/core"] = "*";
+    $composer["require"]["waaseyaa/cli"] = "*";
+    $composer["minimum-stability"] = "dev";
+    $composer["prefer-stable"] = true;
+    unset(
+        $composer["autoload"],
+        $composer["autoload-dev"],
+        $composer["require-dev"],
+        $composer["extra"]["merge-plugin"],
+        $composer["extra"]["waaseyaa"],
+        $composer["scripts"],
+    );
+    $composer["require-dev"] = ["waaseyaa/ai-development" => "*"];
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$devtool_consumer/composer.json" "$source_root"
+
+devtool_app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/bimaaji-devtool.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$devtool_app_secret" "$devtool_consumer" "$devtool_consumer" > "$devtool_consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$devtool_consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/devtool-composer.out" 2>&1; then
+    tail -100 "$work/devtool-composer.out" >&2
+    fail 'The minimal development-tool consumer could not install the candidate packages.'
+fi
+
+[[ ! -d "$devtool_consumer/src" ]] \
+    || fail 'The development-tool consumer unexpectedly retained application source.'
+[[ -d "$devtool_consumer/vendor/waaseyaa/bimaaji" ]] \
+    || fail 'The development plane did not bring in the Bimaaji sync tool.'
+[[ ! -L "$devtool_consumer/vendor/waaseyaa/bimaaji" ]] \
+    || fail 'The development-tool proof requires copied Bimaaji package bytes.'
+php -r '
+    $lock = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $runtime = array_column($lock["packages"] ?? [], "name");
+    $development = array_column($lock["packages-dev"] ?? [], "name");
+    if (in_array("waaseyaa/bimaaji", $runtime, true)) {
+        fwrite(STDERR, "waaseyaa/bimaaji entered the minimal consumer runtime closure before --no-dev.\n");
+        exit(1);
+    }
+    if (!in_array("waaseyaa/bimaaji", $development, true)) {
+        fwrite(STDERR, "waaseyaa/bimaaji is not recorded in the development closure.\n");
+        exit(1);
+    }
+    if (!in_array("waaseyaa/ai-development", $development, true)) {
+        fwrite(STDERR, "waaseyaa/ai-development is not recorded in the development closure.\n");
+        exit(1);
+    }
+' "$devtool_consumer/composer.lock"
+
+# Command discovery is intentionally fail-closed until the consumer has
+# completed the governed configuration-authority activation phase.
+if ! ( cd "$devtool_consumer" && \
+        php vendor/bin/waaseyaa install:init ) >"$work/devtool-install-init.out" 2>&1; then
+    cat "$work/devtool-install-init.out" >&2
+    fail 'The governed installation phase failed on the development-tool consumer.'
+fi
+grep -Fq 'Installation is complete.' "$work/devtool-install-init.out" \
+    || { cat "$work/devtool-install-init.out" >&2; fail 'The development-tool consumer did not complete install:init.'; }
+
+# Resolve every Waaseyaa CLI command referenced by the canonical skills
+# against the real command catalogue of the installed development plane.
+if ! ( cd "$devtool_consumer" && \
+        php vendor/bin/waaseyaa list --raw ) >"$work/devtool-commands.out" 2>&1; then
+    cat "$work/devtool-commands.out" >&2
+    fail 'The installed development plane could not enumerate its CLI commands.'
+fi
+php -r '
+    [$skillsDirectory, $cataloguePath] = array_slice($argv, 1);
+    $available = [];
+    foreach (file($cataloguePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        $name = preg_split("/\\s+/", trim($line), 2)[0] ?? "";
+        if ($name !== "") {
+            $available[$name] = true;
+        }
+    }
+    $referenced = [];
+    foreach (glob($skillsDirectory . "/*/SKILL.md") ?: [] as $path) {
+        $body = (string) file_get_contents($path);
+        preg_match_all("~(?:^|[`\\s])(?:\\./)?bin/waaseyaa\\s+([a-z][a-z0-9:_-]*)~m", $body, $matches);
+        foreach ($matches[1] as $command) {
+            $referenced[$command] = $path;
+        }
+    }
+    if ($referenced === []) {
+        fwrite(STDERR, "The executable-contract check found no bin/waaseyaa command references.\n");
+        exit(1);
+    }
+    ksort($referenced);
+    foreach ($referenced as $command => $source) {
+        if (!isset($available[$command])) {
+            fwrite(STDERR, sprintf("Skill %s references unavailable command bin/waaseyaa %s.\n", basename(dirname($source)), $command));
+            exit(1);
+        }
+    }
+' "$devtool_consumer/vendor/waaseyaa/bimaaji/resources/skills" "$work/devtool-commands.out"
+
+if ! ( cd "$devtool_consumer" && \
+        php vendor/bin/waaseyaa bimaaji:install --client=claude,codex --force ) \
+        >"$work/devtool-install.out" 2>&1; then
+    cat "$work/devtool-install.out" >&2
+    fail 'The minimal development-tool consumer could not execute bimaaji:install.'
+fi
+
+devtool_manifest="$devtool_consumer/.waaseyaa/bimaaji-install.json"
+[[ -f "$devtool_manifest" ]] || fail 'The development-tool sync wrote no ownership manifest.'
+
+# The manifest is the shipped verification evidence today. Validate every
+# recorded digest against the consumer bytes, then prove the check detects a
+# real drift before a marker-bounded update reconciles it. This does not add
+# or claim the ai:verify orchestration owned by #2664.
+verify_devtool_manifest() {
+    php -r '
+        [$root, $manifestPath] = array_slice($argv, 1);
+        $manifest = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+        if (($manifest["schema_version"] ?? null) !== 1 || !is_array($manifest["clients"] ?? null)) {
+            fwrite(STDERR, "Invalid Bimaaji ownership manifest.\n");
+            exit(1);
+        }
+        $root = realpath($root);
+        if ($root === false) {
+            fwrite(STDERR, "Cannot resolve the development-tool consumer root.\n");
+            exit(1);
+        }
+        foreach ($manifest["clients"] as $client) {
+            foreach ($client["targets"] ?? [] as $target) {
+                $relative = $target["path"] ?? null;
+                $recorded = $target["sha1"] ?? null;
+                if (!is_string($relative) || !is_string($recorded)) {
+                    fwrite(STDERR, "Malformed Bimaaji target record.\n");
+                    exit(1);
+                }
+                $segments = preg_split("~[\\\\/]~", $relative);
+                if ($relative === "" || str_starts_with($relative, "/") || str_starts_with($relative, "\\")
+                    || preg_match("~^[A-Za-z]:~", $relative) === 1 || in_array("..", $segments ?: [], true)) {
+                    fwrite(STDERR, sprintf("Unsafe Bimaaji manifest target: %s\n", $relative));
+                    exit(1);
+                }
+                $path = $root . DIRECTORY_SEPARATOR . $relative;
+                $resolved = realpath($path);
+                if ($resolved === false || !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR) || is_link($path)) {
+                    fwrite(STDERR, sprintf("Bimaaji manifest target escapes or links outside generated state: %s\n", $relative));
+                    exit(1);
+                }
+                if (!is_file($resolved) || !hash_equals($recorded, sha1_file($resolved))) {
+                    fwrite(STDERR, sprintf("Bimaaji generated-state drift: %s\n", $relative));
+                    exit(1);
+                }
+            }
+        }
+    ' "$devtool_consumer" "$devtool_manifest"
+}
+
+verify_devtool_manifest
+cp "$devtool_manifest" "$work/devtool-manifest.bak"
+printf 'sentinel bytes\n' > "$work/manifest-sentinel.md"
+sentinel_sha1="$(sha1sum "$work/manifest-sentinel.md" | cut -d ' ' -f 1)"
+php -r '
+    [$path, $sha1] = array_slice($argv, 1);
+    $manifest = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $manifest["clients"]["codex"]["targets"][] = ["path" => "../manifest-sentinel.md", "sha1" => $sha1];
+    file_put_contents($path, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$devtool_manifest" "$sentinel_sha1"
+if verify_devtool_manifest >"$work/devtool-containment.out" 2>&1; then
+    fail 'The manifest verifier accepted a target outside the consumer root.'
+fi
+grep -Fq 'Unsafe Bimaaji manifest target: ../manifest-sentinel.md' "$work/devtool-containment.out" \
+    || { cat "$work/devtool-containment.out" >&2; fail 'The manifest containment control failed for an unexpected reason.'; }
+[[ "$(sha1sum "$work/manifest-sentinel.md" | cut -d ' ' -f 1)" == "$sentinel_sha1" ]] \
+    || fail 'The manifest containment control changed the outside sentinel.'
+mv "$work/devtool-manifest.bak" "$devtool_manifest"
+verify_devtool_manifest
+printf '\n## Consumer-owned note\n\nKeep this after update and package removal.\n' >> "$devtool_consumer/AGENTS.md"
+if verify_devtool_manifest >"$work/devtool-drift.out" 2>&1; then
+    fail 'The manifest verifier accepted a drifted generated target.'
+fi
+grep -Fq 'Bimaaji generated-state drift: AGENTS.md' "$work/devtool-drift.out" \
+    || { cat "$work/devtool-drift.out" >&2; fail 'The drift check did not identify AGENTS.md.'; }
+
+if ! ( cd "$devtool_consumer" && \
+        php vendor/bin/waaseyaa bimaaji:install --client=codex ) \
+        >"$work/devtool-update.out" 2>&1; then
+    cat "$work/devtool-update.out" >&2
+    fail 'The development-tool update failed to reconcile generated state.'
+fi
+grep -Fq 'Keep this after update and package removal.' "$devtool_consumer/AGENTS.md" \
+    || fail 'The marker-bounded update dropped consumer-authored guidance.'
+verify_devtool_manifest
+
+# Package uninstall is deliberately different from generated-output
+# uninstall: removing the dev dependency makes the sync command unavailable,
+# while portable generated guidance and its human-authored surroundings stay
+# in the project. Removal/reconciliation of generated state belongs to #2664.
+if ! "$composer_bin" install --working-dir="$devtool_consumer" --no-dev \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/devtool-no-dev.out" 2>&1; then
+    tail -100 "$work/devtool-no-dev.out" >&2
+    fail 'composer install --no-dev failed for the development-tool consumer.'
+fi
+
+[[ ! -e "$devtool_consumer/vendor/waaseyaa/bimaaji" ]] \
+    || fail 'composer install --no-dev left waaseyaa/bimaaji in the vendor tree.'
+php -r '
+    $installed = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $packages = $installed["packages"] ?? $installed;
+    foreach ($packages as $package) {
+        if (in_array(($package["name"] ?? null), ["waaseyaa/bimaaji", "waaseyaa/ai-development"], true)) {
+            fwrite(STDERR, sprintf("The --no-dev installed package graph still contains %s.\n", $package["name"]));
+            exit(1);
+        }
+    }
+' "$devtool_consumer/vendor/composer/installed.json"
+
+# A dev-to-production transition must not leave the compiled package manifest
+# referring to a provider whose package was just removed. Boot the real CLI
+# again and prove the Bimaaji commands are absent rather than merely
+# unautoloadable.
+if ! ( cd "$devtool_consumer" && \
+        php vendor/bin/waaseyaa list --raw ) >"$work/devtool-no-dev-commands.out" 2>&1; then
+    cat "$work/devtool-no-dev-commands.out" >&2
+    fail 'The development-tool consumer could not boot after composer install --no-dev.'
+fi
+if grep -Eq '^bimaaji:|^graph:dump([[:space:]]|$)' "$work/devtool-no-dev-commands.out"; then
+    cat "$work/devtool-no-dev-commands.out" >&2
+    fail 'A Bimaaji CLI command remained registered after composer install --no-dev.'
+fi
+
+[[ -f "$devtool_consumer/AGENTS.md" ]] || fail 'Package removal deleted generated Codex guidance.'
+grep -Fq 'Keep this after update and package removal.' "$devtool_consumer/AGENTS.md" \
+    || fail 'Package removal dropped consumer-authored guidance.'
+[[ -n "$(find "$devtool_consumer/.agents/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md -print -quit)" ]] \
+    || fail 'Package removal deleted the portable generated Codex skills.'
+[[ -f "$devtool_manifest" ]] || fail 'Package removal deleted generated-state provenance.'
+verify_devtool_manifest
+
+# bimaaji:install writes guidance, skills, and relative-path provenance only.
+# It must not leave client transport configuration or an absolute machine path.
+for machine_config in \
+    .mcp.json .claude/settings.json .claude/settings.local.json \
+    .cursor/mcp.json .codex/config.toml; do
+    [[ ! -e "$devtool_consumer/$machine_config" ]] \
+        || fail "bimaaji:install generated machine-specific configuration at $machine_config."
+done
+if grep -R -Fq -- "$devtool_consumer" \
+        "$devtool_consumer/AGENTS.md" "$devtool_consumer/.agents" \
+        "$devtool_consumer/.claude" "$devtool_manifest"; then
+    fail 'Generated Bimaaji state embeds the disposable consumer absolute path.'
+fi
+
+printf 'Bimaaji development-tool lifecycle proof passed.\n'

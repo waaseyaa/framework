@@ -67,6 +67,29 @@ final class BimaajiInstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function warnsWhenSkillsAreRequestedForAClientThatCannotRepresentThem(): void // #2660 Part B
+    {
+        $tester = $this->tester();
+        $tester->execute(['--client=cursor', '--features=guidelines,skills', '--force']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getOutput());
+        self::assertStringContainsString(
+            'Warning: skills for client "cursor" are folded into .cursorrules',
+            $tester->getOutput(),
+        );
+    }
+
+    #[Test]
+    public function doesNotWarnForAClientThatSupportsPerSkillDeliveryOrWhenSkillsWereNotRequested(): void // #2660 Part B
+    {
+        $tester = $this->tester();
+        $tester->execute(['--client=cursor', '--features=guidelines', '--force']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getOutput());
+        self::assertStringNotContainsString('Warning:', $tester->getOutput());
+    }
+
+    #[Test]
     public function anIdenticalTargetCountsAsUnchanged(): void
     {
         $this->tester()->execute(['--client=cursor', '--force']);

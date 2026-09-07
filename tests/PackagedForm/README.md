@@ -28,10 +28,12 @@ installed bytes rather than a link back into the checkout, and drives
 `bin/waaseyaa bimaaji:install` from there. It seeds no skill fixtures —
 everything the command writes must come from resources shipped inside the
 installed package, which is the whole point of the proof. It also asserts
-the consumer has no project-root `skills/` directory, that a second run is
-a no-op, that hand-authored content around the managed region survives a
-refresh, and that deleting or corrupting the installed resources yields
-the matching missing-vs-corrupt diagnostic.
+the consumer has no project-root `skills/` directory; Codex and Claude
+receive the same skill ids, source hashes, and per-skill bytes; root
+`AGENTS.md` stays within its concise-index budget; a second run is a no-op;
+hand-authored content around the managed region survives a refresh; and
+deleting or corrupting the installed resources yields the matching
+missing-vs-corrupt diagnostic.
 
 `check-s1-sqlite-artifact` covers a separate boundary: it seals the exact
 candidate `waaseyaa/database-legacy` package, installs the archive into an

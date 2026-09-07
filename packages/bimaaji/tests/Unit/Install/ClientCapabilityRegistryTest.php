@@ -38,15 +38,16 @@ final class ClientCapabilityRegistryTest extends TestCase
     }
 
     #[Test]
-    public function claudeIsTheOnlyPerSkillFileClient(): void
+    public function claudeAndCodexAreTheOnlyPerSkillFileClients(): void // #2660 Part B
     {
         $registry = ClientCapabilityRegistry::default();
+        $expectedSkillDirectory = ['claude' => '.claude/skills', 'codex' => '.agents/skills'];
 
         foreach ($registry->all() as $capabilities) {
-            if ($capabilities->clientId === 'claude') {
+            if (isset($expectedSkillDirectory[$capabilities->clientId])) {
                 self::assertSame(SkillDeliveryMode::PerSkillFile, $capabilities->skillDelivery);
                 self::assertTrue($capabilities->requiresFrontmatterAtByteZero);
-                self::assertSame('.claude/skills', $capabilities->skillDirectory);
+                self::assertSame($expectedSkillDirectory[$capabilities->clientId], $capabilities->skillDirectory);
                 self::assertSame('waaseyaa-', $capabilities->skillIdPrefix);
             } else {
                 self::assertSame(
