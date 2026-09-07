@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
+use Waaseyaa\CLI\Command\Make\AbstractMakeHandler;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\WorkflowDefinitionEmitter;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
@@ -34,7 +35,7 @@ use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowTransition;
  *
  * @api
  */
-final class WorkflowScaffoldHandler
+final class WorkflowScaffoldHandler extends AbstractMakeHandler
 {
     public function execute(SymfonyCommandIO $io): int
     {
@@ -47,9 +48,28 @@ final class WorkflowScaffoldHandler
             return 2;
         }
 
+        if ($this->validateMachineIdentity($io, $id, 'id') === 2) {
+            return 2;
+        }
+        if ($this->validateMachineIdentity($io, $entityType, 'entity-type') === 2) {
+            return 2;
+        }
+        if ($this->validateMachineIdentity($io, $bundle, 'bundle') === 2) {
+            return 2;
+        }
+
         /** @var array<mixed> $rawStates */
         $rawStates = (array) ($io->option('state') ?? []);
         $stateIds = $this->parseStateIds($rawStates);
+        if ($stateIds === null) {
+            $io->error('Invalid --state value: each state id must be a valid machine name.');
+            return 2;
+        }
+        foreach ($stateIds as $stateId) {
+            if ($this->validateMachineIdentity($io, $stateId, 'state') === 2) {
+                return 2;
+            }
+        }
 
         /** @var array<mixed> $rawTransitions */
         $rawTransitions = (array) ($io->option('transition') ?? []);
@@ -72,6 +92,9 @@ final class WorkflowScaffoldHandler
         }
 
         $initialStateOption = trim((string) ($io->option('initial-state') ?? ''));
+        if ($initialStateOption !== '' && $this->validateMachineIdentity($io, $initialStateOption, 'initial-state') === 2) {
+            return 2;
+        }
         $initialState = $initialStateOption !== '' ? $initialStateOption : $stateIds[0];
 
         if (!in_array($initialState, $stateIds, true)) {
@@ -86,6 +109,17 @@ final class WorkflowScaffoldHandler
 
         $transitionObjects = [];
         foreach ($transitions as $transition) {
+            if ($this->validateMachineIdentity($io, $transition['id'], 'transition id') === 2) {
+                return 2;
+            }
+            if ($this->validateMachineIdentity($io, $transition['to'], 'transition to-state') === 2) {
+                return 2;
+            }
+            foreach ($transition['from'] as $fromStateId) {
+                if ($this->validateMachineIdentity($io, $fromStateId, 'transition from-state') === 2) {
+                    return 2;
+                }
+            }
             if (isset($transitionObjects[$transition['id']])) {
                 $io->error(sprintf('Duplicate transition id "%s" is ambiguous.', $transition['id']));
                 return 2;
@@ -128,16 +162,29 @@ final class WorkflowScaffoldHandler
         return 0;
     }
 
+    private function validateMachineIdentity(SymfonyCommandIO $io, string $value, string $what): int
+    {
+        try {
+            $this->validateMachineName($value, $what);
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 2;
+        }
+
+        return 0;
+    }
+
     /**
      * @param array<mixed> $rawStates
-     * @return list<string>
+     * @return list<string>|null null when a non-string state value was supplied
      */
-    private function parseStateIds(array $rawStates): array
+    private function parseStateIds(array $rawStates): ?array
     {
         $states = [];
         foreach ($rawStates as $state) {
             if (!is_string($state)) {
-                continue;
+                return null;
             }
             $normalized = strtolower(trim($state));
             if ($normalized !== '') {

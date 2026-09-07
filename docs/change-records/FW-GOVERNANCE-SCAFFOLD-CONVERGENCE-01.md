@@ -16,7 +16,13 @@ Previously emitted policy methods did not satisfy their declared interface. Call
 
 ## Evidence
 
-Existing blueprint golden output remains unchanged. Root focused verification after canonical mapping repair passed WorkflowDefinitionEmitterTest and WorkflowScaffoldHandlerTest: 16 tests, 52 assertions. Reflection verified both changed runtime classes loaded from this candidate worktree. Earlier duplicate-transition negative control failed before refusal and passed afterward (9 tests, 32 assertions). These observations are checkpoint evidence, not final qualification.
+Existing blueprint golden output remains unchanged. Focused verification on this candidate after bounded review-item closure:
+
+- `AccessPolicyEmitterTest`, `MakePolicyCommandTest`, `WorkflowDefinitionEmitterTest`, `WorkflowScaffoldHandlerTest`: **43 tests, 177 assertions** (focused PHPUnit, `--no-coverage`).
+- `renderPolicyClass()` convergence with `emit()` for permission-only policies is covered in `AccessPolicyEmitterTest::renderPolicyClassConvergesWithEmitForPermissionOnlyPolicies`; manual `make:policy` output carries `make:policy` provenance, not `ApplicationBlueprintCompiler`.
+- `WorkflowScaffoldHandler` rejects malformed machine identities for `--id`, `--entity-type`, `--bundle`, `--state`, `--initial-state`, and transition ids/from-states through `AbstractMakeHandler::validateMachineName()`.
+
+Reflection verified both changed runtime classes loaded from this candidate worktree. These observations are checkpoint evidence, not final qualification.
 
 ## Remaining acceptance and ownership
 

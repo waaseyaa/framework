@@ -197,6 +197,96 @@ final class WorkflowScaffoldHandlerTest extends TestCase
     }
 
     #[Test]
+    public function itRejectsMalformedMachineNamesForRequiredOptions(): void
+    {
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer());
+
+        $tester->execute([
+            '--id=bad id',
+            '--entity-type=node',
+            '--bundle=article',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid id', $tester->getStderr());
+    }
+
+    #[Test]
+    public function itRejectsMalformedMachineNamesForEntityTypeAndBundle(): void
+    {
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer());
+
+        $tester->execute([
+            '--id=my_workflow',
+            '--entity-type=bad type',
+            '--bundle=article',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid entity-type', $tester->getStderr());
+
+        $tester->execute([
+            '--id=my_workflow',
+            '--entity-type=node',
+            '--bundle=bad/bundle',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid bundle', $tester->getStderr());
+    }
+
+    #[Test]
+    public function itRejectsMalformedMachineNamesForStatesTransitionsAndInitialState(): void
+    {
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer());
+
+        $tester->execute([
+            '--id=my_workflow',
+            '--entity-type=node',
+            '--bundle=article',
+            '--state=bad state',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid state', $tester->getStderr());
+
+        $tester->execute([
+            '--id=my_workflow',
+            '--entity-type=node',
+            '--bundle=article',
+            '--state=draft',
+            '--initial-state=bad state',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid initial-state', $tester->getStderr());
+
+        $tester->execute([
+            '--id=my_workflow',
+            '--entity-type=node',
+            '--bundle=article',
+            '--state=draft',
+            '--state=published',
+            '--transition=bad id:draft:published:publish article content',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid transition id', $tester->getStderr());
+
+        $tester->execute([
+            '--id=my_workflow',
+            '--entity-type=node',
+            '--bundle=article',
+            '--state=draft',
+            '--state=published',
+            '--transition=publish:bad from:published:publish article content',
+        ]);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Invalid transition from-state', $tester->getStderr());
+    }
+
+    #[Test]
     public function itRejectsATransitionReferencingAnUndeclaredState(): void
     {
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer());
