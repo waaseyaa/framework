@@ -8,6 +8,8 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Bimaaji\\Install\\ManifestReadStatus', 'disposition' => 'public', 'ref' => '#2664'],
+        ['fqcn' => 'Waaseyaa\\Bimaaji\\Install\\VerifyFindingCode', 'disposition' => 'public', 'ref' => '#2664'],
         ['fqcn' => 'Waaseyaa\\Bimaaji\\Graph\\GraphSectionProviderInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Bimaaji\\Install\\ClientTransformerInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Bimaaji\\Install\\Client\\AbstractSingleFileClientTransformer', 'disposition' => 'public'],

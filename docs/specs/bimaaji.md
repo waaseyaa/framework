@@ -195,3 +195,7 @@ session middleware + role/policy stack) owns capability grants.
 
 For full transport, authentication, and per-request bridge construction
 details — see `docs/specs/mcp-endpoint.md` § "Bimaaji MCP bridge".
+
+## Read-only agent guidance verification
+
+`bin/waaseyaa ai:verify` checks recorded Bimaaji agent guidance using the canonical installer transformers and managed-region rules. It reports schema-1 whole-file evidence separately from current managed-region freshness, preserves human outer edits, and refuses missing, malformed, unsupported or escaping evidence. `--client` selects recorded clients; an uninstalled or unknown selection cannot succeed by checking nothing. See [Bimaaji install and verification](bimaaji-install.md) and [FW-AI-VERIFY-01](../change-records/FW-AI-VERIFY-01.md). Upgrade, update/apply, removal and Composer-hook orchestration remain separate work under #2664.

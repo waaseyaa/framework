@@ -890,3 +890,7 @@ options and output shapes replace the previously invalid policy interface and
 non-hydratable workflow JSON. See
 [FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01](../change-records/FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01.md)
 for migration, acceptance and remaining packaged proof.
+
+### Optional agent-guidance verifier transport
+
+`AiVerifyCommand` is a transport-only adapter supplied a typed callback by the optional Bimaaji provider. CLI owns option normalization and output; Bimaaji owns verification, client policy and the shared human/JSON report. CLI adds no runtime dependency on Bimaaji. See [bimaaji-install.md](bimaaji-install.md) for `ai:verify` semantics.
