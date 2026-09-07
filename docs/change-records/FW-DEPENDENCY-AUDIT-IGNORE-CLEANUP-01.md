@@ -4,11 +4,11 @@ Forge mirror: waaseyaa/framework#2969 (cleanup ledger CL-17,
 `docs/audits/cleanup-backlog.md`). Read-only audit precursor:
 `waaseyaa/framework#2961` verification-cost audit session.
 
-Status: candidate prepared, **uncommitted**. Session
-`48b2ab6c-f59c-409a-9b9d-9750198d9cd8`. Worktree
-`/home/fsd42/dev/waaseyaa-worktrees/fw-cleanup-cl16-cl17`, branch
-`chore/cl17-dependency-audit-stale-ignores`, base HEAD
-`b7d83958c184d30180b0df55010a49c9dce9cc34`.
+Published candidate checkpoint:
+`f3835ac698bdfce9c418333434a5ce4824129bb0`, prepared from base
+`b7d83958c184d30180b0df55010a49c9dce9cc34`. Evidence session:
+`48b2ab6c-f59c-409a-9b9d-9750198d9cd8`. Publication does not imply merge
+or full qualification.
 
 ## Problem
 
@@ -157,9 +157,10 @@ Not changed, not attempted: no dependency add/remove/require-move in any
 (#2966, #2964, #2970) touched; the job stays warn-only, outside
 `composer verify`, per #2969.
 
-## Verification performed this session
+## Published checkpoint verification
 
-`bash bin/audit-composer-deps` run twice (baseline, after) as authorized —
-no test suite, no dependency install, no analyzer re-run beyond those two.
-Syntax/diff/changelog validation (not the analyzer, not a suite) is the only
-remaining check before handoff, per the authorizing instruction.
+`bash bin/audit-composer-deps` ran twice (baseline, after) as recorded above;
+no test suite, dependency install, or analyzer rerun followed. PHP syntax,
+diff/changelog validation, portable-path and PHP CS Fixer commit hooks, and the
+normal 41/41 pre-push gates passed before publication. Full qualification
+remains separate from this checkpoint.
