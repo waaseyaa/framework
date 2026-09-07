@@ -1,0 +1,39 @@
+name: deploy-complete
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          rsync -av \
+            --exclude='/.agent/' \
+            --exclude='/.agents/' \
+            --exclude='/.amazonq/' \
+            --exclude='/.augment/' \
+            --exclude='/.claude/' \
+            --exclude='/.codex/' \
+            --exclude='/.cursor/' \
+            --exclude='/.env' \
+            --exclude='/.env.*' \
+            --exclude='/.gemini/' \
+            --exclude='/.kilocode/' \
+            --exclude='/.kiro/' \
+            --exclude='/.mcp.json' \
+            --exclude='/.opencode/' \
+            --exclude='/.qwen/' \
+            --exclude='/.roo/' \
+            --exclude='/.vibe/' \
+            --exclude='/.waaseyaa-golden-sha' \
+            --exclude='/.waaseyaa/' \
+            --exclude='/.windsurf/' \
+            --exclude='/**/.env' \
+            --exclude='/**/.env.*' \
+            --exclude='/**/.mcp.json' \
+            --exclude='/composer.local.json' \
+            --exclude='/storage/*.sqlite' \
+            --exclude='/storage/files/' \
+            --exclude='/support-contract-evidence.json' \
+            ./ /tmp/artifact/

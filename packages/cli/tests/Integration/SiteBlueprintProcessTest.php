@@ -183,6 +183,86 @@ final class SiteBlueprintProcessTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/probe.sqlite');
     }
 
+    /**
+     * The reviewed, literal set of paths `complete.yaml` adds on top of
+     * `minimal.yaml` — mirrors
+     * `Waaseyaa\CLI\Tests\Unit\Site\BlueprintExecutionAdmissionTest::COMPLETE_BLUEPRINT_ADDED_PATHS`:
+     * the `person` entity plus every governance emitter's output that
+     * minimal.yaml's empty relationships/permissions/roles/policies/workflows/checks
+     * sections never trigger. Frozen here rather than derived from the
+     * process's own JSON output, so a regression in the additive-delta
+     * computation cannot cancel itself out against a self-referential oracle.
+     *
+     * @var list<string>
+     */
+    private const array COMPLETE_BLUEPRINT_ADDED_PATHS = [
+        'config/sync/workflows.assignments.yml',
+        'src/Access/ApplicationBlueprintPermissions.php',
+        'src/Access/ArticlePolicy.php',
+        'src/Entity/Enum/ArticleStage.php',
+        'src/Entity/Person.php',
+        'src/Provider/ApplicationBlueprintGovernanceServiceProvider.php',
+        'src/Workflow/EditorialWorkflowDefinition.php',
+        'tests/Blueprint/EntityAccessChecksTest.php',
+        'tests/Blueprint/JsonApiGovernanceChecksTest.php',
+        'tests/Blueprint/RolePermissionChecksTest.php',
+        'tests/Blueprint/WorkflowTransitionChecksTest.php',
+    ];
+
+    /**
+     * The real console process compiling the same additive successor
+     * transition proven at the unit level (#2787): apply `minimal.yaml`
+     * under receipt A, then preview and apply `complete.yaml` under a fresh
+     * receipt B, mirroring the exact added-path set, no drops, a
+     * byte-for-byte no-write preview, the durable receipt B evidence, and an
+     * idempotent no-change replay — pinned against reviewed JSON envelopes
+     * so a drift in any of those guarantees fails a byte comparison, not a
+     * hand-rolled assertion.
+     */
+    public function test_additive_successor_blueprint_publishes_the_exact_added_path_set_through_the_cli(): void
+    {
+        $this->writeReceipt();
+        $applied = $this->runInit(['--yes', '--decision-receipt=decision.json']);
+        self::assertSame('applied', $applied['result']['outcome']);
+
+        $this->writeAnswers('complete.yaml', str_repeat('b', 64));
+        $receiptB = $this->writeReceipt();
+
+        $before = $this->snapshot();
+        $planned = $this->runInit(['--dry-run', '--decision-receipt=decision.json']);
+        self::assertSame('planned', $planned['result']['outcome']);
+        self::assertSame(
+            hash('sha256', CanonicalJson::encode($planned['evaluation']['plan']) . "\n"),
+            $planned['evaluation']['plan_digest'],
+        );
+        self::assertSame([], $planned['evaluation']['set_delta']['drops'], 'An additive successor must never drop a recorded path.');
+        self::assertSame(self::COMPLETE_BLUEPRINT_ADDED_PATHS, $planned['evaluation']['set_delta']['adds'], "The console's own additive delta must equal the reviewed literal added-path set.");
+        self::assertSame($before, $this->snapshot(), 'Preview must never write.');
+        $this->assertFixture('changed-planned', $planned);
+
+        $appliedChanged = $this->runInit(['--yes', '--decision-receipt=decision.json']);
+        self::assertSame('applied', $appliedChanged['result']['outcome']);
+        self::assertSame($planned['evaluation']['plan_digest'], $appliedChanged['evaluation']['plan_digest']);
+        self::assertSame($receiptB->digest(), $appliedChanged['receipts'][0]['decision_receipt_id']);
+        foreach (self::COMPLETE_BLUEPRINT_ADDED_PATHS as $path) {
+            self::assertContains($path, $appliedChanged['result']['changed']);
+        }
+        $evidence = json_decode((string) file_get_contents($this->root . '/.waaseyaa/generated.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertEquals(
+            json_decode($receiptB->canonicalJson(), true, flags: JSON_THROW_ON_ERROR),
+            $evidence['application_blueprint']['decision_receipt'],
+            'applied evidence carries the exact canonical receipt B approval, not receipt A.',
+        );
+        $this->assertFixture('changed-applied', $appliedChanged);
+
+        $replayBefore = $this->snapshot();
+        $replay = $this->runInit(['--yes', '--decision-receipt=decision.json']);
+        self::assertSame('no_changes', $replay['result']['outcome']);
+        self::assertSame($receiptB->digest(), $replay['receipts'][0]['decision_receipt_id']);
+        $this->assertFixture('changed-no-changes', $replay);
+        self::assertSame($replayBefore, $this->snapshot());
+    }
+
     /** The golden emitter fixture bytes for a compiled `complete.yaml` artifact path. */
     private function golden(string $path): string
     {

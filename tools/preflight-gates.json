@@ -91,6 +91,14 @@
             "enforced_by": "workflow:ci.yml#run_gate check-distribution-extensions"
         },
         {
+            "id": "check-distribution-exclusion",
+            "alias": "check-distribution-exclusion",
+            "run": "php bin/check-distribution-exclusion",
+            "repair": "edit support/distribution-exclusion-policy-v1.json, then run php bin/check-distribution-exclusion --render and commit the managed surface blocks",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-distribution-exclusion"
+        },
+        {
             "id": "check-local-operator-tool-profile",
             "alias": "check-local-operator-tool-profile",
             "run": "php bin/check-local-operator-tool-profile",
