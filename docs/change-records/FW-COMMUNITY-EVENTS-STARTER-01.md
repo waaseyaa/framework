@@ -1,6 +1,9 @@
 # FW-COMMUNITY-EVENTS-STARTER-01 — packaged governed starter
 
-Status: source candidate; runtime and packaged-consumer acceptance remain open.
+Status: partial implementation checkpoint; local packaged-consumer generation,
+governance, and workflow acceptance passed at exact source head
+`55bed0d69e1d20ff3c126ddaadbc18116eed1357`, while runtime relationship
+existence validation remains open.
 Anchor mirror: waaseyaa/framework#2981.
 Parent: `623679303266812231d09469628b036a43dd3ccc`.
 
@@ -29,6 +32,8 @@ This source-only slice owns:
 - `packages/site-contract/resources/starters/community-events/README.md`;
 - `packages/site-contract/tests/Unit/Starter/CommunityEventsStarterContractTest.php`;
 - `packages/cli/tests/Unit/Site/Blueprint/CommunityEventsStarterCompilationTest.php`;
+- `tests/PackagedForm/check-community-events-starter` and its cleanup roster
+  entry;
 - this record and `changes/unreleased/2981.community-events-starter.added.md`.
 
 It does not change the parser, canonicalizer, compiler, governance engine,
@@ -68,14 +73,40 @@ A consumer must bind it to its reviewed dependency lock before approval or apply
   `workflow_state` policy. Administrator event and Organizer/Venue CRUD grants
   have matching policies rather than role-catalogue-only claims.
 
+## Packaged runtime evidence
+
+The exact clean candidate `55bed0d69e1d20ff3c126ddaadbc18116eed1357`
+was sealed into 79 local Composer artifacts and installed into a disposable
+consumer as `0.1.0-alpha.300`. The installed starter was bound to that
+consumer's exact lock before the canonical approval was issued.
+
+- lock SHA-256: `f00ece9e337b7a782199441336e2be796a1289eb36bd12ed67a3245ee53f5278`;
+- manifest digest: `961ed81b67c05a6958735a7d049ff82ddc46399af88a2a788f6899c925a3b04e`;
+- blueprint digest: `11fdd7b39e34e939496f55b9b9a29bee24b43eecc288e6fb098678d032e36e4f`;
+- plan digest: `15be30bd1ae0bd3c82a83cb434394a3db263ae70b08cb43e16a508046659f305`;
+- decision receipt id: `4f7a74d2d27da655e264961d581641127bb70f51499625b08d1bab980fbe77f6`.
+
+Preview returned `planned` without changing the project snapshot. The matched
+approval applied 26 paths and an unchanged replay returned `no_changes` under
+the same plan and decision identities. Registered generated Event fields named
+real registered Organizer and Venue target definitions; this proves target
+metadata and boot registration, not target-row existence. A sequential real
+`TransitionService` run over generated Event, workflow, and role classes proved
+Draft → Review contributor submission, contributor publication denial from
+Review, and reviewer publication and return. The generated access, JSON API,
+default-deny, role, and workflow tests passed: 45 tests, 135 assertions. Strict
+doctor reported no findings.
+
 ## Remaining #2981 acceptance
 
-This source slice does not close #2981. Still required:
+This checkpoint does not publish a package or close Studio consumer readiness.
+Still required:
 
-- a matched packaged-consumer install using the candidate artifact;
-- replacement of the lock placeholder with the consumer's exact reviewed lock;
-- exact-digest dry-run, approval, apply, reapply, and verification evidence;
-- execution of generated runtime checks proving allowed and denied transitions,
-  relationship integrity, and explicit administrator authority;
+- canonical runtime validation that rejects an Event write when its Organizer
+  or Venue id does not resolve. The artifact consumer currently accepts such a
+  write: its generated JSON API test registers only Event, submits
+  `organizer: 1` and `venue: 1`, and receives `201`. Parser validation of fixture
+  names and runtime field target metadata do not satisfy this criterion;
+- independent review and the repository's governed current-base qualification;
 - consumer adoption evidence, release notes, and separately authorized package
   publication.
