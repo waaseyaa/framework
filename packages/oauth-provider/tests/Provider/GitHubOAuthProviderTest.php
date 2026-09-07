@@ -23,7 +23,7 @@ final class GitHubOAuthProviderTest extends TestCase
         $this->useHttpClient($this->createStub(HttpClientInterface::class));
     }
 
-    private function useHttpClient(HttpClientInterface $httpClient): void
+    private function useHttpClient(HttpClientInterface $httpClient, bool $fetchEmail = true): void
     {
         $this->httpClient = $httpClient;
         $this->provider = new GitHubOAuthProvider(
@@ -31,6 +31,7 @@ final class GitHubOAuthProviderTest extends TestCase
             clientSecret: 'gh-client-secret',
             redirectUri: 'https://example.com/callback',
             httpClient: $this->httpClient,
+            fetchEmail: $fetchEmail,
         );
     }
 
@@ -39,6 +40,15 @@ final class GitHubOAuthProviderTest extends TestCase
     {
         $httpClient = $this->createMock(HttpClientInterface::class);
         $this->useHttpClient($httpClient);
+
+        return $httpClient;
+    }
+
+    /** @return HttpClientInterface&MockObject */
+    private function mockIdentityOnlyHttpClient(): HttpClientInterface
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $this->useHttpClient($httpClient, fetchEmail: false);
 
         return $httpClient;
     }
@@ -160,6 +170,93 @@ final class GitHubOAuthProviderTest extends TestCase
         self::assertSame('7', $profile->providerId);
         self::assertSame('', $profile->email);
         self::assertFalse($profile->emailVerified);
+    }
+
+    public function testGetUserProfileIdentityOnlySkipsEmailsCall(): void
+    {
+        // fetchEmail: false must make exactly one GET call (/user) and never
+        // call /user/emails at all — not even a call whose result is ignored.
+        $userBody = json_encode([
+            'id'         => 42,
+            'login'      => 'jonesrussell',
+            'name'       => 'Russell Jones',
+            'avatar_url' => 'https://avatars.githubusercontent.com/u/42',
+        ]);
+
+        $this->mockIdentityOnlyHttpClient()
+            ->expects(self::once())
+            ->method('get')
+            ->with('https://api.github.com/user')
+            ->willReturn(new HttpResponse(200, (string) $userBody));
+
+        $profile = $this->provider->getUserProfile('gho_abc123');
+
+        self::assertInstanceOf(OAuthUserProfile::class, $profile);
+        self::assertSame('42', $profile->providerId);
+        self::assertSame('Russell Jones', $profile->name);
+        self::assertSame('', $profile->email);
+        self::assertFalse($profile->emailVerified);
+    }
+
+    public function testGetUserProfileIdentityOnlyFallsBackToLoginWhenNameMissing(): void
+    {
+        // Optional absent fields (name here) must not warn or block a valid,
+        // stable identity-only profile.
+        $userBody = json_encode([
+            'id'    => 99,
+            'login' => 'ghostuser',
+        ]);
+
+        $this->mockIdentityOnlyHttpClient()
+            ->expects(self::once())
+            ->method('get')
+            ->willReturn(new HttpResponse(200, (string) $userBody));
+
+        $profile = $this->provider->getUserProfile('gho_ghost');
+
+        self::assertSame('99', $profile->providerId);
+        self::assertSame('ghostuser', $profile->name);
+        self::assertNull($profile->avatarUrl);
+        self::assertSame('', $profile->email);
+        self::assertFalse($profile->emailVerified);
+    }
+
+    public function testGetUserProfileFallsBackToEmptyNameWhenNameAndLoginBothMissing(): void
+    {
+        // A malformed/incomplete upstream response missing both name and
+        // login must not warn (failOnWarning=true would fail this test) and
+        // must not block the stable numeric id.
+        $userBody = json_encode(['id' => 99]);
+
+        $this->mockIdentityOnlyHttpClient()
+            ->expects(self::once())
+            ->method('get')
+            ->with('https://api.github.com/user')
+            ->willReturn(new HttpResponse(200, (string) $userBody));
+
+        $profile = $this->provider->getUserProfile('gho_incomplete');
+
+        self::assertSame('99', $profile->providerId);
+        self::assertSame('', $profile->name);
+    }
+
+    public function testGetUserProfileFallsBackToEmptyNameWhenNameAndLoginAreNonScalar(): void
+    {
+        // Malformed upstream values (name/login as arrays) must not trigger
+        // an "Array to string conversion" warning or coerce into a nonsense
+        // string.
+        $userBody = json_encode(['id' => 99, 'name' => ['nested'], 'login' => ['nested']]);
+
+        $this->mockIdentityOnlyHttpClient()
+            ->expects(self::once())
+            ->method('get')
+            ->with('https://api.github.com/user')
+            ->willReturn(new HttpResponse(200, (string) $userBody));
+
+        $profile = $this->provider->getUserProfile('gho_malformed');
+
+        self::assertSame('99', $profile->providerId);
+        self::assertSame('', $profile->name);
     }
 
     public function testGetUserProfileFallsBackToLoginWhenNameIsNull(): void

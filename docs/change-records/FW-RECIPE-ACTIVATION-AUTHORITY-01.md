@@ -1,10 +1,12 @@
 # FW-RECIPE-ACTIVATION-AUTHORITY-01 — first-party recipe provider activation
 
-- **Issue:** #2857
+- **Issues:** [#2857](https://github.com/waaseyaa/framework/issues/2857),
+  [#2975](https://github.com/waaseyaa/framework/issues/2975)
 - **Decision:** ADR-025 D-15
-- **Status:** root-authorized technical integration candidate; normal review
-  and merge are still required. This record does not claim separate
-  product-owner or human approval.
+- **Status:** accepted and merged in
+  [PR #2976](https://github.com/waaseyaa/framework/pull/2976) as
+  `62424ff04f6af8bd37b3f2dba4fd1db74bad2c8b`. This record does not claim
+  separate product-owner or human approval, release, or deployment.
 
 ## Corrected problem and decision
 
@@ -30,11 +32,12 @@ materialization rules remains an explicit product and ADR decision.
 
 ## Implementation ownership and proof
 
-#2857 owns `SiteRecipeProviderRegistrationInterface` on the three existing
-recipes, `SiteArtifactRenderer::compile()` with `render()` compatibility,
-preservation of the base plan's payload collections in
-`ApplicationBlueprintCompiler` except the transaction-composed ownership
-document, `SiteInitHandler` plan handoff, and focused unit and packaged tests.
+The accepted #2857 implementation owns
+`SiteRecipeProviderRegistrationInterface` on the three existing recipes,
+`SiteArtifactRenderer::compile()` with `render()` compatibility, preservation
+of the base plan's payload collections in `ApplicationBlueprintCompiler`
+except the transaction-composed ownership document, `SiteInitHandler` plan
+handoff, and focused unit and packaged tests.
 
 The packaged proof uses the real supported skeleton. It verifies the package
 cohort came from the existing framework dependency graph, the selected provider
@@ -71,16 +74,42 @@ Upgrade and AI update/verify remain later slices after non-root generator
 migrations and accepted #2660/#2663 plan contracts. A Composer activation phase
 requires the new consumer decision described in D-15.4.
 
-`docs/specs/cli-kernel.md` is narrowed in this candidate to the implemented
+`docs/specs/cli-kernel.md` was narrowed by the accepted implementation to the
 provider-activation result: presets still do not execute an arbitrary declared
 capability, while a selected first-party recipe contributes its fixed provider
 through the typed root-plan seam and the existing generation transaction.
 
 The unconditional `ci/site-recipe-provider-activation` job runs the packaged
 proof against the exact candidate selected by CI and propagates any proof
-failure. Full qualification, issue reconciliation, release publication and
-broad lifecycle documentation remain integration-owner work. This decision
-record authorizes no production edit by itself.
+failure. It passed for qualified head
+`0b47602b3567dc297ba4b847f4aad36174696159` before merge.
+
+## Accepted integration evidence
+
+[PR #2976](https://github.com/waaseyaa/framework/pull/2976) merged as
+[`62424ff04f6af8bd37b3f2dba4fd1db74bad2c8b`](https://github.com/waaseyaa/framework/commit/62424ff04f6af8bd37b3f2dba4fd1db74bad2c8b).
+The exact-candidate packaged positive consumer booted the supported skeleton,
+resolved the page-builder surface, observed canonical `page_layout`, and
+verified physical `node__page.page_layout` storage. The rival removed only the
+literal-root provider registration while retaining the generated fragment and
+provider class; it still booted, exposed neither the surface nor the canonical
+field, and retained the physical column. This is the discriminating proof that
+provider registration controls activation without destructive removal.
+
+Exact-head qualification passed 43 gates, Unit 14,686 tests / 242,845
+assertions, Integration 2,345 / 12,165, and Architecture 1,070 / 36,735.
+Architecture retained one deliberate coverage-driver negative-control skip.
+Its
+receipt SHA-256 is
+`d3714c9963fdc40ad57704a286c6dde5e7a87a69562255692e75b7d636d8183e`.
+All 47 hosted PR checks passed, and
+[post-merge CI 34141974190](https://github.com/waaseyaa/framework/actions/runs/34141974190)
+succeeded on the merge commit. Issues #2857 and #2975 are closed with final
+evidence.
+
+Published Studio dependency refresh, thinner-consumer package intent,
+authenticated authoring, and upgrade orchestration remain separate. This
+record claims no release or deployment.
 
 ## Pre-existing provider-boot lifecycle defect exposed by the packaged proof
 
@@ -118,6 +147,6 @@ fail-fast is preserved for a listing that remains invalid after every
 provider's `boot()` has run. `docs/specs/listing-pipeline-v1.md` FR-052/FR-053
 now describe the actual finalization boundary.
 
-This entry records only the local unit-level fix and its focused regression
-test. The packaged proof is required as exact-candidate execution evidence
-before acceptance; this record and its CI wiring do not claim that result.
+This entry preserves the focused regression evidence for the lifecycle repair.
+The exact-candidate packaged proof and hosted CI described above subsequently
+passed and accepted that repair as part of PR #2976.
