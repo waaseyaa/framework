@@ -168,7 +168,7 @@ inaccessible rows consume the 1,000-row budget, so enough of them can push a
 query into lower-bound totals and drop real results. HYPOTHESIS as to whether any
 deployment reaches that threshold; the mechanism is confirmed.
 
-## D-5 — CONFIRMED (favourable): stale and orphaned rows are not a disclosure risk
+## D-5 — CONFIRMED (favourable, and narrowly scoped): stale and orphaned rows are not a disclosure risk *on the audited search read path*
 
 This is the severity hinge, and it cuts the opposite way from the cache lane.
 `Fts5SearchProvider::search()` selects only `document_id`, `entity_type`,
@@ -192,8 +192,31 @@ Individual candidate failures are caught and the candidate omitted with a warnin
 (`Fts5SearchProvider.php:100-102`) — a failure cannot fail the whole query.
 
 **Recorded as a disproved lead**: the hypothesis that a surviving index row for
-deleted content is a disclosure risk does not hold on this code. It is a false
+deleted content is a disclosure risk does not hold *on this path*. It is a false
 negative and wasted work, not a leak.
+
+### D-5.1 — the limit of this evidence (important)
+
+This finding supports **the audited candidate-resolution path only** —
+`Fts5SearchProvider::search()` and `Fts5SearchContentCatalogue::resolveRow()`,
+both of which funnel through `SearchCandidateResolverInterface::resolve()`. It is
+**not** a blanket guarantee that every derived store re-checks access at read
+time, and it must not be cited as one.
+
+Specifically **not** established by this lane:
+- that vector/embedding search re-resolves and re-authorizes its hits (#1606
+  records that surface as not yet turnkey);
+- that any other reader of `search_metadata` or the embedding store goes through
+  a resolver rather than reading stored content directly;
+- that a future or downstream consumer of these tables inherits the guarantee —
+  it lives in the resolver, not in the storage.
+
+The correct general statement is narrower: *the framework's own entity-search read
+path treats the index as a candidate list and re-authorizes live.* Each other
+derived store needs its own read-path audit before any equivalent claim is made
+about it. Any change that lets a caller read content straight from a derived
+store, bypassing the resolver, would convert the staleness findings in this
+report into disclosure findings.
 
 ## D-6 — CONFIRMED: registration silently no-ops on a dispatcher type mismatch
 
@@ -388,12 +411,16 @@ hand-rolled. That is the enumerable duplication for the anchor.
 | **#2122** | closed | Delivered a first-class quiesce primitive. Relevant to D-2: a quiesce mechanism exists and reindex does not use it. |
 | **#2270**, **#2211**, **#2192**, **#2193**, **#2194**, **#2222** | closed | Origin of the projection registry, the FTS trust boundary, and the principal-safe read surface that D-5 confirms is working. |
 | **#1920** | closed | Produced the pointer-move re-sourcing in search and embeddings (which took) and in the cache (which did not). |
+| **#2996** | open, `type:bug`, `status:needs-design` | **D-8.** Repository-delete delivery to listing-cache invalidation. Requires runtime proof — this lane supplied static tracing only — plus save and no-bound-cache controls, and instructs cross-checking the transaction/UnitOfWork audit before selecting event timing. |
+| **#2997** | open, `type:bug`, `status:needs-design` | **D-9.** Translation-write delivery to derived stores and audit consumers. Requires exercising the real path rather than inferring; explicitly warns against simply emitting `POST_SAVE` without settling served-revision and locale semantics, and against treating index contents as authorization authority. Related: #2729 (translation capability wiring). |
 | **#2985** | open | This lane's anchor. `docs/audits/FW-IMPLEMENTATION-AUTHORITY-2026-09/issue-coverage.md` already assigns #2763 and #1861 to its `entity-database-search-cache` lane. |
 
-No new issue is filed. D-1/D-3 belong on #2763. D-2 (reindex clears first; unordered
-offset repopulation; no quiesce) is **not** covered by #2763's current text and is
-the one gap that may warrant either widening #2763 or a separate issue — an
-anchor-owner decision, not this lane's.
+No new issue was filed by this lane. D-1/D-3 belong on #2763 and the cache half on
+#1861. D-8 and D-9 were subsequently filed by the anchor owner as **#2996** and
+**#2997**, both `status:needs-design`, both requiring runtime proof this lane did
+not produce, and both instructed to coordinate with the transaction/UnitOfWork
+audit before settling event timing. **D-2** (reindex clears first; unordered offset
+repopulation; no quiesce) remains the one confirmed gap with no tracking issue.
 
 ## Compatibility constraints on any repair
 
