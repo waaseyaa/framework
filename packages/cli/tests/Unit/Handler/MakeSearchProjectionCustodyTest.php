@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -35,6 +36,7 @@ use Waaseyaa\SiteContract\SiteManifestParser;
  * `json_decode`/mutate/`json_encode` of the application's own manifest.
  */
 #[CoversClass(SearchProjectionScaffoldCompiler::class)]
+#[CoversClass(MakeSearchProjectionHandler::class)]
 final class MakeSearchProjectionCustodyTest extends TestCase
 {
     /** @var list<string> */
@@ -168,6 +170,42 @@ final class MakeSearchProjectionCustodyTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    #[Test]
+    #[DataProvider('rejectedInvocations')]
+    public function invalidInputIsRefusedBeforeAnythingIsPublished(array $argv, string $expected): void
+    {
+        $root = $this->initializedProject();
+
+        $tester = $this->runMake($root, $argv);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getStderr() . $tester->getStdout();
+        self::assertStringContainsString($expected, $output);
+        // Refusal is refusal: no artifact, and no unit recorded against the roster.
+        self::assertDirectoryDoesNotExist($root . '/src/Search');
+        self::assertSame([], array_filter(
+            $this->ownership($root)['artifacts'],
+            static fn(array $row): bool => str_starts_with((string) ($row['unit'] ?? 'site'), 'scaffold:search-projection'),
+        ));
+    }
+
+    /** @return iterable<string, array{list<string>|array<string, string>, string}> */
+    public static function rejectedInvocations(): iterable
+    {
+        yield 'field name is not snake_case' => [
+            ['entity-type' => 'story', '--fields' => 'Body'],
+            'Body',
+        ];
+        yield 'duplicate field' => [
+            ['entity-type' => 'story', '--fields' => 'body,body'],
+            'body',
+        ];
+        yield 'no fields at all' => [
+            ['entity-type' => 'story', '--fields' => ' '],
+            'at least one field',
+        ];
+    }
+
     private function ownership(string $root): array
     {
         return json_decode((string) file_get_contents($root . '/.waaseyaa/generated.json'), true, flags: JSON_THROW_ON_ERROR);
