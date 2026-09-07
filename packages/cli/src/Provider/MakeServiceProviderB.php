@@ -50,6 +50,12 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                     default: 'title:string,body:text',
                 ),
                 new HandlerOption(
+                    name: 'field-read',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Explicit field visibility: title:public,summary:protected; omitted fields remain Internal',
+                    default: '',
+                ),
+                new HandlerOption(
                     name: 'force',
                     mode: HandlerOptionMode::None,
                     description: 'Overwrite existing generated files',

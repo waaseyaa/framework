@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site\Scaffold;
 
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldScaffoldProjection;
 use Waaseyaa\Field\FieldValueKind;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -46,7 +47,7 @@ final readonly class ContentTypeScaffoldCompiler
     /**
      * @param string $name the validated content-type name as the operator typed it
      * @param string $className the validated PascalCase class base derived from $name
-     * @param list<array{name: string, type: string, target: ?string}> $fields validated, non-empty
+     * @param list<array{name: string, type: string, target: ?string, read?: string}> $fields validated, non-empty
      */
     public function compile(string $name, string $className, array $fields): ArtifactPlan
     {
@@ -82,7 +83,7 @@ final readonly class ContentTypeScaffoldCompiler
      * The label key remains the first authored string field, else the first
      * field. PHP property projection does not change entity label semantics.
      *
-     * @param list<array{name: string, type: string, target: ?string}> $fields
+     * @param list<array{name: string, type: string, target: ?string, read?: string}> $fields
      */
     public function labelField(array $fields): string
     {
@@ -112,18 +113,19 @@ final readonly class ContentTypeScaffoldCompiler
             : self::UNIT_PREFIX . ':x' . substr(hash('sha256', $typeId), 0, 32);
     }
 
-    /** @param list<array{name: string, type: string, target: ?string}> $fields */
+    /** @param list<array{name: string, type: string, target: ?string, read?: string}> $fields */
     private static function inputDigest(string $name, array $fields): string
     {
         return hash('sha256', CanonicalJson::encode(['name' => $name, 'fields' => $fields]) . "\n");
     }
 
     /**
-     * @param list<array{name: string, type: string, target: ?string}> $fields
+     * @param list<array{name: string, type: string, target: ?string, read?: string}> $fields
      */
     private function renderEntity(string $className, string $typeId, string $label, string $labelField, array $fields): string
     {
         $lines = [];
+        $emitFieldReadImport = false;
         // Published flag first — make published content public-read by default.
         $lines[] = "    #[Field(type: 'boolean', label: 'Published', default: true)]";
         $lines[] = '    public bool $status = true;';
@@ -143,6 +145,11 @@ final readonly class ContentTypeScaffoldCompiler
                 $safeTarget = addslashes((string) $field['target']);
                 $attrArgs .= ", settings: ['target_entity_type_id' => '{$safeTarget}']";
             }
+            if (isset($field['read'])) {
+                $level = FieldReadLevel::from($field['read']);
+                $attrArgs .= ', read: FieldReadLevel::' . $level->name;
+                $emitFieldReadImport = true;
+            }
             $lines[] = "    #[Field({$attrArgs})]";
             $lines[] = "    public {$phpType} \${$field['name']} = {$default};";
             $lines[] = '';
@@ -150,6 +157,9 @@ final readonly class ContentTypeScaffoldCompiler
         $fieldBlock = rtrim(implode("\n", $lines));
         $safeLabel = addslashes($label);
         $safeLabelField = addslashes($labelField);
+        $fieldReadImport = $emitFieldReadImport
+            ? "use Waaseyaa\\Entity\\FieldReadLevel;\n"
+            : '';
 
         return <<<PHP
             <?php
@@ -161,7 +171,7 @@ final readonly class ContentTypeScaffoldCompiler
             use Waaseyaa\\Entity\\Attribute\\ContentEntityKeys;
             use Waaseyaa\\Entity\\Attribute\\ContentEntityType;
             use Waaseyaa\\Entity\\Attribute\\Field;
-            use Waaseyaa\\Entity\\ContentEntityBase;
+            {$fieldReadImport}use Waaseyaa\\Entity\\ContentEntityBase;
 
             #[ContentEntityType(id: '{$typeId}', label: '{$safeLabel}')]
             #[ContentEntityKeys(label: '{$safeLabelField}')]
