@@ -65,9 +65,19 @@ final class OtherScaffoldsServiceProvider extends ServiceProvider implements Pro
                     description: 'Workflow machine name',
                 ),
                 new HandlerOption(
+                    name: 'entity-type',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Entity type ID the workflow applies to (e.g. "node") -- paired with --bundle to form the workflows.assignments key',
+                ),
+                new HandlerOption(
                     name: 'bundle',
                     mode: HandlerOptionMode::Required,
                     description: 'Bundle ID the workflow applies to',
+                ),
+                new HandlerOption(
+                    name: 'initial-state',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Initial state ID (defaults to the first --state given, or "draft" when --state is omitted)',
                 ),
                 new HandlerOption(
                     name: 'state',
@@ -77,7 +87,7 @@ final class OtherScaffoldsServiceProvider extends ServiceProvider implements Pro
                 new HandlerOption(
                     name: 'transition',
                     mode: HandlerOptionMode::Array_,
-                    description: 'Transition in id:from:to:permission form (repeatable)',
+                    description: 'Transition in id:from[,from...]:to:permission form (repeatable)',
                 ),
             ],
             handler: [WorkflowScaffoldHandler::class, 'execute'],

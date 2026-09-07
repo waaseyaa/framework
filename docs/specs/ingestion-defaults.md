@@ -1,5 +1,6 @@
 # Ingestion Defaults
 
+<!-- Spec reviewed 2026-09-07 - #2984: corrected the Architecture Overview, which described the foundation MessageEnvelopeValidator/PayloadValidator chain as "the ingestion pipeline" while the live `ingest:run` command uses a separate implementation under packages/cli/src/Ingestion/ and calls none of those classes. Verified at 0.1.0-alpha.300: no first-party caller of MessageEnvelopeValidator or PayloadValidator outside their own directory and tests. No class, signature, schema or disposition changed; documentation only. The envelope wire schema remains authoritative and is unaffected. -->
 <!-- Spec reviewed 2026-07-14 - R24 CLI F11 (#2020): ingestion envelopes deliberately preserve source payload bytes and do not sanitize HTML. The envelope has no render sink; every consumer that persists or renders payload text owns context-appropriate sanitization at that boundary. -->
 
 <!-- Spec reviewed 2026-05-01 - README skeleton added under packages/ingestion/ (purpose, layer, key classes only); EnvelopeValidator, PayloadValidatorInterface, ValidationResult contracts unchanged from prior review (mission #824 WP09 surface F, closes #849) -->
@@ -15,16 +16,51 @@ Defines the ingestion pipeline's envelope schema, validation rules, canonical er
 
 ## Architecture Overview
 
-The ingestion pipeline processes data through three validation phases:
+Three things are described by this spec and are frequently conflated. They are
+separable: the wire format and shipped PHP compatibility contracts must be assessed independently.
+
+**1. The canonical envelope schema — authoritative.**
+`defaults/ingestion.envelope.schema.json` (below) is the wire contract that
+external harvesters, including non-PHP ones, must satisfy. It is the framework
+promise referenced by `CLAUDE.md`.
+
+**2. The foundation validator implementation — present, not currently wired.**
+The classes in the table below implement that schema in PHP:
 
 ```
-Raw input → MessageEnvelopeValidator → PayloadValidator → Pipeline
-              (shape check)            (content-type check)  (processing)
+Raw array → MessageEnvelopeValidator → PayloadValidator → (consumer)
+              (shape check)            (content-type check)
 ```
 
-Each phase produces canonical `IngestionError` objects. Both success and failure outcomes are logged via `IngestionLogger`.
+Each phase produces canonical `IngestionError` objects; success and failure are
+logged via `IngestionLogger`. As of `0.1.0-alpha.300` **no first-party code
+calls `MessageEnvelopeValidator` or `PayloadValidator`** — a search of
+`packages/`, `public/`, `config/` and `bin/`, excluding tests and their own
+directory, finds no references. They remain shipped in `waaseyaa/foundation`
+and available to consumers; this note records that the framework itself does
+not currently route through them, so the diagram above must not be read as a
+description of what runs.
+
+**3. The live `ingest:run` pipeline — a separate implementation.**
+`waaseyaa ingest:run` parses structured/unstructured input, normalizes and
+schema-validates a batch envelope, maps records, optionally infers
+relationships, applies validation gates, and emits JSON. It uses none of the
+classes in the table below; its collaborators live in
+`packages/cli/src/Ingestion/`, and its behaviour is specified by
+[`ingestion-validator-contract.md`](ingestion-validator-contract.md),
+[`ingestion-validation-gates-contract.md`](ingestion-validation-gates-contract.md),
+[`ingestion-fixture-pack-contract.md`](ingestion-fixture-pack-contract.md) and
+[`ingestion-editorial-dashboard-contract.md`](ingestion-editorial-dashboard-contract.md).
+It does not persist entities.
+
+Reconciling (2) and (3) — whether they converge, and which is the supported
+extension seam — is tracked in **#2984** and is deliberately unresolved here.
 
 ### Key Classes
+
+The following implement (2). They are shipped surface; see #2984 for the
+open question of their disposition.
+
 
 | Class | Package | Purpose |
 |-------|---------|---------|

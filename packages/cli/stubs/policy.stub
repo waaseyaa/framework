@@ -1,33 +1,45 @@
 <?php
 
+/*
+ * Reference shape only (#2848) — NOT rendered at runtime.
+ *
+ * `make:policy` renders the real, dynamic output through
+ * `Waaseyaa\CLI\Site\Blueprint\Emitter\AccessPolicyEmitter::renderPolicyClass()`,
+ * the same code path the blueprint compiler (#2788) uses, so an explicit
+ * `--grant=operation:permission` produces `Allowed`/`Neutral` match arms per
+ * operation. This file documents the shape for the zero-`--grant` case: an
+ * entity-bound, all-`Neutral` (default-deny) policy that still satisfies the
+ * real `Waaseyaa\Access\AccessPolicyInterface` contract and is discoverable
+ * at boot via `#[PolicyAttribute]` — unlike the pre-#2848 stub, which claimed
+ * `implements AccessPolicyInterface` without the interface's actual methods
+ * (`access()`, `createAccess()`, `appliesTo()`) and would fatal if loaded.
+ */
+
 declare(strict_types=1);
 
-namespace App\Policy;
+namespace App\Access;
 
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
 
+#[PolicyAttribute(entityType: '{{ entity }}')]
 final class {{ class }} implements AccessPolicyInterface
 {
-    public function view(AccountInterface $account, EntityInterface $entity): AccessResult
+    public function appliesTo(string $entityTypeId): bool
     {
-        return AccessResult::neutral();
+        return $entityTypeId === '{{ entity }}';
     }
 
-    public function create(AccountInterface $account, string $entityTypeId): AccessResult
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
-        return AccessResult::neutral();
+        return AccessResult::neutral("No policy opinion on '{$operation}'.");
     }
 
-    public function update(AccountInterface $account, EntityInterface $entity): AccessResult
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
-        return AccessResult::neutral();
-    }
-
-    public function delete(AccountInterface $account, EntityInterface $entity): AccessResult
-    {
-        return AccessResult::neutral();
+        return AccessResult::neutral('No create policy declared for this entity.');
     }
 }

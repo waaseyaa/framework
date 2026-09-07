@@ -7,8 +7,19 @@ namespace Waaseyaa\Ingestion;
 /**
  * Base envelope validator with configurable required fields, versions, and entity types.
  *
- * Applications extend this to provide their supported versions, entity types,
- * and entity-specific validation rules via validateEntityData().
+ * This class is `@internal` and is not a supported extension point. An earlier
+ * docblock invited applications to extend it, which contradicted the package's
+ * own declared disposition in `packages/ingestion/public-surface.php`; the
+ * invitation is withdrawn (#2984). The class itself is unchanged and remains
+ * shipped — `waaseyaa/ingestion` is published, so removal would be a separate
+ * decision requiring the deprecation cycle in the stability charter §4, not a
+ * documentation fix.
+ *
+ * Consumers needing a supported path from foreign records to entities should
+ * use the migration substrate's public plugin contracts
+ * (`Waaseyaa\Migration\Plugin\SourcePluginInterface` and siblings, ADR-012a)
+ * for one-shot imports. Recurring ingestion remains an unresolved design
+ * decision (#2984); ADR-012a does not promise continuous synchronization.
  *
  * @internal
  */
