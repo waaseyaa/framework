@@ -3,6 +3,11 @@
 A proposal for review. It authorizes no implementation, changes no behaviour,
 and commits no surface. Evidence re-derived at `8747683ea`.
 
+Consolidation of the existing ingestion implementations, the stale
+specifications and the unresolved surface declarations is tracked in
+**#2984**. This document is that issue's evidence and reasoning; #2849's
+ingestion clause remains open and is claimed by neither.
+
 ## The finding that shapes everything
 
 **Do not design a new plugin system. One already ships, stable and public.**
