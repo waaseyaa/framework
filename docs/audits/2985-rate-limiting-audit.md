@@ -4,6 +4,8 @@
 **Lane:** rate limiting and attempt throttling
 **Pinned commit:** `a61c62f5d80d1651ff8ed654c93d7d34382316cf`
 **Branch / worktree:** `audit/2985-rate-limiting` — `fw-2985-ratelimit-audit`
+**Evidence checkpoint:** `eeb0d0dc18f1bf86f4819f3df6ee01082378b5ab` — cited by
+#2992 / #2993 / #2994. Preserved on the audit branch; **not published to main.**
 **Mode:** read-only against runtime source. The only file added is a
 characterization test (below); no runtime file was modified. **No repair is
 implemented in this lane** — Codex owns repair integration.
@@ -61,6 +63,8 @@ Two parts of #763 are **not** met at this commit:
 
 ## F-1 — CONFIRMED (measured): the login gate admits more than five requests to credential verification
 
+**Tracked by #2992** (`type:bug`, `priority:p1`, `status:needs-design`, `area:security`).
+
 `LoginController::__invoke()` gates on a **pure read** and writes the counter
 only afterwards:
 
@@ -102,6 +106,10 @@ bypass. Quantifying it needs a real multi-process probe, which was not run.
 
 ## F-2 — CONFIRMED: changing the gate to `consume()` alone is not sufficient
 
+**Tracked by #2992**, which states the constraint directly: "A bare `consume()`
+replacement changes successful-login semantics… explicitly specify in-flight
+handling before implementation."
+
 The atomic primitive already exists and is already bound. `AuthServiceProvider.php:57-61`
 binds **both** `AtomicRateLimiterInterface` and `RateLimiterInterface` to the
 same `DatabaseRateLimiter` instance; `LoginController.php:27` simply injects the
@@ -123,6 +131,9 @@ reasons:
 3. **`consume()` is not portable.** See C-1.
 
 ## F-3 — CONFIRMED (measured): a success on one account erases failures recorded against another
+
+**Tracked by #2993**, deliberately filed apart from #2992 because this one is
+sequential and survives any concurrency fix.
 
 The bucket is keyed by IP alone (`'login:' . $ip`, `LoginController.php:41`) and
 `clear()` is an unconditional row DELETE (`DatabaseRateLimiter.php:112-119`).
@@ -257,7 +268,8 @@ source, not executed — no concurrency probe was run for this finding.)*
 
 ## Compatibility constraints on any repair
 
-- **C-1: `consume()` is not MySQL-portable.** `DatabaseRateLimiter.php:44-47`
+- **C-1: `consume()` is not MySQL-portable — tracked by #2994.**
+  `DatabaseRateLimiter.php:44-47`
   emits `INSERT … ON CONFLICT (bucket_key) DO UPDATE`, which is SQLite/Postgres
   syntax. This is not a speculative concern: `MigrationRunState::upsert()`
   (`packages/migration/src/MigrationRunState.php:403-412`) documents removing
@@ -265,7 +277,12 @@ source, not executed — no concurrency probe was run for this finding.)*
   contract … the table is MySQL-portable but the write was not." Routing the
   login path onto `consume()` would newly expose login to a syntax error on
   MySQL deployments. Either fix the portability first or do not route login
-  through it. *(Code-level claim; no MySQL deployment was exercised.)*
+  through it. *(Code-level claim; no MySQL deployment was exercised — #2994
+  records it as "a source-supported portability finding needing driver
+  execution, not a claim that a production MySQL failure was observed.")* #2994
+  additionally constrains the repair to reuse the database abstraction's
+  canonical atomic facility rather than introducing a second limiter — the
+  `MigrationRunState::upsert()` precedent above is the shape to follow.
 - **C-2: surface asymmetry.** `RateLimiterInterface` is `@internal`;
   `AtomicRateLimiterInterface` is `@api`. Only `consume()` carries an atomicity
   contract — the five inherited methods carry none even on the "Atomic"
@@ -281,7 +298,11 @@ source, not executed — no concurrency probe was run for this finding.)*
 
 ## Focused acceptance criteria
 
-For F-1 / F-2 (whoever owns the repair):
+The authoritative acceptance criteria now live on #2992, #2993 and #2994. What
+follows is this lane's evidence-side view of them, retained because it names the
+exact tests that must move:
+
+For F-1 / F-2 (**#2992**):
 
 1. Under the interleaving modelled by `LoginRateLimitInterleavingTest`, at most
    five requests reach credential verification in one window. The existing
@@ -295,6 +316,12 @@ For F-1 / F-2 (whoever owns the repair):
    case either way.
 5. No new `ON CONFLICT` dependency on the login path unless C-1 is resolved first.
 6. Behaviour on limiter/DB failure remains fail-closed.
+
+#2992 additionally requires a real supported-database concurrency proof (this
+lane produced only the deterministic model) and delivery of #763's promised
+configurable limits. #2993 adds shared-IP legitimate-user controls and a check
+that success does not itself record a failed attempt. #2994 requires a
+discriminating failing control for unsupported SQL.
 
 For F-4: each of the four unlimited endpoints gets an explicit disposition —
 limiter added, or a recorded decision that entropy/session-gating is the
@@ -312,12 +339,23 @@ one token fails.
 | **#2775** | open, p0, `status:blocked`, `release:beta-blocker` | F-8 is directly in scope: the caller census above identifies exactly which two callers remain unguarded. |
 | **#2769** | open, `release:beta-blocker` | Adjacent: the synchronous-mail timing side channel on the same public endpoints this lane censused. Not re-litigated here. |
 | **#2490** | closed | Corrected above — not the same defect; this middleware is wired. |
+| **#2992** | open, p1, `status:needs-design` | **F-1 + F-2.** Concurrent failed-login throttling. Explicitly *not* to be folded into #2775. |
+| **#2993** | open, p1, `status:needs-design` | **F-3.** Successful login erasing unrelated IP failure history. Coordinates with #2992 but is independently reproducible. |
+| **#2994** | open, p1, `status:needs-design` | **C-1.** Atomic limiter SQL portability across supported drivers. |
 | **#2985** | open | This lane's anchor. |
 | **#517** | closed | Queue-side rate limits; deferred to the queue lane. |
 
-No new issue is filed by this lane. F-1/F-2/F-3 are new findings without an
-existing home and need one; that filing decision belongs with the anchor owner,
-since #2775 is already p0-blocked and should not absorb an unrelated defect.
+F-1/F-2/F-3 and C-1 are now tracked as #2992, #2993 and #2994, filed separately
+rather than folded into #2775 so that the p0 token-spend work is not made to
+absorb unrelated defects, and split from each other so that no single fix is
+assumed to resolve the policy. All three are `status:needs-design`: the design
+question — what the concurrency boundary is, and what success should do to the
+bucket — is open, and this lane deliberately did not answer it.
+
+Findings still without a tracking issue: **F-4** (four unlimited endpoints,
+2FA disable sharpest), **F-5** (three counting policies), **F-6** (the
+default-on HTTP limiter being the only non-atomic one) and **F-7**
+(unnormalized forgot-password email key). F-8 belongs to existing #2775.
 
 ## Residual work not covered
 

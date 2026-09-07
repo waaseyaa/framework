@@ -31,7 +31,11 @@ use Waaseyaa\User\User;
  * Audit evidence for #2985 (rate-limiting lane). These are CHARACTERIZATION
  * tests: they pin the behaviour observed at the audited commit, they are not
  * an endorsement of it. `admits_more_than_five_verification_attempts_...`
- * asserts the defect and must be inverted by whichever change closes it.
+ * asserts the defect and must be inverted by the repair for #2992.
+ * `a_success_on_one_account_clears_failures_recorded_against_another` likewise
+ * asserts the defect tracked by #2993 — it is sequential, so closing #2992
+ * alone will not change it. `sequential_requests_are_refused_at_the_limit`
+ * encodes #763's acceptance criterion and must keep passing throughout.
  *
  * `LoginController` gates on a pure read — `tooManyAttempts()` at
  * LoginController.php:43, which is `attempts() >= $max` — and only writes the
@@ -170,7 +174,8 @@ final class LoginRateLimitInterleavingTest extends TestCase
      *
      * This is sequential — no interleaving, no race. Making the gate atomic
      * does not change it: an attacker holding any one valid account on the
-     * shared address can zero the counter between bursts indefinitely.
+     * shared address can zero the counter between bursts indefinitely. Tracked
+     * separately from the concurrency defect as #2993 for that reason.
      */
     #[Test]
     public function a_success_on_one_account_clears_failures_recorded_against_another(): void
