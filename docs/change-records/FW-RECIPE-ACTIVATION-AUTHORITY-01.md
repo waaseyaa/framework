@@ -60,3 +60,43 @@ file.
 Shared CI, full qualification, issue reconciliation, release publication and
 broad lifecycle documentation remain integration-owner work. This decision
 record authorizes no production edit by itself.
+
+## Pre-existing provider-boot lifecycle defect exposed by the packaged proof
+
+Running the #2857 packaged proof against the real supported skeleton (real
+`site:init` → `install:init`, real kernel boot) surfaced a pre-existing,
+unrelated defect: kernel boot rejected listing `page_index` because bundle
+`page` was not yet registered. Root cause — `PackageManifestCompiler` places
+the installed `Waaseyaa\Listing\ServiceProvider` before root App providers in
+the provider list; `Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry`
+invokes every provider's ordinary `boot()` in that order, and only after ALL
+of them runs `FinalizesProviderBootInterface::finalizeProviderBoot()`. The
+Listing provider ran its FR-052/FR-053 `ListingDefinitionValidator` inside its
+own ordinary `boot()`, before the generated App provider's later `boot()`
+had registered the bundle's fields — a real ordering race, not specific to
+recipe-provider activation.
+
+Repair: `Listing\ServiceProvider` now implements the existing
+`FinalizesProviderBootInterface` and runs FR-052/FR-053 validation from
+`finalizeProviderBoot()` instead of `boot()`. Cache-invalidator listener
+wiring and canonical context seeding stay in ordinary `boot()`, unchanged.
+No lifecycle phase was added, no fallback introduced, and `page_index` was
+not weakened — the same `UnsupportedListingException` fail-fast still fires
+for a genuinely invalid listing, now from the finalization boundary.
+
+Regression coverage: `packages/listing/tests/Unit/ListingProviderBootFinalizationTest.php`,
+using the real `ProviderRegistry` and the real `Listing\ServiceProvider` (no
+mocks) with a fixture App provider registered after it in provider order.
+`lateAppProviderBundleFieldsValidateOnlyAfterAllProviderBootsComplete`
+reproduced the defect (RED) against the pre-repair provider — the same
+`UnsupportedListingException: bundle "page" is not registered for entity
+type "lifecycle_page"` observed in the packaged proof — and passes (GREEN)
+against the repaired provider.
+`invalidListingStillRaisesUnsupportedListingExceptionAtFinalization` asserts
+fail-fast is preserved for a listing that remains invalid after every
+provider's `boot()` has run. `docs/specs/listing-pipeline-v1.md` FR-052/FR-053
+now describe the actual finalization boundary.
+
+This entry records only the local unit-level fix and its focused regression
+test. The packaged proof itself has not been rerun against this repair as
+part of this candidate; packaged success is not claimed here.

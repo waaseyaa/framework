@@ -92,7 +92,16 @@ php -r '
         ["type" => "path", "url" => $argv[2]],
     ];
     $composer["require"]["waaseyaa/framework"] = "*";
-    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    $siteVerify = $composer["scripts"]["site-verify"] ?? null;
+    $phpunitConstraint = $composer["require-dev"]["phpunit/phpunit"] ?? null;
+    if (!is_string($siteVerify) || $siteVerify === "" || !is_string($phpunitConstraint) || $phpunitConstraint === "") {
+        throw new RuntimeException("The supported skeleton must declare its canonical site-verify script and PHPUnit dependency.");
+    }
+    unset($composer["extra"]["merge-plugin"]);
+    // Suppress create-project hooks and unrelated development tooling while
+    // preserving the skeleton-owned command and its test-runner prerequisite.
+    $composer["scripts"] = ["site-verify" => $siteVerify];
+    $composer["require-dev"] = ["phpunit/phpunit" => $phpunitConstraint];
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$consumer/composer.json" "$source_root"
 
@@ -252,6 +261,16 @@ if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-
     exit 1
 fi
 grep -Fq 'Installation is complete.' "$work/install-init.out"
+
+# Canonical phase 4: keep and run the supported skeleton's own verification
+# command after install materialization and before the kernel proof. A prior
+# revision removed every Composer script and accidentally skipped this phase.
+if ! "$composer_bin" --working-dir="$consumer" site-verify >"$work/site-verify.out" 2>&1; then
+    cat "$work/site-verify.out" >&2
+    echo 'site-verify failed on the recipe-activated consumer.' >&2
+    exit 1
+fi
+cat "$work/site-verify.out"
 
 cp "$source_root/tests/PackagedForm/fixtures/recipe-provider-activation-probe.php" "$consumer/recipe-provider-activation-probe.php"
 
