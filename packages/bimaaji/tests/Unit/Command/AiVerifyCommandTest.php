@@ -18,6 +18,14 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(AiVerifyCommand::class)]
+#[CoversClass(InstalledManifest::class)]
+#[CoversClass(\Waaseyaa\Bimaaji\Install\GeneratedStateVerifier::class)]
+#[CoversClass(\Waaseyaa\Bimaaji\Install\InstallPathSandbox::class)]
+#[CoversClass(\Waaseyaa\Bimaaji\Install\VerifyReport::class)]
+#[CoversClass(\Waaseyaa\Bimaaji\Install\VerifyFinding::class)]
+#[CoversClass(\Waaseyaa\Bimaaji\Install\VerifyTargetStatus::class)]
+#[CoversClass(\Waaseyaa\Bimaaji\Install\InstalledManifestReadResult::class)]
+
 final class AiVerifyCommandTest extends TestCase
 {
     private string $tempDir = '';
@@ -338,6 +346,80 @@ final class AiVerifyCommandTest extends TestCase
         $result = $verifier->verify($this->tempDir, ['unknown']);
         self::assertFalse($result->isSuccess());
         self::assertSame(VerifyFindingCode::UnknownClient, $result->findings[0]->code);
+    }
+
+    #[Test]
+    public function missingRecordedFileCannotVerify(): void
+    {
+        $this->install(['--client=cursor', '--force']);
+        unlink($this->tempDir . '/.cursorrules');
+        $tester = $this->verifyTester();
+        $tester->execute(['--json']);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('target_missing', $tester->getOutput());
+    }
+
+    #[Test]
+    public function retiredFileAndMissingCurrentOwnershipAreReportedSeparately(): void
+    {
+        $this->install(['--client=cursor', '--force']);
+        file_put_contents($this->tempDir . '/retired.md', 'private retired content');
+        $manifest = InstalledManifest::empty()->withClient('cursor', ['retired.md' => sha1('private retired content')]);
+        file_put_contents($this->tempDir . '/' . InstalledManifest::RELATIVE_PATH, $manifest->toJson());
+        $tester = $this->verifyTester();
+        $tester->execute(['--json']);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('target_retired_present', $tester->getOutput());
+        self::assertStringContainsString('target_unrecorded', $tester->getOutput());
+        self::assertStringNotContainsString('private retired content', $tester->getOutput());
+    }
+
+    #[Test]
+    public function oversizedTargetRefusesWithoutLeakingItsContent(): void
+    {
+        $this->install(['--client=cursor', '--force']);
+        file_put_contents($this->tempDir . '/.cursorrules', str_repeat('private', 160000));
+        $tester = $this->verifyTester();
+        $tester->execute(['--json']);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('target_oversize', $tester->getOutput());
+        self::assertStringNotContainsString('privateprivate', $tester->getOutput());
+    }
+
+    #[Test]
+    public function markerlessTargetIsUnprovableNotFresh(): void
+    {
+        $this->install(['--client=cursor', '--force']);
+        file_put_contents($this->tempDir . '/.cursorrules', 'private hand authored file');
+        $tester = $this->verifyTester();
+        $tester->execute(['--json']);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('target_managed_region_unprovable', $tester->getOutput());
+        self::assertStringNotContainsString('private hand authored file', $tester->getOutput());
+    }
+
+    #[Test]
+    public function missingCanonicalResourcesFailWithoutPrivateSourcePaths(): void
+    {
+        $this->install(['--client=cursor', '--force']);
+        new Filesystem()->remove($this->tempDir . '/skills');
+        $tester = $this->verifyTester();
+        $tester->execute(['--json']);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('skill_source_failure', $tester->getOutput());
+        self::assertStringNotContainsString($this->tempDir, $tester->getOutput());
+    }
+
+    #[Test]
+    public function corruptCanonicalResourcesDoNotExposeDocumentContents(): void
+    {
+        $this->install(['--client=cursor', '--force']);
+        $this->writeSkill('alpha', "---\nprivate: [broken\n");
+        $tester = $this->verifyTester();
+        $tester->execute(['--json']);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('skill_source_failure', $tester->getOutput());
+        self::assertStringNotContainsString('private:', $tester->getOutput());
     }
 
     private function writeSkill(string $id, string $contents): void
