@@ -207,8 +207,9 @@ Each is written to fail for one specific defect, not to pass trivially.
    double-imports and fails on the second count. A test asserting only "run
    twice without error" would not.
 
-3. **Envelope refusal is coded, and imports nothing.** Feed an envelope missing
-   `trace_id`. Assert the failure carries the specific `IngestionErrorCode`
+3. **Envelope refusal is coded, and imports nothing.** Feed an envelope with an
+   explicitly malformed `trace_id`. Assert the failure carries the specific
+   `IngestionErrorCode`
    case and that zero entities and zero id-map rows were written.
    *Discriminates:* a reader that catches validation and yields a
    partially-populated record still imports something, and fails the zero-write
