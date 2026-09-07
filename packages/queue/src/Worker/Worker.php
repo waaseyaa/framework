@@ -13,6 +13,7 @@ use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
+use Waaseyaa\Queue\Exception\UnhandledQueueMessage;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Job;
@@ -315,6 +316,8 @@ final class Worker
                 return;
             }
         }
+
+        throw new UnhandledQueueMessage($message);
     }
 
     private function handleFailure(

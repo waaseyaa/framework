@@ -45,7 +45,8 @@ final class OidcClientSchemaMigrationTest extends TestCase
 
         $migrator = new Migrator($connection, $repository);
         $result = $migrator->run($all);
-        self::assertSame(8, $result->count);
+        // #2766 added the 9th migration (client_id uniqueness).
+        self::assertSame(9, $result->count);
 
         $schema = new SchemaBuilder($connection);
         self::assertTrue($schema->hasTable('oidc_client'));
@@ -62,6 +63,10 @@ final class OidcClientSchemaMigrationTest extends TestCase
         self::assertTrue($schema->hasColumn('oidc_signing_key', 'state'));
         self::assertTrue($schema->hasTable('oidc_signing_key_version_sequence'));
         self::assertTrue($schema->hasTable('oidc_signing_key_revocation'));
+        self::assertArrayHasKey(
+            'oidc_client_client_id_unique',
+            $connection->createSchemaManager()->listTableIndexes('oidc_client'),
+        );
 
         $schemaManager = $connection->createSchemaManager();
         foreach (['oidc_access_token', 'oidc_refresh_token'] as $table) {

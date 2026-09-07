@@ -1,0 +1,10 @@
+schema: waaseyaa.site-seed
+version: 1
+application:
+  id: packaged-profile-acceptance
+  name: Packaged Profile Acceptance
+  canonical_origin:
+    config_key: APP_ORIGIN
+content_types:
+  - id: page
+    canonical_route: /{slug}

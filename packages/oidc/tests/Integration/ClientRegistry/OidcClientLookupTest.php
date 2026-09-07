@@ -16,6 +16,7 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Entity\OidcClient;
+use Waaseyaa\Oidc\Exception\AmbiguousClientIdException;
 
 #[CoversClass(OidcClientLookup::class)]
 final class OidcClientLookupTest extends TestCase
@@ -90,10 +91,13 @@ final class OidcClientLookupTest extends TestCase
         $this->assertNull($this->lookup->findByClientId('minoo-web-extra'));
     }
 
-    public function testReturnsFirstMatchWhenMultipleExist(): void
+    public function testRefusesAmbiguousMultiMatchInsteadOfPickingAnArbitraryRow(): void
     {
-        // client_id is expected to be unique, but the lookup must behave
-        // deterministically if a duplicate ever slips past uniqueness checks.
+        // #2766: client_id is a database-enforced unique registry identity
+        // (see the 2026_09_06_000009 migration). This test schema is built
+        // without that constraint on purpose, to prove the lookup itself
+        // fails closed as the defense-in-depth backstop — it must never
+        // silently pick an arbitrary row the way $ids[0] once did.
         $first = $this->repository->create([
             'client_id' => 'dup',
             'name' => 'First',
@@ -108,10 +112,31 @@ final class OidcClientLookupTest extends TestCase
         ]);
         $this->repository->save($second);
 
-        $found = $this->lookup->findByClientId('dup');
+        try {
+            $this->lookup->findByClientId('dup');
+            $this->fail('Expected AmbiguousClientIdException.');
+        } catch (AmbiguousClientIdException $exception) {
+            $this->assertSame('oidc_client_id_ambiguous', $exception->errorCode);
+            $this->assertSame('dup', $exception->clientId);
+            $this->assertCount(2, $exception->matchingIds);
 
-        $this->assertInstanceOf(OidcClient::class, $found);
-        $this->assertSame('First', new OidcClientSystemReader()->registration($found)->name);
+            // #2766 independent review: OidcClient declares no
+            // #[StorageUniqueKey], so the physical constraint is owned
+            // entirely by the 2026_09_06_000009 migration, not by the
+            // declarative schema-sync mechanism — `schema:sync` cannot
+            // materialize this index. The operator recovery instruction
+            // must name the migration runner, never schema:sync.
+            $this->assertStringContainsString(
+                'bin/waaseyaa migrate',
+                $exception->getMessage(),
+                'the recovery instruction must name the migration runner that actually owns this constraint',
+            );
+            $this->assertStringNotContainsString(
+                'schema:sync',
+                $exception->getMessage(),
+                'schema:sync cannot materialize a migration-only unique index and must never be suggested as recovery',
+            );
+        }
     }
 
     public function testEmptyClientIdReturnsNull(): void
