@@ -23,11 +23,11 @@ require_once __DIR__ . '/../../bin/lib/vendor-freshness.php';
  * autoloader cannot load is an ENVIRONMENT fault (stale vendor/), not an
  * "orphaned" declaration whose repair is a CHANGELOG deprecation directive.
  *
- * The real case: Waaseyaa\CLI\Io\StdinSource lives at
- * packages/cli/tests/Io/StdinSource.php, mapped only by the ROOT composer.json
- * autoload-dev — invisible to the src/-only AST walk and to the declaring
- * package's own PSR-4 prefixes — so a stale autoloader is the only thing that
- * ever decides whether it "loads".
+ * The original #2926 case was Waaseyaa\CLI\Io\StdinSource under the
+ * root-only autoload-dev map until #2961 moved it into the package's production
+ * source tree. The live counterpart used below is Waaseyaa\CLI\Testing\CliTester:
+ * its defining file exists under the root autoload-dev map but outside the
+ * declaring package's own production PSR-4 roots.
  *
  * Fixture trees are never autoloaded (SurfaceScanner docblock), which makes a
  * `--root` fixture the exact harness for "exists on disk, not autoloadable".
