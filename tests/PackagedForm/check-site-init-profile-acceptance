@@ -1,0 +1,286 @@
+#!/usr/bin/env bash
+
+# Bounded packaged acceptance for the declarative half of #2442.
+#
+# One git archive of the exact candidate supplies one skeleton and one package
+# cohort. Composer installs that cohort with path repositories configured as
+# copies, then four independent project roots are cloned from those identical
+# prepared bytes. The archived source is deleted before site:init runs, so an
+# installed command cannot fall back into the monorepo.
+#
+# This proof intentionally stops at generated declarations and governed bytes.
+# It does not boot the generated provider or claim authenticated authoring;
+# activation remains blocked by #2857.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+seed_fixture="$root/tests/PackagedForm/fixtures/site-init-profile-seed.yaml"
+probe="$root/tests/PackagedForm/fixtures/site-init-profile-probe.php"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-site-init-profiles.XXXXXX")"
+source_root="$work/source"
+base="$work/base"
+minimal="$work/minimal"
+editorial_a="$work/editorial-a"
+editorial_b="$work/editorial-b"
+dry_collision="$work/dry-collision"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    local status="$1"
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+    exit "$status"
+}
+# Preserve the proof's status explicitly; cleanup failure may report a leak but
+# cannot turn a pass into a failure or hide an earlier failure (#2870).
+trap 'cleanup "$?"' EXIT
+
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+assert_install_provenance() {
+    local consumer="$1"
+
+    php -r '
+        [$consumer, $sourceRoot] = array_slice($argv, 1);
+        $installedPath = $consumer . "/vendor/composer/installed.json";
+        $installed = json_decode(
+            (string) file_get_contents($installedPath),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $packages = $installed["packages"] ?? $installed;
+        $sourceRoot = realpath($sourceRoot);
+        if ($sourceRoot === false) {
+            throw new RuntimeException("Candidate archive root cannot be resolved.");
+        }
+
+        $waaseyaa = [];
+        foreach ($packages as $package) {
+            $name = $package["name"] ?? null;
+            if (!is_string($name) || !str_starts_with($name, "waaseyaa/")) {
+                continue;
+            }
+            if (($package["dist"]["type"] ?? null) !== "path"
+                || !is_string($package["dist"]["url"] ?? null)
+            ) {
+                throw new RuntimeException($name . " is not recorded as a Composer path distribution.");
+            }
+            $distUrl = $package["dist"]["url"];
+            $resolvedSource = realpath($distUrl);
+            if ($resolvedSource === false) {
+                $resolvedSource = realpath($consumer . "/" . $distUrl);
+            }
+            if ($resolvedSource === false || (
+                $resolvedSource !== $sourceRoot
+                && !str_starts_with($resolvedSource, $sourceRoot . DIRECTORY_SEPARATOR)
+            )) {
+                throw new RuntimeException($name . " does not resolve into the candidate archive: " . $distUrl);
+            }
+
+            $installPath = $package["install-path"] ?? null;
+            if (($package["type"] ?? null) === "metapackage") {
+                if ($installPath !== null) {
+                    throw new RuntimeException($name . " metapackage unexpectedly has an install path.");
+                }
+            } else {
+                if (!is_string($installPath) || $installPath === "") {
+                    throw new RuntimeException($name . " package is missing its install path.");
+                }
+                $rawInstall = dirname($installedPath) . "/" . $installPath;
+                if (!is_dir($rawInstall) || is_link($rawInstall)) {
+                    throw new RuntimeException($name . " was not installed as a real package copy.");
+                }
+            }
+            $waaseyaa[$name] = true;
+        }
+
+        foreach (["waaseyaa/framework", "waaseyaa/cli", "waaseyaa/site-contract"] as $required) {
+            if (!isset($waaseyaa[$required])) {
+                throw new RuntimeException("Installed candidate closure is missing " . $required);
+            }
+        }
+    ' "$consumer" "$source_root"
+}
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+mkdir -p "$source_root" "$base"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# Every profile begins with the same skeleton bytes exported from the exact
+# candidate. Only the disposable consumer manifest is adjusted for local
+# candidate resolution.
+cp -R "$source_root/skeleton/." "$base/"
+rm -f "$base/composer.lock" "$base/composer.local.json.example"
+php -r '
+    [$path, $sourceRoot] = array_slice($argv, 1);
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        [
+            "type" => "path",
+            "url" => $sourceRoot . "/packages/*",
+            "options" => ["symlink" => false],
+        ],
+        [
+            "type" => "path",
+            "url" => $sourceRoot,
+            "options" => ["symlink" => false],
+        ],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    $composer["minimum-stability"] = "dev";
+    $composer["prefer-stable"] = true;
+    unset(
+        $composer["require-dev"],
+        $composer["autoload-dev"],
+        $composer["scripts"],
+        $composer["extra"]["merge-plugin"],
+    );
+    file_put_contents(
+        $path,
+        json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+    );
+' "$base/composer.json" "$source_root"
+
+if ! "$composer_bin" install --working-dir="$base" --no-dev \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    fail "Could not install exact candidate $candidate into the packaged consumer."
+fi
+
+assert_install_provenance "$base"
+for package in cli site-contract; do
+    installed="$base/vendor/waaseyaa/$package"
+    [[ -d "$installed" ]] || fail "Candidate package is absent from the consumer: waaseyaa/$package"
+    [[ ! -L "$installed" ]] || fail "waaseyaa/$package is a symlink; copied candidate bytes are required."
+done
+
+cp "$seed_fixture" "$base/seed.yaml"
+for consumer in "$minimal" "$editorial_a" "$editorial_b" "$dry_collision"; do
+    mkdir -p "$consumer"
+    cp -a "$base/." "$consumer/"
+done
+
+# The lock and authored seed are the provenance inputs. All independent roots
+# must begin byte-identically before any profile is selected.
+cmp -- "$minimal/composer.lock" "$editorial_a/composer.lock"
+cmp -- "$editorial_a/composer.lock" "$editorial_b/composer.lock"
+cmp -- "$editorial_a/seed.yaml" "$editorial_b/seed.yaml"
+initial_digest="$(php "$probe" tree-digest "$minimal")"
+for consumer in "$editorial_a" "$editorial_b" "$dry_collision"; do
+    [[ "$(php "$probe" tree-digest "$consumer")" == "$initial_digest" ]] \
+        || fail 'Independent profile roots did not start from byte-identical candidate skeleton and lock bytes.'
+done
+
+# Removing the only path-repository source turns an accidental monorepo
+# autoload fallback into an immediate failure. Everything below must execute
+# solely from copied vendor bytes.
+rm -rf -- "$source_root"
+for consumer in "$minimal" "$editorial_a" "$editorial_b" "$dry_collision"; do
+    [[ ! -L "$consumer/vendor/waaseyaa/cli" ]] \
+        || fail 'Installed waaseyaa/cli unexpectedly became a symlink.'
+    [[ ! -L "$consumer/vendor/waaseyaa/site-contract" ]] \
+        || fail 'Installed waaseyaa/site-contract unexpectedly became a symlink.'
+done
+
+run_site_init() {
+    local project="$1"
+    local profile="$2"
+    shift 2
+    (
+        cd "$project"
+        php vendor/bin/waaseyaa site:init \
+            "--preset=$profile" \
+            --answers=seed.yaml \
+            "--project-root=$project" \
+            "$@"
+    )
+}
+
+echo '== Dry-run is a non-vacuous zero-write plan'
+before_dry="$(php "$probe" tree-digest "$dry_collision")"
+if ! run_site_init "$dry_collision" editorial --dry-run --json >"$work/dry-run.json" 2>"$work/dry-run.err"; then
+    cat "$work/dry-run.json" "$work/dry-run.err" >&2
+    fail 'Editorial dry-run failed in the copied packaged consumer.'
+fi
+php "$probe" assert-dry-run-json "$work/dry-run.json"
+after_dry="$(php "$probe" tree-digest "$dry_collision")"
+[[ "$after_dry" == "$before_dry" ]] || fail 'site:init --dry-run changed consumer filesystem state.'
+[[ ! -e "$dry_collision/.waaseyaa" ]] || fail 'site:init --dry-run created generated control state.'
+
+echo '== Minimal persists only resolved minimal decisions'
+if ! run_site_init "$minimal" minimal --yes >"$work/minimal.out" 2>&1; then
+    cat "$work/minimal.out" >&2
+    fail 'Minimal profile initialization failed.'
+fi
+php "$probe" assert-profile "$minimal" minimal
+
+echo '== Re-running minimal is byte-identical and reports no changes'
+minimal_before="$(php "$probe" governed-digest "$minimal")"
+minimal_tree_before="$(php "$probe" tree-digest "$minimal")"
+if ! run_site_init "$minimal" minimal --yes >"$work/minimal-rerun.out" 2>&1; then
+    cat "$work/minimal-rerun.out" >&2
+    fail 'Minimal profile rerun failed.'
+fi
+grep -Fq 'Initialized 0 generated artifacts.' "$work/minimal-rerun.out" \
+    || { cat "$work/minimal-rerun.out" >&2; fail 'Minimal rerun did not report an empty change set.'; }
+[[ "$(php "$probe" governed-digest "$minimal")" == "$minimal_before" ]] \
+    || fail 'Minimal rerun changed governed artifact bytes.'
+[[ "$(php "$probe" tree-digest "$minimal")" == "$minimal_tree_before" ]] \
+    || fail 'Minimal rerun changed project filesystem state.'
+
+echo '== Editorial is deterministic across independent roots'
+for editorial in "$editorial_a" "$editorial_b"; do
+    if ! run_site_init "$editorial" editorial --yes >"$work/$(basename "$editorial").out" 2>&1; then
+        cat "$work/$(basename "$editorial").out" >&2
+        fail 'Editorial profile initialization failed.'
+    fi
+    php "$probe" assert-profile "$editorial" editorial
+done
+php "$probe" compare-governed "$editorial_a" "$editorial_b"
+
+echo '== An unowned collision refuses without changing state'
+mkdir -p "$dry_collision/tests/Architecture"
+printf 'application-owned collision\n' >"$dry_collision/tests/Architecture/SiteContractTest.php"
+collision_before="$(php "$probe" tree-digest "$dry_collision")"
+set +e
+run_site_init "$dry_collision" minimal --yes >"$work/collision.out" 2>&1
+collision_exit=$?
+set -e
+[[ "$collision_exit" -ne 0 ]] || { cat "$work/collision.out" >&2; fail 'An unowned collision must refuse non-zero.'; }
+grep -Fq 'Refusing to overwrite unowned artifact' "$work/collision.out" \
+    || { cat "$work/collision.out" >&2; fail 'The unowned-collision refusal was not discriminating.'; }
+[[ "$(php "$probe" tree-digest "$dry_collision")" == "$collision_before" ]] \
+    || fail 'The unowned-collision refusal changed project state.'
+[[ ! -e "$dry_collision/.waaseyaa" ]] || fail 'The unowned-collision refusal created governed state.'
+
+echo '== A managed-file tamper refuses without changing governed state'
+printf '<?php // packaged acceptance tamper outside every extension region\n' \
+    >"$minimal/src/Provider/PublishedContentServiceProvider.php"
+tamper_before="$(php "$probe" governed-digest "$minimal")"
+tamper_tree_before="$(php "$probe" tree-digest "$minimal")"
+set +e
+run_site_init "$minimal" minimal --yes >"$work/tamper.out" 2>&1
+tamper_exit=$?
+set -e
+[[ "$tamper_exit" -ne 0 ]] || { cat "$work/tamper.out" >&2; fail 'A managed-file tamper must refuse non-zero.'; }
+grep -Fq 'Generated artifact was edited outside an extension region' "$work/tamper.out" \
+    || { cat "$work/tamper.out" >&2; fail 'The managed-file refusal was not discriminating.'; }
+[[ "$(php "$probe" governed-digest "$minimal")" == "$tamper_before" ]] \
+    || fail 'The managed-file refusal changed governed state.'
+[[ "$(php "$probe" tree-digest "$minimal")" == "$tamper_tree_before" ]] \
+    || fail 'The managed-file refusal changed project filesystem state.'
+
+printf 'site:init profile packaged acceptance passed.\n'
+printf 'Candidate: %s\n' "$candidate"
+printf 'Residual boundary: #2857 still blocks provider activation and authenticated authoring.\n'

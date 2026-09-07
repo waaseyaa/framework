@@ -1585,6 +1585,37 @@ jobs:
       - name: Install bimaaji skills from installed package resources
         run: bash tests/PackagedForm/check-bimaaji-skill-resources
 
+  site-init-profile-acceptance:
+    # #2442 / FW-SITE-INIT-PROFILES-01: prove the declarative preset contract
+    # from copied candidate package bytes. This deliberately stops before the
+    # #2857 provider-activation boundary and does not claim authenticated
+    # editorial authoring is available.
+    name: ci/site-init-profile-acceptance
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # This harness creates its own consumer dependency graph, so cache only
+      # Composer downloads and never restore a prepared in-tree vendor tree.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Prove site:init profiles from copied candidate packages
+        run: bash tests/PackagedForm/check-site-init-profile-acceptance
+
   cli-health-report:
     # #2820: `health:report` must run in a consumer application that adds no
     # container bindings of its own. The command crashed in every such
