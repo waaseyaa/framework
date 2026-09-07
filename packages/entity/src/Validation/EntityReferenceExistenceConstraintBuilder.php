@@ -83,13 +83,16 @@ final class EntityReferenceExistenceConstraintBuilder
     private static function resolveTargetEntityTypeId(string $fieldName, FieldDefinitionInterface $definition): string
     {
         $settings = $definition->getSettings();
-        $target = trim((string) (
-            $settings['target_entity_type_id']
+        $rawTarget = $settings['target_entity_type_id']
             ?? $settings['targetEntityTypeId']
             ?? $settings['target_type']
-            ?? ''
-        ));
-        if ($target === '' || preg_match('/^[a-z][a-z0-9_]*$/', $target) !== 1) {
+            ?? null;
+        if (!is_string($rawTarget)) {
+            throw new \LogicException(sprintf(self::MISSING_TARGET_MESSAGE, $fieldName));
+        }
+
+        $target = trim($rawTarget);
+        if ($target === '') {
             throw new \LogicException(sprintf(self::MISSING_TARGET_MESSAGE, $fieldName));
         }
 

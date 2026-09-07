@@ -55,6 +55,70 @@ final class EntityReferenceExistenceConstraintBuilderTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('registeredTargetEntityTypeIdProvider')]
+    public function registeredTargetEntityTypeIdIsPreservedAsCanonicalResolverInput(string $target): void
+    {
+        $constraints = EntityReferenceExistenceConstraintBuilder::existenceConstraints(
+            'related_id',
+            new FieldDefinition(
+                name: 'related_id',
+                type: 'entity_reference',
+                settings: ['target_entity_type_id' => $target],
+            ),
+            $this->resolverForType($target),
+        );
+
+        self::assertCount(1, $constraints);
+        self::assertInstanceOf(EntityExists::class, $constraints[0]);
+        self::assertSame($target, $constraints[0]->entityTypeId);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function registeredTargetEntityTypeIdProvider(): iterable
+    {
+        yield 'Unicode authored type' => ['anishinaabe_ᐊᓂᔑ'];
+        yield 'reserved core namespace type' => ['core.note'];
+    }
+
+    #[Test]
+    #[DataProvider('malformedTargetMetadataProvider')]
+    public function nonStringTargetMetadataFailsWithStableMissingTargetRefusal(mixed $target): void
+    {
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+            throw new \ErrorException($message, 0, $severity, $file, $line);
+        });
+
+        try {
+            EntityReferenceExistenceConstraintBuilder::existenceConstraints(
+                'related_id',
+                new FieldDefinition(
+                    name: 'related_id',
+                    type: 'entity_reference',
+                    settings: ['target_entity_type_id' => $target],
+                ),
+                $this->resolverForType('article'),
+            );
+            self::fail('Non-string target metadata was accepted.');
+        } catch (\LogicException $exception) {
+            self::assertSame(
+                sprintf(EntityReferenceExistenceConstraintBuilder::MISSING_TARGET_MESSAGE, 'related_id'),
+                $exception->getMessage(),
+            );
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    /** @return iterable<string, array{mixed}> */
+    public static function malformedTargetMetadataProvider(): iterable
+    {
+        yield 'array' => [['article']];
+        yield 'object' => [(object) ['id' => 'article']];
+        yield 'integer' => [123];
+        yield 'boolean' => [true];
+    }
+
+    #[Test]
     public function registryBoundHostIdentityCannotStandInForMissingReferenceTargetMetadata(): void
     {
         $this->expectException(\LogicException::class);

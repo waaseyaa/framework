@@ -229,7 +229,7 @@ final class EntityRepositoryEntityReferenceValidationTest extends TestCase
     #[Test]
     public function malformedTargetMetadataFailsClosedOnActiveValidationPath(): void
     {
-        $harness = $this->harness(ReservedBackendIds::SQL_BLOB, referenceTargetTypeId: 'NOT-VALID');
+        $harness = $this->harness(ReservedBackendIds::SQL_BLOB, referenceTargetTypeId: ['ref_target']);
 
         $entity = new RefSubjectEntity(['id' => '1', 'author_id' => 1]);
         $entity->enforceIsNew();
@@ -245,7 +245,7 @@ final class EntityRepositoryEntityReferenceValidationTest extends TestCase
         bool $multiple = false,
         bool $protectedReference = false,
         string $targetType = 'ref_target',
-        ?string $referenceTargetTypeId = null,
+        mixed $referenceTargetTypeId = null,
     ): ReferenceValidationHarness {
         EntityType::clearFromClassCache();
 

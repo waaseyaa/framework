@@ -30,7 +30,9 @@ callback constraint backed by `Waaseyaa\Entity\Repository\EntityIdentifierResolv
    `EntityExists` (wrapped in `All` when `cardinality !== 1`) **after** manual
    per-type precedence. Unknown or malformed target metadata
    (`target_entity_type_id` / `targetEntityTypeId` / legacy `target_type`)
-   throws `LogicException` on the active validation path. Malformed reference
+   throws `LogicException` on the active validation path. Non-empty target IDs
+   remain opaque entity-type manager keys; this layer does not apply the CLI's
+   authoring grammar before canonical resolver lookup. Malformed reference
    value shapes fail as ordinary constraint violations without uncaught
    `TypeError`.
 4. **Manual per-type precedence preserved for ordinary constraints.**
