@@ -23,6 +23,8 @@ final class GoogleOAuthProvider implements OAuthProviderInterface
         private readonly string $clientSecret,
         private readonly string $redirectUri,
         private readonly HttpClientInterface $httpClient,
+        private readonly GoogleAccessType $accessType = GoogleAccessType::Offline,
+        private readonly bool $forceConsent = true,
     ) {}
 
     public function getName(): string
@@ -33,17 +35,20 @@ final class GoogleOAuthProvider implements OAuthProviderInterface
     /** @param list<string> $scopes */
     public function getAuthorizationUrl(array $scopes, string $state): string
     {
-        $params = http_build_query([
+        $params = [
             'client_id'     => $this->clientId,
             'redirect_uri'  => $this->redirectUri,
             'response_type' => 'code',
             'scope'         => implode(' ', $scopes),
             'state'         => $state,
-            'access_type'   => 'offline',
-            'prompt'        => 'consent',
-        ]);
+            'access_type'   => $this->accessType->value,
+        ];
 
-        return self::AUTH_URL . '?' . $params;
+        if ($this->forceConsent) {
+            $params['prompt'] = 'consent';
+        }
+
+        return self::AUTH_URL . '?' . http_build_query($params);
     }
 
     public function exchangeCode(string $code): OAuthToken
@@ -91,10 +96,15 @@ final class GoogleOAuthProvider implements OAuthProviderInterface
             throw new \RuntimeException('Google user profile response is missing an account id.');
         }
 
+        // email/name are optional profile fields. Absent, null, or malformed
+        // (non-string) values must not warn or block the stable id above.
+        $email = isset($data['email']) && is_string($data['email']) ? $data['email'] : '';
+        $name = isset($data['name']) && is_string($data['name']) ? $data['name'] : '';
+
         return new OAuthUserProfile(
             providerId: (string) $data['id'],
-            email: (string) $data['email'],
-            name: (string) $data['name'],
+            email: $email,
+            name: $name,
             avatarUrl: isset($data['picture']) ? (string) $data['picture'] : null,
             emailVerified: ($data['verified_email'] ?? false) === true,
         );

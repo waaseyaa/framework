@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\CandidateLocalComposerFixture;
 
 /**
  * Real-gate regression for the loadability half of surface parity.
@@ -46,44 +47,7 @@ final class SurfaceParityLoadabilityTest extends TestCase
             $fs->copy($this->repoRoot . '/' . $path, $this->fixtureRoot . '/' . $path, true);
         }
         $fs->mirror($this->repoRoot . '/tools/lib', $this->fixtureRoot . '/tools/lib', null, ['override' => true]);
-        // A FRESH vendor/ relative to the clone's composer.lock: the gate's
-        // vendor-freshness precondition (#2926) reads these, and this fixture
-        // is about PSR-4 loadability, not staleness — so the metadata mirrors
-        // the real, in-sync install while the autoloader below stays synthetic.
-        $fs->mkdir($this->fixtureRoot . '/vendor/composer');
-        foreach (['vendor/composer/installed.json', 'vendor/composer/autoload_psr4.php'] as $path) {
-            $fs->copy($this->repoRoot . '/' . $path, $this->fixtureRoot . '/' . $path, true);
-        }
-        $autoload = <<<'PHP'
-            <?php
-
-            declare(strict_types=1);
-
-            require %s;
-
-            spl_autoload_register(static function (string $fqcn): void {
-                if (!str_starts_with($fqcn, 'Waaseyaa\\')) {
-                    return;
-                }
-                foreach (glob(__DIR__ . '/../packages/*/composer.json') ?: [] as $manifest) {
-                    $package = json_decode((string) file_get_contents($manifest), true, 512, JSON_THROW_ON_ERROR);
-                    foreach ($package['autoload']['psr-4'] ?? [] as $prefix => $directory) {
-                        if (!str_starts_with($fqcn, $prefix)) {
-                            continue;
-                        }
-                        $path = dirname($manifest) . '/' . $directory . str_replace('\\', '/', substr($fqcn, strlen($prefix))) . '.php';
-                        if (is_file($path)) {
-                            require $path;
-                        }
-                        return;
-                    }
-                }
-            }, true, true);
-            PHP;
-        $fs->dumpFile(
-            $this->fixtureRoot . '/vendor/autoload.php',
-            sprintf($autoload, var_export($this->repoRoot . '/vendor/autoload.php', true)),
-        );
+        CandidateLocalComposerFixture::materialize($this->repoRoot, $this->fixtureRoot);
     }
 
     protected function tearDown(): void

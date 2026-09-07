@@ -368,6 +368,134 @@ final class QualifyCandidateRunnerTest extends TestCase
     }
 
     #[Test]
+    public function a_failed_preflight_leaves_expensive_components_explicitly_unrun(): void
+    {
+        $marker = $this->tmp . '/expensive-component-ran';
+        $writeMarker = 'file_put_contents(' . var_export($marker, true) . ', "ran\\n", FILE_APPEND); exit(0);';
+        $plan = $this->plan([
+            $this->component('preflight', 'fwrite(STDERR, "preflight rejected\\n"); exit(7);'),
+            $this->component('unit', $writeMarker),
+            $this->component('integration', $writeMarker),
+        ]);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--jobs=3']);
+
+        self::assertSame(1, $exit, $out);
+        self::assertSame('failed', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertSame(2, $receipt['runner']['schema_version']);
+        self::assertFalse($receipt['runner']['collect_all']);
+        self::assertFileDoesNotExist($marker, 'No held expensive component may start after preflight fails.');
+        self::assertSame('failed', $this->componentNamed($receipt, 'preflight')['outcome']);
+        foreach (['unit', 'integration'] as $id) {
+            $component = $this->componentNamed($receipt, $id);
+            self::assertSame('unrun', $component['outcome']);
+            self::assertSame('not_started', $component['termination']);
+            self::assertNull($component['started_at']);
+            self::assertNull($component['finished_at']);
+            self::assertNull($component['exit_code']);
+            self::assertStringContainsString('preflight', $component['reason']);
+            self::assertNull($component['log']);
+            self::assertNull($component['junit']);
+        }
+    }
+
+    #[Test]
+    public function a_preflight_evidence_error_keeps_expensive_components_unrun(): void
+    {
+        $marker = $this->tmp . '/evidence-error-held-component-ran';
+        $plan = $this->plan([
+            $this->component('preflight', 'exit(0);', junit: null, declaresJunit: true),
+            $this->component('unit', 'file_put_contents(' . var_export($marker, true) . ', "ran\\n"); exit(0);'),
+        ]);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--jobs=2']);
+
+        self::assertSame(2, $exit, $out);
+        self::assertSame('evidence_error', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertFileDoesNotExist($marker);
+        self::assertSame('evidence_error', $this->componentNamed($receipt, 'preflight')['outcome']);
+        $unit = $this->componentNamed($receipt, 'unit');
+        self::assertSame('unrun', $unit['outcome']);
+        self::assertSame('not_started', $unit['termination']);
+        self::assertNull($unit['started_at']);
+        self::assertNull($unit['finished_at']);
+        self::assertNull($unit['exit_code']);
+        self::assertNull($unit['log']);
+        self::assertNull($unit['junit']);
+    }
+
+    #[Test]
+    public function interruption_before_the_barrier_opens_keeps_expensive_components_unrun(): void
+    {
+        $marker = $this->tmp . '/interrupted-held-component-ran';
+        $plan = $this->plan([
+            $this->component('preflight', 'exit(0);'),
+            $this->component('unit', 'file_put_contents(' . var_export($marker, true) . ', "ran\\n"); exit(0);'),
+        ]);
+
+        [$exit, $out, $receipt] = $this->qualify(
+            ['--plan=' . $plan, '--jobs=2'],
+            env: ['WAASEYAA_QUALIFY_INTERRUPT_AFTER' => 'preflight'],
+        );
+
+        self::assertSame(130, $exit, $out);
+        self::assertSame('interrupted', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertFileDoesNotExist($marker);
+        self::assertSame('passed', $this->componentNamed($receipt, 'preflight')['outcome']);
+        $unit = $this->componentNamed($receipt, 'unit');
+        self::assertSame('unrun', $unit['outcome']);
+        self::assertSame('not_started', $unit['termination']);
+        self::assertNull($unit['started_at']);
+        self::assertNull($unit['finished_at']);
+        self::assertNull($unit['exit_code']);
+        self::assertStringContainsString('interrupted', $unit['reason']);
+        self::assertNull($unit['log']);
+        self::assertNull($unit['junit']);
+    }
+
+    #[Test]
+    public function suite_failures_are_collected_after_the_preflight_barrier_opens(): void
+    {
+        $marker = $this->tmp . '/later-suites-ran';
+        $plan = $this->plan([
+            $this->component('preflight', 'exit(0);'),
+            $this->component('unit', 'exit(9);'),
+            $this->component('integration', 'file_put_contents(' . var_export($marker, true) . ', "integration\\n", FILE_APPEND); exit(0);'),
+            $this->component('architecture', 'file_put_contents(' . var_export($marker, true) . ', "architecture\\n", FILE_APPEND); exit(0);'),
+        ]);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--jobs=1']);
+
+        self::assertSame(1, $exit, $out);
+        self::assertSame("integration\narchitecture\n", file_get_contents($marker));
+        self::assertSame('passed', $this->componentNamed($receipt, 'preflight')['outcome']);
+        self::assertSame('failed', $this->componentNamed($receipt, 'unit')['outcome']);
+        self::assertSame('passed', $this->componentNamed($receipt, 'integration')['outcome']);
+        self::assertSame('passed', $this->componentNamed($receipt, 'architecture')['outcome']);
+    }
+
+    #[Test]
+    public function collect_all_explicitly_runs_diagnostics_after_a_failed_preflight(): void
+    {
+        $marker = $this->tmp . '/diagnostic-ran';
+        $plan = $this->plan([
+            $this->component('preflight', 'exit(7);'),
+            $this->component('unit', 'file_put_contents(' . var_export($marker, true) . ', "ran\\n"); exit(0);'),
+        ]);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--jobs=2', '--collect-all']);
+
+        self::assertSame(1, $exit, $out);
+        self::assertFileExists($marker);
+        self::assertTrue($receipt['runner']['collect_all']);
+        self::assertSame('failed', $this->componentNamed($receipt, 'preflight')['outcome']);
+        self::assertSame('passed', $this->componentNamed($receipt, 'unit')['outcome']);
+    }
+
+    #[Test]
     public function concurrent_components_are_all_bound_to_one_head_and_tree(): void
     {
         $plan = $this->plan([

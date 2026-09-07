@@ -10,12 +10,16 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class GenerationUnitActivationBoundaryTest extends TestCase
 {
-    public function testSeededCompilerAdmissionContainsOnlyTheReviewedContentTypeCompiler(): void
+    public function testSeededCompilerAdmissionContainsOnlyTheReviewedScaffoldCompilers(): void
     {
         $authority = new \ReflectionClass(\Waaseyaa\CLI\Site\SiteInitializationService::class);
         self::assertSame(
-            [\Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler::class],
+            [
+                \Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler::class,
+                \Waaseyaa\CLI\Site\Scaffold\SearchProjectionScaffoldCompiler::class,
+            ],
             $authority->getConstant('SEEDED_COMPILERS'),
+            'Seeded admission is a reviewed property of a named compiler (ADR-025 D-2.2), never self-service: a compiler cannot promote itself by setting a disposition.',
         );
     }
 
@@ -69,6 +73,7 @@ final class GenerationUnitActivationBoundaryTest extends TestCase
         self::assertSame([
             'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
             'packages/cli/src/Site/SiteInitializationService.php',
+            'packages/site-contract/src/Generation/SiteArtifactRenderer.php',
         ], $explicitAdditiveOwners);
     }
 

@@ -52,7 +52,18 @@ final class FieldServiceProvider extends ServiceProvider
     {
         $this->singleton(
             FieldDefinitionRegistryInterface::class,
-            fn() => new FieldDefinitionRegistry($this->resolve(FieldTypeManagerInterface::class)),
+            function (): FieldDefinitionRegistryInterface {
+                $bootScoped = $this->kernelServices?->get(FieldDefinitionRegistryInterface::class);
+                if ($bootScoped !== null && !$bootScoped instanceof FieldDefinitionRegistryInterface) {
+                    throw new \LogicException(sprintf(
+                        'Kernel service for %s must implement that interface; %s given.',
+                        FieldDefinitionRegistryInterface::class,
+                        $bootScoped::class,
+                    ));
+                }
+
+                return $bootScoped ?? new FieldDefinitionRegistry($this->resolve(FieldTypeManagerInterface::class));
+            },
         );
 
         $this->singleton(

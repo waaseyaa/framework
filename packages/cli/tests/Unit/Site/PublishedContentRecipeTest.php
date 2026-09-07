@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
 use Waaseyaa\CLI\Site\SiteDoctorService;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
+use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(PublishedContentRecipe::class)]
@@ -111,6 +112,45 @@ final class PublishedContentRecipeTest extends TestCase
                 (new Filesystem())->remove($root);
             }
         }
+    }
+
+    /** ADR-025 D-15.2: the recipe's fixed provider registration, consumed by {@see SiteArtifactRenderer::compile()}. */
+    #[Test]
+    public function itReturnsNoProviderRegistrationWhenNotSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        self::assertSame([], new PublishedContentRecipe()->providerRegistrations($this->withRecipes($manifest, [])));
+    }
+
+    #[Test]
+    public function itReturnsItsFixedProviderRegistrationWhenSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        $registrations = new PublishedContentRecipe()->providerRegistrations($manifest);
+
+        self::assertCount(1, $registrations);
+        self::assertSame('App\\Provider\\PublishedContentServiceProvider', $registrations[0]->fqcn);
+        self::assertNull($registrations[0]->group);
+    }
+
+    /** @param array<string, \Waaseyaa\SiteContract\RecipeSelection> $recipes */
+    private function withRecipes(SiteManifest $manifest, array $recipes): SiteManifest
+    {
+        return new SiteManifest(
+            $manifest->schemaVersion,
+            $manifest->generatorVersion,
+            $manifest->application,
+            $manifest->framework,
+            $manifest->contentTypes,
+            $manifest->capabilities,
+            $manifest->personalDataStores,
+            $recipes,
+            $manifest->verificationCommand,
+            $manifest->canonicalJson,
+            $manifest->digest,
+        );
     }
 
     private function renderer(): SiteArtifactRenderer

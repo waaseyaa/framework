@@ -11,12 +11,16 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
 use Waaseyaa\CLI\Site\SiteInitializationService;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Field\FieldScaffoldProjection;
+use Waaseyaa\Field\FieldValueKind;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 
 /**
  * Scaffold a usable content type in one command (author-path FR-003):
  *
  *   waaseyaa make:content-type story --fields="title:string,body:text,source_url:string"
+ *   waaseyaa make:content-type story --fields="title:string,summary:text" --field-read="title:public,summary:protected"
  *
  * Generates `App\Entity\{Name}` (a content entity with a published `status`
  * field plus each requested field — `entity_reference:<target>` includes the
@@ -40,6 +44,7 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 final class MakeContentTypeHandler extends AbstractMakeHandler
 {
     public function __construct(
+        private readonly FieldScaffoldProjection $fieldProjection,
         private readonly ?string $projectRoot = null,
     ) {}
 
@@ -47,6 +52,7 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
     {
         $name = (string) $io->argument('name');
         $fieldsSpec = (string) ($io->option('fields') ?? '');
+        $fieldReadSpec = (string) ($io->option('field-read') ?? '');
         $force = (bool) $io->option('force');
         $cwd = getcwd();
         $root = $this->projectRoot ?? ($cwd !== false ? $cwd : '.');
@@ -84,7 +90,16 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
             return 1;
         }
 
-        $labelField = ContentTypeScaffoldCompiler::labelField($fields);
+        try {
+            $fields = $this->applyFieldReadSelections($fields, $fieldReadSpec);
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
+
+        $compiler = new ContentTypeScaffoldCompiler($this->fieldProjection);
+        $labelField = $compiler->labelField($fields);
         $providerClass = $className . 'ServiceProvider';
 
         $entityPath = $root . '/src/Entity/' . $className . '.php';
@@ -101,7 +116,7 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
         }
 
         try {
-            $plan = new ContentTypeScaffoldCompiler()->compile($name, $className, $fields);
+            $plan = $compiler->compile($name, $className, $fields);
             // The single-invocation flow of ADR-025 D-6.5: compile, evaluate and
             // apply happen once, in one process, through the same two-digest
             // gate a transported plan passes. There is one publication engine.
@@ -144,27 +159,45 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
     private function parseFields(string $spec): array
     {
         $fields = [];
+        $seen = [];
+        $fieldTypeIds = $this->fieldProjection->fieldTypeIds();
         foreach (explode(',', $spec) as $raw) {
             $raw = trim($raw);
             if ($raw === '') {
                 continue;
             }
             $parts = explode(':', $raw);
+            $segmentCount = count($parts);
+            if ($segmentCount > 3) {
+                throw new \RuntimeException(sprintf('Malformed field entry "%s" (too many segments).', $raw));
+            }
             $fieldName = trim($parts[0]);
-            $type = isset($parts[1]) ? trim($parts[1]) : 'string';
-            $target = isset($parts[2]) ? trim($parts[2]) : null;
+            $type = $segmentCount === 1 ? 'string' : trim($parts[1]);
+            $target = $segmentCount === 3 ? trim($parts[2]) : null;
 
             if ($fieldName === '' || !preg_match('/^[a-z][a-z0-9_]*$/', $fieldName)) {
                 throw new \RuntimeException(sprintf('Invalid field name "%s" (use snake_case).', $fieldName));
             }
+            if (isset($seen[$fieldName])) {
+                throw new \RuntimeException(sprintf('Duplicate field declaration "%s".', $fieldName));
+            }
+            $seen[$fieldName] = true;
             if ($fieldName === 'status') {
                 throw new \RuntimeException('"status" is reserved (added automatically as the published flag).');
             }
-            if (!isset(ContentTypeScaffoldCompiler::TYPE_MAP[$type])) {
-                throw new \RuntimeException(sprintf('Unknown field type "%s" for "%s". Allowed: %s.', $type, $fieldName, implode(', ', array_keys(ContentTypeScaffoldCompiler::TYPE_MAP))));
+            if (!in_array($type, $fieldTypeIds, true)) {
+                throw new \RuntimeException(sprintf(
+                    'Unknown field type "%s" for "%s", or its registered metadata is incomplete for scaffolding. Registered scaffold types: %s.',
+                    $type,
+                    $fieldName,
+                    implode(', ', $fieldTypeIds),
+                ));
             }
-            if ($type === 'entity_reference') {
-                if ($target === null || $target === '') {
+            if ($this->fieldProjection->valueKind($type) === FieldValueKind::EntityReference) {
+                if ($segmentCount !== 3) {
+                    throw new \RuntimeException(sprintf('entity_reference field "%s" needs a target: %s:entity_reference:<target_type>.', $fieldName, $fieldName));
+                }
+                if ($target === '') {
                     throw new \RuntimeException(sprintf('entity_reference field "%s" needs a target: %s:entity_reference:<target_type>.', $fieldName, $fieldName));
                 }
                 // $target is interpolated raw into a generated
@@ -177,11 +210,79 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
                 if (!preg_match(self::MACHINE_NAME_PATTERN, $target)) {
                     throw new \RuntimeException(sprintf('Invalid entity_reference target "%s" for "%s".', $target, $fieldName));
                 }
+            } elseif ($segmentCount > 2) {
+                throw new \RuntimeException(sprintf('Scalar field "%s" cannot declare a target segment (use name:type only).', $fieldName));
             }
 
+            $this->fieldProjection->property(
+                $this->fieldProjection->definition($fieldName, $type, $target),
+            );
             $fields[] = ['name' => $fieldName, 'type' => $type, 'target' => $target];
         }
 
         return $fields;
+    }
+
+    /**
+     * @param list<array{name: string, type: string, target: ?string}> $fields
+     * @return list<array{name: string, type: string, target: ?string, read?: string}>
+     */
+    private function applyFieldReadSelections(array $fields, string $spec): array
+    {
+        if ($spec === '') {
+            return $fields;
+        }
+
+        $fieldNames = [];
+        foreach ($fields as $field) {
+            $fieldNames[$field['name']] = true;
+        }
+
+        $selections = [];
+        foreach (explode(',', $spec) as $raw) {
+            if (trim($raw) === '') {
+                throw new \RuntimeException('Malformed --field-read value (empty selection).');
+            }
+            $raw = trim($raw);
+            if (!str_contains($raw, ':')) {
+                throw new \RuntimeException(sprintf('Malformed field-read entry "%s" (expected field:level).', $raw));
+            }
+            $parts = explode(':', $raw, 2);
+            $fieldName = trim($parts[0]);
+            $wire = trim($parts[1]);
+            if ($fieldName === '' || $wire === '' || str_contains($wire, ':')) {
+                throw new \RuntimeException(sprintf('Malformed field-read entry "%s" (expected field:level).', $raw));
+            }
+            if ($fieldName === 'status') {
+                throw new \RuntimeException('"status" is reserved and cannot be selected in --field-read.');
+            }
+            if (isset($selections[$fieldName])) {
+                throw new \RuntimeException(sprintf('Duplicate field-read selection "%s".', $fieldName));
+            }
+            if (!isset($fieldNames[$fieldName])) {
+                throw new \RuntimeException(sprintf('Unknown field-read selection "%s" (not declared in --fields).', $fieldName));
+            }
+            $level = FieldReadLevel::tryFrom($wire);
+            if ($level === null) {
+                throw new \RuntimeException(sprintf(
+                    'Unsupported field-read level "%s" for "%s". Use one of: %s.',
+                    $wire,
+                    $fieldName,
+                    implode(', ', array_map(static fn(FieldReadLevel $case): string => $case->value, FieldReadLevel::cases())),
+                ));
+            }
+            $selections[$fieldName] = $level->value;
+        }
+
+        $withRead = [];
+        foreach ($fields as $field) {
+            $entry = $field;
+            if (isset($selections[$field['name']])) {
+                $entry['read'] = $selections[$field['name']];
+            }
+            $withRead[] = $entry;
+        }
+
+        return $withRead;
     }
 }

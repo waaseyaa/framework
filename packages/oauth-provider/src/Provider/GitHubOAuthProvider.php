@@ -25,6 +25,7 @@ final class GitHubOAuthProvider implements OAuthProviderInterface
         private readonly string $clientSecret,
         private readonly string $redirectUri,
         private readonly HttpClientInterface $httpClient,
+        private readonly bool $fetchEmail = true,
     ) {}
 
     public function getName(): string
@@ -110,28 +111,34 @@ final class GitHubOAuthProvider implements OAuthProviderInterface
         // Email is best-effort: a token without the `user:email` scope (or a
         // transient error on this secondary call) yields an unverified/empty
         // email, NOT a failed login. Only read the body on success so an error
-        // payload is never mistaken for email data.
+        // payload is never mistaken for email data. An identity-only consumer
+        // (fetchEmail: false) skips this request entirely — it never pays for
+        // a lookup it discards.
         $email = '';
         $emailVerified = false;
-        $emailsResponse = $this->httpClient->get(self::EMAILS_URL, $headers);
-        if ($emailsResponse->isSuccess()) {
-            foreach ($emailsResponse->json() as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $primary = $entry['primary'] ?? false;
-                $verified = $entry['verified'] ?? false;
-                if ($primary === true && $verified === true && isset($entry['email'])) {
-                    $email = (string) $entry['email'];
-                    $emailVerified = true;
-                    break;
+        if ($this->fetchEmail) {
+            $emailsResponse = $this->httpClient->get(self::EMAILS_URL, $headers);
+            if ($emailsResponse->isSuccess()) {
+                foreach ($emailsResponse->json() as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+                    $primary = $entry['primary'] ?? false;
+                    $verified = $entry['verified'] ?? false;
+                    if ($primary === true && $verified === true && isset($entry['email'])) {
+                        $email = (string) $entry['email'];
+                        $emailVerified = true;
+                        break;
+                    }
                 }
             }
         }
 
+        // name/login are optional/malformed-tolerant: a missing, null, or
+        // non-string login must not warn or block the stable id above.
         $name = isset($userData['name']) && is_string($userData['name']) && $userData['name'] !== ''
             ? $userData['name']
-            : (string) $userData['login'];
+            : (isset($userData['login']) && is_string($userData['login']) ? $userData['login'] : '');
 
         return new OAuthUserProfile(
             providerId: (string) $userData['id'],

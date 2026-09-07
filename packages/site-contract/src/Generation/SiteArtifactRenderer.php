@@ -12,6 +12,8 @@ use Waaseyaa\SiteContract\SiteManifestSchema;
 /** @api */
 final class SiteArtifactRenderer
 {
+    private const string METADATA_PATH = '.waaseyaa/generated.json';
+
     /** @var array<string, SiteRecipeRendererInterface> */
     private array $recipeRenderers = [];
 
@@ -79,9 +81,80 @@ final class SiteArtifactRenderer
             'manifest_digest' => $manifest->digest,
             'artifacts' => $metadataRows,
         ]) . "\n";
-        $artifacts[] = new GeneratedArtifact('.waaseyaa/generated.json', $metadata);
+        $artifacts[] = new GeneratedArtifact(self::METADATA_PATH, $metadata);
 
         return new GeneratedSite($manifest->generatorVersion, $manifest->digest, $artifacts);
+    }
+
+    /**
+     * The root-unit plan the execution authority publishes (ADR-025 D-15.2).
+     *
+     * Identical artifact bytes to {@see self::render()} minus the ownership
+     * document, which the transaction authority composes (D-2.6), plus every
+     * wired recipe's fixed provider registration — the repair for the recipe
+     * activation defect FW-RECIPE-ACTIVATION-AUTHORITY-01 describes: a
+     * recipe's Composer fragment file remains a generated compatibility
+     * artifact, but `PackageManifestCompiler` discovers providers only from
+     * literal root `composer.json`, so the fragment is not provider-discovery
+     * authority. The provider must instead enter this plan and, through it,
+     * literal root `composer.json` (D-6.6).
+     */
+    public function compile(SiteManifest $manifest): ArtifactPlan
+    {
+        $rendered = $this->render($manifest);
+        $artifacts = array_values(array_filter(
+            $rendered->artifacts,
+            static fn(GeneratedArtifact $artifact): bool => $artifact->path !== self::METADATA_PATH,
+        ));
+
+        $registrations = [];
+        foreach ($this->recipeRenderers as $renderer) {
+            if (!$renderer instanceof SiteRecipeProviderRegistrationInterface) {
+                continue;
+            }
+            foreach ($renderer->providerRegistrations($manifest) as $registration) {
+                $registrations[] = $registration;
+            }
+        }
+        usort($registrations, self::compareRegistrations(...));
+
+        return new ArtifactPlan(
+            self::class,
+            $manifest->generatorVersion,
+            'site',
+            GenerationUnitDisposition::Managed,
+            $manifest->digest,
+            $artifacts,
+            registrations: $registrations,
+            setEvolution: ArtifactSetEvolution::Additive,
+        );
+    }
+
+    /**
+     * Same ordering `ArtifactPlan::compareRegistrations()` enforces (`null`
+     * group first, then string groups by `strcmp`) — replicated here rather
+     * than exposed from `ArtifactPlan` because that comparator is a private
+     * implementation detail of the plan's own constructor invariant.
+     */
+    private static function compareRegistrations(
+        ComposerProviderRegistration $left,
+        ComposerProviderRegistration $right,
+    ): int {
+        $byFqcn = strcmp($left->fqcn, $right->fqcn);
+        if ($byFqcn !== 0) {
+            return $byFqcn;
+        }
+        if ($left->group === $right->group) {
+            return 0;
+        }
+        if ($left->group === null) {
+            return -1;
+        }
+        if ($right->group === null) {
+            return 1;
+        }
+
+        return strcmp($left->group, $right->group);
     }
 
     private function agents(): string

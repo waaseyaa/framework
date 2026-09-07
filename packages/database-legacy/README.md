@@ -2,7 +2,7 @@
 
 **Layer 0 — Foundation**
 
-Database abstraction for Waaseyaa applications, wrapping [Doctrine DBAL](https://www.doctrine-project.org/projects/dbal.html). Interim layer until a full Doctrine migration.
+Database abstraction for Waaseyaa applications, wrapping [Doctrine DBAL](https://www.doctrine-project.org/projects/dbal.html). The `-legacy` suffix is historical extraction lineage, not a deprecation signal — see [ADR-007](../../docs/adr/007-database-legacy-package-naming.md).
 
 ## Namespace
 

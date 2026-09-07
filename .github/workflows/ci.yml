@@ -1271,6 +1271,39 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "$What failed with exit code $LASTEXITCODE" }
           }
 
+          function Read-ProjectInitEnvelope {
+            param(
+              [string] $Path,
+              [string] $ExpectedStatus,
+              [string] $ExpectedInstallStatus,
+              [AllowNull()] [Nullable[int]] $ExpectedInstallExit,
+              [AllowNull()] [object] $ExpectedNotRunReason,
+              [string] $ExpectedInstallText = ''
+            )
+            try {
+              $result = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json -AsHashtable
+            }
+            catch {
+              throw "project:init emitted invalid JSON: $($_.Exception.Message)"
+            }
+            if ($result.schema -ne 'waaseyaa.project_init_result' -or
+                $result.version -ne 1 -or
+                $result.status -ne $ExpectedStatus -or
+                @($result.errors).Count -ne 0 -or
+                $result.phases.site.command -ne 'site:init' -or
+                $result.phases.site.status -ne 'succeeded' -or
+                $result.phases.site.exit_code -ne 0 -or
+                $result.phases.site.result -isnot [hashtable] -or
+                $result.phases.install.command -ne 'install:init' -or
+                $result.phases.install.status -ne $ExpectedInstallStatus -or
+                $result.phases.install.exit_code -ne $ExpectedInstallExit -or
+                $result.phases.install.not_run_reason -ne $ExpectedNotRunReason -or
+                ($ExpectedInstallText -ne '' -and $result.phases.install.stdout -notmatch [regex]::Escape($ExpectedInstallText))) {
+              throw "project:init result did not match the expected $ExpectedStatus lifecycle envelope."
+            }
+            return $result
+          }
+
           $repo = $env:GITHUB_WORKSPACE
           $work = Join-Path $env:RUNNER_TEMP ('skel-' + [guid]::NewGuid().ToString('N'))
 
@@ -1313,6 +1346,22 @@ jobs:
               php (Join-Path $repo 'tests/ReferenceConsumer/prepare.php') bind-lock $repo $work
             }
 
+            # Execute the installed project initializer on native Windows while
+            # the consumer is still pristine. Preview may evaluate site:init,
+            # but it must not publish or start install:init.
+            $projectPreviewOut = Join-Path $env:RUNNER_TEMP 'project-init-preview.json'
+            $projectPreviewErr = Join-Path $env:RUNNER_TEMP 'project-init-preview.err'
+            Invoke-Checked 'project:init dry-run' {
+              php vendor/bin/waaseyaa project:init --dry-run --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction 1> $projectPreviewOut 2> $projectPreviewErr
+            }
+            if ((Get-Item -LiteralPath $projectPreviewErr).Length -ne 0) {
+              throw "Successful project:init preview wrote parent stderr: $(Get-Content -Raw -LiteralPath $projectPreviewErr)"
+            }
+            $null = Read-ProjectInitEnvelope $projectPreviewOut 'previewed' 'not_run' $null 'dry_run'
+            if (Test-Path '.waaseyaa/generated.json') { throw 'project:init dry-run published ownership metadata.' }
+            if (Test-Path 'bin/maintenance/site-verify') { throw 'project:init dry-run generated a verification command.' }
+            if (Test-Path 'storage/waaseyaa.sqlite') { throw 'project:init dry-run created the application database.' }
+
             # The lifecycle. site:init is the step that could not complete on
             # this platform before #2644.
             Invoke-Checked 'site:init' {
@@ -1341,6 +1390,20 @@ jobs:
               php vendor/bin/waaseyaa install:init --no-interaction
             }
             Invoke-Checked 'composer site-verify' { composer site-verify }
+
+            # Run the composed command through the installed provider and the
+            # native Windows production runner. The direct lifecycle above is
+            # intentionally retained as the database-boundary authority; this
+            # invocation proves composed retry/idempotence on the same consumer.
+            $projectRepeatOut = Join-Path $env:RUNNER_TEMP 'project-init-repeat.json'
+            $projectRepeatErr = Join-Path $env:RUNNER_TEMP 'project-init-repeat.err'
+            Invoke-Checked 'project:init (repeat)' {
+              php vendor/bin/waaseyaa project:init --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction 1> $projectRepeatOut 2> $projectRepeatErr
+            }
+            if ((Get-Item -LiteralPath $projectRepeatErr).Length -ne 0) {
+              throw "Repeated project:init wrote parent stderr: $(Get-Content -Raw -LiteralPath $projectRepeatErr)"
+            }
+            $null = Read-ProjectInitEnvelope $projectRepeatOut 'completed' 'succeeded' 0 $null 'Configuration already initialized'
 
             # Regeneration is idempotent without POSIX permission bits.
             Invoke-Checked 'site:init (repeat)' {
@@ -1547,6 +1610,41 @@ jobs:
       - name: Prove downstream custom field admission in dev and prod consumers
         run: bash tests/PackagedForm/check-custom-field-admission
 
+  site-recipe-provider-activation:
+    # #2857: prove a recipe-selected provider reaches literal root composer.json
+    # and a real packaged kernel from the exact candidate. The rival keeps the
+    # generated compatibility fragment and provider class byte-identical while
+    # removing only the literal-root provider entry, then proves the surface and
+    # field disappear. In-tree unit tests cannot demonstrate that discovery
+    # boundary or the supported skeleton's full lifecycle.
+    # See tests/PackagedForm/check-site-recipe-provider-activation.
+    name: ci/site-recipe-provider-activation
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # The harness installs a fresh disposable consumer. Reuse only Composer's
+      # package download cache; never a vendor tree from another dependency graph.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Prove recipe provider activation from the exact candidate
+        env:
+          CANDIDATE_SHA: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+        run: bash tests/PackagedForm/check-site-recipe-provider-activation
+
   bimaaji-skill-resources:
     # #2656: `bimaaji:install` must work from a real packaged consumer. The
     # canonical Agent Skills used to live at the monorepo root, so the command
@@ -1584,6 +1682,37 @@ jobs:
 
       - name: Install bimaaji skills from installed package resources
         run: bash tests/PackagedForm/check-bimaaji-skill-resources
+
+  site-init-profile-acceptance:
+    # #2442 / FW-SITE-INIT-PROFILES-01: prove the declarative preset contract
+    # from copied candidate package bytes. This deliberately stops before the
+    # #2857 provider-activation boundary and does not claim authenticated
+    # editorial authoring is available.
+    name: ci/site-init-profile-acceptance
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # This harness creates its own consumer dependency graph, so cache only
+      # Composer downloads and never restore a prepared in-tree vendor tree.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Prove site:init profiles from copied candidate packages
+        run: bash tests/PackagedForm/check-site-init-profile-acceptance
 
   cli-health-report:
     # #2820: `health:report` must run in a consumer application that adds no
@@ -1654,6 +1783,40 @@ jobs:
 
       - name: Run sync-rules in packaged-form consumers
         run: bash tests/PackagedForm/check-cli-sync-rules
+
+  cli-io-consumer-contract:
+    # #2961: `Waaseyaa\CLI\Io\StdinSource` is declared public, and Composer
+    # honours `autoload-dev` for the root package ONLY — so a regression that
+    # makes it unreachable downstream is invisible in-tree and invisible to
+    # every other job here. Only a real installed consumer catches it: this
+    # proof builds one from the candidate bytes, implements and calls the
+    # interface under PHPUnit, then repeats the install with --no-dev and boots
+    # the console kernel.
+    name: ci/cli-io-consumer-contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Installs into a fresh mktemp consumer with its own dependency graph, so
+      # it cannot consume prepare-test-plan's vendor archive. Exact key only —
+      # no restore-keys — same rationale as the other consumer-shaped jobs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Run the CLI IO consumer contract in packaged form
+        run: bash tests/PackagedForm/check-cli-io-consumer-contract
 
   split-artifact-acceptance:
     # #2649 (child of #2527). Release Gate 2 must prove that the EXACT candidate

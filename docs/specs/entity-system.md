@@ -280,6 +280,13 @@ matching the decoded values returned by both SQL storage backends. `decimal`
 remains a patterned string so SQLite and GraphQL preserve its lossless-text
 storage contract rather than coercing it through a binary float.
 
+The internal `FieldScaffoldProjection` composes this authority with declared
+`FieldValueKind` and `FieldTypeInferrer::isCompatible()` to derive scaffold PHP
+property shapes. It validates plugin-owned schema/storage projections and does
+not introduce another field-type-id allowlist. See
+[field-scaffold-projection.md](field-scaffold-projection.md) for admission,
+manual reference semantics and required boot-scoped command-provider injection.
+
 Each field-type plugin may also declare a transport-neutral `FieldValueKind`.
 GraphQL maps that semantic kind to its native scalar or structured type, so a
 manifest-discovered downstream plugin can cross the GraphQL boundary without
@@ -2356,6 +2363,8 @@ Bundle-scoped field definitions can be declared declaratively using PHP attribut
 ### BundleTemplateCompiler
 
 `Waaseyaa\Field\BundleTemplateCompiler` accepts an explicit list of class names and registers the resulting `FieldDefinition` objects with `FieldDefinitionRegistry::registerBundleFields()`. Compilation is idempotent — subsequent calls are no-ops.
+
+In a booted kernel, `FieldServiceProvider` constructs the compiler with the exact `FieldDefinitionRegistryInterface` owned by `EntityTypeManager` and exposed through `KernelServicesInterface`; provider-local, HTTP, listing, schema, and storage consumers therefore observe the same compiled bundle definitions. Only standalone provider use with no kernel registry constructs an isolated built-in registry. A non-null kernel service that does not implement the interface fails closed.
 
 ```php
 $compiler = new BundleTemplateCompiler($fieldDefinitionRegistry);

@@ -31,9 +31,14 @@ These five phases are the whole fresh-project lifecycle, and they are ordered.
 `schema:sync` and is the only command that activates the configuration
 generation. It is idempotent, so re-run it after any later `site:init`.
 
-`composer site-verify` is the portable entry point and works identically on
-Linux, macOS, and native Windows. The `.ci/site-verify` shell adapter is a
-POSIX-only convenience that calls the same implementation.
+`composer site-verify` is the portable entry point. Its materially equivalent
+Linux and native Windows behavior is exercised by Framework CI; this is not a
+macOS evidence claim. The `.ci/site-verify` shell adapter is a POSIX-only
+convenience that calls the same implementation.
+
+The full native Linux/Windows entrypoint boundary, including generated
+maintenance commands, test launchers, local AI, and MCP launchers, is in the
+[native host support contract](https://github.com/waaseyaa/framework/blob/main/docs/specs/native-host-support.md).
 
 Use `./vendor/bin/waaseyaa` for the CLI. Optional path-linked `waaseyaa/*` checkouts: copy `composer.local.json.example` to `composer.local.json` (see [docs/local-dev.md](docs/local-dev.md)).
 
@@ -141,10 +146,14 @@ is nothing to download or place by hand. If the binary isn't present yet,
 php vendor/bin/waaseyaa frankenphp:install
 ```
 
-It works identically on **Windows, macOS, and Linux with zero PATH setup**.
-`composer run dev` routes to the `waaseyaa dev` command via Composer's own PHP
-(`@php`), which resolves the `frankenphp` binary to an **absolute path** and execs
-it directly — you never add the FrankenPHP directory to `PATH`.
+The implementation targets **Windows, macOS, and Linux with zero PATH setup**,
+but the Framework's current native Windows CI does not exercise FrankenPHP
+serving; see the
+[native host support contract](https://github.com/waaseyaa/framework/blob/main/docs/specs/native-host-support.md)
+for the evidence boundary. `composer run dev` routes to the `waaseyaa dev`
+command via Composer's own PHP (`@php`), which resolves the `frankenphp` binary
+to an **absolute path** and execs it directly — you never add the FrankenPHP
+directory to `PATH`.
 
 > **Do NOT put the FrankenPHP directory on `PATH`.** The official Windows release
 > is a full PHP SDK that bundles its own `php.exe` with OpenSSL disabled — on

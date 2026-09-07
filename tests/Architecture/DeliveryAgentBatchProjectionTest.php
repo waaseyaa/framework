@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\CandidateLocalComposerFixture;
 
 #[CoversNothing]
 final class DeliveryAgentBatchProjectionTest extends TestCase
@@ -123,14 +124,10 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
             $this->git($fixture, ['commit', '-m', 'fixture: projection baseline']);
             self::assertSame('false', trim($this->git($fixture, ['rev-parse', '--is-shallow-repository'])));
             $fs->copy($root . '/bin/project-delivery-agent-events', $fixture . '/bin/project-delivery-agent-events', true);
-            // The real vendor/ (not an autoload.php shim): the clone carries the
-            // repository's composer.json/composer.lock, and the ledger gate the
-            // projector shells out to runs the vendor-freshness precondition
-            // (#2926) against vendor/composer/installed.json and the dumped
-            // PSR-4 map before it touches the autoloader. On a machine whose
-            // vendor/ is stale this test therefore fails with that gate's exit-3
-            // "run composer install" message — not a fixture bug.
-            self::assertTrue(symlink($root . '/vendor', $fixture . '/vendor'));
+            // Bind generated Composer metadata to this clone. First-party paths
+            // resolve into the clone; only explicit third-party package directories
+            // remain linked to the source checkout's already-installed dependencies.
+            CandidateLocalComposerFixture::materialize($root, $fixture);
 
             $ledgerLines = file($fixture . '/ops/observability/delivery-agent-events-v1.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             self::assertIsArray($ledgerLines);
@@ -236,14 +233,10 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
             $this->git($fixture, ['commit', '--allow-empty', '-m', 'fixture: legacy accepted source']);
             self::assertSame('false', trim($this->git($fixture, ['rev-parse', '--is-shallow-repository'])));
             $fs->copy($root . '/bin/project-delivery-agent-events', $fixture . '/bin/project-delivery-agent-events', true);
-            // The real vendor/ (not an autoload.php shim): the clone carries the
-            // repository's composer.json/composer.lock, and the ledger gate the
-            // projector shells out to runs the vendor-freshness precondition
-            // (#2926) against vendor/composer/installed.json and the dumped
-            // PSR-4 map before it touches the autoloader. On a machine whose
-            // vendor/ is stale this test therefore fails with that gate's exit-3
-            // "run composer install" message — not a fixture bug.
-            self::assertTrue(symlink($root . '/vendor', $fixture . '/vendor'));
+            // Bind generated Composer metadata to this clone. First-party paths
+            // resolve into the clone; only explicit third-party package directories
+            // remain linked to the source checkout's already-installed dependencies.
+            CandidateLocalComposerFixture::materialize($root, $fixture);
 
             $legacySource = trim($this->git($fixture, ['rev-parse', 'HEAD']));
             $database = $fixture . '/projection.sqlite';

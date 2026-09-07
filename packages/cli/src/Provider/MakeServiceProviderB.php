@@ -9,14 +9,20 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Handler\MakeContentTypeHandler;
 use Waaseyaa\CLI\Handler\MakeEntityTypeHandler;
 use Waaseyaa\CLI\Handler\MakePluginHandler;
 use Waaseyaa\CLI\Handler\MakeProviderHandler;
 use Waaseyaa\CLI\Handler\MakePublicHandler;
+use Waaseyaa\CLI\Handler\MakeSearchProjectionHandler;
 use Waaseyaa\CLI\Handler\MakeTestHandler;
+use Waaseyaa\Field\FieldScaffoldProjection;
+use Waaseyaa\Field\FieldTypeManagerInterface;
+use Waaseyaa\Field\FieldValueKindResolverInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Search\ProvidesEntitySearchProjectorsInterface;
 
 final class MakeServiceProviderB extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
@@ -40,8 +46,14 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                 new HandlerOption(
                     name: 'fields',
                     mode: HandlerOptionMode::Required,
-                    description: 'Comma-separated fields: name:type[,...] (types: string,text,integer,float,boolean,datetime,entity_reference; reference: author:entity_reference:user)',
+                    description: 'Comma-separated fields: name:type[,...] using registered scaffold field types; reference: author:entity_reference:user',
                     default: 'title:string,body:text',
+                ),
+                new HandlerOption(
+                    name: 'field-read',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Explicit field visibility: title:public,summary:protected; omitted fields remain Internal',
+                    default: '',
                 ),
                 new HandlerOption(
                     name: 'force',
@@ -49,7 +61,72 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                     description: 'Overwrite existing generated files',
                 ),
             ],
-            handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $projectRoot), 'execute']),
+            handler: function (SymfonyCommandIO $io) use ($projectRoot): int {
+                $fieldTypes = $this->resolve(FieldTypeManagerInterface::class);
+                if (!$fieldTypes instanceof FieldTypeManagerInterface || !$fieldTypes instanceof FieldValueKindResolverInterface) {
+                    throw new \LogicException('make:content-type requires the boot-scoped field registry and value-kind resolver.');
+                }
+
+                return new MakeContentTypeHandler(
+                    fieldProjection: new FieldScaffoldProjection($fieldTypes),
+                    projectRoot: $projectRoot,
+                )->execute($io);
+            },
+        );
+
+        yield new HandlerCommand(
+            name: 'make:search-projection',
+            description: 'Scaffold an application search projector, its provider binding and a companion test',
+            arguments: [
+                new HandlerArgument(
+                    name: 'entity-type',
+                    mode: HandlerArgumentMode::Required,
+                    description: 'The entity type id to project (e.g. "story")',
+                ),
+            ],
+            options: [
+                new HandlerOption(
+                    name: 'fields',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Comma-separated field names concatenated into the indexed body, in order (e.g. "summary,body")',
+                    default: 'body',
+                ),
+                new HandlerOption(
+                    name: 'force',
+                    mode: HandlerOptionMode::None,
+                    description: 'Overwrite existing generated files',
+                ),
+            ],
+            // Deferred, like make:content-type above: the single-provider
+            // refusal needs the exact boot-scoped ProvidesEntitySearchProjectorsInterface
+            // binding the running application would resolve, not a rescan of
+            // source files. KernelServicesInterface::get() returns null only
+            // when no provider is bound. Unlike resolveOptional(), it preserves
+            // a declared binding's resolution failure so the command cannot
+            // mistake a broken existing provider for an empty slot.
+            handler: function (SymfonyCommandIO $io) use ($projectRoot): int {
+                try {
+                    $existingProvider = $this->kernelServices?->get(ProvidesEntitySearchProjectorsInterface::class);
+                } catch (\Throwable) {
+                    $io->error('The registered application search-projector provider could not be resolved. Repair its provider binding before generating another one; nothing has been written.');
+
+                    return 1;
+                }
+                if ($existingProvider !== null && !$existingProvider instanceof ProvidesEntitySearchProjectorsInterface) {
+                    $io->error(sprintf(
+                        'The registered %s binding resolved a %s, which does not implement ProvidesEntitySearchProjectorsInterface; nothing has been written.',
+                        ProvidesEntitySearchProjectorsInterface::class,
+                        $existingProvider::class,
+                    ));
+
+                    return 1;
+                }
+
+                return new MakeSearchProjectionHandler(
+                    projectRoot: $projectRoot,
+                    existingSearchProjectorProvider: $existingProvider,
+                )->execute($io);
+            },
         );
 
         yield new HandlerCommand(
