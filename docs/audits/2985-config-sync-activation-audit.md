@@ -17,8 +17,25 @@ the refusal happens *before* any database mutation. What is missing is a
 designed permitting policy — which is what both issues say. This audit lowers
 the alarm on both while confirming their framing.
 
-One genuine gap is recorded that neither issue covers: **rollback and candidate
-sweep emit no `config.audit` record** (§5 F1).
+One genuine gap is recorded that neither issue covers: **no `config.audit`
+record was found for rollback or candidate sweep** (§5 F1).
+
+### Scope of every claim in this report
+
+This is a **bounded static audit, not a complete security assessment.** Its
+negative claims — "CLI-only", "no audit record", "entirely unwired", "no
+production caller" — mean *"no such path was found by the searches recorded
+here"*, and each should be read with that qualifier until independently
+reviewed. They are grep-and-read results over first-party `packages/*/src` at
+one commit. They do not cover consumer applications, published package versions
+that differ from this tree, dynamic dispatch, container-bound closures resolved
+by string, reflection, or configuration-driven wiring. A reviewer should treat
+them as strong leads that shift where to look, not as proofs of absence.
+
+The **design dependencies** the report identifies — that import and rollback
+must be designed together (F7), that auditing should land before a permitting
+policy (F1), that sweep cannot strand a rollback (F3) — do not depend on the
+negatives being exhaustive, and stand on the positive evidence cited.
 
 ## 1. Scope and coverage matrix
 
@@ -103,7 +120,7 @@ own framing is precise: the signature *proves content* but does not *authorize
 deletion of omitted entries*, and the missing piece is a deletion policy
 covering the signer-versus-operator boundary and removal scope.
 
-## 4. Reachability — CONFIRMED CLI-only
+## 4. Reachability — no non-CLI path found (bounded)
 
 Every config write, import, activate, rollback, sweep and delete capability is
 wired exclusively through `ProvidesConsoleCommandsInterface` providers.
@@ -112,9 +129,10 @@ wired exclusively through `ProvidesConsoleCommandsInterface` providers.
 genesis activation is reached only from `InstallInitHandler::execute`
 (`packages/cli/src/Handler/InstallInitHandler.php:106`) via `site:init`.
 
-**No HTTP route, JSON:API path, GraphQL field, MCP tool or agent tool mutates
-configuration.** The negatives are load-bearing and were each established by
-search:
+**No HTTP route, JSON:API path, GraphQL field, MCP tool or agent tool that
+mutates configuration was found.** The negatives are load-bearing, and are
+bounded by the searches below — they establish that no *statically visible
+first-party* caller exists, not that none can exist:
 
 - The only config-named HTTP routes are three MCP admin reads registered at
   `packages/api/src/ApiServiceProvider.php:658-678` — all `GET`, all
@@ -132,13 +150,16 @@ search:
   but only ever calls read accessors; a search for `->write(`/`->delete(`/`->set(`/`->save(`
   across that surface returns zero matches.
 
-**Consequence for triage:** #2432 and #2433 concern local-operator
-administration. There is no remote-reachability basis for elevating either.
+**Consequence for triage:** on the evidence found, #2432 and #2433 concern
+local-operator administration, and this audit surfaces no remote-reachability
+basis for elevating either. That is a bounded statement: a consumer application
+could expose these capabilities itself, and this audit did not review consumer
+applications or published package versions.
 
 ## 5. Confirmed findings
 
-### F1 — Rollback and candidate sweep emit no `config.audit` record
-**CONFIRMED. Genuine gap. Covered by neither #2432 nor #2433.**
+### F1 — No `config.audit` emission was found for rollback or candidate sweep
+**CONFIRMED within the searched paths. Covered by neither #2432 nor #2433.**
 
 `ConfigAuditChannel` (`config.audit`) is emitted in production from exactly one
 place: `packages/config/src/Sync/ConfigResetter.php:163,172`, for
@@ -146,9 +167,11 @@ export/import/reset. Verified: `rg -ln "ConfigAuditChannel" packages/*/src`
 returns only `ConfigResetter.php` and the channel's own definition, and
 `DatabaseConfigurationActivator` contains no `ConfigAudit` reference at all.
 
-So when rollback or sweep eventually *is* permitted by a bound policy, the two
-most consequential activation operations will mutate state with no audit-channel
-record. The only durable trace is the `waaseyaa_config_activation_v2` row itself
+So on this evidence, when rollback or sweep eventually *is* permitted by a
+bound policy, the two most consequential activation operations would mutate
+state with no audit-channel record. (A subscriber attached to the logger by a
+consumer application, or auditing performed by a bound policy implementation
+itself, would not appear in this search.) The only durable trace is the `waaseyaa_config_activation_v2` row itself
 (`previous_generation_id`, `previous_activation_sequence`,
 `DatabaseConfigurationActivator.php:198-215`), written atomically inside the
 same commit.
@@ -242,28 +265,30 @@ storage, no operable recovery — is the most important thing for #2432/#2433's
 design to address together rather than separately.
 
 ### F8 — `PackageOwnership` is declared and entirely unwired
-**CONFIRMED.** `packages/config/src/Ownership/PackageOwnership.php:10-18` is a
-DTO with **zero references** anywhere in `packages/` or `tests/` outside its own
-file. There is consequently no ownership check in the import path: import can
+**CONFIRMED within first-party source.**
+`packages/config/src/Ownership/PackageOwnership.php:10-18` is a DTO with no
+references found anywhere in `packages/` or `tests/` outside its own file. There is consequently no ownership check in the import path: import can
 neither respect nor violate ownership, because nothing consults it.
 
 ### F9 — `ConfigDriftVerifier` is unwired
 **CONFIRMED.** `packages/config/src/Drift/ConfigDriftVerifier.php:33-56`
 performs a read-only comparison producing advisory diagnostics and never
-throws. It has **zero production callers** and no CLI command imports it. It
+throws. No production caller and no CLI import was found for it. It
 carries `@api` (`:18`), which is why the dead-code gate accepts it as
 intentional scaffolding. Functionally, drift detection is not exposed to
 operators today.
 
 ### F10 — `supersedeStagedCandidates()` has no production caller
-**CONFIRMED.** The sweep is bound in
-`ConfigurationStorageServiceProvider.php:86` but is resolved nowhere outside
+**CONFIRMED within first-party source.** The sweep is bound in
+`ConfigurationStorageServiceProvider.php:86`; no resolution was found outside
 `entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php`. No
 `config:sweep`-style CLI command exists. So #2433's sweep half is doubly inert:
 refused by default *and* uninvokable.
 
 Per the stability charter, none of F8–F10 justifies removal — no-known-callers
-is evidence about this repository only.
+is evidence about this repository at this commit only, and all three are
+shipped, published surface. Each is a decision to make, not a cleanup to
+perform.
 
 ### F11 — Reads proceed when the authority is unavailable; only writes refuse
 **CONFIRMED, intentional, worth stating.**
