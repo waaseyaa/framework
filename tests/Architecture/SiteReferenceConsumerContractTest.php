@@ -13,6 +13,62 @@ use Waaseyaa\SiteContract\SiteManifestParser;
 final class SiteReferenceConsumerContractTest extends TestCase
 {
     #[Test]
+    public function generationStateReadsTheCanonicalLedgerWithoutMutatingIt(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $fixture = sys_get_temp_dir() . '/waaseyaa-generation-state-' . bin2hex(random_bytes(8));
+        $databasePath = $fixture . '/storage/waaseyaa.sqlite';
+        $generationId = str_repeat('a', 64);
+
+        mkdir(dirname($databasePath), 0o777, true);
+        $database = new \SQLite3($databasePath);
+        $database->exec('CREATE TABLE waaseyaa_config_generation_v2 (authority_id TEXT NOT NULL, generation_id TEXT NOT NULL)');
+        $database->exec('CREATE TABLE waaseyaa_config_activation_v2 (authority_id TEXT NOT NULL, generation_id TEXT NOT NULL, activation_sequence INTEGER NOT NULL)');
+        $statement = $database->prepare('INSERT INTO waaseyaa_config_generation_v2 VALUES (:authority, :generation)');
+        self::assertNotFalse($statement);
+        $statement->bindValue(':authority', 'default', SQLITE3_TEXT);
+        $statement->bindValue(':generation', $generationId, SQLITE3_TEXT);
+        self::assertNotFalse($statement->execute());
+        $statement = $database->prepare('INSERT INTO waaseyaa_config_activation_v2 VALUES (:authority, :generation, :sequence)');
+        self::assertNotFalse($statement);
+        $statement->bindValue(':authority', 'default', SQLITE3_TEXT);
+        $statement->bindValue(':generation', $generationId, SQLITE3_TEXT);
+        $statement->bindValue(':sequence', 1, SQLITE3_INTEGER);
+        self::assertNotFalse($statement->execute());
+        $database->close();
+
+        try {
+            $before = hash_file('sha256', $databasePath);
+            $command = sprintf(
+                '%s %s generation-state %s %s',
+                escapeshellarg(PHP_BINARY),
+                escapeshellarg($root . '/tests/ReferenceConsumer/prepare.php'),
+                escapeshellarg($root),
+                escapeshellarg($fixture),
+            );
+            exec($command, $output, $exitCode);
+
+            self::assertSame(0, $exitCode, implode("\n", $output));
+            self::assertSame($before, hash_file('sha256', $databasePath));
+            self::assertSame([
+                'generation_count' => 1,
+                'activation_count' => 1,
+                'generations' => [[
+                    'authority_id' => 'default',
+                    'generation_id' => $generationId,
+                ]],
+                'activations' => [[
+                    'authority_id' => 'default',
+                    'generation_id' => $generationId,
+                    'activation_sequence' => 1,
+                ]],
+            ], json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR));
+        } finally {
+            new Filesystem()->remove($fixture);
+        }
+    }
+
+    #[Test]
     public function theCandidatePathRepositoriesHaveExplicitBranchIndependentVersions(): void
     {
         $root = dirname(__DIR__, 2);
@@ -62,6 +118,7 @@ final class SiteReferenceConsumerContractTest extends TestCase
         $hostedAdapter = $root . '/skeleton/.github/workflows/site-verify.yml';
         $frameworkAdapter = $root . '/.github/workflows/ci.yml';
         $referenceGate = $root . '/tests/ReferenceConsumer/check-reference-consumer';
+        $referencePreparation = $root . '/tests/ReferenceConsumer/prepare.php';
         $answers = $root . '/tests/ReferenceConsumer/site.answers.yaml';
 
         self::assertFileExists($localAdapter);
@@ -69,11 +126,13 @@ final class SiteReferenceConsumerContractTest extends TestCase
         self::assertFileExists($hostedAdapter);
         self::assertFileExists($referenceGate);
         self::assertTrue(is_executable($referenceGate));
+        self::assertFileExists($referencePreparation);
         self::assertFileExists($answers);
 
         $local = (string) file_get_contents($localAdapter);
         $hosted = (string) file_get_contents($hostedAdapter);
         $gate = (string) file_get_contents($referenceGate);
+        $preparation = (string) file_get_contents($referencePreparation);
         $manifest = (string) file_get_contents($answers);
 
         // #2644: the sh adapter delegates to the portable PHP entry rather than
@@ -128,6 +187,9 @@ final class SiteReferenceConsumerContractTest extends TestCase
         );
 
         $frameworkWorkflow = Yaml::parseFile($frameworkAdapter);
+        $windowsGate = implode("\n", array_values(array_filter(
+            array_column($frameworkWorkflow['jobs']['skeleton-create-project-windows']['steps'], 'run'),
+        )));
         self::assertSame(
             ['tests/ReferenceConsumer/check-reference-consumer'],
             array_values(array_filter(array_column($frameworkWorkflow['jobs']['site-reference-consumer']['steps'], 'run'))),
@@ -150,6 +212,40 @@ final class SiteReferenceConsumerContractTest extends TestCase
         self::assertStringContainsString('site:init', $gate);
         self::assertStringContainsString('site:doctor --strict', $gate);
         self::assertStringContainsString('bin/maintenance/site-verify', $gate);
+
+        // #2664: one installed reference consumer proves the composed command
+        // rather than substituting the in-tree stub process fixture. Its
+        // interactive refusal reaches the real wizard and cannot continue to
+        // install:init; the JSON lifecycle and retry then exercise the same
+        // copied candidate packages without another Composer installation.
+        self::assertStringContainsString("script -qefc 'php vendor/bin/waaseyaa project:init'", $gate);
+        self::assertStringContainsString('timeout --signal=TERM --kill-after=5s 30s', $gate);
+        self::assertStringContainsString('What is the public name of this application?', $gate);
+        self::assertStringContainsString('Publish this complete generated site contract?', $gate);
+        self::assertStringContainsString('assert_project_init_json', $gate);
+        self::assertStringContainsString('project:init --answers=site.answers.yaml --project-root="$consumer_root" --yes --json --no-interaction', $gate);
+        self::assertStringContainsString('Configuration already initialized', $gate);
+        self::assertStringContainsString('generation_before=', $gate);
+        self::assertStringContainsString('generation_after=', $gate);
+        self::assertStringContainsString('configuration generation changed during idempotent project:init retry', $gate);
+        self::assertStringContainsString("\$operation === 'generation-state'", $preparation);
+        self::assertStringContainsString('SQLITE3_OPEN_READONLY', $preparation);
+        self::assertStringContainsString('waaseyaa_config_generation_v2', $preparation);
+        self::assertStringContainsString('waaseyaa_config_activation_v2', $preparation);
+
+        // Native Windows retains the direct site/init boundary that caught
+        // restricted-boot database creation, while also executing the composed
+        // command through the installed provider and production runner.
+        self::assertStringContainsString('project:init --dry-run --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction', $windowsGate);
+        self::assertStringContainsString('project:init --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction', $windowsGate);
+        $windowsDirectSite = strpos($windowsGate, 'php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root=$work --yes');
+        $windowsNoDatabase = strpos($windowsGate, "throw 'site:init created the application database before install:init.'");
+        $windowsDirectInstall = strpos($windowsGate, 'php vendor/bin/waaseyaa install:init --no-interaction');
+        self::assertNotFalse($windowsDirectSite);
+        self::assertNotFalse($windowsNoDatabase);
+        self::assertNotFalse($windowsDirectInstall);
+        self::assertLessThan($windowsNoDatabase, $windowsDirectSite);
+        self::assertLessThan($windowsDirectInstall, $windowsNoDatabase);
 
         // #2644: the canonical fresh-project lifecycle is site:init then
         // install:init. install:init is the only materialization command that

@@ -1271,6 +1271,39 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "$What failed with exit code $LASTEXITCODE" }
           }
 
+          function Read-ProjectInitEnvelope {
+            param(
+              [string] $Path,
+              [string] $ExpectedStatus,
+              [string] $ExpectedInstallStatus,
+              [AllowNull()] [Nullable[int]] $ExpectedInstallExit,
+              [AllowNull()] [string] $ExpectedNotRunReason,
+              [string] $ExpectedInstallText = ''
+            )
+            try {
+              $result = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json -AsHashtable
+            }
+            catch {
+              throw "project:init emitted invalid JSON: $($_.Exception.Message)"
+            }
+            if ($result.schema -ne 'waaseyaa.project_init_result' -or
+                $result.version -ne 1 -or
+                $result.status -ne $ExpectedStatus -or
+                @($result.errors).Count -ne 0 -or
+                $result.phases.site.command -ne 'site:init' -or
+                $result.phases.site.status -ne 'succeeded' -or
+                $result.phases.site.exit_code -ne 0 -or
+                $result.phases.site.result -isnot [hashtable] -or
+                $result.phases.install.command -ne 'install:init' -or
+                $result.phases.install.status -ne $ExpectedInstallStatus -or
+                $result.phases.install.exit_code -ne $ExpectedInstallExit -or
+                $result.phases.install.not_run_reason -ne $ExpectedNotRunReason -or
+                ($ExpectedInstallText -ne '' -and $result.phases.install.stdout -notmatch [regex]::Escape($ExpectedInstallText))) {
+              throw "project:init result did not match the expected $ExpectedStatus lifecycle envelope."
+            }
+            return $result
+          }
+
           $repo = $env:GITHUB_WORKSPACE
           $work = Join-Path $env:RUNNER_TEMP ('skel-' + [guid]::NewGuid().ToString('N'))
 
@@ -1313,6 +1346,22 @@ jobs:
               php (Join-Path $repo 'tests/ReferenceConsumer/prepare.php') bind-lock $repo $work
             }
 
+            # Execute the installed project initializer on native Windows while
+            # the consumer is still pristine. Preview may evaluate site:init,
+            # but it must not publish or start install:init.
+            $projectPreviewOut = Join-Path $env:RUNNER_TEMP 'project-init-preview.json'
+            $projectPreviewErr = Join-Path $env:RUNNER_TEMP 'project-init-preview.err'
+            Invoke-Checked 'project:init dry-run' {
+              php vendor/bin/waaseyaa project:init --dry-run --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction 1> $projectPreviewOut 2> $projectPreviewErr
+            }
+            if ((Get-Item -LiteralPath $projectPreviewErr).Length -ne 0) {
+              throw "Successful project:init preview wrote parent stderr: $(Get-Content -Raw -LiteralPath $projectPreviewErr)"
+            }
+            $null = Read-ProjectInitEnvelope $projectPreviewOut 'previewed' 'not_run' $null 'dry_run'
+            if (Test-Path '.waaseyaa/generated.json') { throw 'project:init dry-run published ownership metadata.' }
+            if (Test-Path 'bin/maintenance/site-verify') { throw 'project:init dry-run generated a verification command.' }
+            if (Test-Path 'storage/waaseyaa.sqlite') { throw 'project:init dry-run created the application database.' }
+
             # The lifecycle. site:init is the step that could not complete on
             # this platform before #2644.
             Invoke-Checked 'site:init' {
@@ -1341,6 +1390,20 @@ jobs:
               php vendor/bin/waaseyaa install:init --no-interaction
             }
             Invoke-Checked 'composer site-verify' { composer site-verify }
+
+            # Run the composed command through the installed provider and the
+            # native Windows production runner. The direct lifecycle above is
+            # intentionally retained as the database-boundary authority; this
+            # invocation proves composed retry/idempotence on the same consumer.
+            $projectRepeatOut = Join-Path $env:RUNNER_TEMP 'project-init-repeat.json'
+            $projectRepeatErr = Join-Path $env:RUNNER_TEMP 'project-init-repeat.err'
+            Invoke-Checked 'project:init (repeat)' {
+              php vendor/bin/waaseyaa project:init --answers=site.answers.yaml --project-root=$work --yes --json --no-interaction 1> $projectRepeatOut 2> $projectRepeatErr
+            }
+            if ((Get-Item -LiteralPath $projectRepeatErr).Length -ne 0) {
+              throw "Repeated project:init wrote parent stderr: $(Get-Content -Raw -LiteralPath $projectRepeatErr)"
+            }
+            $null = Read-ProjectInitEnvelope $projectRepeatOut 'completed' 'succeeded' 0 $null 'Configuration already initialized'
 
             # Regeneration is idempotent without POSIX permission bits.
             Invoke-Checked 'site:init (repeat)' {

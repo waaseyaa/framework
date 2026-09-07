@@ -406,6 +406,14 @@ phases, and consumer-facing documentation names no other sequence (#2644):
 4. **verify** — `composer site-verify`; and
 5. **serve**.
 
+`project:init` is the fresh-project convenience command for phases 2 and 3.
+It executes the existing installed `site:init` and `install:init` commands in
+that order, preserving their separate boot modes and semantic authorities.
+Its `--dry-run` previews only phase 2; a failed site phase prevents phase 3.
+It does not perform phase 4, upgrades, or generated-state verification/removal.
+The command and process contract is recorded in `FW-PROJECT-INITIALIZER-01`
+and the CLI kernel specification.
+
 `install:init` is the single materialization step. It subsumes `migrate` and
 `schema:sync`, and it is the only one of the three that also activates the
 configuration generation, so a site materialized by `db:init` plus `migrate`
