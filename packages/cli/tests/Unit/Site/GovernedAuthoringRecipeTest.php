@@ -115,6 +115,27 @@ final class GovernedAuthoringRecipeTest extends TestCase
         new GovernedAuthoringRecipe()->render($this->with($manifest, contentTypes: $contentTypes));
     }
 
+    /** ADR-025 D-15.2: the recipe's fixed provider registration, consumed by {@see SiteArtifactRenderer::compile()}. */
+    #[Test]
+    public function itReturnsNoProviderRegistrationWhenNotSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        self::assertSame([], new GovernedAuthoringRecipe()->providerRegistrations($this->with($manifest, recipes: [])));
+    }
+
+    #[Test]
+    public function itReturnsItsFixedProviderRegistrationWhenSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        $registrations = new GovernedAuthoringRecipe()->providerRegistrations($manifest);
+
+        self::assertCount(1, $registrations);
+        self::assertSame('App\\Provider\\GovernedAuthoringServiceProvider', $registrations[0]->fqcn);
+        self::assertNull($registrations[0]->group);
+    }
+
     /**
      * @param array<string, \Waaseyaa\SiteContract\ContentTypeDeclaration>|null $contentTypes
      * @param array<string, RecipeSelection>|null $recipes

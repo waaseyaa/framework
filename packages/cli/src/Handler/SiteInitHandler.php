@@ -83,7 +83,7 @@ final readonly class SiteInitHandler
             $decisionPath = trim((string) ($io->option('decision-receipt') ?? ''));
             $decisionReceipt = $decisionPath === '' ? null : $this->readDecisionReceipt($decisionPath, $projectRoot);
             $site = $manifest->applicationBlueprint === null
-                ? SiteArtifactRendererFactory::create()->render($manifest)
+                ? SiteArtifactRendererFactory::create()->compile($manifest)
                 : ApplicationBlueprintCompilerFactory::create()->compile($manifest);
             $service = new SiteInitializationService($projectRoot);
             if ($dryRun) {

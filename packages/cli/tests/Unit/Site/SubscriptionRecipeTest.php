@@ -15,6 +15,7 @@ use Waaseyaa\Mail\Envelope;
 use Waaseyaa\Mail\MailerInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
+use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(SubscriptionRecipe::class)]
@@ -209,6 +210,45 @@ final class SubscriptionRecipeTest extends TestCase
         $delivery->deliver(
             $result->subscriber,
             new Envelope(['editor@example.org'], 'office@example.org', 'News'),
+        );
+    }
+
+    /** ADR-025 D-15.2: the recipe's fixed provider registration, consumed by {@see SiteArtifactRenderer::compile()}. */
+    #[Test]
+    public function itReturnsNoProviderRegistrationWhenNotSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        self::assertSame([], new SubscriptionRecipe()->providerRegistrations($this->withRecipes($manifest, [])));
+    }
+
+    #[Test]
+    public function itReturnsItsFixedProviderRegistrationWhenSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        $registrations = new SubscriptionRecipe()->providerRegistrations($manifest);
+
+        self::assertCount(1, $registrations);
+        self::assertSame('App\\Provider\\SubscriptionServiceProvider', $registrations[0]->fqcn);
+        self::assertNull($registrations[0]->group);
+    }
+
+    /** @param array<string, \Waaseyaa\SiteContract\RecipeSelection> $recipes */
+    private function withRecipes(SiteManifest $manifest, array $recipes): SiteManifest
+    {
+        return new SiteManifest(
+            $manifest->schemaVersion,
+            $manifest->generatorVersion,
+            $manifest->application,
+            $manifest->framework,
+            $manifest->contentTypes,
+            $manifest->capabilities,
+            $manifest->personalDataStores,
+            $recipes,
+            $manifest->verificationCommand,
+            $manifest->canonicalJson,
+            $manifest->digest,
         );
     }
 

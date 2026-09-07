@@ -1,0 +1,323 @@
+#!/usr/bin/env bash
+
+# Recipe provider activation proof (#2857, ADR-025 D-15.2).
+#
+# The defect: a first-party recipe writes provider metadata to its generated
+# Composer compatibility fragment (`composer.governed-authoring-recipe.json`
+# etc.), while `PackageManifestCompiler::readRootComposer()` discovers
+# providers only from literal root `composer.json`. The fragment therefore is
+# not provider-discovery authority, so the generated capability previously
+# booted with no running provider.
+#
+# This proof builds a disposable consumer from the EXACT candidate tree using
+# path repositories (the same pattern as check-fresh-install-boot), runs the
+# real packaged CLI's `site:init` selecting all three first-party recipes
+# that declare a provider, then `install:init`, then asserts:
+#
+#   1. `waaseyaa/admin-surface`, `waaseyaa/page-builder` and
+#      `waaseyaa/publishing` were already resolved by `composer install`
+#      alone, BEFORE `site:init` ever runs — they are supplied by
+#      `waaseyaa/framework`'s existing production dependency graph, never by
+#      recipe activation (ADR-025 D-15.1). This proof draws no Composer
+#      activation phase and adds no package-solving step.
+#   2. each of the three selected recipes' fixed provider appears EXACTLY
+#      ONCE in literal root `composer.json` after `site:init` — the repair
+#      #2857 makes.
+#   3. a real packaged kernel, booted from the installed consumer, resolves
+#      the governed-authoring page-builder surface and its `page_layout`
+#      field.
+#   4. a rival that removes ONLY the literal-root `governed_authoring`
+#      provider entry — leaving its generated Composer fragment file and its
+#      generated `src/Provider/GovernedAuthoringServiceProvider.php` class
+#      file untouched on disk — cannot activate that provider: the same real
+#      kernel boot then reports the page surface and `page_layout` field
+#      absent. This is the discriminating negative control: if discovery ever
+#      started reading the fragment or the mere presence of the class file
+#      instead of literal root `composer.json`, this step would observe the
+#      surface as still resolved and fail the proof.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-recipe-provider-activation.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (mirrors check-fresh-install-boot, #2870).
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+candidate="${CANDIDATE_SHA:-}"
+if [[ -z "$candidate" ]]; then
+    if [[ -n "$("$root/bin/git" -C "$root" status --porcelain=v1 --untracked-files=all)" ]]; then
+        echo 'The default packaged candidate must be a clean immutable HEAD; commit the reviewed candidate or pass CANDIDATE_SHA.' >&2
+        exit 1
+    fi
+    candidate="HEAD"
+fi
+candidate="$("$root/bin/git" -C "$root" rev-parse --verify "${candidate}^{commit}")"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar "$candidate" \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# Mirror the real skeleton app exactly as a `create-project` consumer starts.
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+# Resolve every waaseyaa/* — including the waaseyaa/framework metapackage at
+# the repository root — from the candidate tree rather than Packagist. The
+# merge-plugin dev dependency is dropped: #2857's repair does not depend on
+# it (D-15.1 — the fragment is compatibility output, never activation
+# authority), so leaving it out keeps this proof about literal root
+# composer.json alone, exactly what the defect and the fix are about.
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+# APP_ENV=local makes the kernel recompile the package manifest fresh on
+# every boot rather than trust `storage/framework/packages.php`
+# (RuntimePolicy::DEVELOPMENT_ENVIRONMENTS, ManifestBootstrapper) — the same
+# choice check-fresh-install-boot makes. The rival step below still removes
+# any stray cache file explicitly (belt-and-braces): PackageManifestCompiler
+# also self-invalidates that cache by fingerprinting literal composer.json's
+# own bytes, so either mechanism alone would already force rediscovery from
+# the edited file, never from the fragment or the class file's presence.
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("z", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/recipe-provider-activation.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
+
+# (1) Prove the three packages the governed-authoring recipe's compatibility
+# fragment re-declares are ALREADY installed by the framework's own
+# production dependency graph, resolved before any recipe is selected and
+# before site:init has ever run.
+for package in admin-surface page-builder publishing; do
+    if [[ ! -d "$consumer/vendor/waaseyaa/$package" ]]; then
+        echo "Expected waaseyaa/$package to already be installed by the framework dependency graph before site:init." >&2
+        exit 1
+    fi
+    if ! grep -Fq "\"name\": \"waaseyaa/$package\"" "$consumer/composer.lock"; then
+        echo "waaseyaa/$package is missing from composer.lock resolved before any recipe was selected." >&2
+        exit 1
+    fi
+done
+
+# The exact candidate's own digest constants — computed from the installed
+# code under test, never hand-copied — so a future recipe content change
+# cannot silently desynchronize this fixture.
+governed_digest="$(cd "$consumer" && php -r 'require "vendor/autoload.php"; echo \Waaseyaa\CLI\Site\Recipe\GovernedAuthoringRecipe::digest();')"
+published_digest="$(cd "$consumer" && php -r 'require "vendor/autoload.php"; echo \Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe::digest();')"
+subscription_digest="$(cd "$consumer" && php -r 'require "vendor/autoload.php"; echo \Waaseyaa\CLI\Site\Recipe\SubscriptionRecipe::digest();')"
+lock_sha256="$(sha256sum "$consumer/composer.lock" | awk '{print $1}')"
+
+cat > "$consumer/site-answers.yaml" <<SITEYAML
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  name: Recipe Provider Activation
+  id: recipe-provider-activation
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: ${lock_sha256}
+content_types:
+  - id: page
+    canonical_route: /{slug}
+capabilities:
+  - id: governed_authoring
+    state: active
+    package: waaseyaa/page-builder
+    provider: site.page_builder
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/governed_authoring
+    public_routes: []
+    data_classification: public
+    lifecycle: [create, revise, publish, archive]
+    verification: [tests/Acceptance/GovernedAuthoringRecipeTest.php]
+  - id: published_content
+    state: active
+    package: waaseyaa/listing
+    provider: site.published_content
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/published_content
+    public_routes: [/{slug}]
+    data_classification: public
+    lifecycle: [create, revise, publish, archive]
+    verification: [tests/Acceptance/PublishedContentRecipeTest.php]
+  - id: subscription
+    state: active
+    package: waaseyaa/database-legacy
+    provider: site.subscription
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/subscription
+    public_routes: [/subscribe, /unsubscribe]
+    data_classification: personal
+    lifecycle: [consent, export, unsubscribe, delete, retain]
+    verification: [tests/Acceptance/SubscriptionRecipeTest.php]
+personal_data_stores:
+  - id: subscriber
+    classification: personal
+    consent_operation: subscriber:consent
+    retention: P2Y
+    export_operation: subscriber:export
+    deletion_operation: subscriber:delete
+recipes:
+  - id: governed_authoring
+    version: 1
+    capability: governed_authoring
+    artifact_digest: ${governed_digest}
+  - id: published_content
+    version: 1
+    capability: published_content
+    artifact_digest: ${published_digest}
+  - id: subscription
+    version: 1
+    capability: subscription
+    artifact_digest: ${subscription_digest}
+verification:
+  command: bin/maintenance/site-verify
+SITEYAML
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --answers=site-answers.yaml --project-root=. --yes ) >"$work/site-init.out" 2>&1; then
+    cat "$work/site-init.out" >&2
+    echo 'site:init failed to publish the recipe-selecting manifest.' >&2
+    exit 1
+fi
+cat "$work/site-init.out"
+
+if [[ ! -f "$consumer/composer.governed-authoring-recipe.json" ]]; then
+    echo 'Expected the governed-authoring Composer fragment to still be generated (it remains a compatibility artifact).' >&2
+    exit 1
+fi
+if [[ ! -f "$consumer/src/Provider/GovernedAuthoringServiceProvider.php" ]]; then
+    echo 'Expected the governed-authoring provider class to be generated.' >&2
+    exit 1
+fi
+
+# (2) Each selected recipe's fixed provider is registered EXACTLY ONCE in
+# literal root composer.json — the file PackageManifestCompiler actually
+# reads, never the per-recipe fragment.
+php -r '
+    $composer = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    $expected = [
+        "App\\Provider\\GovernedAuthoringServiceProvider",
+        "App\\Provider\\PublishedContentServiceProvider",
+        "App\\Provider\\SubscriptionServiceProvider",
+    ];
+    $failures = [];
+    foreach ($expected as $fqcn) {
+        $count = count(array_filter($providers, static fn(string $provider): bool => $provider === $fqcn));
+        if ($count !== 1) {
+            $failures[] = "{$fqcn}: expected exactly once, found {$count}";
+        }
+    }
+    if ($failures !== []) {
+        fwrite(STDERR, "Literal root composer.json provider registration mismatch:\n  " . implode("\n  ", $failures) . "\n");
+        fwrite(STDERR, "Full providers list: " . var_export($providers, true) . "\n");
+        exit(1);
+    }
+    fwrite(STDOUT, "All three selected recipe providers are registered exactly once in literal root composer.json.\n");
+' "$consumer/composer.json"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
+    cat "$work/install-init.out" >&2
+    echo 'install:init failed on the recipe-activated consumer.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/install-init.out"
+
+cp "$root/tests/PackagedForm/fixtures/recipe-provider-activation-probe.php" "$consumer/recipe-provider-activation-probe.php"
+
+# (3) Positive proof: a real packaged kernel resolves the governed-authoring
+# page-builder surface and its page_layout field.
+if ! php "$consumer/recipe-provider-activation-probe.php" >"$work/probe-positive.out" 2>&1; then
+    cat "$work/probe-positive.out" >&2
+    echo 'The packaged kernel failed to boot with the recipe provider registered.' >&2
+    exit 1
+fi
+cat "$work/probe-positive.out"
+grep -Fq 'recipe-provider-activation kernel boot OK' "$work/probe-positive.out"
+grep -Fq 'recipe-provider-activation page surface: resolved' "$work/probe-positive.out"
+grep -Fq 'recipe-provider-activation page_layout field: present' "$work/probe-positive.out"
+
+# (4) The rival: remove ONLY the literal-root governed_authoring provider
+# entry. The generated Composer fragment and the generated provider class
+# file are left exactly as site:init wrote them.
+before_fragment_sha256="$(sha256sum "$consumer/composer.governed-authoring-recipe.json" | awk '{print $1}')"
+before_class_sha256="$(sha256sum "$consumer/src/Provider/GovernedAuthoringServiceProvider.php" | awk '{print $1}')"
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    $composer["extra"]["waaseyaa"]["providers"] = array_values(array_filter(
+        $providers,
+        static fn(string $provider): bool => $provider !== "App\\Provider\\GovernedAuthoringServiceProvider",
+    ));
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json"
+# Explicit discovery-cache refresh: no-op today under APP_ENV=local (which
+# already forces a fresh compile every boot) and redundant with
+# PackageManifestCompiler's own composer.json-fingerprint self-invalidation,
+# but removed anyway so this proof does not silently depend on either
+# mechanism remaining true. This never re-runs Composer and never touches a
+# locked dependency.
+rm -f "$consumer/storage/framework/packages.php"
+
+after_fragment_sha256="$(sha256sum "$consumer/composer.governed-authoring-recipe.json" | awk '{print $1}')"
+after_class_sha256="$(sha256sum "$consumer/src/Provider/GovernedAuthoringServiceProvider.php" | awk '{print $1}')"
+if [[ "$before_fragment_sha256" != "$after_fragment_sha256" || "$before_class_sha256" != "$after_class_sha256" ]]; then
+    echo 'The rival step must only edit literal root composer.json; the fragment and provider class must stay byte-identical.' >&2
+    exit 1
+fi
+if ! grep -Fq 'App\\Provider\\GovernedAuthoringServiceProvider' "$consumer/composer.governed-authoring-recipe.json"; then
+    echo 'The generated fragment must still declare the provider even after it is removed from literal root composer.json.' >&2
+    exit 1
+fi
+
+if ! php "$consumer/recipe-provider-activation-probe.php" >"$work/probe-rival.out" 2>&1; then
+    cat "$work/probe-rival.out" >&2
+    echo 'The rival kernel boot must still succeed; only the surface/field observation must change.' >&2
+    exit 1
+fi
+cat "$work/probe-rival.out"
+grep -Fq 'recipe-provider-activation kernel boot OK' "$work/probe-rival.out"
+if grep -Fq 'recipe-provider-activation page surface: resolved' "$work/probe-rival.out"; then
+    echo 'FAIL: the page-builder surface remained resolved after the literal-root provider entry was removed — provider discovery is reading the fragment or the class file instead of literal root composer.json.' >&2
+    exit 1
+fi
+if grep -Fq 'recipe-provider-activation page_layout field: present' "$work/probe-rival.out"; then
+    echo 'FAIL: page_layout remained present after the literal-root provider entry was removed.' >&2
+    exit 1
+fi
+grep -Fq 'recipe-provider-activation page surface: NOT registered' "$work/probe-rival.out"
+grep -Fq 'recipe-provider-activation page_layout field: NOT present' "$work/probe-rival.out"
+
+printf 'Recipe provider activation proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"

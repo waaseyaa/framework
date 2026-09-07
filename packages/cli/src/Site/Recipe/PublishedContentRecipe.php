@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Site\Recipe;
 
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Generation\ComposerProviderRegistration;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
+use Waaseyaa\SiteContract\Generation\SiteRecipeProviderRegistrationInterface;
 use Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface;
 use Waaseyaa\SiteContract\SiteManifest;
 
-final class PublishedContentRecipe implements SiteRecipeRendererInterface
+final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface
 {
     public const int VERSION = 1;
 
@@ -74,6 +76,16 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface
     public function id(): string
     {
         return 'published_content';
+    }
+
+    /** @return list<ComposerProviderRegistration> */
+    public function providerRegistrations(SiteManifest $manifest): array
+    {
+        if (!isset($manifest->recipes['published_content'])) {
+            return [];
+        }
+
+        return [new ComposerProviderRegistration('App\\Provider\\PublishedContentServiceProvider')];
     }
 
     public static function digest(): string
