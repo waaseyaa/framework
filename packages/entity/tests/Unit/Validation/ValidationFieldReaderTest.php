@@ -21,6 +21,7 @@ use Waaseyaa\Entity\Validation\RedactedInvalidValue;
 use Waaseyaa\Entity\Validation\ValidationFieldReader;
 use Waaseyaa\Entity\Validation\ValidationReadLedgerInterface;
 use Waaseyaa\Entity\Validation\ValidationReadReservationInterface;
+use Waaseyaa\Validation\Constraint\EntityExists;
 
 final class ValidationFieldReaderTest extends TestCase
 {
@@ -60,6 +61,36 @@ final class ValidationFieldReaderTest extends TestCase
         } catch (\LogicException $exception) {
             self::assertStringContainsString(Callback::class, $exception->getMessage());
         }
+        self::assertSame([], $ledger->finalizations);
+    }
+
+    #[Test]
+    public function caller_supplied_entity_exists_callback_cannot_receive_a_non_public_value(): void
+    {
+        $captured = null;
+        $ledger = new RecordingValidationLedger();
+        $validator = new EntityValidator(
+            Validation::createValidator(),
+            new ValidationFieldReader($ledger),
+        );
+
+        try {
+            $validator->validate($this->sealedEntity('restricted-value-sentinel'), [
+                'mail' => [new EntityExists(
+                    entityTypeId: 'user',
+                    existsChecker: static function (mixed $value) use (&$captured): bool {
+                        $captured = $value;
+
+                        return true;
+                    },
+                )],
+            ]);
+            self::fail('Caller-supplied callbacks must not receive non-Public field values.');
+        } catch (\LogicException $exception) {
+            self::assertStringContainsString(EntityExists::class, $exception->getMessage());
+        }
+
+        self::assertNull($captured);
         self::assertSame([], $ledger->finalizations);
     }
 

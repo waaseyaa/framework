@@ -7,20 +7,30 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\Entity\Validation\RedactedInvalidValue;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
-use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\EntityStorage\Testing\EntityMutationAuthoritySchema;
+use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
-use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EntityTypeManagerFactory;
@@ -303,6 +313,174 @@ final class EntityTypeManagerFactoryTest extends TestCase
         );
     }
 
+    #[Test]
+    public function build_wires_entity_reference_resolver_into_kernel_built_repositories(): void
+    {
+        EntityType::clearFromClassCache();
+
+        $harness = $this->kernelReferenceValidationHarness();
+
+        $harness['seedTarget']('1');
+        $validNumeric = new KernelRefSubjectEntity(['id' => '1', 'author_id' => 1]);
+        $validNumeric->enforceIsNew();
+        self::assertSame(EntityConstants::SAVED_NEW, $harness['subjectRepository']->save($validNumeric));
+        self::assertSame(1, $harness['rowCount']('kernel_ref_subject'));
+
+        $missingNumeric = new KernelRefSubjectEntity(['id' => '2', 'author_id' => 404]);
+        $missingNumeric->enforceIsNew();
+        try {
+            $harness['subjectRepository']->save($missingNumeric);
+            self::fail('Missing numeric reference must be rejected before write.');
+        } catch (EntityValidationException) {
+        }
+        self::assertSame(1, $harness['rowCount']('kernel_ref_subject'));
+
+        $targetUuid = '3f2a1b4c-5d6e-4f80-9a1b-2c3d4e5f6a7b';
+        $harness['seedTarget']('9', $targetUuid);
+        $validUuid = new KernelRefSubjectEntity(['id' => '3', 'author_id' => $targetUuid]);
+        $validUuid->enforceIsNew();
+        self::assertSame(EntityConstants::SAVED_NEW, $harness['subjectRepository']->save($validUuid));
+        self::assertSame(2, $harness['rowCount']('kernel_ref_subject'));
+
+        $harness['seedTarget']('10');
+        $harness['seedTarget']('11');
+        $validMultiple = new KernelRefSubjectEntity(['id' => '4', 'tag_ids' => [10, 11]]);
+        $validMultiple->enforceIsNew();
+        self::assertSame(EntityConstants::SAVED_NEW, $harness['subjectRepository']->save($validMultiple));
+        self::assertSame(3, $harness['rowCount']('kernel_ref_subject'));
+
+        $invalidMultiple = new KernelRefSubjectEntity(['id' => '5', 'tag_ids' => [10, 404]]);
+        $invalidMultiple->enforceIsNew();
+        try {
+            $harness['subjectRepository']->save($invalidMultiple);
+            self::fail('Multiple-cardinality missing member must be rejected before write.');
+        } catch (EntityValidationException $exception) {
+            self::assertGreaterThan(0, $exception->violations->count());
+        }
+        self::assertSame(3, $harness['rowCount']('kernel_ref_subject'));
+
+        $protectedMissing = new KernelProtectedRefSubjectEntity(['id' => '6', 'secret_author_id' => 404]);
+        $protectedMissing->enforceIsNew();
+        try {
+            $harness['protectedRepository']->save($protectedMissing);
+            self::fail('Protected reference must be rejected before write.');
+        } catch (EntityValidationException $exception) {
+            self::assertSame('secret_author_id', $exception->violations->get(0)->getPropertyPath());
+            self::assertSame(
+                'The non-Public field value is invalid.',
+                $exception->violations->get(0)->getMessage(),
+            );
+            self::assertSame(RedactedInvalidValue::Value, $exception->violations->get(0)->getInvalidValue());
+        }
+        self::assertSame(0, $harness['rowCount']('kernel_protected_ref_subject'));
+    }
+
+    /**
+     * @return array{
+     *     manager: EntityTypeManager,
+     *     targetRepository: EntityRepository,
+     *     subjectRepository: EntityRepository,
+     *     protectedRepository: EntityRepository,
+     *     seedTarget: callable(string, ?string): void,
+     *     rowCount: callable(string): int,
+     * }
+     */
+    private function kernelReferenceValidationHarness(): array
+    {
+        $factory = new EntityTypeManagerFactory();
+        $manager = $factory->build(
+            database: $this->database,
+            dispatcher: $this->dispatcher,
+            fieldRegistry: $this->fieldRegistry,
+            logger: $this->logger,
+            accessHandlerResolver: static fn() => null,
+            communityScoreResolver: static fn() => null,
+            accountContextAttacher: static function (object $repo): void {},
+            fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
+        );
+
+        $targetType = new EntityType(
+            id: 'kernel_ref_target',
+            label: 'Kernel ref target',
+            class: KernelRefTargetEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+        );
+        $subjectType = new EntityType(
+            id: 'kernel_ref_subject',
+            label: 'Kernel ref subject',
+            class: KernelRefSubjectEntity::class,
+            keys: ['id' => 'id'],
+            _fieldDefinitions: [
+                'author_id' => new FieldDefinition(
+                    name: 'author_id',
+                    type: 'entity_reference',
+                    settings: ['target_entity_type_id' => 'kernel_ref_target'],
+                    targetEntityTypeId: 'kernel_ref_subject',
+                ),
+                'tag_ids' => new FieldDefinition(
+                    name: 'tag_ids',
+                    type: 'entity_reference',
+                    cardinality: -1,
+                    settings: ['target_entity_type_id' => 'kernel_ref_target'],
+                    targetEntityTypeId: 'kernel_ref_subject',
+                    stored: FieldStorage::Data,
+                ),
+            ],
+        );
+        $protectedSubjectType = new EntityType(
+            id: 'kernel_protected_ref_subject',
+            label: 'Kernel protected ref subject',
+            class: KernelProtectedRefSubjectEntity::class,
+            keys: ['id' => 'id'],
+            _fieldDefinitions: [
+                'secret_author_id' => new FieldDefinition(
+                    name: 'secret_author_id',
+                    type: 'entity_reference',
+                    settings: ['target_entity_type_id' => 'kernel_ref_target'],
+                    targetEntityTypeId: 'kernel_protected_ref_subject',
+                    read: FieldReadLevel::Protected,
+                ),
+            ],
+        );
+
+        $manager->registerEntityType($targetType);
+        $manager->registerEntityType($subjectType);
+        $manager->registerEntityType($protectedSubjectType);
+        new EntitySchemaSync($this->database, $this->fieldRegistry)->syncAll([
+            $manager->getDefinition('kernel_ref_target'),
+            $manager->getDefinition('kernel_ref_subject'),
+            $manager->getDefinition('kernel_protected_ref_subject'),
+        ]);
+
+        $targetRepository = $manager->getRepository('kernel_ref_target');
+        $subjectRepository = $manager->getRepository('kernel_ref_subject');
+        $protectedRepository = $manager->getRepository('kernel_protected_ref_subject');
+
+        $seedTarget = function (string $id, ?string $uuid = null) use ($targetRepository): void {
+            $values = ['id' => $id];
+            if ($uuid !== null) {
+                $values['uuid'] = $uuid;
+            }
+            $target = new KernelRefTargetEntity($values);
+            $target->enforceIsNew();
+            $targetRepository->save($target, validate: false);
+        };
+
+        $rowCount = fn(string $table): int => (int) $this->database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM ' . $table,
+        );
+
+        return [
+            'manager' => $manager,
+            'targetRepository' => $targetRepository,
+            'subjectRepository' => $subjectRepository,
+            'protectedRepository' => $protectedRepository,
+            'seedTarget' => $seedTarget,
+            'rowCount' => $rowCount,
+        ];
+    }
+
     private function manager(): EntityTypeManager
     {
         return new EntityTypeManagerFactory()->build(
@@ -317,6 +495,40 @@ final class EntityTypeManagerFactoryTest extends TestCase
             fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
     }
+}
+
+#[ContentEntityType(id: 'kernel_ref_target')]
+#[ContentEntityKeys(id: 'id', uuid: 'uuid')]
+final class KernelRefTargetEntity extends ContentEntityBase
+{
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $uuid = '';
+}
+
+#[ContentEntityType(id: 'kernel_ref_subject')]
+#[ContentEntityKeys(id: 'id')]
+final class KernelRefSubjectEntity extends ContentEntityBase
+{
+    #[Field(type: 'entity_reference', settings: ['target_entity_type_id' => 'kernel_ref_target'], read: FieldReadLevel::Public)]
+    public int|string|null $author_id = null;
+
+    #[Field(
+        type: 'entity_reference',
+        settings: ['target_entity_type_id' => 'kernel_ref_target'],
+        read: FieldReadLevel::Public,
+    )]
+    public mixed $tag_ids = null;
+}
+
+#[ContentEntityType(id: 'kernel_protected_ref_subject')]
+#[ContentEntityKeys(id: 'id')]
+final class KernelProtectedRefSubjectEntity extends ContentEntityBase
+{
+    #[Field(
+        type: 'entity_reference',
+        settings: ['target_entity_type_id' => 'kernel_ref_target'],
+        read: FieldReadLevel::Protected,
+    )]
+    public int|string|null $secret_author_id = null;
 }
 
 final class CustomRemoteEntityStorage implements EntityStorageInterface

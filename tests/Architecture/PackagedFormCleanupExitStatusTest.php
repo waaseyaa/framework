@@ -60,6 +60,7 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
         'check-s1-configuration-core-only',
         'check-s1-schema-authority-artifact',
         'check-s1-sqlite-artifact',
+        'check-search-projection-scaffold-acceptance',
         'check-site-recipe-provider-activation',
         'check-split-artifact-acceptance',
         'check-studio-alpha-acceptance',

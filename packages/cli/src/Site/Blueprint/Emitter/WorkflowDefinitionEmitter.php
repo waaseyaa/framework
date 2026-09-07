@@ -130,19 +130,70 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
         }
     }
 
-    private function renderDefinition(BlueprintWorkflow $workflow, string $className): string
+    /**
+     * Public convergence entrypoint for `scaffold:workflow` (#2848): returns
+     * the plain {@see \Waaseyaa\Workflows\Workflow::__construct()} hydration
+     * array for an explicit `BlueprintWorkflow` the caller builds itself,
+     * rather than the PHP-source class text {@see renderDefinition()}
+     * builds. Both output serializers consume this canonical transformation:
+     * PHP rendering only escapes and formats these values, preserving the
+     * existing golden bytes. Shared derivation rules are:
+     * `default_revision := published`, and states/transitions sorted by id.
+     *
+     * @return array{id: string, label: string, initial_state: string, states: array<string, array{label: string, published: bool, default_revision: bool}>, transitions: array<string, array{label: string, from: list<string>, to: string, permission: string}>}
+     */
+    public function toDefinitionArray(BlueprintWorkflow $workflow): array
     {
         $states = array_values($workflow->states);
         usort($states, static fn(BlueprintWorkflowState $left, BlueprintWorkflowState $right): int => strcmp($left->id, $right->id));
         $transitions = array_values($workflow->transitions);
         usort($transitions, static fn(BlueprintWorkflowTransition $left, BlueprintWorkflowTransition $right): int => strcmp($left->id, $right->id));
 
-        $stateRows = implode('', array_map($this->renderStateRow(...), $states));
-        $transitionRows = implode('', array_map($this->renderTransitionRow(...), $transitions));
+        $statesArray = [];
+        foreach ($states as $state) {
+            $statesArray[$state->id] = [
+                'label' => $state->label,
+                'published' => $state->published,
+                'default_revision' => $state->published,
+            ];
+        }
 
-        $id = self::singleQuoted($workflow->id);
-        $label = self::singleQuoted($workflow->label);
-        $initialState = self::singleQuoted($workflow->initialState);
+        $transitionsArray = [];
+        foreach ($transitions as $transition) {
+            $from = $transition->from;
+            sort($from, SORT_STRING);
+            $transitionsArray[$transition->id] = [
+                'label' => $transition->label,
+                'from' => $from,
+                'to' => $transition->to,
+                'permission' => $transition->permission,
+            ];
+        }
+
+        return [
+            'id' => $workflow->id,
+            'label' => $workflow->label,
+            'initial_state' => $workflow->initialState,
+            'states' => $statesArray,
+            'transitions' => $transitionsArray,
+        ];
+    }
+
+    private function renderDefinition(BlueprintWorkflow $workflow, string $className): string
+    {
+        $definition = $this->toDefinitionArray($workflow);
+        $stateRows = '';
+        foreach ($definition['states'] as $stateId => $state) {
+            $stateRows .= $this->renderStateRow($stateId, $state);
+        }
+        $transitionRows = '';
+        foreach ($definition['transitions'] as $transitionId => $transition) {
+            $transitionRows .= $this->renderTransitionRow($transitionId, $transition);
+        }
+
+        $id = self::singleQuoted($definition['id']);
+        $label = self::singleQuoted($definition['label']);
+        $initialState = self::singleQuoted($definition['initial_state']);
 
         return <<<PHP
             <?php
@@ -172,24 +223,26 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
             PHP;
     }
 
-    private function renderStateRow(BlueprintWorkflowState $state): string
+    /** @param array{label: string, published: bool, default_revision: bool} $state */
+    private function renderStateRow(string $stateId, array $state): string
     {
-        $id = self::singleQuoted($state->id);
-        $label = self::singleQuoted($state->label);
-        $published = $state->published ? 'true' : 'false';
+        $id = self::singleQuoted($stateId);
+        $label = self::singleQuoted($state['label']);
+        $published = $state['published'] ? 'true' : 'false';
+        $defaultRevision = $state['default_revision'] ? 'true' : 'false';
 
-        return "            {$id} => ['label' => {$label}, 'published' => {$published}, 'default_revision' => {$published}],\n";
+        return "            {$id} => ['label' => {$label}, 'published' => {$published}, 'default_revision' => {$defaultRevision}],\n";
     }
 
-    private function renderTransitionRow(BlueprintWorkflowTransition $transition): string
+    /** @param array{label: string, from: list<string>, to: string, permission: string} $transition */
+    private function renderTransitionRow(string $transitionId, array $transition): string
     {
-        $id = self::singleQuoted($transition->id);
-        $label = self::singleQuoted($transition->label);
-        $from = $transition->from;
-        sort($from, SORT_STRING);
+        $id = self::singleQuoted($transitionId);
+        $label = self::singleQuoted($transition['label']);
+        $from = $transition['from'];
         $fromArray = '[' . implode(', ', array_map(self::singleQuoted(...), $from)) . ']';
-        $to = self::singleQuoted($transition->to);
-        $permission = self::singleQuoted($transition->permission);
+        $to = self::singleQuoted($transition['to']);
+        $permission = self::singleQuoted($transition['permission']);
 
         return <<<PHP
                         {$id} => [

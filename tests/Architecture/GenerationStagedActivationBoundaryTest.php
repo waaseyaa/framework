@@ -144,9 +144,15 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         // catches the coded refusal its own `initialize()` call may raise and
         // relays the message to the operator. It never constructs one, and it
         // carries no emitter, evaluation or apply of its own.
+        // #2849: `make:search-projection` is the second scaffold migration and
+        // relays the same way, for the same reason — it publishes its projector,
+        // provider binding and companion test through `initialize()` and catches
+        // that call's coded refusal. It likewise constructs none, and carries no
+        // emitter, evaluation or apply.
         self::assertSame(
             [
                 'packages/cli/src/Handler/MakeContentTypeHandler.php',
+                'packages/cli/src/Handler/MakeSearchProjectionHandler.php',
                 'packages/cli/src/Handler/SiteInitHandler.php',
                 'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
                 'packages/cli/src/Site/Blueprint/Emitter/AccessPolicyEmitter.php',

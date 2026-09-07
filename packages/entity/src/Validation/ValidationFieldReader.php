@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity\Validation;
 
 use Symfony\Component\Validator\Constraint;
+use Symfony\Component\Validator\Constraints\All;
 use Symfony\Component\Validator\Constraints\AtLeastOneOf;
 use Symfony\Component\Validator\Constraints\Choice;
 use Symfony\Component\Validator\Constraints\Email;
@@ -20,6 +21,7 @@ use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validation;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Validation\Constraint\AllowedValues;
+use Waaseyaa\Validation\Constraint\EntityExists;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 use Waaseyaa\Validation\Constraint\SafeMarkup;
 
@@ -89,6 +91,8 @@ final class ValidationFieldReader
                 && !$constraint instanceof NotEmpty
                 && !$constraint instanceof Choice
                 && !$constraint instanceof AllowedValues
+                && !$constraint instanceof EntityExists
+                && !$constraint instanceof All
                 && !$constraint instanceof Email
                 && !$constraint instanceof GreaterThan
                 && !$constraint instanceof Length
@@ -102,7 +106,18 @@ final class ValidationFieldReader
                     $constraint::class,
                 ));
             }
+            if ($constraint instanceof EntityExists
+                && !$constraint->existsChecker instanceof EntityReferenceExistenceChecker) {
+                throw new \LogicException(sprintf(
+                    'Non-Public field %s uses custom constraint %s; only the canonical entity-reference existence checker is permitted.',
+                    $field,
+                    $constraint::class,
+                ));
+            }
             if ($constraint instanceof AtLeastOneOf) {
+                $this->assertClosedConstraints($field, $constraint->constraints);
+            }
+            if ($constraint instanceof All) {
                 $this->assertClosedConstraints($field, $constraint->constraints);
             }
         }

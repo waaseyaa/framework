@@ -3172,3 +3172,17 @@ package must compose provider capabilities after every provider has registered.
 It exposes only `implementing(interface)` in compiled manifest order; it does
 not expose container mutation or a generic provider service locator. Auth
 consumer extension composition is its first security-sensitive user.
+
+## Repository reference-validation composition
+
+`EntityTypeManagerFactory` supplies each canonical SQL repository with an
+`EntityIdentifierResolver` backed by the same completed entity-type manager.
+The lazy repository factory captures that manager only after construction;
+reference checks resolve through its registered repositories rather than a
+second registry or a controller-local lookup. The active save-time validation
+path derives canonical `EntityExists` constraints, including multi-value `All`
+composition. Missing resolver or malformed target metadata refuses before write.
+Explicit validation opt-outs remain unchanged. This does not implement deletion
+restrictions, translation/revision write validation, or polymorphic references.
+The behavioral contract and focused evidence are in `entity-system.md` and
+`FW-ENTITY-REFERENCE-INTEGRITY-01`.

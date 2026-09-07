@@ -76,7 +76,7 @@ To avoid collision with the existing schema-migration CLI (`bin/waaseyaa migrate
 The "Migration Platform" name remains the conceptual public name; only the CLI verb is `import`. A future ADR may rename the existing schema-migration commands to `schema:*` and free up `migrate:*` for data migration; that decision is out of scope here.
 
 **Idempotency primitives (stable surface):**
-- **ID mapping table** — `migration_id_map` records `(migration_id, source_id_hash, destination_entity_uuid, last_imported_at)`. Stable surface: the table schema, the lookup API, and the `SourceIdInterface` for source records.
+- **ID mapping table** — `migration_id_map` records `(migration_id, source_id_hash, destination_entity_uuid, last_imported_at)`. Stable surface: the table schema, the lookup API, and the `SourceId` value object for source records. (Corrected 2026-09-07: this ADR originally named a `SourceIdInterface`; the substrate shipped a `final readonly class SourceId` — `packages/migration/src/SourceId.php` — and no such interface was ever created. Third-party substitution of identity semantics is therefore not available in v1; that is the shipped design, not an omission to be implemented.)
 - **Stable source IDs** — every source record exposes a `SourceId` value object whose hash is stable across runs. Re-running a migration with the same source data MUST be idempotent (no duplicate entities created).
 - **Resume semantics** — `import:run` records progress per record; `import:resume` skips already-imported records.
 
