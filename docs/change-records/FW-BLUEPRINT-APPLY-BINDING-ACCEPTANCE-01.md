@@ -1,6 +1,6 @@
 # FW-BLUEPRINT-APPLY-BINDING-ACCEPTANCE-01
 
-Status: blocked acceptance candidate
+Status: acceptance candidate repaired
 
 Anchor mirror: waaseyaa/framework#2787
 
@@ -70,6 +70,41 @@ plan, preserved the exact plan and current-project-state digests in the apply
 request, and made no target-project write before the later process reached the
 missing option.
 
+## Implemented repair
+
+The candidate registers `--decision-receipt` on `site:apply`, extracts closed
+read-once receipt decoding to `DecisionReceiptInput`, reuses it from
+`SiteInitHandler` and `SiteApplyHandler`, and passes the decoded receipt to
+`SiteInitializationService::apply(decisionReceipt: $receipt)` without embedding
+approval in `ArtifactApplyRequest` or weakening `GEN005` plan/current-state
+checks.
+
+Files changed:
+
+- `packages/cli/src/Handler/DecisionReceiptInput.php` (new shared helper)
+- `packages/cli/src/Handler/SiteApplyHandler.php`
+- `packages/cli/src/Handler/SiteInitHandler.php`
+- `packages/cli/src/Provider/SiteServiceProvider.php`
+- `packages/cli/tests/Unit/Handler/SiteApplyHandlerTest.php`
+- `packages/cli/tests/Integration/BlueprintApplyBindingProcessTest.php` (committed discriminating control; unchanged by repair)
+- `docs/specs/cli-kernel.md`
+- `docs/specs/site-golden-path.md`
+- `changes/unreleased/2787.blueprint-apply-binding-acceptance.fixed.md`
+
+Focused green evidence:
+
+```text
+php -d memory_limit=1G ./vendor/bin/phpunit packages/cli/tests/Integration/BlueprintApplyBindingProcessTest.php --no-coverage
+php -d memory_limit=1G ./vendor/bin/phpunit packages/cli/tests/Unit/Handler/SiteApplyHandlerTest.php --no-coverage
+```
+
+`SiteApplyHandlerTest` adds blueprint receipt rivals (missing, unreadable,
+malformed, rejected, mismatched, replaced) and blueprint-specific `GEN005`
+no-write controls after valid approval admission. Existing `site:init` receipt
+behavior remains covered by `SiteInitBlueprintExecutionTest` and related
+fixtures; blueprint-free `site:apply` guards remain in the pre-existing
+`SiteApplyHandlerTest` cases.
+
 ## Smallest canonical repair
 
 Register the same required `decision-receipt` option on `site:apply` that
@@ -88,17 +123,10 @@ blueprint-free request guards.
 
 ## Shared-file repair ownership
 
-The implementation owner will need these existing shared files:
-
-- `packages/cli/src/Provider/SiteServiceProvider.php`
-- `packages/cli/src/Handler/SiteApplyHandler.php`
-- one shared receipt-input helper if extraction is chosen
-- `packages/cli/tests/Unit/Handler/SiteApplyHandlerTest.php`
-- `docs/specs/cli-kernel.md`
-- `docs/specs/site-golden-path.md`
-
-This acceptance lane owns none of those files and makes no runtime or spec
-change.
+This acceptance lane implemented the repair in the shared files listed above.
+The discriminating integration control and its fixture were already committed;
+runtime, spec, and unit-test changes were required to turn the recorded RED
+green.
 
 ## Residual boundary
 
