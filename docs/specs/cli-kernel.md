@@ -743,6 +743,18 @@ released nothing.
 stored rows, which is the only place "protected content never enters the index
 file" can be checked rather than inferred.
 
+`tests/PackagedForm/check-search-projection-scaffold-acceptance` proves the
+same properties from a packaged consumer built out of the candidate tree with
+its own resolved dependencies, driving `site:init` → `install:init` →
+`make:content-type` → a deliberate per-field visibility decision →
+`make:search-projection` → `schema:sync` → `entity:create` → `search:reindex`.
+Its load-bearing assertion is that reindex indexes exactly one document: no
+built-in projector supports the scaffolded entity type, so that count can only
+be reached if the generated provider was discovered from literal root
+`composer.json` and its projector consulted ahead of the built-in default. A
+negative control removes only that registration, leaves the generated classes
+byte-identical on disk, and requires reindex to index zero.
+
 <!-- Spec reviewed 2026-09-07 - #2849: make:search-projection is the second seeded-compiler migration, and the first compiler to populate ADR-025 D-6.6 companion_tests. Recorded rather than hidden: the by-name capability guard and why GeneratorFeatureNegotiation is not the applicable machinery, the single-provider refusal (the container resolves one ProvidesEntitySearchProjectorsInterface), and the read-level interaction whereby a registered entity type defaults undeclared fields to Internal so an unedited scaffolded entity indexes empty. Guidance requires a per-field visibility decision and preserves the restricted default rather than recommending Public. Acceptance: MakeSearchProjectionCustodyTest, SearchProjectionScaffoldRuntimeTest, SearchProjectionReindexTest, GenerationUnitActivationBoundaryTest's widened seeded roster, and GenerationStagedActivationBoundaryTest's widened refusal-carrier allowlist. -->
 
 ## Input And Output

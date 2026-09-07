@@ -97,6 +97,30 @@ Public because someone decided its content is publishable, never to make an
 empty index look populated. Fields not meant to be searchable should stay
 restricted and simply not be indexed.
 
+### Packaged evidence for the same gap
+
+`tests/PackagedForm/check-search-projection-scaffold-acceptance` reproduces
+this in a real consumer built from the candidate tree. After
+`make:content-type story --fields="title:string,body:text,secret_note:text"`,
+a deliberate visibility decision on `body` alone, and
+`make:search-projection story --fields=body,secret_note`, the stored index row
+is:
+
+```json
+[{"document_id":"story:1","title":"","body":"Wild rice camp opens Monday harvestpublicterm"}]
+```
+
+Three things are visible at once. The deliberately-Public `body` is indexed.
+The `secret_note` left at the emitter's default is absent, which is the
+correct outcome. And **`title` is empty** — the label field is subject to the
+same undeclared-classification gap, so a scaffolded entity is currently
+indexed with no title at all even when its body is deliberately published.
+
+The harness does not assert the empty title. Pinning it would encode the
+defect as a requirement; when #2847 gives the emitter a classification story,
+this row should gain a title and no proof should have to be relaxed to allow
+it.
+
 ### Ownership
 
 The consumer side is closed: generated projectors read through the guarded
