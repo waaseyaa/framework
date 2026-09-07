@@ -213,22 +213,40 @@ succeed because `Access-Control-Allow-Credentials` is never emitted. On
 `/graphql` both are switched off, leaving **`SameSite=Lax`** as the only
 control (`packages/user/src/Session/SessionCookiePolicy.php:30-35`).
 
-**Why this is not an emergency:** `SameSite=Lax` excludes cookies from
-cross-site non-GET requests, which is precisely the `enctype="text/plain"`
-form-POST vector. At the shipped default the session cookie is not sent, the
-request is unauthenticated, and the mutation gate refuses. The framework also
-already closed the GET-mutation vector explicitly (`:101-110`).
+**Exposure is UNRESOLVED — an earlier revision of this report concluded
+`SameSite=Lax` made it non-exploitable. That conclusion is withdrawn.**
+`SameSite=Lax` is a *default*, not a guarantee: `SessionCookiePolicy::sameSite()`
+explicitly accepts `'none'` as a valid configured value
+(`packages/user/src/Session/SessionCookiePolicy.php:83-89`), and cross-site
+embedding is a normal reason to set it. Resting a non-exploitability claim on a
+configurable cookie attribute is exactly the reasoning error this audit
+programme has had to withdraw twice before.
 
-**Why it still matters:** every other write surface has defence in depth and
-this one does not. The single control is a cookie attribute, so the posture
-degrades to zero if a deployment sets `SameSite=None` (a normal thing to do for
-cross-site embedding), and it offers nothing to clients that ignore SameSite.
-The cheapest correction is the narrow one — enforce a content-type check in
-`GraphQlEndpoint::parseRequest()`, or drop `csrfExempt()` and let the existing
-JSON allowlist decide — not a change to CSRF handling generally.
+What is **confirmed**: the route is `csrfExempt()`; `parseRequest()` POST-decodes
+the body with `json_decode` and **no `Content-Type` inspection anywhere**
+(`:241-276`); the mutation gate is authentication only (`:132-137`); and CORS is
+an exact-match allowlist defaulting to `localhost:3000`/`127.0.0.1:3000` that
+never emits `Access-Control-Allow-Credentials`
+(`packages/foundation/src/Http/CorsHandler.php:25,61`).
 
-Recorded as **defence-in-depth reduced to one control on one route**, not as an
-exploitable vulnerability.
+What is **not established**, and would be required before claiming either
+exploitability or safety:
+1. that a mutation actually **executes** to completion via a `text/plain`-shaped
+   body — only `parseRequest()` was traced, not the resolver path;
+2. that a session cookie actually **attaches** to such a cross-site request in a
+   target deployment — this is the `SameSite` question, and it is
+   deployment-dependent, not framework-fixed;
+3. what `SameSite`, origin allowlist and embedding posture real deployments
+   actually configure.
+
+Until those are answered, treat this as **conditional, unproven exposure with
+confirmed code facts** — not as safe, and not as a demonstrated vulnerability.
+The narrow correction (a content-type check in `parseRequest()`, or dropping
+`csrfExempt()` so the existing JSON allowlist decides) is cheap enough that it
+does not need the question resolved first.
+
+Recorded as **defence-in-depth reduced to one deployment-configurable control on
+one route, with exploitability unresolved**.
 
 ### F8 — CSRF is otherwise correctly scoped
 **CONFIRMED, recorded as a strength.** `CsrfMiddleware` is global middleware at
