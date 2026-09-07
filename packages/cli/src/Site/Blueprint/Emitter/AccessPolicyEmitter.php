@@ -113,11 +113,57 @@ final class AccessPolicyEmitter implements BlueprintArtifactEmitterInterface
         return new BlueprintEmission($artifacts);
     }
 
-    /** @param list<BlueprintPolicy> $policies sorted by id */
-    private function renderPolicy(BlueprintEntity $entity, string $className, array $policies, bool $workflowBound): string
+    /**
+     * Public convergence entrypoint for `make:policy` (#2848): renders the
+     * exact same policy-class shape {@see emit()} would, for an explicit
+     * entity id and an explicit `list<BlueprintPolicy>` the caller builds
+     * itself, without requiring a full blueprint or `SiteManifest`. This is
+     * a thin wrapper — it builds a minimal {@see BlueprintEntity} carrying
+     * only what {@see renderPolicy()} actually reads (`id`, `keys.owner`)
+     * and delegates to the same, unchanged, golden-byte-locked renderer
+     * `emit()` already uses. `$ownerField`/`$workflowBound` are `null`/
+     * `false` for a bare CLI invocation, which has no blueprint entity keys
+     * or workflow binding to declare — only `permission`-kind conditions
+     * are reachable through this entrypoint's caller (`MakePolicyHandler`).
+     *
+     * `$entityClassFqcn` (no leading backslash) lets a `make:policy` caller
+     * declare the real backing entity class — there is no
+     * `EntityClassEmitter`-generated `App\Entity\<Class>` to assume outside
+     * a blueprint compilation, unlike the `emit()` path. Omitting it falls
+     * back to that same blueprint convention, which stays correct for a
+     * blueprint-shaped app entity.
+     *
+     * @param list<BlueprintPolicy> $policies
+     */
+    public function renderPolicyClass(string $entityId, ?string $ownerField, string $className, array $policies, bool $workflowBound, ?string $entityClassFqcn = null): string
+    {
+        $entity = new BlueprintEntity(
+            id: $entityId,
+            label: $entityId,
+            storage: \Waaseyaa\SiteContract\Blueprint\BlueprintStorage::SqlBlob,
+            revisionable: false,
+            translatable: false,
+            keys: new \Waaseyaa\SiteContract\Blueprint\BlueprintEntityKeys(id: 'id', uuid: 'uuid', label: 'id', owner: $ownerField),
+            fields: [],
+        );
+
+        return $this->renderPolicy($entity, $className, $policies, $workflowBound, $entityClassFqcn);
+    }
+
+    /**
+     * @param list<BlueprintPolicy> $policies sorted by id
+     * @param string|null $entityClassFqcn Fully-qualified entity class the generated
+     *   `access()` asserts against, without a leading backslash. Defaults to the
+     *   blueprint-generated convention `App\Entity\<PascalCase(entity id)>`
+     *   ({@see \Waaseyaa\CLI\Site\Blueprint\Emitter\EntityClassEmitter}) — `emit()`
+     *   never passes this argument, so its byte output is unaffected.
+     *   `renderPolicyClass()` (#2848) passes an explicit FQCN for a `make:policy`
+     *   invocation, which has no `EntityClassEmitter`-generated class to assume.
+     */
+    private function renderPolicy(BlueprintEntity $entity, string $className, array $policies, bool $workflowBound, ?string $entityClassFqcn = null): string
     {
         $entityId = $entity->id;
-        $entityClass = self::pascalCase($entityId);
+        $entityClass = $entityClassFqcn ?? ('App\\Entity\\' . self::pascalCase($entityId));
         $ownerField = $entity->keys->owner;
 
         $fieldAccess = $this->renderFieldAccess($ownerField, $workflowBound);
@@ -182,7 +228,7 @@ final class AccessPolicyEmitter implements BlueprintArtifactEmitterInterface
 
                 public function access(EntityInterface \$entity, string \$operation, AccountInterface \$account): AccessResult
                 {
-                    assert(\$entity instanceof \\App\\Entity\\{$entityClass});
+                    assert(\$entity instanceof \\{$entityClass});
 
                     return match (\$operation) {
             {$matchArms}            default => AccessResult::neutral("No policy opinion on '{\$operation}'."),
