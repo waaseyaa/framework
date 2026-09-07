@@ -28,6 +28,7 @@ return [
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\GeneratorFeatureNegotiation', 'disposition' => 'public', 'purpose' => 'Fail-closed generator-feature negotiation refusing an unadvertised required token before any render, lock, journal or write', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\ObservedTargetMode', 'disposition' => 'public', 'purpose' => 'Closed 0644/0755/other/unknown record of the permission bits evaluation observed'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\ObservedTargetState', 'disposition' => 'public', 'purpose' => 'Closed absent/file/other record of what evaluation observed at one target path'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\SiteRecipeProviderRegistrationInterface', 'disposition' => 'public', 'purpose' => 'A first-party recipe\'s fixed Composer provider registration, consumed by SiteArtifactRenderer::compile() to enter the root artifact plan', 'ref' => '#2857'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\SiteRecipeRendererInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\ManifestShapeReader', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Version\\ManifestVersionDisposition', 'disposition' => 'public', 'purpose' => 'Closed current, migration-required, and unsupported-future schema-version decision'],

@@ -74,8 +74,6 @@ final class ApplicationBlueprintCompiler
      */
     public const array GENERATOR_FEATURES = ['site-application-blueprint-v1'];
 
-    private const string METADATA_PATH = '.waaseyaa/generated.json';
-
     /** @param list<BlueprintArtifactEmitterInterface> $emitters a fixed, ordered roster */
     public function __construct(
         private readonly SiteArtifactRenderer $renderer,
@@ -91,17 +89,15 @@ final class ApplicationBlueprintCompiler
         GeneratorFeatureNegotiation::assert($manifest, self::GENERATOR_FEATURES, self::class);
         self::assertPhpIdentifierGrammar($blueprint);
 
-        $baseArtifacts = array_values(array_filter(
-            $this->renderer->render($manifest)->artifacts,
-            static fn(GeneratedArtifact $artifact): bool => $artifact->path !== self::METADATA_PATH,
-        ));
+        $basePlan = $this->renderer->compile($manifest);
+        $baseArtifacts = $basePlan->artifacts;
         $basePaths = array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $baseArtifacts);
 
         $seenEmitterIds = [];
         $allArtifacts = $baseArtifacts;
         $seenPaths = array_flip($basePaths);
-        $registrations = [];
-        $companionTests = [];
+        $registrations = $basePlan->registrations;
+        $companionTests = $basePlan->companionTests;
         foreach ($this->emitters as $emitter) {
             $emitterId = $emitter->id();
             if ($emitterId === '' || isset($seenEmitterIds[$emitterId])) {
@@ -137,9 +133,12 @@ final class ApplicationBlueprintCompiler
             GenerationUnitDisposition::Managed,
             $manifest->digest,
             $allArtifacts,
+            retires: $basePlan->retires,
             registrations: $registrations,
             companionTests: $companionTests,
             setEvolution: ArtifactSetEvolution::Additive,
+            schemaEffects: $basePlan->schemaEffects,
+            configEffects: $basePlan->configEffects,
         );
     }
 

@@ -74,7 +74,7 @@ final class SiteInitProfileAcceptanceGateTest extends TestCase
     }
 
     #[Test]
-    public function both_declarative_profiles_and_the_residual_activation_boundary_are_explicit(): void
+    public function both_declarative_profiles_and_the_separate_runtime_activation_proof_are_explicit(): void
     {
         $harness = $this->read(self::HARNESS);
         $probe = $this->read(self::PROBE);
@@ -89,9 +89,17 @@ final class SiteInitProfileAcceptanceGateTest extends TestCase
         self::assertStringContainsString('composer.governed-authoring-recipe.json', $probe);
         self::assertStringContainsString('composer.subscription-recipe.json', $probe);
 
-        // #2857 remains the activation boundary. This slice proves generated
-        // declarations and bytes; it must not boot an authoring provider or
-        // manufacture an authenticated account to imply activation.
+        // This profile proof requires the selected literal-root provider
+        // registrations but leaves provider boot and authenticated authoring to
+        // #2857's separate runtime activation proof.
+        self::assertStringContainsString("'App\\\\Provider\\\\PublishedContentServiceProvider' => 1", $probe);
+        self::assertStringContainsString(
+            <<<'PHP'
+                'App\\Provider\\GovernedAuthoringServiceProvider' => $profile === 'editorial' ? 1 : 0
+                PHP,
+            $probe,
+        );
+        self::assertStringContainsString("'App\\\\Provider\\\\SubscriptionServiceProvider' => 0", $probe);
         self::assertStringNotContainsString('waaseyaa install:init', $harness);
         self::assertStringNotContainsString('waaseyaa user:create', $harness);
         self::assertStringNotContainsString('HttpKernel', $probe);

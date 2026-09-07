@@ -1547,6 +1547,41 @@ jobs:
       - name: Prove downstream custom field admission in dev and prod consumers
         run: bash tests/PackagedForm/check-custom-field-admission
 
+  site-recipe-provider-activation:
+    # #2857: prove a recipe-selected provider reaches literal root composer.json
+    # and a real packaged kernel from the exact candidate. The rival keeps the
+    # generated compatibility fragment and provider class byte-identical while
+    # removing only the literal-root provider entry, then proves the surface and
+    # field disappear. In-tree unit tests cannot demonstrate that discovery
+    # boundary or the supported skeleton's full lifecycle.
+    # See tests/PackagedForm/check-site-recipe-provider-activation.
+    name: ci/site-recipe-provider-activation
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # The harness installs a fresh disposable consumer. Reuse only Composer's
+      # package download cache; never a vendor tree from another dependency graph.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Prove recipe provider activation from the exact candidate
+        env:
+          CANDIDATE_SHA: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+        run: bash tests/PackagedForm/check-site-recipe-provider-activation
+
   bimaaji-skill-resources:
     # #2656: `bimaaji:install` must work from a real packaged consumer. The
     # canonical Agent Skills used to live at the monorepo root, so the command

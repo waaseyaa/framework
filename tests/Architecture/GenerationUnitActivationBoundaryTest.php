@@ -69,6 +69,7 @@ final class GenerationUnitActivationBoundaryTest extends TestCase
         self::assertSame([
             'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
             'packages/cli/src/Site/SiteInitializationService.php',
+            'packages/site-contract/src/Generation/SiteArtifactRenderer.php',
         ], $explicitAdditiveOwners);
     }
 

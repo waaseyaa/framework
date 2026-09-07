@@ -22,7 +22,10 @@ consumers from identical skeleton, lock, and seed bytes. It proves:
 - an unowned collision and an edited managed artifact both refuse non-zero and
   leave project state unchanged; and
 - generated manifests contain resolved capability and recipe decisions rather
-  than a persistent preset/profile flag or backend security implementation.
+  than a persistent preset/profile flag or backend security implementation; and
+- literal root `composer.json` registers published content exactly once for both
+  profiles, governed authoring exactly once only for editorial, and never the
+  unselected subscription provider.
 
 The companion architecture test keeps the harness, closed seed, probe, exact
 candidate-copy controls, and CI invocation reviewable without running Composer.
@@ -31,18 +34,18 @@ against the workflow's requested exact SHA.
 
 ## Boundary and residual acceptance
 
-This evidence closes only the packaged proof for the already implemented
-declarative half. It does not claim that `editorial` reaches a running
-authenticated authoring surface. The full Framework skeleton already installs
-the packages and #2846 already implements the generation authority; the actual
-remaining #2857 edge is that provider discovery reads literal root
-`composer.json`, where the generated provider is not registered. #2442 remains
-incomplete until that provider-registration path and the corresponding packaged
-authenticated-authoring and upgrade evidence land.
+This evidence covers the packaged profile proof for the already implemented
+declarative half. It verifies the selected providers reach literal root
+`composer.json`, but does not itself boot them or claim that `editorial` reaches
+a running authenticated authoring surface. #2857's separate packaged activation
+proof owns real kernel boot, page-surface resolution, canonical field authority,
+and storage materialization. #2442 remains incomplete for authenticated authoring
+and upgrade evidence outside this profile slice.
 
-This candidate changes verification and governance records only. It introduces
-no production command, manifest, recipe, provider, authorization, or publication
-behavior.
+The #2442 profile slice changed verification and governance records only; its
+production provider-registration dependency is implemented and recorded by the
+separate #2857 candidate. Neither slice introduces an authorization or
+publication decision.
 
 ## Qualification
 
