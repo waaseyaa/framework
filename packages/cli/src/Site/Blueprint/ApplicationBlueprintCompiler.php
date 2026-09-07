@@ -74,8 +74,6 @@ final class ApplicationBlueprintCompiler
      */
     public const array GENERATOR_FEATURES = ['site-application-blueprint-v1'];
 
-    private const string METADATA_PATH = '.waaseyaa/generated.json';
-
     /** @param list<BlueprintArtifactEmitterInterface> $emitters a fixed, ordered roster */
     public function __construct(
         private readonly SiteArtifactRenderer $renderer,

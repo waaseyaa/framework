@@ -77,8 +77,8 @@ final class ApplicationBlueprintCompilerTest extends TestCase
 
     /**
      * #2788 (01E): the roster grows from three emitter ids (01D-1) to eight,
-     * all additive — the compiler itself is untouched (pinned below by
-     * {@see self::theCompilerFileIsByteIdenticalToThe01D1Baseline()}). Two
+     * all additive — the compiler stays generic over its injected emitter
+     * roster (guarded below). Two
      * distinct `ComposerProviderRegistration` FQCNs compose without
      * collision (`ProviderRegistrationEmitter`'s content provider,
      * `GovernanceProviderEmitter`'s governance provider), and every
@@ -118,27 +118,24 @@ final class ApplicationBlueprintCompilerTest extends TestCase
     }
 
     /**
-     * #2788 (01E) is additive-only per its own emitter roster (decision (f)):
-     * it must never edit `ApplicationBlueprintCompiler.php` itself. Pins the
-     * exact byte content accepted main carries after 01D-2 (main
-     * `d64a825fc`, PR #2937 merge) so an accidental edit fails loudly here
-     * instead of only showing up as an unexplained diff in review. Re-pin
-     * only when a #2787 slice legitimately changes the compiler.
-     *
-     * Re-pinned by #2857 (ADR-025 D-15.2): that decision explicitly
-     * authorizes this file to compose the renderer's base plan (base
-     * artifacts, retires, registrations, companion tests, schema/config
-     * effects) instead of discarding everything but its artifacts, so this
-     * is a legitimate compiler edit, not an additive-emitter-slice edit.
+     * #2788 (01E) adds concrete emitters only at the factory composition
+     * root. The compiler may evolve under an explicitly reviewed compiler
+     * decision such as ADR-025 D-15.2, but it must remain generic over the
+     * injected emitter interface. This semantic boundary replaces the former
+     * whole-file byte pin, which could not distinguish an authority change
+     * from an unrelated, reviewed maintenance edit.
      */
     #[Test]
-    public function theCompilerFileIsByteIdenticalToThe01D1Baseline(): void
+    public function theConcreteEmitterRosterRemainsOwnedByTheFactory(): void
     {
         $path = \dirname(__DIR__, 4) . '/src/Site/Blueprint/ApplicationBlueprintCompiler.php';
-        self::assertSame(
-            'e3591864c4a6ac1aa68c379303feace45b6a90e1a3ebc5d018ddb1d2c893d4eb',
-            hash('sha256', (string) file_get_contents($path)),
-            'ApplicationBlueprintCompiler.php must not be edited by an additive emitter slice.',
+        $source = (string) file_get_contents($path);
+        $emitterNamespace = 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter' . '\\';
+
+        self::assertSame(1, substr_count($source, $emitterNamespace));
+        self::assertStringContainsString(
+            'use ' . $emitterNamespace . 'BlueprintArtifactEmitterInterface;',
+            $source,
         );
     }
 

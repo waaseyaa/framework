@@ -6,8 +6,10 @@ declare(strict_types=1);
  * Read-only assertions for the #2442 packaged profile proof.
  *
  * This file intentionally loads each consumer's installed autoloader only for
- * manifest parsing. It never boots the application or resolves a generated
- * provider: provider activation and authenticated authoring remain #2857.
+ * manifest parsing. It verifies the selected providers' literal-root entries
+ * but never boots the application or resolves a generated provider; #2857's
+ * separate proof owns runtime activation, while authenticated authoring remains
+ * outside this profile proof.
  */
 
 function fail_probe(string $message): never
@@ -250,8 +252,22 @@ function assert_profile(string $root, string $profile): void
 
     $composer = read_json_object($root . '/composer.json');
     $providers = $composer['extra']['waaseyaa']['providers'] ?? [];
-    if (is_array($providers) && in_array('App\\Provider\\GovernedAuthoringServiceProvider', $providers, true)) {
-        fail_probe('The literal root composer.json unexpectedly activates the generated authoring provider.');
+    if (!is_array($providers)) {
+        fail_probe('The literal root composer.json provider inventory must be an array.');
+    }
+    $expectedProviderCounts = [
+        'App\\Provider\\PublishedContentServiceProvider' => 1,
+        'App\\Provider\\GovernedAuthoringServiceProvider' => $profile === 'editorial' ? 1 : 0,
+        'App\\Provider\\SubscriptionServiceProvider' => 0,
+    ];
+    foreach ($expectedProviderCounts as $provider => $expectedCount) {
+        $actualCount = count(array_filter(
+            $providers,
+            static fn(mixed $candidate): bool => $candidate === $provider,
+        ));
+        if ($actualCount !== $expectedCount) {
+            fail_probe("{$profile} literal root composer.json registers {$provider} {$actualCount} time(s); expected {$expectedCount}.");
+        }
     }
     if (isset($composer['require']['waaseyaa/page-builder'])) {
         fail_probe('The literal root composer.json unexpectedly materializes the generated authoring requirement.');
