@@ -1,0 +1,217 @@
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  name: Community Events
+  id: community-events
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: 0000000000000000000000000000000000000000000000000000000000000000
+content_types:
+  - id: event
+    canonical_route: /events/{slug}
+  - id: organizer
+    canonical_route: /organizers/{slug}
+  - id: venue
+    canonical_route: /venues/{slug}
+capabilities:
+  - id: payments
+    state: not_needed
+    reason: Payments and ticket settlement are outside this starter.
+personal_data_stores: []
+recipes: []
+verification:
+  command: bin/maintenance/site-verify
+application_blueprint:
+  contract_version: 1
+  entities:
+    - id: event
+      label: Event
+      storage: sql-column
+      revisionable: true
+      translatable: false
+      keys:
+        id: id
+        uuid: uuid
+        label: title
+        revision: vid
+      fields:
+        - { id: starts_at, type: datetime, required: true, indexed: true }
+        - { id: summary, type: text }
+        - { id: title, type: string, required: true, indexed: true }
+    - id: organizer
+      label: Organizer
+      storage: sql-column
+      revisionable: false
+      translatable: false
+      keys: { id: id, uuid: uuid, label: name }
+      fields:
+        - { id: email, type: email }
+        - { id: name, type: string, required: true, indexed: true }
+    - id: venue
+      label: Venue
+      storage: sql-column
+      revisionable: false
+      translatable: false
+      keys: { id: id, uuid: uuid, label: name }
+      fields:
+        - { id: address, type: string, required: true }
+        - { id: city, type: string, required: true, indexed: true }
+        - { id: name, type: string, required: true, indexed: true }
+  relationships:
+    - id: event_organizer
+      from: { entity: event, field: organizer }
+      to: { entity: organizer }
+      cardinality: 1
+      required: true
+      on_delete: restrict
+    - id: event_venue
+      from: { entity: event, field: venue }
+      to: { entity: venue }
+      cardinality: 1
+      required: true
+      on_delete: restrict
+  permissions:
+    - { id: create event, title: Create events }
+    - { id: edit draft event, title: Edit draft events }
+    - { id: manage events, title: Manage all events }
+    - { id: manage locations, title: Manage venues and organizers }
+    - { id: publish event, title: Publish reviewed events }
+    - { id: return event, title: Return events to draft }
+    - { id: submit event, title: Submit events for review }
+    - { id: view event, title: View events }
+    - { id: view organizer, title: View organizers }
+    - { id: view venue, title: View venues }
+  roles:
+    - id: contributor
+      label: Contributor
+      permissions: [create event, edit draft event, submit event, view event, view organizer, view venue]
+    - id: event_administrator
+      label: Administrator
+      permissions:
+        - create event
+        - edit draft event
+        - manage events
+        - manage locations
+        - publish event
+        - return event
+        - submit event
+        - view event
+        - view organizer
+        - view venue
+    - id: reviewer
+      label: Reviewer
+      permissions: [publish event, return event, view event, view organizer, view venue]
+  policies:
+    - id: event_create
+      entity: event
+      operation: create
+      condition: { kind: permission, permission: create event }
+    - id: event_delete
+      entity: event
+      operation: delete
+      condition: { kind: permission, permission: manage events }
+    - id: event_update_draft
+      entity: event
+      operation: update
+      condition: { kind: workflow_state, permission: edit draft event, states: [draft] }
+    - id: event_update_manage
+      entity: event
+      operation: update
+      condition: { kind: permission, permission: manage events }
+    - id: event_view
+      entity: event
+      operation: view
+      condition: { kind: permission, permission: view event }
+    - id: organizer_create
+      entity: organizer
+      operation: create
+      condition: { kind: permission, permission: manage locations }
+    - id: organizer_delete
+      entity: organizer
+      operation: delete
+      condition: { kind: permission, permission: manage locations }
+    - id: organizer_update
+      entity: organizer
+      operation: update
+      condition: { kind: permission, permission: manage locations }
+    - id: organizer_view
+      entity: organizer
+      operation: view
+      condition: { kind: permission, permission: view organizer }
+    - id: venue_create
+      entity: venue
+      operation: create
+      condition: { kind: permission, permission: manage locations }
+    - id: venue_delete
+      entity: venue
+      operation: delete
+      condition: { kind: permission, permission: manage locations }
+    - id: venue_update
+      entity: venue
+      operation: update
+      condition: { kind: permission, permission: manage locations }
+    - id: venue_view
+      entity: venue
+      operation: view
+      condition: { kind: permission, permission: view venue }
+  workflows:
+    - id: event_editorial
+      label: Event editorial
+      initial_state: draft
+      states:
+        - { id: draft, label: Draft, published: false }
+        - { id: published, label: Published, published: true }
+        - { id: review, label: In review, published: false }
+      transitions:
+        - { id: publish, label: Publish, from: [review], to: published, permission: publish event }
+        - { id: return_to_draft, label: Return to draft, from: [review], to: draft, permission: return event }
+        - { id: submit_for_review, label: Submit for review, from: [draft], to: review, permission: submit event }
+      bindings:
+        - { entity: event }
+  fixtures:
+    - id: community_hall
+      entity: venue
+      values:
+        address: 10 Gathering Place
+        city: Anishinaabe Aki
+        name: Community Hall
+    - id: events_team
+      entity: organizer
+      values:
+        email: events@example.test
+        name: Community Events Team
+    - id: harvest_festival
+      entity: event
+      values:
+        organizer: events_team
+        starts_at: '2026-09-21T17:00:00Z'
+        summary: An evening gathering for the community.
+        title: Harvest Festival
+        venue: community_hall
+      workflow_state: draft
+    - id: review_festival
+      entity: event
+      values:
+        organizer: events_team
+        starts_at: '2026-10-05T17:00:00Z'
+        summary: A reviewed event awaiting publication.
+        title: Review Festival
+        venue: community_hall
+      workflow_state: review
+  checks:
+    - { id: administrator_manages_events, kind: role_permission, role: event_administrator, permission: manage events, expect: granted }
+    - { id: administrator_updates_event, kind: entity_access, role: event_administrator, entity: event, operation: update, fixture: harvest_festival, expect: allow }
+    - { id: community_hall_exists, kind: fixture_present, fixture: community_hall }
+    - { id: contributor_can_create, kind: role_permission, role: contributor, permission: create event, expect: granted }
+    - { id: contributor_cannot_publish, kind: workflow_transition, role: contributor, workflow: event_editorial, transition: publish, expect: denied }
+    - { id: contributor_cannot_update_review, kind: entity_access, role: contributor, entity: event, operation: update, fixture: review_festival, expect: deny }
+    - { id: contributor_submits, kind: workflow_transition, role: contributor, workflow: event_editorial, transition: submit_for_review, expect: allowed }
+    - { id: contributor_updates_draft, kind: entity_access, role: contributor, entity: event, operation: update, fixture: harvest_festival, expect: allow }
+    - { id: harvest_festival_exists, kind: fixture_present, fixture: harvest_festival }
+    - { id: reviewer_cannot_manage_venue, kind: entity_access, role: reviewer, entity: venue, operation: update, fixture: community_hall, expect: deny }
+    - { id: reviewer_cannot_submit, kind: workflow_transition, role: reviewer, workflow: event_editorial, transition: submit_for_review, expect: denied }
+    - { id: reviewer_publishes, kind: workflow_transition, role: reviewer, workflow: event_editorial, transition: publish, expect: allowed }
+    - { id: reviewer_returns, kind: workflow_transition, role: reviewer, workflow: event_editorial, transition: return_to_draft, expect: allowed }
