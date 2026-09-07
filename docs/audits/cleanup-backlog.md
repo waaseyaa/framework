@@ -210,3 +210,293 @@ not a one-route gate. **Risk:** medium (new authorized-download surface; getting
 `packages/media/src/Http/Router/MediaRouter.php`, `packages/media/src/LocalFileRepository.php`,
 `packages/attachment/src/Schema/AttachmentSchema.php`. **Note:** not a claim-vs-code defect — no
 README/spec promises gated downloads — so this is a latent design gap, not a false guarantee.
+
+### CL-14 — audit: `entity.write` emits `dirty_fields: []` for framework entities and four inspected consumers
+**Found:** 2026-09-06 (adapter/duck-typing sweep). **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
+`packages/audit/src/Listener/EntityLifecycleAuditListener.php:102` writes
+`'dirty_fields' => method_exists($entity, 'getDirty') ? $entity->getDirty() : []`.
+**Evidence (all at this HEAD):** `grep -rn 'function getDirty(' packages/*/src` → **0 definitions**;
+`grep -rn 'dirty' packages/entity/src packages/entity-storage/src` → **0 matches** (the entity system
+has no change-tracking concept at all); `grep -rn dirty_fields packages tests` → **1 match, the emitting
+line itself** (no test asserts it); `grep -rn getDirty docs/specs docs/adr` → **0**; and 0 definitions
+in the four consumer checkouts inspected on this box (`minoo`, `claudriel`, `rhtcircle`, `anokii`). This
+establishes no documented supported seam at the recorded revision; it does not exclude an unknown consumer
+entity defining `getDirty()`. `docs/specs/ocap-audit-log.md:144` types `attributes` as "Freeform metadata
+per event kind" and never names `dirty_fields`, so the key is not promised by that spec.
+**Impact at the recorded revision and in the inspected consumers:** framework `entity.write` audit rows
+carry `dirty_fields: []`. A reader of the OCAP audit log
+sees a populated-looking field and would reasonably read "no fields changed" on every update. Governance
+surface, so the wrong reading is the costly one. No runtime error, no performance cost.
+**Smallest coherent repair:** the material for a real value is already in hand — `EntityEvent` carries
+`public readonly ?EntityInterface $originalEntity` (`packages/entity/src/Event/EntityEvent.php:28`), and
+`EntityRepository::doSave()` loads it unconditionally for updates (`:991-994`) and passes it to the
+POST_SAVE event (`:1406`), so computing changed keys costs **zero added queries**. Either (a) compute
+`array_keys` of the diff between `$event->entity->toArray()` and `$event->originalEntity?->toArray()`,
+or (b) drop the key. Prefer (a); (b) is the fallback if diffing raises a redaction question.
+**Acceptance:** a unit test in `packages/audit/tests/Unit/Listener/EntityLifecycleAuditListenerTest.php`
+asserting (1) update-with-changes lists exactly the changed keys, (2) create records `[]` or omits the
+key, (3) update-with-no-change records `[]`, (4) the value never contains field *values*, only names
+(field-access boundary — an audit row must not become a read oracle for a field the reader cannot see).
+**Contract/packaging risk:** low. `attributes` is freeform; the listener is `@internal`-shaped and not in
+`packages/audit/public-surface.php`. Option (b) removes an emitted key — undocumented, but a downstream
+log consumer could still be keying on its presence, so (a) is the safer default.
+**Coordination:** no open issue matched at the recorded review
+(`gh search issues --repo waaseyaa/framework dirty_fields` → 0). Re-check current
+file ownership before implementation; a lease-registry observation is not proof
+of ownership.
+**Confidence:** high for the framework revision and four inspected checkouts;
+unknown Packagist consumers may still define `getDirty()`.
+**Open question:** should the diff walk `_data` blob sub-keys or only top-level columns? **Risk:** low.
+
+### CL-15 — ai-tools: no `getValues()` implementations found in inspected source
+**Found:** 2026-09-06. **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
+`packages/ai-tools/src/Entity/EntitySearchTool.php:148`, `packages/ai-tools/src/Entity/EntityReadTool.php:162`,
+`packages/ai-tools/src/Relationship/RelationshipTraverseTool.php:195` each guard on
+`method_exists($entity, 'getValues')`. Same evidence as CL-14: **0 definitions** of `getValues()` anywhere
+in `packages/*/src`, in `tests/`, in the specs, or in the four local consumer checkouts.
+`EntitySearchTool.php:143-145` carries the comment "Use a curated `getValues()` when present, else the
+guaranteed `toArray()`, so search works for every entity type, **not only those defining `getValues()`**" —
+which describes a second population not found in the recorded framework revision or four inspected
+consumer checkouts.
+**Predicted impact from static inspection:** for the inspected entity definitions, each call would take
+the `toArray()` fallback. Runtime reachability was not measured. The cost is comprehension (a reader
+believes a curated projection path exists) and analysis: an unresolved `getValues` call marks every
+same-named member as used by the dead-code detector. An unknown consumer-supplied entity may still define
+the duck-typed method.
+**Candidate repair, conditional on a supported-contract decision:** delete the three branches, call
+`toArray()` directly, and correct the comment. Do **not** widen any interface and do **not** touch the
+`method_exists` sites that specs justify (below).
+**Acceptance:** first decide whether consumer-supplied `getValues()` is supported. If removal is approved,
+the three tools return identical payloads before/after for a revisionable entity, a non-revisionable
+entity, and a translatable entity; focused assertions preserve output and the field-access filtering that
+follows the value read in `EntitySearchTool`.
+**Contract/packaging risk:** unresolved until that decision. None of the three tools is in
+`packages/ai-tools/public-surface.php`, but a consumer-supplied entity could still depend on the duck-typed
+branch. If "consumers may supply a curated projection" is supported intent, define it as a real interface
+instead of deleting it; this backlog entry does not make that decision.
+**Overlap:** adjacent to open **#1606** (`ai-vector` non-turnkey / `vector.search` unwirable), which covers
+the sibling `method_exists($provider,'embed')` duck-check at `packages/ai-tools/src/Vector/VectorSearchTool.php:88`.
+Leave the vector sites to #1606; this entry is the three entity sites only. Re-check current file
+ownership before implementation; a lease-registry observation is not proof of ownership.
+**Confidence:** high for the inspected framework revision and four checkouts. **Risk:** medium until the
+supported-contract decision is made.
+
+### CL-16 — database-legacy: the published Packagist description still says "Drupal DBAL"
+**Found:** 2026-09-06. **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
+`packages/database-legacy/composer.json` `description` reads
+*"Database adapter wrapping Drupal DBAL. Interim until Doctrine migration."* The package requires
+`doctrine/dbal ^4.0`, `grep -rli drupal packages/database-legacy/src` returns **nothing**, and the
+package's own `README.md:5` already says the correct thing: *"wrapping Doctrine DBAL"*.
+**Impact:** the `description` field is what packagist.org renders for `waaseyaa/database-legacy`, so the
+one place a prospective consumer looks first states that the package wraps a competitor's database layer
+and is pending replacement. 39 of 77 first-party packages depend on it. ADR-007 already ruled the
+`-legacy` *name* historical-not-deprecated; the description contradicts that ruling in public.
+**Smallest coherent repair:** one line — align `description` with `README.md:5` and ADR-007's wording.
+**Acceptance:** `php bin/check-composer-policy` green; `composer validate` green for that package;
+`grep -i drupal packages/database-legacy/` returns nothing; description matches the README sentence.
+**Contract/packaging risk:** low, but non-zero — it is a published manifest that `split.yml` mirrors, so
+it lands on Packagist at the next release cut. No code, constraint, or autoload change.
+**Overlap:** ADR-007 (`docs/adr/007-database-legacy-package-naming.md`) decides the name and should be
+cited, not reopened. `docs/audits/2026-05-database-legacy-usage.md` is the usage inventory. No open issue.
+**Confidence:** high. **Risk:** low.
+
+### CL-17 — tooling: the warn-only composer-dependency audit has drifted and nobody consumes its output
+**Found:** 2026-09-06. **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
+`bin/audit-composer-deps` runs `shipmonk/composer-dependency-analyser` against
+`composer-dependency-analyser.php`; it is wired into `.github/workflows/ci.yml:201` and always exits 0
+(warn-only by design — mirrors `bin/audit-dead-code`).
+**Evidence:** running it at this HEAD reports 1 unused dependency (`waaseyaa/telescope`), 6 root
+dependencies flagged as belonging in `require-dev` (`ext-pdo_sqlite`, `ext-sqlite3`, `waaseyaa/ai-schema`,
+`waaseyaa/analytics`, `waaseyaa/deployer`, `waaseyaa/github`), **and 11 configured ignores that "never
+occurred"** — including ignores for `waaseyaa/analytics`, `waaseyaa/deployer`, `waaseyaa/engagement`,
+`waaseyaa/github`, `symfony/dependency-injection`, `symfony/dotenv`, and an `Unknown class` ignore for
+`Waaseyaa\Entity\Storage\SqlEntityStorage` (a class that no longer exists).
+**Impact:** developer-facing only. The config now suppresses conditions that stopped occurring while the
+live findings scroll past in a green job, so the signal is unread in both directions.
+**Smallest coherent repair:** delete the 11 stale ignore entries from `composer-dependency-analyser.php`
+(they are provably inert — the tool itself reports they never applied), then triage the live findings in
+a *separate* pass. Do **not** move root requires or drop `waaseyaa/telescope` in the same change: the
+analyser scans only `packages/*/src` and `tests/`, so a leaf package with no first-party importer is
+expected to read as "unused" and that verdict needs confirming against the metapackage graph first.
+**Acceptance:** `bash bin/audit-composer-deps` reports zero "ignored issues never occurred" lines; the
+live finding set is byte-identical before and after; the job stays warn-only and stays out of
+`composer verify`.
+**Contract/packaging risk:** none for the ignore-list cleanup (dev tooling config, not shipped).
+Deferred `telescope`/require-dev work does carry packaging risk and is deliberately not in scope here.
+**Overlap:** none open. **Confidence:** high for the stale ignores; low for the "unused dependency"
+verdict, which is why it is split out. **Risk:** low.
+
+### CL-18 — WONTFIX (evidence recorded): enabling `usageOverMixed` on the dead-code gate is not viable
+**Found:** 2026-09-06. **HEAD:** `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`.
+Recorded so the idea is not re-proposed from the README alone. `shipmonk/dead-code-detector` suppresses
+dead-code findings for any call it cannot resolve to a class
+(`vendor/shipmonk/dead-code-detector/src/Excluder/MixedUsageExcluder.php`: `shouldExclude()` returns true
+when `getMemberRef()->getClassName() === null`). Turning the excluder **on** therefore *removes* that
+blanket suppression and *increases* findings — it does not hide evidence.
+**Measured at this HEAD** (isolated config in a scratch dir; `phpstan-dead-code.neon` and
+`phpstan-dead-code-baseline.neon` were not modified):
+control `phpstan analyse -c phpstan-dead-code.neon` → **`[OK] No errors`**;
+experiment, same config plus `shipmonkDeadCode.usageExcluders.usageOverMixed.enabled: true` →
+**`[ERROR] Found 59 errors`**.
+**Classification of all 59:** 41 are `__construct` — dominated by attribute classes instantiated by the
+PHP engine (`Foundation\Attribute\AsEntityType`, `AsFieldType`, `Queue\Attribute\OnQueue`, `RateLimited`,
+`UniqueJob`, `SSR\Attribute\Component`, `FromRoute`, `Field\Attribute\BundleTemplate`) and
+container-resolved listeners/services (`Cache\Listener\EntityCacheInvalidator`,
+`Config\Listener\ConfigCacheInvalidator`, `Workflows\DomainValidationListener`); 4 are properties on
+those same attribute classes, read reflectively (`AsEntityType::$id/$label`, `AsFieldType::$id/$label`);
+2 are interface contract methods (`SSR\ThemeInterface::id`, `Ingestion\PayloadValidatorInterface::validate`);
+the remaining 12 are polymorphic implementations of those contracts (four `EnvelopeValidator::validate`
+variants) plus public test surface (`Testing\Traits\InteractsWithApi::get`). **No true positive was
+identified in the set.**
+**Conclusion:** the setting is a one-off measure of the framework's reflective/dynamic surface, not a
+source of actionable findings. Enabling it on the blocking gate would inject 59 false positives, and
+suppressing them would mean baselining reflection conventions that `tools/phpstan/WaaseyaaEntrypointProvider.php`
+deliberately handles by design. **Do not enable.** If the reflective surface is ever to be measured
+again, re-run it as an isolated diagnostic, never as gate config.
+**Overlap:** `docs/audits/2026-05-17-dead-code-baseline-audit.md` owns the gate's history. No open issue.
+**Confidence:** high (measured, both arms, full-repo). **Risk of acting:** medium-high — hence WONTFIX.
+
+**Second lens, same session (`usageExcluders.tests.enabled: true`, "dead tested code"):** run full-repo
+with the baseline removed, alongside a no-excluder control. Both arms returned the **same 29 findings** —
+i.e. the current baseline contents exactly, with **no additional findings under the tested configuration**.
+This is not a proof that no dead code exists: it is scoped to the two excluder configurations tested, to
+PHP source under the analysed paths, and it inherits the detector's documented limits (anonymous-class
+methods, abstract trait methods, most magic methods are never reported). Of the 29, 14 are the
+`@deprecated since alpha.288` testing traits and 15 are production members; spot-checked entries are
+correctly baselined — `Foundation\Tenant\TenantMiddleware` is self-documented
+`@internal Not wired in v1.0 — reserved for v2.0`, and `Entity\Community\HasCommunityTrait` is a declared
+public extension point. **Reflection-discovered compatibility types and declared public extension points
+are retained, not deletion candidates** — including the six `#[FieldType(category: 'compatibility')]`
+legacy items in `packages/field/src/Item/`, which read as unreferenced only because they are resolved by
+string id.
+
+### CL-19 — SUSPECTED: clean packaged consumers cannot autoload declared public test/IO helpers
+**Forge mirror:** waaseyaa/framework#2961. **Found:** 2026-09-06. **Status: suspected defect, repair deliberately held** pending a packaging design
+and ownership decision (see "Why no repair is proposed yet").
+**Exact source identity:** candidate `bb5c0d8b72d09da276dbd7b9080bb0b10e140596`, reproduced from
+`git archive HEAD` (tracked bytes only), not from the working tree.
+
+**Root cause.** Composer's `autoload-dev` is honoured **only for the root package**. A package's own
+`autoload-dev` never activates when that package is installed as a dependency — including under
+`require-dev`. Every first-party consumer-facing test/contract helper examined here is published behind a
+package-local `autoload-dev` mapping (or, for `waaseyaa/cli`, behind the *monorepo root's* `autoload-dev`).
+The clean dependency-consumer reproduction below cannot reach any of them without a custom root mapping.
+
+**Reproduction** (`tests/PackagedForm/check-bimaaji-skill-resources` recipe: `git archive HEAD` → temp
+source tree → consumer with path repositories at `symlink=false`, so `vendor/waaseyaa/*` holds installed
+bytes; packagist enabled for third-party deps only; **no monorepo autoloader, no hand-added namespace
+mappings**; consumer requires `waaseyaa/{cli,entity,entity-storage,migration,graphql,testing}` plus
+`phpunit/phpunit ^13` in its own `require-dev`). After `composer install`, `require vendor/autoload.php`:
+
+```
+CONTROL cli src class    Waaseyaa\CLI\WaaseyaaConsoleApplication                     LOADS
+CONTROL testing pkg      Waaseyaa\Testing\WaaseyaaTestCase                           LOADS
+CONTROL entity src       Waaseyaa\Entity\EntityType                                  LOADS
+cli   StdinSource   [PS] Waaseyaa\CLI\Io\StdinSource                                 *** NOT FOUND ***
+cli   CliTester          Waaseyaa\CLI\Testing\CliTester                              *** NOT FOUND ***
+ent   TranslContract[PS] Waaseyaa\Entity\Testing\Translation\TranslatableEntityContractTest  *** NOT FOUND ***
+es    ContractBase       Waaseyaa\EntityStorage\Testing\Contract\FieldStorageGatewayContractTest  *** NOT FOUND ***
+migr  DestConform   [PS] Waaseyaa\Migration\Testing\DestinationConformanceTestCase   *** NOT FOUND ***
+migr  SrcConform    [PS] Waaseyaa\Migration\Testing\SourceConformanceTestCase        *** NOT FOUND ***
+```
+`[PS]` = declared `'disposition' => 'public'` in that package's `public-surface.php`. Three positive
+controls load, so the harness is sound and the `Waaseyaa\CLI\` / `Waaseyaa\Entity\` prod mappings work.
+`vendor/composer/autoload_psr4.php` in the consumer contains **no `Waaseyaa\…\Testing\` or
+`Waaseyaa\CLI\Io\` prefix at all**. The **files ship** — `vendor/waaseyaa/cli/tests/{Testing,Io}/`,
+`vendor/waaseyaa/migration/testing/`, `vendor/waaseyaa/entity/testing/Translation/` are all present in
+the installed packages — so nothing is `export-ignore`d; only the mapping is absent.
+**Execution proof, not file existence:** a consumer PHPUnit test written to the pattern CLAUDE.md
+prescribes (`use Waaseyaa\CLI\Testing\CliTester;`) fails — `CliTester must autoload / Failed asserting
+that false is true` — while a control test asserting `Waaseyaa\Testing\WaaseyaaTestCase` passes in the
+same run (`Tests: 2, Assertions: 2, Failures: 1`).
+
+**Affected contracts.** Four entries are **declared public surface** and are therefore promises the
+packaged form does not keep: `Waaseyaa\CLI\Io\StdinSource` (cli), `Waaseyaa\Migration\Testing\{Destination,
+Source}ConformanceTestCase` (migration), `Waaseyaa\Entity\Testing\Translation\TranslatableEntityContractTest`
+(entity). Conformance/contract test cases exist precisely so third-party implementors can prove their own
+source, destination, or translatable entity conforms — undeliverable today.
+Two are **package-internal test infrastructure**, not downstream API, and are recorded only for scope:
+`Waaseyaa\CLI\Testing\CliTester` and `Waaseyaa\EntityStorage\Testing\Contract\*` are absent from every
+`public-surface.php`, and no shipped consumer skill (`packages/bimaaji/resources/skills/`) or cookbook
+mentions `CliTester`; CLAUDE.md prescribes it for in-repo agents only.
+`waaseyaa/testing` is the **working precedent**: helpers live in `src/` under production `autoload`, with
+`phpunit/phpunit` in that package's `require-dev`, and consumers require the package under `require-dev`.
+
+**Revalidation against current `origin/main` (`c0a8d5d4dab09d9bb527ec502f5c61b88b027564`).** The
+reproduction above ran at `bb5c0d8b7`, which is **45 commits behind**. Re-checked: the packaged-consumer
+failure is unchanged — no `autoload` mapping was added to any affected package. Three affected files did
+move: `packages/cli/composer.json` (optional `mcp`/`api` dev edges only), `packages/cli/public-surface.php`
+(**+12 Studio blueprint entries, #2787/#2788 — this file is under active Studio-lane edit**), and
+`packages/foundation/src/Discovery/PackageManifestCompiler.php` (+123/-14, see below). `StdinSource` and the
+three conformance helpers remain declared `public`; **those declared contracts stand and are preserved
+here.** The finding is the packaged-consumer failure itself, independent of what any author intended.
+
+**The boot-scanner hazard is now mitigated on `origin/main` — by work done for another reason.**
+Commit `181a699ae feat(#2788): compile blueprint governance through canonical enforcement (#2949)` added
+two skips to the PSR-4 walk: namespaces containing `Tests\` are skipped, and any PSR-4 entry whose
+directory contains `/testing/` or ends with `/testing` is skipped (`PackageManifestCompiler.php:1449-1450`
+and `:1611-1627`). Its inline comment names the alpha.106→107 pattern explicitly. **This must be reviewed
+on its own architectural merits, not adopted merely because it makes this repair convenient** — review
+notes: (1) it is a silent skip, so a package that legitimately needs discovery from a `testing/` directory
+loses it with no diagnostic; (2) it matches a path substring anywhere, so an unrelated `src/…/testing/…`
+directory would also vanish from discovery. An earlier draft of this entry additionally called the
+lowercase-only `testing` matching a defect — **withdrawn**: no supported configuration exhibits an
+observable failure from it, because nothing maps a `tests/Testing/`-shaped path under production `autoload`
+today, so the asymmetry is unreachable. It is recorded as an **untested asymmetry** conditional on a future
+design mapping such a path, and the cheap answer there is to keep helper files under a lowercase `testing/`
+directory. No scanner change is proposed. **Do not extend or rely on this scanner change as part of this repair without that
+independent review.**
+
+**Design comparison (recorded, not chosen).** The governing insight is the `waaseyaa/testing` precedent:
+it maps `Waaseyaa\Testing\ => src/` under **production `autoload`** and ships
+`WaaseyaaTestCase extends TestCase`; its dev-scoping comes from the **consumer's** `require-dev`, never
+from package-side `autoload-dev`. Relocation does **not** require renaming — a PSR-4 prefix is independent
+of the package that maps it.
+
+| Option | FQCNs | Layers / ownership | Cost | Verdict |
+|---|---|---|---|---|
+| (a) dedicated sibling packages (`waaseyaa/migration-testing`, …) mapping the same namespace under their own `autoload`, consumer-required under `require-dev` | preserved | helper stays with its own types; absent entirely in `--no-dev`, so no reliance on the scanner skip | N new packages + `split.yml`, CP007, metapackage entries | strongest isolation |
+| (b) house the public helpers in `waaseyaa/testing` **keeping existing namespaces** | preserved | **fails for two of three.** `Migration\Testing\*` imports `Waaseyaa\Migration\*` (L3) — housing it in `waaseyaa/testing` (L1) needs an L1→L3 `require` and upward file imports. `CLI\Testing\*` is worse (L1→L6). Only `Entity\Testing\Translation\*` fits: entity is L1 and `waaseyaa/testing` **already requires `waaseyaa/entity`** | low | **not uniform — rejected as a single answer** |
+| (c) change the boot scanner to accommodate helpers | preserved | — | — | **already landed independently (#2949); not to be extended for this purpose** |
+| (e) flip each package's own mapping from `autoload-dev` to `autoload`, files staying put | preserved | no layer change at all: PL005 scopes to `<pkg>/src/`, and PL010 already permits `testing/**` self-references and declared upward edges | one manifest line per package (+ CLI file moves) | cheapest; but makes a `TestCase` subclass PSR-4-reachable inside a **production** dependency, so its safety rests on the scanner skip reviewed above |
+
+`StdinSource` is separable from all of this: it is a plain `interface` (`readLine()`, `isInteractive()`)
+with no PHPUnit parent and no dev-only dependency — arguably production API misfiled under `tests/`.
+Moving it to `packages/cli/src/Io/StdinSource.php` **preserves its FQCN exactly** (`Waaseyaa\CLI\Io\`
+already resolves to `src/` under the existing production mapping, so no manifest change is needed at all),
+carries no scanner hazard, and needs no new package. It is the one piece with an unambiguous smallest repair.
+
+**Acceptance — autoload success is explicitly insufficient.** Any repair must land with a
+`tests/PackagedForm/` proof that does BOTH: (1) **installed-consumer PHPUnit execution** — a consumer built
+from the exact candidate via path repositories at `symlink=false`, with no root-level namespace mapping,
+running a real PHPUnit test that *uses* each `public`-declared helper (e.g. driving a conformance case to a
+pass and to a deliberate fail), not merely asserting `class_exists`; and (2) a **real `--no-dev` kernel boot
+proof** — `composer install --no-dev` in a consumer, then an actual kernel boot, demonstrating that no
+PHPUnit-extending class is reflected during discovery. Neither alone is sufficient.
+
+**Deliberately out of scope for the public-contract repair** (recorded separately, not to be bundled):
+the two package-internal helpers (`CLI\Testing\CliTester`, `EntityStorage\Testing\Contract\*`), which
+are in no `public-surface.php` and referenced by no shipped consumer skill or cookbook; and the CLAUDE.md
+orchestration-table drift (`packages/cli/src/CommandDefinition.php` and `src/CliKernel.php` were removed by
+the Symfony Console migration; `Io/` is under `tests/`, not `src/`).
+
+**Coordination — correcting an earlier claim.** An earlier draft inferred these packages were unowned
+because no lease row covered them. **That inference was wrong**: the lease registry records worktree
+custody, not file ownership, and an absent row establishes nothing. Codex holds active CLI/Studio work
+including #2857 (`plan-2857-studio-activation`), and `packages/cli/public-surface.php` took 12 new entries
+from #2787/#2788 during this session. What was verified, at file granularity: no local branch and no Studio
+worktree carries a committed or uncommitted change to `packages/cli/tests/Io`, `packages/cli/src/Io`, root
+`composer.json`, or `packages/cli/composer.json`. Contention **was** found on shared surfaces and is being
+avoided — `docs/specs/public-surface-declarations.md` (`codex/2901-integration`: 9 unmerged commits,
++219 lines) and `docs/specs/cli-kernel.md` (16 branches). Shared compiler, public-surface, CI and existing
+packaged-harness files stay untouched until ownership is reconciled with the Codex orchestrator.
+
+**Status update (lane 1 landed).** The `StdinSource` slice is implemented on
+`fix/2961-stdinsource-packaged-reachability` — see `docs/change-records/FW-CONSUMER-TEST-SUPPORT-01.md`
+for the conformance-helper design. The conformance-helper scope remains open.
+
+**Confidence:** high on the reproduction (measured, with three passing positive controls) and on the
+layer analysis (read from the manifests and the rule text). The declared public contracts are preserved;
+no contract change is proposed. **Open question — a design choice, not an intent guess:** whether option
+(a) or (e) is the right isolation level, which turns on how much weight the `/testing/` scanner skip should
+carry. **Risk:** low to record; medium to repair, hence held pending design and ownership sign-off.
