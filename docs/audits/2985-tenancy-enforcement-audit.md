@@ -66,9 +66,36 @@ The community dimension is folded into the query's **cache key** but not its
 **filter**, so results are cached per-community while the query spans communities.
 
 This contradicts `entity-system.md:1458`'s "all entity queries" guarantee, on a
-documented security boundary. `packages/access/src` contains **zero** references
-to `community_id` or `CommunityScope`, so no framework-default access policy
-provides a second line of defence.
+documented security boundary.
+
+### T-1.1 — the access layer is not a backstop, and was never meant to be
+
+Added after the access-policy lane (`docs/audits/2985-access-policy-audit.md`,
+`0af4c2431`) audited the surface this lane deferred.
+
+`access-control.md`'s "Enforcement Layers" table has four rows — route, entity
+handler, entity query, field — and **no tenant or community row**. All 24
+registered `#[PolicyAttribute]` classes were read in full and **none** is
+community-aware. The structural reason is decisive: `AccessPolicyInterface::access()`
+receives an `AccountInterface` exposing only `id()`, `hasPermission()`,
+`getRoles()`, `isAuthenticated()` — **tenancy is not on the decision surface**, so
+a policy cannot check it without changing the contract.
+
+So the accurate statement is stronger than "no default policy defends this": no
+backstop was ever specified, closed #1094 designed tenancy as a storage concern
+from inception, and closed #2320 restates it — community tenancy "is enforced
+only by the base-table storage driver".
+
+**Refinement of the exposure shape.** Entity reads are *not* uniformly open: the
+`getQuery()` path throws `MissingQueryAccountException` before touching the
+database when no account is bound, and drops Neutral rows per row, so an
+unpoliced type is closed on that path. But `find()`, `findMany()` and `findBy()`
+apply **no access check at all**. The risk is therefore not "no policy ⇒ open";
+it is:
+
+> a policy grants access broadly — published nodes are viewable, `administer
+> content` may edit — and community is absent from that grant; or a caller uses a
+> plain repository read, which is ungated regardless.
 
 ## T-2 — CONFIRMED (serious): queued jobs and scheduled tasks run unscoped
 
