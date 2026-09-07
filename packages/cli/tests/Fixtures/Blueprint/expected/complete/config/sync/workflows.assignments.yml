@@ -1,1 +1,13 @@
+_meta:
+  dependencies: {  }
+  entity_id: assignments
+  entity_type: workflows
+  format: waaseyaa.config-sync/1
+  langcode: en
+  owner_config_contract_version: 1
+  owner_package: waaseyaa/workflows
+  schema_hash: 'sha256:8573d854ecb68db4b5a14ea2bff19f33c213f12017f4785e8b29dd9ade0f97c2'
+  schema_id: workflows.assignments
+  schema_version: 1
+  uuid: 0905c876-ef2a-54d4-a50c-f5f8809d8c60
 article.article: editorial

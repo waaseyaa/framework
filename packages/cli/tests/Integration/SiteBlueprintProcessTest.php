@@ -140,7 +140,8 @@ final class SiteBlueprintProcessTest extends TestCase
         self::assertStringContainsString('#[PolicyAttribute(entityType: \'article\')]', $plannedArtifacts['src/Access/ArticlePolicy.php'], 'discoverable policy');
         self::assertStringContainsString('implements AccessPolicyInterface, FieldAccessPolicyInterface', $plannedArtifacts['src/Access/ArticlePolicy.php'], 'authorization inputs are edit-sealed');
         self::assertStringContainsString('implements ProvidesRolesInterface, ProvidesPermissionsInterface', $plannedArtifacts['src/Provider/ApplicationBlueprintGovernanceServiceProvider.php'], 'shared permission catalogue contribution');
-        self::assertSame("article.article: editorial\n", $plannedArtifacts['config/sync/workflows.assignments.yml'], 'authored binding awaits a verified config:import');
+        self::assertStringContainsString("article.article: editorial\n", $plannedArtifacts['config/sync/workflows.assignments.yml'], 'authored binding awaits a verified config:import');
+        self::assertStringContainsString("_meta:\n", $plannedArtifacts['config/sync/workflows.assignments.yml'], 'the CFG-03 sync contract requires a _meta block for config:import to accept the file');
         self::assertStringContainsString('use Waaseyaa\\Api\\JsonApiController;', $plannedArtifacts['tests/Blueprint/JsonApiGovernanceChecksTest.php']);
         $this->assertFixture('complete-planned', $planned);
 

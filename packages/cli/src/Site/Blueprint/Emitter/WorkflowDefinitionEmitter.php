@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site\Blueprint\Emitter;
 
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
+use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Config\Sync\ConfigSyncSerializer;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowBinding;
@@ -14,6 +19,7 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\SiteManifest;
+use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 
 /**
  * Emits one `src/Workflow/<PascalCase(workflow.id)>WorkflowDefinition.php`
@@ -255,15 +261,45 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
             PHP;
     }
 
-    /** @param array<string, string> $bindingRows "entity.entity" => workflow id, sorted by key, always non-empty (see emit()) */
+    /**
+     * Renders the binding map through the framework's own CFG-03 sync
+     * contract ({@see ConfigSyncFile::writable()} /
+     * {@see ConfigSyncSerializer}) rather than a bare mapping, so the
+     * generated artifact carries the required `_meta` block and imports
+     * exactly like any other producer's `workflows.assignments` content
+     * ({@see WorkflowAssignmentsConfig}, `waaseyaa/workflows`'s own CFG-03
+     * owner) — see `WorkflowAssignmentsConfigTest` for the identical shape.
+     * The schema/semantic identity is derived from the real registration
+     * call, never hand-typed, so a future contract-version bump here is
+     * automatic. The entity type manager only feeds the semantic validator
+     * that `config:import` re-runs later against the installed system's
+     * real entity types; no entity type needs to be registered here to
+     * compute a stable schema identity.
+     *
+     * @param array<string, string> $bindingRows "entity.entity" => workflow id, sorted by key, always non-empty (see emit())
+     */
     private function renderAssignments(array $bindingRows): string
     {
-        $lines = [];
-        foreach ($bindingRows as $key => $workflowId) {
-            $lines[] = "{$key}: {$workflowId}\n";
-        }
+        $registration = WorkflowAssignmentsConfig::register(
+            new ConfigSchemaRegistry(),
+            new EntityTypeManager(new SymfonyEventDispatcherAdapter()),
+        );
 
-        return implode('', $lines);
+        $file = ConfigSyncFile::writable(
+            entityType: 'workflows',
+            entityId: 'assignments',
+            uuid: ConfigSyncFile::deterministicUuid('workflows', 'assignments'),
+            dependencies: [],
+            langcode: 'en',
+            fields: $bindingRows,
+            schemaId: $registration->schemaId,
+            schemaVersion: $registration->schemaVersion,
+            schemaHash: $registration->canonicalSchemaHash,
+            ownerPackage: $registration->ownerPackage,
+            ownerConfigContractVersion: $registration->ownerConfigContractVersion,
+        );
+
+        return new ConfigSyncSerializer()->toYaml($file);
     }
 
     private static function singleQuoted(string $value): string
