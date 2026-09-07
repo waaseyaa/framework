@@ -304,6 +304,19 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, Site
 
                         return $registry;
                     });
+
+                    // install:init runs definition-only provider registration before schema sync.
+                    $this->resolve(FieldDefinitionRegistryInterface::class)->registerBundleFields('node', 'page', [
+                        new FieldDefinition(
+                            name: 'page_layout',
+                            type: 'text',
+                            targetEntityTypeId: 'node',
+                            targetBundle: 'page',
+                            revisionable: true,
+                            label: 'Page layout',
+                            group: 'content',
+                        ),
+                    ]);
                 }
 
                 /** @param array<string, mixed> $config */
@@ -332,20 +345,6 @@ final class GovernedAuthoringRecipe implements SiteRecipeRendererInterface, Site
                     );
                 }
 
-                public function boot(): void
-                {
-                    $this->resolve(FieldDefinitionRegistryInterface::class)->registerBundleFields('node', 'page', [
-                        new FieldDefinition(
-                            name: 'page_layout',
-                            type: 'text',
-                            targetEntityTypeId: 'node',
-                            targetBundle: 'page',
-                            revisionable: true,
-                            label: 'Page layout',
-                            group: 'content',
-                        ),
-                    ]);
-                }
             }
             PHP;
     }

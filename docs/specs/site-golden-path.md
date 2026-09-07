@@ -675,6 +675,11 @@ merges that registration into the literal file. Generated fragments remain
 governed artifacts for byte compatibility and drift detection, but their
 `extra.waaseyaa.providers` values are not a second discovery authority.
 
+A generated provider's entity and bundle field declarations belong to
+`register()`, which the definition-only `install:init` bootstrap executes before
+schema synchronization. A later ordinary `boot()` hook cannot be the first
+authority to declare storage that installation must already have materialized.
+
 At repository revision `a4bdd9167d36587fbda5853fd4b7f6c19672158b`, the
 fragments and installed dependencies exist but typed recipe registrations do
 not; #2857 implements the provider-plan seam before consumer documentation may

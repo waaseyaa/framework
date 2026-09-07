@@ -267,10 +267,8 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
                         $this->resolve(EntityAccessHandler::class),
                         $this->resolve(Environment::class),
                     ));
-                }
 
-                public function boot(): void
-                {
+                    // install:init runs definition-only provider registration before schema sync.
                     $classes = array_map(
                         static fn(array $definition): string => 'App\\Content\\Bundle\\' . str_replace(' ', '', ucwords(str_replace(['_', '-'], ' ', $definition['bundle']))) . 'Bundle',
                         $this->definitions(),

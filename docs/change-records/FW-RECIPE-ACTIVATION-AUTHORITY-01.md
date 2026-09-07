@@ -51,6 +51,12 @@ repository, and requires the kernel's database, audit, entity-access, and
 publication-transition authorities. It does not publish a global
 `ContentPublisher` binding or silently omit an unavailable authority.
 
+The generated published-content and governed-authoring providers register
+their in-memory `node`/`page` field declarations during `register()`. That is
+the definition-only phase `install:init` executes before entity schema sync;
+ordinary provider `boot()` cannot add a field that the completed installation
+was already expected to materialize.
+
 #2664 may land a fresh-only boot-free orchestrator after #2857. It invokes
 `site:init` → `install:init`, forwards existing input/profile options, stops at
 the first failure, and preserves that status. `composer site-verify` remains a

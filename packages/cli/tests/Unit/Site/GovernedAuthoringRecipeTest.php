@@ -11,9 +11,13 @@ use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\CLI\Site\Recipe\GovernedAuthoringRecipe;
+use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\Field\BundleTemplateCompiler;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurface;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
@@ -80,6 +84,8 @@ final class GovernedAuthoringRecipeTest extends TestCase
     {
         $site = new SiteArtifactRenderer([new GovernedAuthoringRecipe()])
             ->render(new SiteManifestParser()->parse($this->manifest()));
+        $publishedSite = new SiteArtifactRenderer([new PublishedContentRecipe()])
+            ->render(new SiteManifestParser()->parse($this->publishedManifest()));
         $root = sys_get_temp_dir() . '/waaseyaa-governed-authoring-provider-' . bin2hex(random_bytes(6));
         $filesystem = new Filesystem();
 
@@ -97,6 +103,20 @@ final class GovernedAuthoringRecipeTest extends TestCase
                 self::assertNotFalse(file_put_contents($target, $site->artifacts[$path]->content));
             }
 
+            foreach ([
+                'config/waaseyaa-recipes/published-content.php',
+                'src/Content/Bundle/PageBundle.php',
+                'src/Provider/PublishedContentServiceProvider.php',
+            ] as $path) {
+                $target = $root . '/' . $path;
+                if (!is_dir(dirname($target))) {
+                    self::assertTrue(mkdir(dirname($target), 0o755, true));
+                }
+                self::assertNotFalse(file_put_contents($target, $publishedSite->artifacts[$path]->content));
+            }
+
+            require $root . '/src/Content/Bundle/PageBundle.php';
+            require $root . '/src/Provider/PublishedContentServiceProvider.php';
             require $root . '/src/Authoring/GovernedPageDefinitions.php';
             require $root . '/src/Authoring/GovernedPagePreviewUrlGenerator.php';
             require $root . '/src/Provider/GovernedAuthoringServiceProvider.php';
@@ -108,8 +128,11 @@ final class GovernedAuthoringRecipeTest extends TestCase
 
                 return $repository;
             });
+            $fieldRegistry = new FieldDefinitionRegistry();
             $services = [
                 EntityTypeManagerInterface::class => $entityTypes,
+                FieldDefinitionRegistryInterface::class => $fieldRegistry,
+                BundleTemplateCompiler::class => new BundleTemplateCompiler($fieldRegistry),
                 DatabaseInterface::class => $this->createStub(DatabaseInterface::class),
                 AuditWriterInterface::class => $this->createStub(AuditWriterInterface::class),
                 EntityAccessHandler::class => new \ReflectionClass(EntityAccessHandler::class)->newInstanceWithoutConstructor(),
@@ -117,9 +140,7 @@ final class GovernedAuthoringRecipeTest extends TestCase
                 PreviewLinkService::class => new \ReflectionClass(PreviewLinkService::class)->newInstanceWithoutConstructor(),
             ];
 
-            $provider = new \App\Provider\GovernedAuthoringServiceProvider();
-            $provider->setKernelContext($root, [], []);
-            $provider->setKernelServices(new class ($services) implements KernelServicesInterface {
+            $kernelServices = new class ($services) implements KernelServicesInterface {
                 /** @param array<string, object> $services */
                 public function __construct(private array $services) {}
 
@@ -127,8 +148,21 @@ final class GovernedAuthoringRecipeTest extends TestCase
                 {
                     return $this->services[$abstract] ?? null;
                 }
-            });
+            };
+            // ArtifactPlan sorts ungrouped provider registrations by FQCN, so
+            // GovernedAuthoring registers before PublishedContent in the real root manifest.
+            $provider = new \App\Provider\GovernedAuthoringServiceProvider();
+            $provider->setKernelContext($root, [], []);
+            $provider->setKernelServices($kernelServices);
             $provider->register();
+            $publishedProvider = new \App\Provider\PublishedContentServiceProvider();
+            $publishedProvider->setKernelContext($root, [], []);
+            $publishedProvider->setKernelServices($kernelServices);
+            $publishedProvider->register();
+
+            $fieldNames = array_keys($fieldRegistry->bundleFieldsFor('node', 'page'));
+            sort($fieldNames, SORT_STRING);
+            self::assertSame(['body', 'page_layout', 'summary'], $fieldNames);
 
             $registry = $provider->resolve(PageBuilderSurfaceRegistry::class);
 
@@ -230,6 +264,44 @@ final class GovernedAuthoringRecipeTest extends TestCase
             $manifest->canonicalJson,
             $manifest->digest,
         );
+    }
+
+    private function publishedManifest(): string
+    {
+        return sprintf(<<<'YAML'
+            schema: waaseyaa.site
+            version: 1
+            generator_version: 1
+            application:
+              name: Example Nation
+              id: example-nation
+              canonical_origin:
+                config_key: APP_ORIGIN
+            framework:
+              revision_policy: exact-lock
+              observed_lock_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            content_types:
+              - id: page
+                canonical_route: /{slug}
+            capabilities:
+              - id: published_content
+                state: active
+                package: waaseyaa/listing
+                provider: site.published_content
+                configuration_authority: .waaseyaa/site.yaml#/capabilities/published_content
+                public_routes: [/{slug}]
+                data_classification: public
+                lifecycle: [create, revise, publish, archive]
+                verification: [tests/Acceptance/PublishedContentRecipeTest.php]
+            personal_data_stores: []
+            recipes:
+              - id: published_content
+                version: 1
+                capability: published_content
+                artifact_digest: %s
+            verification:
+              command: bin/maintenance/site-verify
+            YAML, PublishedContentRecipe::digest());
     }
 
     private function manifest(): string
