@@ -124,7 +124,19 @@ Worse variant: A's stale `release(X)` clears `reserved_at` while B is still
 running, so a third worker C can claim X concurrently — genuine double
 execution, not merely double settlement.
 
-**This is a data-loss path, not only at-least-once duplication.**
+**Scope of the claim, narrowed (Codex review).** This is a data-loss path
+*under stated preconditions*, not a general property of the queue:
+
+1. the **database** driver is configured (the default is `sync`, §3);
+2. a worker stalls **without dying** for longer than `visibilityTimeout`
+   (default 90s, `QueueServiceProvider.php:63`) — a dead process settles
+   nothing and is handled correctly by reclaim;
+3. that stalled worker then **wakes and settles**, rather than being killed;
+4. a second worker has already reclaimed the row in the interval.
+
+All four must hold. The audit did **not** measure how often a stall of that
+shape occurs, and makes no frequency claim. What is established is that the
+settle predicates permit the interleaving, not that it is common.
 
 ### F2 — The scheduler already solved F1; the queue never received the fix
 **CONFIRMED. Competing authority with asymmetric safety.**
@@ -144,8 +156,18 @@ effect**, not the queue row — the transport settle remains unconditional eithe
 way.
 
 No comment or spec in `packages/queue` justifies the omission, while the
-scheduler's code explicitly describes closing a "split-brain reclaim window".
-**This is a divergence, not an intentional difference.**
+scheduler's code describes closing a "split-brain reclaim window".
+
+**Narrowed (Codex review).** Two things this does *not* establish. First, the
+scheduler's fencing is not a drop-in for the queue: it guards *occurrence
+settlement and durable effects* keyed by `(resource_key, fence_domain)`, over a
+lease the scheduler itself mints, whereas the queue's settle is a transport
+operation on a row id with no lease handle in the caller's hands. Adopting it
+means designing a claim receipt for the transport, not copying a class.
+Second, "divergence rather than intentional difference" is an inference from
+the *absence* of a justifying comment — it is not evidence that anyone decided
+against fencing the queue. The accurate statement is that the queue's settle
+path is unfenced and no document explains why.
 
 ### F3 — The failed-job retry claim is a one-way latch
 **CONFIRMED. #2743, by the mechanism the issue actually names.**
@@ -194,50 +216,48 @@ defect appears only on a real queue, and no test exercises
 `sendAsync` + real queue + a `toMail()` that calls `routeNotificationFor()`.
 That coverage gap is why it shipped.
 
-### F5 — Retained broadcast writes are not atomic — but the "leak" is disproved
-**PARTIALLY CONFIRMED. #2747's mechanism is real; its stated consequence is not.**
+### F5 — Retained broadcast writes are not atomic; the leak question is UNRESOLVED
+**Non-atomicity CONFIRMED. The earlier disproof of #2747's leak claim is WITHDRAWN.**
 
-**Confirmed (verified directly):** `BroadcastStorage::pushRetained()`
+**Correction (Codex review).** A previous revision of this report asserted that
+#2747's "leak live messages" claim was *disproved from the code*, on the
+grounds that `retainedFor($channels)` is only ever called with channels
+`resolveSubscriberChannels()` has already authorized. **That disproof is
+withdrawn.** Establishing a negative — that no interleaving anywhere can expose
+a retained message to an unintended subscriber — requires more than showing one
+read path filters correctly, and this audit did not do that work. The claim is
+returned to **unresolved**, and #2747 should not be re-scoped or de-prioritised
+on the strength of the withdrawn analysis.
+
+What remains **CONFIRMED**, verified directly:
+`BroadcastStorage::pushRetained()`
 (`packages/api/src/Controller/BroadcastStorage.php:69-97`) performs a log
-`INSERT`, a retained `DELETE` and a retained `INSERT` as sequential unguarded
-statements with **no transaction** — the file contains no transaction call,
-even though `transactional()` is used elsewhere in the codebase
+`INSERT`, a retained `DELETE` and a retained `INSERT` as three sequential
+unguarded statements with **no transaction** — the file contains no transaction
+call, though `transactional()` is used elsewhere in the codebase
 (`packages/scheduler/src/Lease/DatabaseLease.php:36`,
 `Fence/DatabaseFenceGuard.php:23`). The delete-then-insert is commented as a
-portable upsert that is safe because "the retained set is written by a single
-presenter emitting sequentially" — an assumption, not an enforced invariant.
+portable upsert safe because "the retained set is written by a single presenter
+emitting sequentially" — an assumption, not an enforced invariant.
 
-**Disproved:** the issue title says retained writes *"leak live messages"*. No
-code path produces cross-subscriber visibility. `retainedFor($channels)`
-(`BroadcastStorage.php:110-141`) is called only from `BroadcastRouter.php:297`
-with channels from `resolveSubscriberChannels()` (`:569-589`), which strips
-client-supplied `session:*` channels and privileged channels the account may
-not access, then appends only the connection's own server-derived session
-channel. The SQL filters strictly on `WHERE channel IN (...)`.
-
-The real failure modes are different and worth fixing on their own terms:
-- DELETE succeeds, INSERT throws → the retained row is **gone**: data loss on
-  replay, not exposure.
-- A caller retry after a mid-sequence exception re-runs the log INSERT,
-  producing a **duplicate live entry delivered twice to the correctly
-  authorized subscriber**. `EmitBeaconController.php:124` calls `pushRetained`
+Observed failure modes, all **CONFIRMED**, none claimed exhaustive:
+- DELETE succeeds and INSERT throws → the retained row is gone (loss on replay).
+- A caller retry after a mid-sequence exception re-runs the log INSERT →
+  duplicate live entry. `EmitBeaconController.php:124` calls `pushRetained`
   with no try/catch.
-- A genuine concurrent same-key retry would collide on the
+- A concurrent same-key retry would collide on the
   `_broadcast_retained(channel, retain_key)` primary key
-  (`packages/api/migrations/2026_08_12_000001_broadcast_schema.php:34`),
-  surfacing as a constraint exception rather than silent corruption.
+  (`packages/api/migrations/2026_08_12_000001_broadcast_schema.php:34`).
 
-**#2747 should be re-scoped from "leak" to "non-atomic multi-statement write
-with data-loss and duplicate-delivery failure modes."** The fix (wrap in a
-transaction) is unchanged; the severity and the security framing are not.
+**Unresolved:** whether any sequence exposes a retained message to a subscriber
+not entitled to it. Resolving it needs an adversarial interleaving analysis of
+write-failure states against the read path, which is beyond what was done here.
 
-Separately and already documented, not a finding: non-privileged broadcast
-channels have no per-channel ACL — `docs/specs/broadcasting.md:315-316` states
-any authenticated session may subscribe to any non-privileged channel. That is
-a declared design constraint, and it is not evidence for #2747.
+Separately documented and not a finding: non-privileged broadcast channels have
+no per-channel ACL — `docs/specs/broadcasting.md:315-316` states any
+authenticated session may subscribe to any non-privileged channel.
 
-Note this is the one finding **independent of the queue driver** — it is on the
-API request path.
+This finding is independent of the queue driver — it is on the API request path.
 
 ### F10 — Missed scheduler occurrences are silently skipped
 **CONFIRMED. No owning issue found.**
@@ -273,17 +293,32 @@ precisely the protection the queue lacks in F1/F2. Constructor validation also
 prevents a plain `Closure` from ever declaring `preventOverlap`
 (`ScheduledTask.php:37-42`).
 
-### F6 — Job attribute guarantees are driver-dependent
-**CONFIRMED. Behavioural divergence; no issue found.**
+### F6 — `#[UniqueJob]`/`#[RateLimited]` are a DOCUMENTED LIMITATION
+**Reclassified (Codex review). Not a defect, and no new issue is warranted.**
 
-`#[UniqueJob]` / `#[RateLimited]` are enforced by `AttributeGuard`
-(`packages/queue/src/AttributeGuard.php:58-105`), which is per-process,
-in-memory, and called **only** by `SyncQueue` (`SyncQueue.php:44`). `DbalQueue`
-does not enforce them — it logs a one-time warning per job class and dispatches
-anyway (`DbalQueue.php:179-221`). The same attribute therefore means "enforced"
-on the default driver and "advisory" on the persistent one, which is the
-inverse of what an operator would expect. No unique constraint exists in
-`waaseyaa_queue_jobs` either (`Migration/CreateQueueTables.php:16-31`).
+A previous revision recorded this as an unowned behavioural divergence and
+recommended opening an issue. **That was wrong.** `DbalQueue`'s own class
+docblock documents the limitation prominently and by name
+(`packages/queue/src/DbalQueue.php:22-32`):
+
+> **Important — `#[UniqueJob]` / `#[RateLimited]` are NOT enforced by this
+> driver.** Both attributes are handled exclusively by `AttributeGuard`, which
+> performs pure in-process / per-PHP-process tracking. They are enforced by
+> `SyncQueue` (same process) but NOT by `DbalQueue` … Cross-process enforcement
+> would require a distributed dedup/rate-limit store and is currently
+> unimplemented.
+
+The behaviour is additionally made **non-silent** by design: a warning is
+logged once per job class per process when such a message is dispatched
+(`DbalQueue.php:179-221`).
+
+So the facts stand — `AttributeGuard` is called only by `SyncQueue`
+(`SyncQueue.php:44`), and `waaseyaa_queue_jobs` carries no unique constraint
+(`Migration/CreateQueueTables.php:16-31`) — but the disposition changes: this is
+a **stated limitation with a deliberate operator signal**, not an undecided
+divergence. The earlier recommendation to open an issue is withdrawn. If
+cross-process uniqueness is wanted, that is a feature request against a known
+gap, not a correctness repair.
 
 ### F7 — Declared job timeouts are never enforced
 **CONFIRMED. Contributes to #2818. Verified directly.**
@@ -317,9 +352,14 @@ therefore recoverable by anyone with database read access, and is echoed by
 `$e::class . ': ' . $e->getMessage()` verbatim (`:29`), so an exception message
 interpolating payload data persists that data in plaintext.
 
-This is a **property statement, not an allegation of a vulnerability**: signing
-is what the design claims, and confidentiality at rest may be a deliberate
-non-goal. It is recorded because no document states the choice.
+This is a **property statement, not an allegation of a vulnerability**, and it
+is narrower than "payloads are exposed": the reader must already hold database
+read access or operator access to `queue:failed`, which is the same trust
+boundary as every other row the framework stores in plaintext. Signing is what
+the design claims — integrity, not confidentiality — and confidentiality at
+rest may be a deliberate non-goal. It is recorded only because no document
+states the choice, so a consumer placing secrets in a job payload has nothing
+to consult.
 
 ## 5. Disproved leads and non-findings
 
@@ -356,18 +396,17 @@ direct `gh issue view` on `waaseyaa/framework` and from commit history.
 | **#2741** | OPEN p1 | **Confirmed, unfixed.** Add: it is a data-loss path, and the scheduler already has the fix | `DbalTransport.php:179-213` unconditional predicates; `OccurrenceRepository.php:75-95` fenced counterpart |
 | **#2743** | OPEN p1 | **Confirmed** by the `claimForRetry` latch, plus the indistinguishable-status defect | `DatabaseFailedJobRepository.php:103-118`; `DbalTransport.php:296-306` |
 | **#2745** | OPEN p1 | **Confirmed**, root cause localized to one `match` | `SendNotificationHandler.php:70-76`; `SendNotificationJob.php:28-33` |
-| **#2747** | OPEN p1 | **Partially confirmed — re-scope.** Non-atomicity real; the "leak" consequence is disproved | `BroadcastStorage.php:69-97` (no transaction); read scoping correct at `BroadcastRouter.php:569-589` |
+| **#2747** | OPEN p1 | **Non-atomicity confirmed; leak question UNRESOLVED.** An earlier disproof in this report is withdrawn — do not re-scope on it | `BroadcastStorage.php:69-97` (no transaction) |
 | **#2818** | OPEN p1 | **Confirmed and understated** — declared timeouts are dead config, not merely absent isolation | `Job.php:25`, `WorkerOptions.php:22`, no enforcement anywhere |
 | #2822 | CLOSED | Verified resolved; regression-pinned | `e9fa7b3ba`; `QueueJobContractSurfaceTest` |
 | #2740 | — | Sibling A3-QUEUE-01 (messages without handler) | `docs/change-records/FW-2740.md` |
 | #2734 | — | #2747's own body says coordinate on transaction behaviour | `docs/change-records/FW-2734.md` |
 | #2719 / #2723 / #2727 | — | Parent assessment/synthesis for the A3-QUEUE findings | named in all four issue bodies |
 
-**F6 and F9 have no owning issue.** Recommend one new issue for F6
-(driver-dependent attribute enforcement) because it is a distinct root cause
-from all five leads. F9 should be recorded as a documented property decision on
-#2818 rather than as a new ticket, since #2818 already owns the worker trust
-boundary.
+**F6 is a documented limitation** (`DbalQueue.php:22-32`) and needs no issue;
+the earlier recommendation to open one is withdrawn. **F9 has no owning issue**
+and should be recorded as a documented property decision on #2818, which
+already owns the worker trust boundary, rather than as a new ticket.
 
 ## 7. Compatibility constraints
 
@@ -431,14 +470,16 @@ None should be implemented under this audit.
    fix already exists in-repo in the scheduler to copy.
 2. **F3 / #2743.** Permanent stranding plus no operator visibility.
 3. **F4 / #2745.** Silent misdelivery of mail; substituted, not dropped.
-4. **F5 / #2747.** Driver-independent, on the API request path. Fix the
-   transaction; **re-scope the issue first** — it is currently filed as a
-   security leak and is not one, which distorts triage.
+4. **F5 / #2747.** Driver-independent, on the API request path. The
+   transaction fix stands on its own merits. **Do not re-scope the issue on
+   this report's earlier disproof, which is withdrawn**; the leak question is
+   unresolved and needs an adversarial interleaving analysis.
    **F10** should be documented rather than fixed.
 5. **F8 / F7 / #2818.** Design-sized; the dead `timeout` fields are a cheap
    honesty fix that can land before the isolation contract.
-6. **F6.** New issue; cheap; prevents a misleading guarantee.
-7. **F9.** Document the decision on #2818.
+6. **F9.** Document the decision on #2818.
+
+**F6 is not on this list** — it is a documented limitation, not work.
 
 Record the §3 driver-default fact on #2741, #2743, #2745 and #2818 — it bounds
 who is exposed and is absent from all four.
