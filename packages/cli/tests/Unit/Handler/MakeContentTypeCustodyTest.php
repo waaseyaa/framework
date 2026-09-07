@@ -141,6 +141,49 @@ final class MakeContentTypeCustodyTest extends TestCase
     }
 
     #[Test]
+    public function aSeededPublicationNeverRestoresADeliberatelyRemovedProviderRegistration(): void
+    {
+        $root = $this->initializedProject();
+        $first = $this->runMake($root, ['name' => 'story', '--fields' => 'title:string']);
+
+        self::assertSame(0, $first->getExitCode(), $first->getStderr());
+        $composerPath = $root . '/composer.json';
+        $composer = json_decode((string) file_get_contents($composerPath), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(
+            ['App\\Provider\\StoryServiceProvider'],
+            $composer['extra']['waaseyaa']['providers'],
+            'The actual creating publication must apply its provider registration once.',
+        );
+
+        $entityPath = $root . '/src/Entity/Story.php';
+        $providerPath = $root . '/src/Provider/StoryServiceProvider.php';
+        $entityBytes = (string) file_get_contents($entityPath);
+        $providerBytes = (string) file_get_contents($providerPath);
+        $ownershipBytes = (string) file_get_contents($root . '/.waaseyaa/generated.json');
+
+        $composer['extra']['waaseyaa']['providers'] = [];
+        file_put_contents(
+            $composerPath,
+            (string) json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+
+        $second = $this->runMake($root, ['name' => 'story', '--fields' => 'title:string', '--force' => true]);
+
+        self::assertSame(0, $second->getExitCode(), $second->getStderr());
+        self::assertStringContainsString('Unchanged: scaffold:content-type:story is already published and is owned by you.', $second->getStdout());
+        self::assertSame($entityBytes, file_get_contents($entityPath));
+        self::assertSame($providerBytes, file_get_contents($providerPath));
+        self::assertSame($ownershipBytes, file_get_contents($root . '/.waaseyaa/generated.json'));
+
+        $after = json_decode((string) file_get_contents($composerPath), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(
+            [],
+            $after['extra']['waaseyaa']['providers'],
+            'A later publication of the same seeded unit must preserve deliberate registration removal.',
+        );
+    }
+
+    #[Test]
     public function theProviderRegistrationTravelsInThePlanAndPreservesForeignComposerBytes(): void
     {
         $root = $this->initializedProject();

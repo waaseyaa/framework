@@ -36,6 +36,8 @@ blueprint compiler's golden bytes.
 - `packages/field/tests/Unit/FieldScaffoldProjectionTest.php`
 - `packages/cli/src/Site/Scaffold/ContentTypeScaffoldCompiler.php`
 - `packages/cli/src/Handler/MakeContentTypeHandler.php`
+- `packages/cli/src/Provider/MakeServiceProviderB.php`
+- `packages/cli/tests/Unit/Handler/MakeContentTypeCustodyTest.php`
 - focused tests for those CLI classes
 - this record, `docs/specs/field-scaffold-projection.md`, the implementation
   plan, and the #2847 change fragment
@@ -53,35 +55,54 @@ Remaining #2847 integration acceptance after this slice:
 - carry cardinality, enum metadata, authored defaults, revisionability,
   translation, and key prerequisites through the command input contract;
 - emit the remaining schema/configuration/test intent through the shared
-  artifact plan; and
+  artifact plan;
 - prove the packaged fresh-application generate/boot/sync/create/read/update
-  journey on supported hosts.
+  journey on supported hosts;
+- decide whether legacy unowned registrations gain a separate governed
+  adoption operation or require deliberate removal followed by regeneration,
+  and publish that operator policy in the #2847 migration changelog.
 
-The seeded creating-publication and implicit-adoption refusal proofs already
-owned by the generation engine are consumed unchanged and are not recreated.
+The H08 seeded-registration proof now crosses the real migration boundary.
+`MakeContentTypeCustodyTest::aSeededPublicationNeverRestoresADeliberatelyRemovedProviderRegistration()`
+creates a seeded unit through `make:content-type`, proves that its provider
+registration is applied, deliberately removes that registration, and invokes
+the same seeded unit again with `--force`. The later publication reports the
+unit unchanged, preserves both generated artifacts and the ownership document
+byte-for-byte, and leaves the registration absent. The engine's pre-existing
+fixture-level non-restoration coverage remains supporting evidence rather than
+a substitute for this creating-publication regression.
 
-## Evidence plan
+This proof does not decide the separate legacy-registration policy. Implicit
+adoption continues to refuse with `GEN012`, and this slice adds no adoption
+operation. The policy and its operator-facing changelog remain residual #2847
+acceptance.
 
-Use discriminating RED/GREEN tests for registered extension admission,
+## Evidence
+
+Historical discriminating RED/GREEN tests cover registered extension admission,
 unknown/unsupported refusal, scalar/cardinality projection, manual versus
 blueprint `text`/`datetime` consistency, and authored-reference versus
-relationship semantics. Run only the focused field and CLI tests, the
-unchanged blueprint-emitter test, and `bin/git diff --check`.
+relationship semantics. The H08 evidence follow-up adds a regression over the
+existing engine behavior for the actual seeded create/remove/republish
+non-restoration path; no RED result is claimed for that added test.
 
 ## CI-driven integration correction
 
 Hosted Architecture evidence at 5383f0954b0c4b6851ce0ea628dea6e96db0f437
-requires boot-scoped command-provider injection before this slice can land.
-MakeServiceProviderB is the production construction owner; MakeServiceProviderA
-remains with the separate policy/workflow lane. The repair additionally owns
-the B provider and its focused composition test. It must prove a downstream
-plugin reaches the real command and explicitly resolve standalone-constructor
-compatibility, without extending the static-default roster merely to pass CI.
+exposed two integration defects; both are repaired in this candidate.
+MakeServiceProviderB is the production construction owner and lazily resolves
+a boot-scoped object implementing both `FieldTypeManagerInterface` and
+`FieldValueKindResolverInterface`. Missing or incompatible services refuse;
+production no longer falls back to a built-ins-only manager. The real
+ProviderRegistry/manifest regression first failed because its manifest field
+type was unknown, then succeeded after injection and proved that the plugin id
+reached generated output. MakeServiceProviderA remains outside this slice.
 
-The two transient FieldDefinition constructions also require explicit semantic
-read classification under the existing field-read contract. Do not exempt
-them from the architecture scanner. Runtime repair and focused evidence remain
-pending; this record does not claim the published checkpoint is qualified.
+The two transient FieldDefinition constructions carry explicit
+`FieldReadLevel::Internal` classification under the existing field-read
+contract because they are compiler metadata, not persisted entities or
+generated public access policy. No architecture exemption or static-default
+roster expansion was added.
 
 ## Explicit construction compatibility decision
 
@@ -97,6 +118,11 @@ Transient projection definitions carry FieldReadLevel::Internal because they
 are compiler metadata, not a persisted entity or an emitted access policy.
 This does not classify generated attributes or change their existing bytes.
 
-The real ProviderRegistry/manifest regression first failed with an unknown
-manifest field type, then reached successful generation after injection.
-Final focused checks and independent review remain required.
+Historical exact checkpoint
+`ef0fb3ae5d5a95c22913e439224487bb555a304f` had accepted independent review
+and 44 successful hosted checks, including changed-line coverage. The H08
+evidence follow-up adds only this evidence correction, the matching CLI spec
+correction, and the custody regression; that focused method passes as 1 test
+with 8 assertions on candidate-bound source. The earlier hosted checks do not
+qualify the follow-up. Exact-head hosted checks, current-base integration, and
+governed full qualification remain required.
