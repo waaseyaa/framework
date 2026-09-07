@@ -127,7 +127,7 @@ still determine the current disposition.
 
 ### Root `bin/` commands
 
-`bin/` contains 92 Git-tracked top-level entries at this contract revision.
+`bin/` contains 93 Git-tracked top-level entries at this contract revision.
 Every entry appears exactly once in the partition below. Interpreter choice is
 recorded to make the inventory reproducible, but is not itself portability
 evidence.
@@ -144,7 +144,7 @@ evidence.
 
 The four omissions found during review—`check-landing-base`,
 `check-skeleton-docker-secret-exclusion`, `check-vendor-fresh`, and
-`worktree-coordinator`—are included in the 56-entry row.
+`worktree-coordinator`—are included in the 57-entry row.
 `verify-k1-delivery-cutover` appears once.
 
 ### Skeleton scripts and generated maintenance commands
