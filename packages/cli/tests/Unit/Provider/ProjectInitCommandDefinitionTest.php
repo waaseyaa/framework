@@ -18,8 +18,8 @@ final class ProjectInitCommandDefinitionTest extends TestCase
         $command = SiteServiceProvider::projectInitCommand('/unused/project');
         self::assertSame('project:init', $command->getName());
         $definition = $command->getDefinition();
-        self::assertSame(['answers', 'decision-receipt', 'preset', 'project-root', 'dry-run', 'json', 'yes'], array_keys($definition->getOptions()));
-        foreach (['answers', 'decision-receipt', 'preset', 'project-root'] as $name) {
+        self::assertSame(['answers', 'decision-receipt', 'preset', 'project-root', 'config-authorization', 'dry-run', 'json', 'yes'], array_keys($definition->getOptions()));
+        foreach (['answers', 'decision-receipt', 'preset', 'project-root', 'config-authorization'] as $name) {
             self::assertTrue($definition->getOption($name)->isValueRequired());
         }
         foreach (['dry-run', 'json', 'yes'] as $name) {

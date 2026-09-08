@@ -14,9 +14,14 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\ProjectInitHandler;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorization;
 use Waaseyaa\CLI\ProjectInit\ProjectInitProcessResult;
 use Waaseyaa\CLI\ProjectInit\ProjectInitProcessRunnerInterface;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
+use Waaseyaa\Config\Manifest\ConfigSyncBundleManifest;
+use Waaseyaa\Config\Manifest\SignedConfigManifestEnvelope;
+use Waaseyaa\Config\Schema\CanonicalConfigEncoder;
 use Waaseyaa\SiteContract\CanonicalJson;
 
 #[CoversClass(ProjectInitHandler::class)]
@@ -81,6 +86,77 @@ final class ProjectInitHandlerTest extends TestCase
             '--no-interaction',
         ], $runner->calls[1]['command']);
         self::assertStringNotContainsString('SiteInitializationService', (string) file_get_contents(__DIR__ . '/../../../src/Handler/ProjectInitHandler.php'));
+    }
+
+    #[Test]
+    public function optInActivationUsesActualEvaluatedSiteIdentityAndEmitsTruthfulV2Phases(): void
+    {
+        $root = $this->validProjectRoot();
+        $manifestDigest = str_repeat('a', 64);
+        $planDigest = str_repeat('b', 64);
+        $authorizationPath = $this->writeAuthorization($root, $manifestDigest, $planDigest);
+        $site = CanonicalJson::encode([
+            'evaluation' => [
+                'plan' => ['input_digest' => $manifestDigest],
+                'plan_digest' => $planDigest,
+            ],
+            'result' => ['outcome' => 'applied'],
+            'receipts' => [],
+        ]);
+        $runner = new RecordingProjectInitRunner([
+            new ProjectInitProcessResult(0, stdout: $site),
+            new ProjectInitProcessResult(0, stdout: 'Installation is complete.'),
+            new ProjectInitProcessResult(0, stdout: '{"status":"completed","generation_id":"' . str_repeat('c', 64) . '"}'),
+        ]);
+        $tester = $this->tester(new ProjectInitHandler($root, $runner), $root);
+
+        $tester->execute([
+            '--answers=answers.yaml',
+            '--yes',
+            '--json',
+            '--config-authorization=' . $authorizationPath,
+        ]);
+
+        self::assertSame(0, $tester->getExitCode());
+        self::assertCount(3, $runner->calls);
+        self::assertSame('project:config:activate', $runner->calls[2]['command'][2]);
+        self::assertContains($manifestDigest, $runner->calls[2]['command']);
+        self::assertContains($planDigest, $runner->calls[2]['command']);
+        $result = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(2, $result['version']);
+        self::assertSame('completed', $result['status']);
+        self::assertSame('succeeded', $result['phases']['site']['status']);
+        self::assertSame('succeeded', $result['phases']['install']['status']);
+        self::assertSame('succeeded', $result['phases']['activation']['status']);
+    }
+
+    #[Test]
+    public function interruptedActivationReportsUncertainAfterCommittedArtifactAndInstallPhases(): void
+    {
+        $root = $this->validProjectRoot();
+        $manifestDigest = str_repeat('a', 64);
+        $planDigest = str_repeat('b', 64);
+        $authorizationPath = $this->writeAuthorization($root, $manifestDigest, $planDigest);
+        $site = CanonicalJson::encode([
+            'evaluation' => ['plan' => ['input_digest' => $manifestDigest], 'plan_digest' => $planDigest],
+            'result' => ['outcome' => 'applied'],
+            'receipts' => [],
+        ]);
+        $runner = new RecordingProjectInitRunner([
+            new ProjectInitProcessResult(0, stdout: $site),
+            new ProjectInitProcessResult(0, stdout: 'Installation is complete.'),
+            ProjectInitProcessResult::captureFailed(),
+        ]);
+        $tester = $this->tester(new ProjectInitHandler($root, $runner), $root);
+
+        $tester->execute(['--answers=answers.yaml', '--yes', '--json', '--config-authorization=' . $authorizationPath]);
+
+        $result = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('uncertain', $result['status']);
+        self::assertSame('succeeded', $result['phases']['site']['status']);
+        self::assertSame('succeeded', $result['phases']['install']['status']);
+        self::assertSame('uncertain', $result['phases']['activation']['status']);
+        self::assertArrayNotHasKey('rollback', $result['phases']);
     }
 
     #[Test]
@@ -518,6 +594,7 @@ final class ProjectInitHandlerTest extends TestCase
                 new HandlerOption('decision-receipt', mode: HandlerOptionMode::Required, description: 'Decision receipt forwarded to site:init'),
                 new HandlerOption('preset', mode: HandlerOptionMode::Required, description: 'Preset forwarded to site:init'),
                 new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Application project root'),
+                new HandlerOption('config-authorization', mode: HandlerOptionMode::Required, description: 'Signed initial configuration authorization'),
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Preview site phase only'),
                 new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit one parent JSON document'),
                 new HandlerOption('yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Forwarded to site:init'),
@@ -549,6 +626,48 @@ final class ProjectInitHandlerTest extends TestCase
         $this->roots[] = $root;
 
         return $root;
+    }
+
+    private function writeAuthorization(string $root, string $manifestDigest, string $planDigest): string
+    {
+        $document = [
+            'bundle_scope' => ProjectConfigAuthorization::scope($manifestDigest, $planDigest),
+            'bundle_sequence' => 1,
+            'canonical_profile' => CanonicalConfigEncoder::PROFILE_V1,
+            'entries' => [],
+            'format' => ConfigSyncBundleManifest::FORMAT_V1,
+            'producer_evidence' => ProjectConfigAuthorization::producerEvidence($manifestDigest, $planDigest),
+            'registry_checksum' => 'sha256:' . str_repeat('d', 64),
+            'required_package_contracts' => [],
+            'schema_dialect' => 'waaseyaa.config-schema/1',
+            'sync_format' => 'waaseyaa.config-sync/1',
+        ];
+        $manifest = ConfigSyncBundleManifest::fromCanonicalBytes(new CanonicalConfigEncoder()->encode($document, [
+            'type' => 'object',
+            'properties' => [
+                'entries' => ['type' => 'object'],
+                'producer_evidence' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
+                'required_package_contracts' => ['type' => 'object'],
+            ],
+        ]));
+        $envelope = SignedConfigManifestEnvelope::sign($manifest, new class implements ConfigManifestSignerInterface {
+            public function algorithm(): string
+            {
+                return SignedConfigManifestEnvelope::ALGORITHM_V1;
+            }
+            public function trustKeyReference(): string
+            {
+                return 'cfg04:test';
+            }
+            public function sign(string $message): string
+            {
+                return str_repeat('s', 64);
+            }
+        });
+        $path = $root . '/project-config-authorization.json';
+        file_put_contents($path, ProjectConfigAuthorization::issue($manifestDigest, $planDigest, $envelope)->canonicalJson() . "\n");
+
+        return $path;
     }
 }
 

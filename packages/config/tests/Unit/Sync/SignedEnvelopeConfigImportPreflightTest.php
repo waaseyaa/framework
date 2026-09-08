@@ -55,7 +55,7 @@ final class SignedEnvelopeConfigImportPreflightTest extends TestCase
 
     protected function tearDown(): void
     {
-        (new Filesystem())->remove($this->root);
+        new Filesystem()->remove($this->root);
     }
 
     #[Test]
@@ -68,6 +68,38 @@ final class SignedEnvelopeConfigImportPreflightTest extends TestCase
         self::assertInstanceOf(VerifiedConfigBundle::class, $bundle);
         self::assertTrue($bundle->verification->signed);
         self::assertSame('site:test', $bundle->verification->bundleScope);
+    }
+
+    #[Test]
+    public function transportedEnvelopeVerifiesAgainstExactCurrentSyncWithoutAStagedSidecar(): void
+    {
+        $bundle = $this->preflight()->assertReadyFromEnvelope(
+            $this->signedEnvelope(),
+            [],
+            [],
+        );
+
+        self::assertSame('site:test', $bundle->verification->bundleScope);
+        self::assertFileDoesNotExist(ConfigManifestEnvelopeFile::pathFor($this->syncPath));
+    }
+
+    #[Test]
+    public function exactCommittedReplayRevalidatesSignatureSequenceAndCurrentSync(): void
+    {
+        $bundle = $this->preflight(replay: new PreflightTestReplayState(5))
+            ->assertCommittedReplayReadyFromEnvelope($this->signedEnvelope(), 5, [], []);
+
+        self::assertSame(5, $bundle->verification->bundleSequence);
+        self::assertSame($this->syncFile('Waaseyaa')->contentHash(), $bundle->files()[0]->contentHash());
+    }
+
+    #[Test]
+    public function committedReplayCannotWidenToAnotherStoredOrExpectedSequence(): void
+    {
+        $this->expectException(ConfigImportPreflightException::class);
+        $this->expectExceptionMessage('exact committed sequence');
+        $this->preflight(replay: new PreflightTestReplayState(6))
+            ->assertCommittedReplayReadyFromEnvelope($this->signedEnvelope(), 5, [], []);
     }
 
     /**

@@ -33,7 +33,7 @@ use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
  *
  * @api
  */
-final readonly class SignedEnvelopeConfigImportPreflight implements ConfigImportPreflightInterface
+final readonly class SignedEnvelopeConfigImportPreflight implements ConfigImportPreflightInterface, InitialConfigImportPreflightInterface
 {
     public function __construct(
         private string $syncPath,
@@ -77,6 +77,14 @@ final readonly class SignedEnvelopeConfigImportPreflight implements ConfigImport
             ));
         }
 
+        return $this->assertReadyFromEnvelope($envelope, $syncFiles, $activeRefs);
+    }
+
+    public function assertReadyFromEnvelope(
+        \Waaseyaa\Config\Manifest\SignedConfigManifestEnvelope $envelope,
+        array $syncFiles,
+        array $activeRefs,
+    ): VerifiedConfigBundle {
         try {
             $verification = $this->envelopeVerifier->verifySigned(
                 $envelope,
@@ -90,12 +98,44 @@ final readonly class SignedEnvelopeConfigImportPreflight implements ConfigImport
             );
         }
 
+        return $this->bind($verification, $syncFiles, $activeRefs);
+    }
+
+    public function assertCommittedReplayReadyFromEnvelope(
+        \Waaseyaa\Config\Manifest\SignedConfigManifestEnvelope $envelope,
+        int $committedBundleSequence,
+        array $syncFiles,
+        array $activeRefs,
+    ): VerifiedConfigBundle {
+        try {
+            $verification = $this->envelopeVerifier->verifyCommittedReplay(
+                $envelope,
+                $this->signatureVerifier,
+                $this->replayState,
+                $committedBundleSequence,
+            );
+        } catch (\Throwable $exception) {
+            throw new ConfigImportPreflightException(
+                'CFG-03 exact committed replay verification failed: ' . $exception->getMessage(),
+                previous: $exception,
+            );
+        }
+
+        return $this->bind($verification, $syncFiles, $activeRefs);
+    }
+
+    /** @param array<string, ConfigSyncFile> $syncFiles @param list<string> $activeRefs */
+    private function bind(
+        \Waaseyaa\Config\Manifest\VerifiedConfigManifest $verification,
+        array $syncFiles,
+        array $activeRefs,
+    ): VerifiedConfigBundle {
         return new VerifiedConfigImportPreflight(
             $this->syncPath,
             $this->bundleValidator,
             $this->registry,
             $this->compatibility,
             $verification,
-        )->assertReady($syncFiles, $activeRefs, $dryRun, $deleteOrphans, $noDependencyCheck);
+        )->assertReady($syncFiles, $activeRefs, false, false, false);
     }
 }

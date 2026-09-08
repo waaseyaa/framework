@@ -1,0 +1,120 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\CLI\Tests\Unit\ProjectInit;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorizer;
+use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompilerFactory;
+use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile;
+use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
+use Waaseyaa\Config\Manifest\ConfigManifestSigningResult;
+use Waaseyaa\Config\Manifest\ConfigSyncBundleManifest;
+use Waaseyaa\Config\Manifest\SignedConfigManifestEnvelope;
+use Waaseyaa\Config\Schema\CanonicalConfigEncoder;
+use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
+use Waaseyaa\SiteContract\SiteManifestParser;
+
+#[CoversClass(ProjectConfigAuthorizer::class)]
+final class ProjectConfigAuthorizerTest extends TestCase
+{
+    #[Test]
+    public function signsExactGeneratedSyncBytesBeforeAnyProjectInitialization(): void
+    {
+        $manifest = new SiteManifestParser()->parse((string) file_get_contents(
+            __DIR__ . '/../../../../site-contract/tests/Fixtures/Blueprint/valid/complete.yaml',
+        ));
+        $receipt = BlueprintDecisionReceipt::fromArray([
+            'schema' => BlueprintDecisionReceipt::SCHEMA_ID,
+            'version' => BlueprintDecisionReceipt::CONTRACT_VERSION,
+            'decision' => 'approved',
+            'blueprint_digest' => $manifest->applicationBlueprint?->digest,
+            'manifest_digest' => $manifest->digest,
+            'actor' => 'test-reviewer',
+            'decided_at' => '2026-09-08T00:00:00Z',
+            'mechanism' => 'test',
+        ]);
+        $expectedPlan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+        $expected = array_values(array_filter(
+            $expectedPlan->artifacts,
+            static fn($artifact): bool => $artifact->path === 'config/sync/workflows.assignments.yml',
+        ))[0]->content;
+        $observedBytes = null;
+        $stagedRoot = null;
+
+        $authorizer = new ProjectConfigAuthorizer(function (
+            string $syncPath,
+            string $scope,
+            int $sequence,
+            array $evidence,
+        ) use (&$observedBytes, &$stagedRoot): ConfigManifestSigningResult {
+            $stagedRoot = dirname(dirname($syncPath));
+            $observedBytes = file_get_contents($syncPath . '/workflows.assignments.yml');
+            $envelope = $this->envelope($scope, $sequence, $evidence);
+            ConfigManifestEnvelopeFile::write($syncPath, $envelope);
+
+            return new ConfigManifestSigningResult(
+                ConfigManifestEnvelopeFile::pathFor($syncPath),
+                hash('sha256', $envelope->manifestBytes),
+                $scope,
+                $sequence,
+                'cfg04:test',
+                1,
+                [],
+            );
+        });
+
+        $authorization = $authorizer->authorize($manifest, $receipt);
+
+        self::assertSame($expected, $observedBytes);
+        self::assertSame($manifest->digest, $authorization->siteManifestDigest);
+        self::assertSame($expectedPlan->digest, $authorization->sitePlanDigest);
+        self::assertNotNull($stagedRoot);
+        self::assertDirectoryDoesNotExist($stagedRoot);
+    }
+
+    /** @param array<string, string> $evidence */
+    private function envelope(string $scope, int $sequence, array $evidence): SignedConfigManifestEnvelope
+    {
+        $document = [
+            'bundle_scope' => $scope,
+            'bundle_sequence' => $sequence,
+            'canonical_profile' => CanonicalConfigEncoder::PROFILE_V1,
+            'entries' => [],
+            'format' => ConfigSyncBundleManifest::FORMAT_V1,
+            'producer_evidence' => $evidence,
+            'registry_checksum' => 'sha256:' . str_repeat('d', 64),
+            'required_package_contracts' => [],
+            'schema_dialect' => 'waaseyaa.config-schema/1',
+            'sync_format' => 'waaseyaa.config-sync/1',
+        ];
+        $manifest = ConfigSyncBundleManifest::fromCanonicalBytes(new CanonicalConfigEncoder()->encode($document, [
+            'type' => 'object',
+            'properties' => [
+                'entries' => ['type' => 'object'],
+                'producer_evidence' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
+                'required_package_contracts' => ['type' => 'object'],
+            ],
+        ]));
+
+        return SignedConfigManifestEnvelope::sign($manifest, new class implements ConfigManifestSignerInterface {
+            public function algorithm(): string
+            {
+                return SignedConfigManifestEnvelope::ALGORITHM_V1;
+            }
+
+            public function trustKeyReference(): string
+            {
+                return 'cfg04:test';
+            }
+
+            public function sign(string $message): string
+            {
+                return str_repeat('s', SignedConfigManifestEnvelope::SIGNATURE_BYTES_V1);
+            }
+        });
+    }
+}

@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\ProjectInit\ProcOpenProjectInitProcessRunner;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorization;
 use Waaseyaa\CLI\ProjectInit\ProjectInitProcessResult;
 use Waaseyaa\CLI\ProjectInit\ProjectInitProcessRunnerInterface;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -16,6 +17,7 @@ final readonly class ProjectInitHandler
     public const ERROR_CHILD_PROTOCOL_INVALID = 'PROJECT_INIT004_CHILD_PROTOCOL_INVALID';
     public const ERROR_INVALID_PROJECT_ROOT = 'PROJECT_INIT005_INVALID_PROJECT_ROOT';
     public const ERROR_CHILD_CLEANUP_FAILED = 'PROJECT_INIT006_CHILD_CLEANUP_FAILED';
+    public const ERROR_CONFIGURATION_AUTHORIZATION_INVALID = 'PROJECT_INIT007_CONFIGURATION_AUTHORIZATION_INVALID';
 
     public function __construct(
         private string $defaultProjectRoot,
@@ -26,7 +28,15 @@ final readonly class ProjectInitHandler
     {
         $json = (bool) $io->option('json');
         $dryRun = (bool) $io->option('dry-run');
+        $authorizationOption = $io->option('config-authorization');
+        $activationRequested = \is_string($authorizationOption) && $authorizationOption !== '';
         $captureOutput = $json;
+
+        if ($activationRequested && !$json) {
+            $io->error('project:init --config-authorization requires --json so every activation phase has machine-readable outcome evidence.');
+
+            return 2;
+        }
 
         $projectRoot = $this->resolveProjectRoot($io);
         if ($projectRoot === null) {
@@ -36,6 +46,7 @@ final readonly class ProjectInitHandler
                     sitePhase: $this->sitePhaseNotRun(),
                     installPhase: $this->installPhaseNotRun('site_failed'),
                     errors: [['phase' => 'site', 'code' => self::ERROR_INVALID_PROJECT_ROOT]],
+                    activationPhase: $activationRequested ? $this->activationPhaseNotRun('site_failed') : null,
                 ));
             } else {
                 $io->error('The selected project root is not a Waaseyaa application with composer.json, vendor/autoload.php, and vendor/bin/waaseyaa.');
@@ -45,22 +56,46 @@ final readonly class ProjectInitHandler
         }
 
         $runner = $this->runner ?? new ProcOpenProjectInitProcessRunner();
+
+        $authorization = null;
+        if ($activationRequested) {
+            try {
+                $authorizationPath = $this->resolveInputPath($authorizationOption, $projectRoot);
+                $authorizationBytes = is_file($authorizationPath) && !is_link($authorizationPath)
+                    ? file_get_contents($authorizationPath)
+                    : false;
+                if (!\is_string($authorizationBytes)) {
+                    throw new \InvalidArgumentException('authorization document is unreadable');
+                }
+                $authorization = ProjectConfigAuthorization::fromJson($authorizationBytes);
+            } catch (\Throwable $exception) {
+                $io->writeRaw($this->encodeEnvelope(
+                    status: 'failed',
+                    sitePhase: $this->sitePhaseNotRun(),
+                    installPhase: $this->installPhaseNotRun('site_failed'),
+                    errors: [['phase' => 'activation', 'code' => self::ERROR_CONFIGURATION_AUTHORIZATION_INVALID]],
+                    activationPhase: $this->activationPhaseNotRun('authorization_refused'),
+                ));
+
+                return 2;
+            }
+        }
         $siteResult = $runner->run($this->buildSiteInitCommand($io, $projectRoot), $projectRoot, $captureOutput);
 
         if ($siteResult->hasRunnerError()) {
-            return $this->finishSiteRunnerFailure($io, $json, $siteResult);
+            return $this->finishSiteRunnerFailure($io, $json, $siteResult, $activationRequested);
         }
 
         $sitePayload = null;
         if ($captureOutput) {
             $sitePayload = $this->decodeSingleJsonObject($siteResult->stdout);
             if ($sitePayload === null) {
-                return $this->finishSiteProtocolInvalid($io, $json, $siteResult);
+                return $this->finishSiteProtocolInvalid($io, $json, $siteResult, $activationRequested);
             }
         }
 
         if ($siteResult->exitCode !== 0) {
-            return $this->finishSiteChildFailure($io, $json, $siteResult, $sitePayload);
+            return $this->finishSiteChildFailure($io, $json, $siteResult, $sitePayload, $activationRequested);
         }
 
         if ($dryRun) {
@@ -70,6 +105,7 @@ final readonly class ProjectInitHandler
                     sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
                     installPhase: $this->installPhaseNotRun('dry_run'),
                     errors: [],
+                    activationPhase: $activationRequested ? $this->activationPhaseNotRun('dry_run') : null,
                 ));
             } else {
                 $io->writeln('Dry run complete; install:init was not run.');
@@ -78,13 +114,69 @@ final readonly class ProjectInitHandler
             return 0;
         }
 
+        if ($activationRequested) {
+            $siteIdentity = $this->siteIdentity($sitePayload);
+            if ($siteIdentity === null) {
+                return $this->finishSiteProtocolInvalid($io, true, $siteResult, true, $sitePayload);
+            }
+            try {
+                $authorization->assertMatches($siteIdentity['manifest'], $siteIdentity['plan']);
+            } catch (\InvalidArgumentException) {
+                $io->writeRaw($this->encodeEnvelope(
+                    status: 'failed',
+                    sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
+                    installPhase: $this->installPhaseNotRun('activation_authorization_mismatch'),
+                    errors: [['phase' => 'activation', 'code' => self::ERROR_CONFIGURATION_AUTHORIZATION_INVALID]],
+                    activationPhase: $this->activationPhaseNotRun('authorization_mismatch'),
+                ));
+
+                return 2;
+            }
+        }
+
         $installResult = $runner->run($this->buildInstallInitCommand($io, $projectRoot), $projectRoot, $captureOutput);
         if ($installResult->hasRunnerError()) {
-            return $this->finishInstallRunnerFailure($io, $json, $siteResult, $sitePayload, $installResult);
+            return $this->finishInstallRunnerFailure($io, $json, $siteResult, $sitePayload, $installResult, $activationRequested);
         }
 
         if ($installResult->exitCode !== 0) {
-            return $this->finishInstallChildFailure($io, $json, $siteResult, $sitePayload, $installResult);
+            return $this->finishInstallChildFailure($io, $json, $siteResult, $sitePayload, $installResult, $activationRequested);
+        }
+
+        if ($activationRequested) {
+            $identity = $this->siteIdentity($sitePayload);
+            assert($identity !== null);
+            $activationResult = $runner->run(
+                $this->buildConfigActivateCommand($authorizationOption, $identity, $projectRoot),
+                $projectRoot,
+                true,
+            );
+            $activationPayload = $activationResult->hasRunnerError()
+                ? null
+                : $this->decodeSingleJsonObject($activationResult->stdout);
+            if ($activationResult->hasRunnerError() || !$activationPayload instanceof \stdClass || $activationResult->exitCode !== 0) {
+                $phaseStatus = $activationResult->errorCode === ProjectInitProcessResult::ERROR_CHILD_START_FAILED
+                    ? 'not_started'
+                    : (($activationPayload->status ?? null) === 'uncertain' || $activationResult->hasRunnerError() ? 'uncertain' : 'failed');
+                $io->writeRaw($this->encodeEnvelope(
+                    status: $phaseStatus === 'uncertain' ? 'uncertain' : 'failed',
+                    sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
+                    installPhase: $this->installPhaseSucceeded($installResult),
+                    errors: $activationResult->hasRunnerError() ? [$this->runnerErrorEntry('activation', $activationResult)] : [],
+                    activationPhase: $this->activationPhase($activationResult, $activationPayload, $phaseStatus),
+                ));
+
+                return $activationResult->exitCode === 130 ? 130 : 1;
+            }
+            $io->writeRaw($this->encodeEnvelope(
+                status: 'completed',
+                sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
+                installPhase: $this->installPhaseSucceeded($installResult),
+                errors: [],
+                activationPhase: $this->activationPhase($activationResult, $activationPayload, 'succeeded'),
+            ));
+
+            return 0;
         }
 
         if ($json) {
@@ -173,6 +265,23 @@ final readonly class ProjectInitHandler
         return $command;
     }
 
+    /** @param array{manifest: string, plan: string} $identity @return non-empty-list<string> */
+    private function buildConfigActivateCommand(string $authorization, array $identity, string $projectRoot): array
+    {
+        return [
+            PHP_BINARY,
+            $this->entrypointPath($projectRoot),
+            'project:config:activate',
+            '--authorization',
+            $this->resolveInputPath($authorization, $projectRoot),
+            '--site-manifest-digest',
+            $identity['manifest'],
+            '--site-plan-digest',
+            $identity['plan'],
+            '--no-interaction',
+        ];
+    }
+
     private function requiresNoInteraction(SymfonyCommandIO $io): bool
     {
         return !$io->isInteractive() || (bool) $io->option('json');
@@ -186,6 +295,36 @@ final readonly class ProjectInitHandler
     private function isAbsolutePath(string $path): bool
     {
         return str_starts_with($path, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1;
+    }
+
+    private function resolveInputPath(string $path, string $projectRoot): string
+    {
+        return $this->isAbsolutePath($path) ? $path : $projectRoot . DIRECTORY_SEPARATOR . $path;
+    }
+
+    /** @return array{manifest: string, plan: string}|null */
+    private function siteIdentity(?\stdClass $payload): ?array
+    {
+        if (!$payload instanceof \stdClass) {
+            return null;
+        }
+        $evaluation = $payload->evaluation ?? null;
+        if (!$evaluation instanceof \stdClass) {
+            return null;
+        }
+        $planPayload = $evaluation->plan ?? null;
+        if (!$planPayload instanceof \stdClass) {
+            return null;
+        }
+        $manifest = $planPayload->input_digest ?? null;
+        $plan = $evaluation->plan_digest ?? null;
+        if (!\is_string($manifest) || preg_match('/^[a-f0-9]{64}$/D', $manifest) !== 1
+            || !\is_string($plan) || preg_match('/^[a-f0-9]{64}$/D', $plan) !== 1
+        ) {
+            return null;
+        }
+
+        return ['manifest' => $manifest, 'plan' => $plan];
     }
 
     /**
@@ -353,30 +492,71 @@ final readonly class ProjectInitHandler
     /**
      * @param array<string, mixed> $sitePhase
      * @param array<string, mixed> $installPhase
-     * @param list<array{phase: string, code: string}> $errors
+     * @param list<array<string, mixed>> $errors
      */
-    private function encodeEnvelope(string $status, array $sitePhase, array $installPhase, array $errors): string
-    {
+    private function encodeEnvelope(
+        string $status,
+        array $sitePhase,
+        array $installPhase,
+        array $errors,
+        ?array $activationPhase = null,
+    ): string {
+        $phases = ['site' => $sitePhase, 'install' => $installPhase];
+        if ($activationPhase !== null) {
+            $phases['activation'] = $activationPhase;
+        }
+
         return CanonicalJson::encode([
             'schema' => 'waaseyaa.project_init_result',
-            'version' => 1,
+            'version' => $activationPhase === null ? 1 : 2,
             'status' => $status,
-            'phases' => [
-                'site' => $sitePhase,
-                'install' => $installPhase,
-            ],
+            'phases' => $phases,
             'errors' => $errors,
         ]) . "\n";
     }
 
-    private function finishSiteRunnerFailure(SymfonyCommandIO $io, bool $json, ProjectInitProcessResult $siteResult): int
+    /** @return array<string, mixed> */
+    private function activationPhaseNotRun(string $reason): array
     {
+        return [
+            'command' => 'project:config:activate',
+            'status' => 'not_started',
+            'exit_code' => null,
+            'result' => new \stdClass(),
+            'stderr' => '',
+            'not_run_reason' => $reason,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function activationPhase(
+        ProjectInitProcessResult $result,
+        ?\stdClass $payload,
+        string $status,
+    ): array {
+        return [
+            'command' => 'project:config:activate',
+            'status' => $status,
+            'exit_code' => $result->exitCode,
+            'result' => $payload ?? new \stdClass(),
+            'stderr' => $result->stderr,
+            'not_run_reason' => $status === 'not_started' ? 'child_start_failed' : null,
+        ];
+    }
+
+    private function finishSiteRunnerFailure(
+        SymfonyCommandIO $io,
+        bool $json,
+        ProjectInitProcessResult $siteResult,
+        bool $activationRequested = false,
+    ): int {
         if ($json) {
             $io->writeRaw($this->encodeEnvelope(
                 status: 'failed',
                 sitePhase: $this->sitePhaseFailed($siteResult, null),
                 installPhase: $this->installPhaseNotRun('site_failed'),
                 errors: [$this->runnerErrorEntry('site', $siteResult)],
+                activationPhase: $activationRequested ? $this->activationPhaseNotRun('site_failed') : null,
             ));
         } elseif ($siteResult->errorCode === ProjectInitProcessResult::ERROR_CHILD_CLEANUP_FAILED) {
             $io->error(sprintf(
@@ -403,28 +583,42 @@ final readonly class ProjectInitHandler
         return $entry;
     }
 
-    private function finishSiteChildFailure(SymfonyCommandIO $io, bool $json, ProjectInitProcessResult $siteResult, ?\stdClass $sitePayload): int
-    {
+    private function finishSiteChildFailure(
+        SymfonyCommandIO $io,
+        bool $json,
+        ProjectInitProcessResult $siteResult,
+        ?\stdClass $sitePayload,
+        bool $activationRequested = false,
+    ): int {
         if ($json) {
             $io->writeRaw($this->encodeEnvelope(
                 status: 'failed',
                 sitePhase: $this->sitePhaseFailed($siteResult, $sitePayload),
                 installPhase: $this->installPhaseNotRun('site_failed'),
                 errors: [],
+                activationPhase: $activationRequested ? $this->activationPhaseNotRun('site_failed') : null,
             ));
         }
 
         return $siteResult->exitCode === 130 ? 130 : ($siteResult->exitCode !== 0 ? $siteResult->exitCode : 1);
     }
 
-    private function finishSiteProtocolInvalid(SymfonyCommandIO $io, bool $json, ProjectInitProcessResult $siteResult): int
-    {
+    private function finishSiteProtocolInvalid(
+        SymfonyCommandIO $io,
+        bool $json,
+        ProjectInitProcessResult $siteResult,
+        bool $activationRequested = false,
+        ?\stdClass $sitePayload = null,
+    ): int {
         if ($json) {
             $io->writeRaw($this->encodeEnvelope(
                 status: 'failed',
-                sitePhase: $this->sitePhaseFailed($siteResult, null),
+                sitePhase: $sitePayload instanceof \stdClass && $siteResult->exitCode === 0
+                    ? $this->sitePhaseSucceeded($siteResult, $sitePayload)
+                    : $this->sitePhaseFailed($siteResult, null),
                 installPhase: $this->installPhaseNotRun('site_failed'),
                 errors: [['phase' => 'site', 'code' => self::ERROR_CHILD_PROTOCOL_INVALID]],
+                activationPhase: $activationRequested ? $this->activationPhaseNotRun('site_protocol_invalid') : null,
             ));
         }
 
@@ -437,6 +631,7 @@ final readonly class ProjectInitHandler
         ProjectInitProcessResult $siteResult,
         ?\stdClass $sitePayload,
         ProjectInitProcessResult $installResult,
+        bool $activationRequested = false,
     ): int {
         if ($json) {
             assert($sitePayload instanceof \stdClass);
@@ -446,6 +641,7 @@ final readonly class ProjectInitHandler
                 sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
                 installPhase: $this->installPhaseFailed($installResult),
                 errors: [$this->runnerErrorEntry('install', $installResult)],
+                activationPhase: $activationRequested ? $this->activationPhaseNotRun('install_failed') : null,
             ));
         } elseif ($installResult->errorCode === ProjectInitProcessResult::ERROR_CHILD_CLEANUP_FAILED) {
             $io->error(sprintf(
@@ -464,6 +660,7 @@ final readonly class ProjectInitHandler
         ProjectInitProcessResult $siteResult,
         ?\stdClass $sitePayload,
         ProjectInitProcessResult $installResult,
+        bool $activationRequested = false,
     ): int {
         if ($json) {
             assert($sitePayload instanceof \stdClass);
@@ -473,6 +670,7 @@ final readonly class ProjectInitHandler
                 sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
                 installPhase: $this->installPhaseFailed($installResult),
                 errors: [],
+                activationPhase: $activationRequested ? $this->activationPhaseNotRun('install_failed') : null,
             ));
         }
 
