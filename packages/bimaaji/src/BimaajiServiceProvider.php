@@ -211,6 +211,36 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
                 skillSetParser: $this->resolve(SkillSetParser::class),
             ),
         );
+
+        $this->singleton(
+            \Waaseyaa\CLI\Command\AiVerifyCommand::class,
+            function (): \Waaseyaa\CLI\Command\AiVerifyCommand {
+                $verifier = new \Waaseyaa\Bimaaji\Install\GeneratedStateVerifier(
+                    $this->defaultClientTransformers(),
+                    $this->resolve(SkillSetParser::class),
+                );
+
+                return new \Waaseyaa\CLI\Command\AiVerifyCommand(
+                    static function (?string $root, ?array $clients) use ($verifier): array {
+                        $report = $root === null
+                            ? new \Waaseyaa\Bimaaji\Install\VerifyReport(
+                                manifestStatus: \Waaseyaa\Bimaaji\Install\ManifestReadStatus::Unreadable,
+                                findings: [new \Waaseyaa\Bimaaji\Install\VerifyFinding(
+                                    code: \Waaseyaa\Bimaaji\Install\VerifyFindingCode::ManifestUnreadable,
+                                    detail: 'cannot resolve project root',
+                                )],
+                            )
+                            : $verifier->verify($root, $clients);
+
+                        return [
+                            'exit_code' => $report->isSuccess() ? 0 : 1,
+                            'json' => $report->toJson(),
+                            'lines' => $report->humanLines(),
+                        ];
+                    },
+                );
+            },
+        );
     }
 
     /**
@@ -288,6 +318,24 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
                 ),
             ],
             handler: [BimaajiInstallCommand::class, 'execute'],
+        );
+
+        yield new \Waaseyaa\CLI\Command\HandlerCommand(
+            name: 'ai:verify',
+            description: 'Verify Bimaaji generated agent guidance against the ownership manifest and current skill render (read-only).',
+            options: [
+                new \Waaseyaa\CLI\Command\HandlerOption(
+                    name: 'client',
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::Array_,
+                    description: 'Client id (repeatable or comma-separated). When omitted, every client recorded in the manifest is checked.',
+                ),
+                new \Waaseyaa\CLI\Command\HandlerOption(
+                    name: 'json',
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::None,
+                    description: 'Emit a bounded deterministic JSON report on stdout.',
+                ),
+            ],
+            handler: [\Waaseyaa\CLI\Command\AiVerifyCommand::class, 'execute'],
         );
     }
 

@@ -43,6 +43,7 @@ final readonly class SiteApplyHandler
     {
         $projectRoot = trim((string) ($io->option('project-root') ?? $this->defaultProjectRoot));
         $requestOption = trim((string) ($io->option('request') ?? ''));
+        $decisionPath = trim((string) ($io->option('decision-receipt') ?? ''));
         $json = (bool) $io->option('json');
 
         if ($requestOption === '') {
@@ -59,10 +60,11 @@ final readonly class SiteApplyHandler
 
         try {
             $request = ArtifactApplyRequest::fromCanonicalJson($this->read($requestOption, $projectRoot), $requestOption);
+            $decisionReceipt = $decisionPath === '' ? null : DecisionReceiptInput::load($decisionPath, $projectRoot);
             $invocation = new SiteInitializationService(
                 $projectRoot,
                 $interrupt ? DevelopmentInterruptionSeam::injector() : null,
-            )->apply($request);
+            )->apply($request, decisionReceipt: $decisionReceipt);
         } catch (DevelopmentInterruption $interruption) {
             // Deliberately reported, never repaired: the durable journal this
             // leaves behind is the evidence the next apply must recover.

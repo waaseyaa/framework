@@ -127,6 +127,7 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
         $handler = new SiteApplyHandler($projectRoot);
         $options = [
             new HandlerOption('request', mode: HandlerOptionMode::Required, description: 'Canonical waaseyaa.artifact_apply_request JSON document carrying the reviewed plan and its two digests'),
+            new HandlerOption('decision-receipt', mode: HandlerOptionMode::Required, description: 'JSON decision receipt approving the exact blueprint and site manifest'),
             new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Application project root'),
             new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit the artifact result and change receipts as JSON'),
         ];

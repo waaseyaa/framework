@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Bimaaji\Install\InstalledManifest;
+use Waaseyaa\Bimaaji\Install\ManifestReadStatus;
 
 #[CoversClass(InstalledManifest::class)]
 final class InstalledManifestTest extends TestCase
@@ -85,6 +86,118 @@ final class InstalledManifestTest extends TestCase
         $this->write("{ not json at all");
 
         self::assertSame([], InstalledManifest::load($this->tempDir)->clientIds());
+    }
+
+    #[Test]
+    public function aForeignSchemaVersionIsReportedDistinctlyByStrictRead(): void
+    {
+        $this->write(json_encode([
+            'schema_version' => InstalledManifest::SCHEMA_VERSION + 1,
+            'clients' => ['cursor' => ['targets' => [['path' => '.cursorrules', 'sha1' => 'ccc']]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertSame(ManifestReadStatus::UnsupportedSchema, $result->status);
+        self::assertNull($result->manifest);
+    }
+
+    #[Test]
+    public function strictReadRejectsMalformedRowsInsteadOfDroppingThem(): void
+    {
+        $this->write(json_encode([
+            'schema_version' => InstalledManifest::SCHEMA_VERSION,
+            'clients' => [
+                'cursor' => ['targets' => [
+                    ['path' => '.cursorrules', 'sha1' => 'ccc'],
+                    ['path' => '', 'sha1' => 'ddd'],
+                ]],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertSame(ManifestReadStatus::Malformed, $result->status);
+    }
+
+    #[Test]
+    public function strictReadAcceptsAValidManifest(): void
+    {
+        $this->write(InstalledManifest::empty()->withClient('cursor', ['.cursorrules' => str_repeat('a', 40)])->toJson());
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertTrue($result->isOk());
+        self::assertSame(['cursor'], $result->manifest?->clientIds());
+    }
+
+    #[Test]
+    public function strictReadRejectsInvalidDigest(): void
+    {
+        $this->write(json_encode([
+            'schema_version' => InstalledManifest::SCHEMA_VERSION,
+            'clients' => ['cursor' => ['targets' => [['path' => '.cursorrules', 'sha1' => 'ccc']]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertSame(ManifestReadStatus::Malformed, $result->status);
+    }
+
+    #[Test]
+    public function strictReadRejectsObjectShapedTargets(): void
+    {
+        $this->write(json_encode([
+            'schema_version' => InstalledManifest::SCHEMA_VERSION,
+            'clients' => ['cursor' => ['targets' => ['path' => '.cursorrules', 'sha1' => str_repeat('a', 40)]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertSame(ManifestReadStatus::Malformed, $result->status);
+    }
+
+    #[Test]
+    public function strictReadRetainsUnknownEmptyClientInsteadOfDroppingIt(): void
+    {
+        $this->write(json_encode([
+            'schema_version' => InstalledManifest::SCHEMA_VERSION,
+            'clients' => ['legacy-unknown' => ['targets' => []]],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertTrue($result->isOk());
+        self::assertSame(['legacy-unknown'], $result->manifest?->clientIds());
+        self::assertSame([], $result->manifest?->targetsFor('legacy-unknown'));
+    }
+
+    #[Test]
+    public function strictReadRejectsDuplicateOwnershipAcrossClients(): void
+    {
+        $digest = str_repeat('a', 40);
+        $this->write(json_encode([
+            'schema_version' => InstalledManifest::SCHEMA_VERSION,
+            'clients' => [
+                'cursor' => ['targets' => [['path' => '.cursorrules', 'sha1' => $digest]]],
+                'codex' => ['targets' => [['path' => '.cursorrules', 'sha1' => $digest]]],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertSame(ManifestReadStatus::Malformed, $result->status);
+    }
+
+    #[Test]
+    public function strictReadAcceptsCanonicalEmptyClientsObject(): void
+    {
+        $this->write(InstalledManifest::empty()->toJson());
+
+        $result = InstalledManifest::readStrict($this->tempDir);
+
+        self::assertTrue($result->isOk());
+        self::assertSame([], $result->manifest?->clientIds());
     }
 
     #[Test]

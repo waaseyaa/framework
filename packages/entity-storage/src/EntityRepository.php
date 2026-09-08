@@ -24,6 +24,7 @@ use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldValueCanonicalizer;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
@@ -32,6 +33,7 @@ use Waaseyaa\Entity\RevisionMetadata;
 use Waaseyaa\Entity\RevisionRestoreChangedFields;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\TranslatableInterface;
+use Waaseyaa\Entity\Validation\EntityReferenceExistenceConstraintBuilder;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
@@ -140,6 +142,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         private readonly ?\Closure $accessHandlerResolver = null,
         ?StorageBoundary $storageBoundary = null,
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        private readonly ?EntityIdentifierResolver $entityReferenceResolver = null,
     ) {
         if ($this->database instanceof DBALDatabase && $this->mutationAuthority === null) {
             throw new \LogicException('A DBAL-backed EntityRepository requires the universal entity mutation authority.');
@@ -1438,9 +1441,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         if ($this->validator === null) {
             return;
         }
+        $fieldDefinitions = $this->resolveValidationFieldDefinitions($entity);
+        if (EntityReferenceExistenceConstraintBuilder::definitionsRequireReferenceResolver($fieldDefinitions)
+            && $this->entityReferenceResolver === null) {
+            throw new \LogicException(
+                EntityReferenceExistenceConstraintBuilder::missingResolverMessage($this->entityType->id()),
+            );
+        }
         $constraints = EntityTypeValidationConstraints::forEntityType(
             $this->entityType,
-            $this->resolveValidationFieldDefinitions($entity),
+            $fieldDefinitions,
+            $this->entityReferenceResolver,
         );
         if ($constraints === []) {
             return;

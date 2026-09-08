@@ -112,6 +112,179 @@ final class InstalledManifest
     }
 
     /**
+     * Strict read for verification surfaces.
+     *
+     * Reports missing, unreadable, malformed, and future-schema manifests
+     * distinctly. Every client row and target row must be well-formed; no
+     * row is dropped. {@see load()} remains fail-soft for the installer.
+     */
+    public static function readStrict(string $projectRoot, ?InstallPathSandbox $sandbox = null): InstalledManifestReadResult
+    {
+        $resolvedRoot = realpath($projectRoot);
+        if ($resolvedRoot === false) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Unreadable,
+                detail: 'cannot resolve project root',
+            );
+        }
+
+        $sandbox ??= new InstallPathSandbox();
+        $manifestPath = $sandbox->resolveContainedPath(self::RELATIVE_PATH, $resolvedRoot);
+        if ($manifestPath === null) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Unreadable,
+                detail: 'manifest path is not contained in the project root',
+            );
+        }
+
+        if (!is_file($manifestPath)) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Missing,
+                detail: self::RELATIVE_PATH,
+            );
+        }
+
+        if (!is_readable($manifestPath)) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Unreadable,
+                detail: self::RELATIVE_PATH,
+            );
+        }
+
+        $raw = $sandbox->readBoundedFile($manifestPath);
+        if ($raw === null) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Unreadable,
+                detail: 'manifest is unreadable or exceeds the verification size bound',
+            );
+        }
+
+        try {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Malformed,
+                detail: 'invalid JSON',
+            );
+        }
+
+        if (!is_array($decoded)) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Malformed,
+                detail: 'root must be a JSON object',
+            );
+        }
+
+        $schemaVersion = $decoded['schema_version'] ?? null;
+        if (!is_int($schemaVersion)) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Malformed,
+                detail: 'schema_version must be an integer',
+            );
+        }
+
+        if ($schemaVersion > self::SCHEMA_VERSION) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::UnsupportedSchema,
+                detail: sprintf('schema_version %d is not supported', $schemaVersion),
+            );
+        }
+
+        if ($schemaVersion !== self::SCHEMA_VERSION) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Malformed,
+                detail: sprintf('schema_version %d is not recognised', $schemaVersion),
+            );
+        }
+
+        $rawClients = $decoded['clients'] ?? null;
+        if (!is_array($rawClients)) {
+            return new InstalledManifestReadResult(
+                status: ManifestReadStatus::Malformed,
+                detail: 'clients must be an object',
+            );
+        }
+
+        $clients = [];
+        $seenPaths = [];
+        foreach ($rawClients as $clientId => $entry) {
+            if (!is_string($clientId) || !$sandbox->isSafeClientId($clientId)) {
+                return new InstalledManifestReadResult(
+                    status: ManifestReadStatus::Malformed,
+                    detail: 'client id must be a non-empty string without ASCII control characters',
+                );
+            }
+
+            if (!is_array($entry)) {
+                return new InstalledManifestReadResult(
+                    status: ManifestReadStatus::Malformed,
+                    detail: sprintf('client "%s" must be an object', $clientId),
+                );
+            }
+
+            $targets = $entry['targets'] ?? null;
+            if (!is_array($targets) || !array_is_list($targets)) {
+                return new InstalledManifestReadResult(
+                    status: ManifestReadStatus::Malformed,
+                    detail: sprintf('client "%s" targets must be a JSON array', $clientId),
+                );
+            }
+
+            $recorded = [];
+            foreach ($targets as $index => $target) {
+                if (!is_array($target)) {
+                    return new InstalledManifestReadResult(
+                        status: ManifestReadStatus::Malformed,
+                        detail: sprintf('client "%s" target row %d must be an object', $clientId, $index),
+                    );
+                }
+
+                $targetPath = $target['path'] ?? null;
+                $sha1 = $target['sha1'] ?? null;
+                if (!is_string($targetPath) || !$sandbox->isSafeRelativePath($targetPath)) {
+                    return new InstalledManifestReadResult(
+                        status: ManifestReadStatus::Malformed,
+                        detail: sprintf('client "%s" target row %d path must be a safe non-empty relative path', $clientId, $index),
+                    );
+                }
+
+                if (!is_string($sha1) || !$sandbox->isValidSha1Digest($sha1)) {
+                    return new InstalledManifestReadResult(
+                        status: ManifestReadStatus::Malformed,
+                        detail: sprintf('client "%s" target row %d sha1 must be a 40-character lowercase hex digest', $clientId, $index),
+                    );
+                }
+
+                if (isset($recorded[$targetPath])) {
+                    return new InstalledManifestReadResult(
+                        status: ManifestReadStatus::Malformed,
+                        detail: sprintf('client "%s" records duplicate path %s', $clientId, $targetPath),
+                    );
+                }
+
+                if (isset($seenPaths[$targetPath])) {
+                    return new InstalledManifestReadResult(
+                        status: ManifestReadStatus::Malformed,
+                        detail: sprintf('path %s is owned by both "%s" and "%s"', $targetPath, $seenPaths[$targetPath], $clientId),
+                    );
+                }
+
+                $recorded[$targetPath] = $sha1;
+                $seenPaths[$targetPath] = $clientId;
+            }
+
+            ksort($recorded);
+            $clients[$clientId] = $recorded;
+        }
+        ksort($clients);
+
+        return new InstalledManifestReadResult(
+            status: ManifestReadStatus::Ok,
+            manifest: new self($clients),
+        );
+    }
+
+    /**
      * Paths this command previously wrote for one client, mapped to the sha1
      * of the bytes it left behind.
      *

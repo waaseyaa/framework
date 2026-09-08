@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
+use Waaseyaa\Database\TransactionCompletionInterface;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
@@ -156,5 +158,121 @@ final class IdempotencyStoreTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->store()->execute('  ', 'op', [], fn(): array => []);
+    }
+
+    #[Test]
+    public function committed_idempotency_record_survives_completion_failure_and_replays_without_reexecuting(): void
+    {
+        $store = $this->store();
+        $runs = 0;
+
+        try {
+            $store->execute('k', 'op', ['a' => 1], function () use (&$runs): array {
+                $runs++;
+                $this->db->query(
+                    'INSERT INTO idempotency_effects (effect_key) VALUES (?)',
+                    ['mutation-effect'],
+                );
+                $nested = $this->db->transaction();
+                self::assertInstanceOf(TransactionCompletionInterface::class, $nested);
+                $nested->afterCommit(static function (): void {
+                    throw new \RuntimeException('post-commit side effect failed');
+                });
+                $nested->commit();
+
+                return ['ok' => true, 'run' => $runs];
+            });
+            self::fail('Expected completion failure after commit.');
+        } catch (TransactionCompletionException $failure) {
+            self::assertCount(1, $failure->failures());
+            self::assertSame('post-commit side effect failed', $failure->failures()[0]->getMessage());
+            self::assertInstanceOf(\RuntimeException::class, $failure->getPrevious());
+        }
+
+        self::assertSame(1, $runs);
+        self::assertCount(1, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertCount(1, iterator_to_array($this->db->select('idempotency_effects')->execute()));
+
+        self::assertSame(
+            ['ok' => true, 'run' => 1],
+            $store->execute('k', 'op', ['a' => 1], function () use (&$runs): array {
+                $runs++;
+
+                return ['ok' => false, 'run' => $runs];
+            }),
+        );
+        self::assertSame(1, $runs);
+    }
+
+    #[Test]
+    public function pre_commit_completion_exception_rolls_back_mutation_and_allows_retry(): void
+    {
+        $store = $this->store();
+        $runs = 0;
+
+        try {
+            $store->execute('k', 'op', ['a' => 1], function () use (&$runs): array {
+                $runs++;
+                $this->db->query(
+                    'INSERT INTO idempotency_effects (effect_key) VALUES (?)',
+                    ['should-roll-back'],
+                );
+                throw new TransactionCompletionException([
+                    new \RuntimeException('operation failed before commit'),
+                ]);
+            });
+            self::fail('Expected operation failure.');
+        } catch (TransactionCompletionException $failure) {
+            self::assertSame('operation failed before commit', $failure->getPrevious()?->getMessage());
+        }
+
+        self::assertSame(1, $runs);
+        self::assertCount(0, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertCount(0, iterator_to_array($this->db->select('idempotency_effects')->execute()));
+
+        self::assertSame(['ok' => true], $store->execute('k', 'op', ['a' => 1], function () use (&$runs): array {
+            $runs++;
+
+            return ['ok' => true];
+        }));
+        self::assertSame(2, $runs);
+    }
+
+    #[Test]
+    public function pre_commit_operation_failure_rolls_back_mutation_and_idempotency_and_allows_retry(): void
+    {
+        $store = $this->store();
+        $runs = 0;
+
+        try {
+            $store->execute('k', 'op', ['a' => 1], function () use (&$runs): array {
+                $runs++;
+                $this->db->query(
+                    'INSERT INTO idempotency_effects (effect_key) VALUES (?)',
+                    ['should-roll-back'],
+                );
+                throw new \RuntimeException('operation failed before commit');
+            });
+            self::fail('Expected operation failure.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('operation failed before commit', $exception->getMessage());
+            self::assertNotInstanceOf(TransactionCompletionException::class, $exception);
+        }
+
+        self::assertSame(1, $runs);
+        self::assertCount(0, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertCount(0, iterator_to_array($this->db->select('idempotency_effects')->execute()));
+
+        self::assertSame(['ok' => true], $store->execute('k', 'op', ['a' => 1], function () use (&$runs): array {
+            $runs++;
+            $this->db->query(
+                'INSERT INTO idempotency_effects (effect_key) VALUES (?)',
+                ['retry'],
+            );
+
+            return ['ok' => true];
+        }));
+        self::assertSame(2, $runs);
+        self::assertCount(1, iterator_to_array($this->db->select('idempotency_effects')->execute()));
     }
 }

@@ -12,6 +12,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Concurrency\EntityMutationAuthority;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
@@ -51,6 +52,7 @@ final class V2EntityRepositoryFactory
         ?\Closure $accessHandlerResolver = null,
         ?StorageBoundary $storageBoundary = null,
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        ?EntityIdentifierResolver $entityReferenceResolver = null,
     ): EntityRepository {
         $storageBoundary ??= new StorageBoundary();
 
@@ -75,6 +77,7 @@ final class V2EntityRepositoryFactory
             $accessHandlerResolver,
             $storageBoundary,
             $fieldReadScope,
+            $entityReferenceResolver,
         );
     }
 
@@ -95,6 +98,7 @@ final class V2EntityRepositoryFactory
         ?\Closure $accessHandlerResolver = null,
         ?StorageBoundary $storageBoundary = null,
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        ?EntityIdentifierResolver $entityReferenceResolver = null,
     ): EntityRepository {
         $storageBoundary ??= new StorageBoundary();
         if ($driver instanceof InMemoryStorageDriver) {
@@ -135,6 +139,7 @@ final class V2EntityRepositoryFactory
             $accessHandlerResolver,
             $storageBoundary,
             $fieldReadScope,
+            $entityReferenceResolver,
         );
     }
 }
