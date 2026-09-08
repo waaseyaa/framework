@@ -82,7 +82,7 @@ final class ProjectConfigAuthorizerTest extends TestCase
     public function commandAuthorizesActualDocumentsAndRefusesMissingCustodyWithoutSuccessOutput(): void
     {
         $root = sys_get_temp_dir() . '/waaseyaa_authorize_handler_' . bin2hex(random_bytes(6));
-        mkdir($root, 0700);
+        mkdir($root, 0o700);
         try {
             $yaml = (string) file_get_contents(__DIR__ . '/../../../../site-contract/tests/Fixtures/Blueprint/valid/complete.yaml');
             $manifest = new SiteManifestParser()->parse($yaml);
@@ -118,7 +118,116 @@ final class ProjectConfigAuthorizerTest extends TestCase
                 self::assertStringContainsString('project:config:authorize refused:', $err->fetch());
             }
         } finally {
-            foreach (glob($root . '/*') ?: [] as $path) { unlink($path); }
+            foreach (glob($root . '/*') ?: [] as $path) {
+                unlink($path);
+            }
+            rmdir($root);
+        }
+    }
+
+    #[Test]
+    public function commandOptionallyBindsCanonicalManifestAndPlanBeforeSuccessOutput(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_authorize_binding_' . bin2hex(random_bytes(6));
+        mkdir($root, 0o700);
+        try {
+            $yaml = (string) file_get_contents(__DIR__ . '/../../../../site-contract/tests/Fixtures/Blueprint/valid/complete.yaml');
+            $manifest = new SiteManifestParser()->parse($yaml);
+            $plan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            $receipt = BlueprintDecisionReceipt::fromArray([
+                'schema' => BlueprintDecisionReceipt::SCHEMA_ID,
+                'version' => BlueprintDecisionReceipt::CONTRACT_VERSION,
+                'decision' => 'approved',
+                'blueprint_digest' => $manifest->applicationBlueprint?->digest,
+                'manifest_digest' => $manifest->digest,
+                'actor' => 'test-reviewer',
+                'decided_at' => '2026-09-08T00:00:00Z',
+                'mechanism' => 'test',
+            ]);
+            file_put_contents($root . '/answers.yaml', $yaml);
+            file_put_contents($root . '/receipt.json', $receipt->canonicalJson());
+
+            $signingCalls = 0;
+            $authorizer = new ProjectConfigAuthorizer(function (
+                string $syncPath,
+                string $scope,
+                int $sequence,
+                array $evidence,
+            ) use (&$signingCalls): ConfigManifestSigningResult {
+                ++$signingCalls;
+                $envelope = $this->envelope($scope, $sequence, $evidence);
+                ConfigManifestEnvelopeFile::write($syncPath, $envelope);
+
+                return new ConfigManifestSigningResult(
+                    ConfigManifestEnvelopeFile::pathFor($syncPath),
+                    hash('sha256', $envelope->manifestBytes),
+                    $scope,
+                    $sequence,
+                    'cfg04:test',
+                    1,
+                    [],
+                );
+            });
+            $factoryCalls = 0;
+            $handler = new \Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler(
+                $root,
+                function () use (&$factoryCalls, $authorizer): ProjectConfigAuthorizer {
+                    ++$factoryCalls;
+
+                    return $authorizer;
+                },
+            );
+            $required = ['answers' => 'answers.yaml', 'decision-receipt' => 'receipt.json'];
+
+            [$legacyIo, $legacyOut, $legacyErr] = $this->commandIo($required);
+            self::assertSame(0, $handler->execute($legacyIo));
+            $legacyBytes = $legacyOut->fetch();
+            self::assertSame('', $legacyErr->fetch());
+
+            [$boundIo, $boundOut, $boundErr] = $this->commandIo($required + [
+                'expected-site-manifest-digest' => $manifest->digest,
+                'expected-site-plan-digest' => $plan->digest,
+            ]);
+            self::assertSame(0, $handler->execute($boundIo));
+            self::assertSame($legacyBytes, $boundOut->fetch());
+            self::assertSame('', $boundErr->fetch());
+            self::assertSame(2, $factoryCalls);
+            self::assertSame(2, $signingCalls);
+
+            $preSigningRefusals = [
+                ['expected-site-manifest-digest' => $manifest->digest],
+                ['expected-site-plan-digest' => $plan->digest],
+                ['expected-site-manifest-digest' => '', 'expected-site-plan-digest' => $plan->digest],
+                ['expected-site-manifest-digest' => str_repeat('A', 64), 'expected-site-plan-digest' => $plan->digest],
+                ['expected-site-manifest-digest' => $manifest->digest, 'expected-site-plan-digest' => str_repeat('0', 63)],
+            ];
+            foreach ($preSigningRefusals as $options) {
+                [$io, $out, $err] = $this->commandIo($required + $options);
+                self::assertSame(1, $handler->execute($io));
+                self::assertSame('', $out->fetch());
+                self::assertStringContainsString('project:config:authorize refused:', $err->fetch());
+                self::assertSame(2, $factoryCalls);
+                self::assertSame(2, $signingCalls);
+            }
+
+            foreach ([
+                [str_repeat('0', 64), $plan->digest],
+                [$manifest->digest, str_repeat('0', 64)],
+            ] as [$expectedManifestDigest, $expectedPlanDigest]) {
+                [$io, $out, $err] = $this->commandIo($required + [
+                    'expected-site-manifest-digest' => $expectedManifestDigest,
+                    'expected-site-plan-digest' => $expectedPlanDigest,
+                ]);
+                self::assertSame(1, $handler->execute($io));
+                self::assertSame('', $out->fetch());
+                self::assertStringContainsString('does not match the evaluated site manifest and plan', $err->fetch());
+            }
+            self::assertSame(4, $factoryCalls);
+            self::assertSame(4, $signingCalls);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $path) {
+                unlink($path);
+            }
             rmdir($root);
         }
     }

@@ -478,6 +478,13 @@ corresponding public `config_manifest_signing.trust_keys` entry and a canonical
 sync directory selected by `config.sync_path` or `WAASEYAA_CONFIG_SYNC_PATH`;
 it receives no signing key or secret-provider configuration.
 
+An authoring caller that already holds the evaluated site identity may supply
+`--expected-site-manifest-digest` and `--expected-site-plan-digest` together.
+Both values are lowercase SHA-256 digests. Missing or malformed pairs are
+refused before signing, and the signed authorization must match both expected
+digests before any success bytes are written. Omitting both options preserves
+the original authoring output.
+
 After `site:init` and `install:init`, the parent invokes
 `project:config:activate` in the generated project. The child derives the
 committed site's canonical manifest and plan digests itself and accepts only an

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorization;
 use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorizer;
 use Waaseyaa\CLI\Site\SitePreset;
 use Waaseyaa\CLI\Site\SitePresetResolver;
@@ -30,6 +31,19 @@ final readonly class ProjectConfigAuthorizeHandler
             $decision = trim((string) ($io->option('decision-receipt') ?? ''));
             if ($answers === '' || $decision === '') {
                 throw new \InvalidArgumentException('project:config:authorize requires --answers and --decision-receipt documents.');
+            }
+            $expectedManifestDigest = $io->option('expected-site-manifest-digest');
+            $expectedPlanDigest = $io->option('expected-site-plan-digest');
+            if (($expectedManifestDigest === null) !== ($expectedPlanDigest === null)) {
+                throw new \InvalidArgumentException(
+                    '--expected-site-manifest-digest and --expected-site-plan-digest must be supplied together.',
+                );
+            }
+            if ($expectedManifestDigest !== null && $expectedPlanDigest !== null) {
+                if (!\is_string($expectedManifestDigest) || !\is_string($expectedPlanDigest)) {
+                    throw new \InvalidArgumentException('Expected site identity options must be strings.');
+                }
+                ProjectConfigAuthorization::scope($expectedManifestDigest, $expectedPlanDigest);
             }
             $answerPath = $this->resolvePath($answers, $projectRoot);
             $answerBytes = is_file($answerPath) && !is_link($answerPath)
@@ -57,6 +71,9 @@ final readonly class ProjectConfigAuthorizeHandler
             }
 
             $authorization = $authorizer->authorize($manifest, $receipt);
+            if (\is_string($expectedManifestDigest) && \is_string($expectedPlanDigest)) {
+                $authorization->assertMatches($expectedManifestDigest, $expectedPlanDigest);
+            }
             $io->writeRaw($authorization->canonicalJson() . "\n");
 
             return 0;
