@@ -154,14 +154,14 @@ final class EntityRepositoryEntityReferenceValidationTest extends TestCase
     {
         $harness = $this->harness($backend);
 
-        foreach ([null, ''] as $value) {
-            $entity = new RefSubjectEntity(['id' => (string) random_int(100, 199), 'author_id' => $value]);
+        foreach ([null, ''] as $index => $value) {
+            $entity = new RefSubjectEntity(['id' => (string) (100 + $index), 'author_id' => $value]);
             $entity->enforceIsNew();
             self::assertSame(EntityConstants::SAVED_NEW, $harness->subjectRepository->save($entity));
         }
 
         if ($backend === ReservedBackendIds::SQL_BLOB) {
-            $entity = new RefSubjectEntity(['id' => (string) random_int(100, 199), 'author_id' => []]);
+            $entity = new RefSubjectEntity(['id' => '102', 'author_id' => []]);
             $entity->enforceIsNew();
             self::assertSame(EntityConstants::SAVED_NEW, $harness->subjectRepository->save($entity));
         }
