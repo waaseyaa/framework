@@ -437,9 +437,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
     public function create(array $values = []): EntityInterface
     {
-        // Shared with SqlEntityStorage::create() via EntityInstantiator so a
-        // fresh entity gets the same field defaults regardless of engine.
-        $values = $this->entityInstantiator->applyFieldDefinitionDefaults($values);
+        // Defaults and entity-owned integrity bindings are prepared before
+        // sealed construction. Stored-row hydration does not use this path.
+        $values = $this->entityInstantiator->prepareCreationValues($values);
 
         $class = $this->entityType->getClass();
         $entity = $this->entityInstantiator->instantiate($class, $values);

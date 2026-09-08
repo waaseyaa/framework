@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Handler;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\User\RegisteredRoleAssignmentService;
 use Waaseyaa\User\RoleRepository;
 
 /**
@@ -29,6 +30,7 @@ final class UserAssignRoleHandler
         private readonly RoleRepository $roleRepository,
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly UserInternalFieldReaderInterface $internalFields,
+        private readonly RegisteredRoleAssignmentService $assignments,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -63,26 +65,10 @@ final class UserAssignRoleHandler
 
         $currentRoles = $this->internalFields->maintenanceAuthorization($user)->roles;
 
-        if ($remove) {
-            $roles = array_values(array_filter(
-                $currentRoles,
-                static fn(string $r): bool => $r !== $roleId,
-            ));
-        } else {
-            // Replace any sibling registry-known role, but preserve roles that
-            // are not in the registry (e.g. ad-hoc or app-specific roles).
-            $registryIds = $this->roleRepository->ids();
-            $kept = array_values(array_filter(
-                $currentRoles,
-                static fn(string $r): bool => !in_array($r, $registryIds, true),
-            ));
-            $roles = array_values(array_unique([...$kept, $roleId]));
-        }
+        $assignment = $this->assignments->change($currentRoles, $roleId, $remove);
 
-        $permissions = $this->computePermissions($roles);
-
-        $user->set('roles', $roles);
-        $user->set('permissions', $permissions);
+        $user->set('roles', $assignment->roles);
+        $user->set('permissions', $assignment->permissions);
         $repository->save($user);
 
         if ($remove) {
@@ -93,36 +79,10 @@ final class UserAssignRoleHandler
 
         $io->writeln(sprintf(
             'Permissions now: %s',
-            $permissions === [] ? '(none)' : implode(', ', $permissions),
+            $assignment->permissions === [] ? '(none)' : implode(', ', $assignment->permissions),
         ));
 
         return 0;
     }
 
-    /**
-     * Union of permissions across every registry-known role the user holds.
-     *
-     * Roles not present in the registry contribute no permissions; their string
-     * membership is preserved on the user but cannot grant permissions here.
-     *
-     * @param array<int, string> $roleIds
-     * @return list<string>
-     */
-    private function computePermissions(array $roleIds): array
-    {
-        $permissions = [];
-
-        foreach ($roleIds as $id) {
-            $role = $this->roleRepository->get($id);
-            if ($role === null) {
-                continue;
-            }
-
-            foreach ($role->permissions as $permission) {
-                $permissions[$permission] = true;
-            }
-        }
-
-        return array_keys($permissions);
-    }
 }

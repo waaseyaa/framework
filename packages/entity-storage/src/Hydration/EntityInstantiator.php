@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage\Hydration;
 
 use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Entity\EntityCreationValuesInterface;
 use Waaseyaa\Entity\EntityInitializationBoundary;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadLayout;
@@ -206,15 +207,17 @@ final class EntityInstantiator
     }
 
     /**
-     * Fills missing keys from registered field definitions before hydration.
-     * Shared by {@see \Waaseyaa\EntityStorage\EntityRepository::create()} and
-     * {@see \Waaseyaa\EntityStorage\SqlEntityStorage::create()} so a fresh
-     * entity gets the SAME field defaults regardless of which engine built it.
+     * Prepares values only for a newly created entity.
+     *
+     * Registered field defaults run first. The entity class may then replace
+     * caller-supplied derived fields through its pure creation contract. The
+     * ordinary instantiate/instantiateSealed hydration paths never call this
+     * method, so historical stored rows remain byte-authoritative.
      *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
      */
-    public function applyFieldDefinitionDefaults(array $values): array
+    public function prepareCreationValues(array $values): array
     {
         foreach ($this->entityType->getFieldDefinitions() as $name => $def) {
             if (array_key_exists($name, $values)) {
@@ -224,6 +227,11 @@ final class EntityInstantiator
             if ($defaultValue !== null) {
                 $values[$name] = $defaultValue;
             }
+        }
+
+        $class = $this->entityType->getClass();
+        if (is_a($class, EntityCreationValuesInterface::class, true)) {
+            $values = $class::prepareCreationValues($values);
         }
 
         return $values;

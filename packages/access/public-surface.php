@@ -46,7 +46,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Access\\Read\\AuthorizationInputReader', 'disposition' => 'public', 'purpose' => 'Generalizes the bound-closure authorizationInput read pattern to any entity, for generated access policies with no entity-specific reader class', 'ref' => '#2788'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserAuthorizationSnapshot', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserCredentialSnapshot', 'disposition' => 'public'],
-        ['fqcn' => 'Waaseyaa\\Access\\User\\UserIdentityLookupInterface', 'disposition' => 'public', 'purpose' => 'Closed audited active-login, mail-only recovery, and mail-existence query boundary'],
+        ['fqcn' => 'Waaseyaa\\Access\\User\\UserIdentityLookupInterface', 'disposition' => 'public', 'purpose' => 'Closed audited active-login, mail-only recovery, and historical login/mail-existence query boundary'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserInternalFieldReaderInterface', 'disposition' => 'public', 'purpose' => 'Narrow reason-specific User credential, session, mail, verification, 2FA, and maintenance read boundary'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserMailSnapshot', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Access\\User\\UserSelfProfileReaderInterface', 'disposition' => 'public'],
