@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Kernel;
 
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
+use Waaseyaa\Foundation\ServiceProvider\CircularServiceResolutionException;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -27,6 +28,20 @@ final class KernelHandlerContainer implements ContainerInterface
     private array $cache = [];
 
     /**
+     * Ids currently being resolved on this container, in the order their
+     * resolution started. Guards the recursive paths below — a kernel
+     * binding closure that calls back into $container->get(...), and the
+     * reflection auto-wiring branch's `$this->get($type->getName())` for
+     * constructor parameters — against a circular dependency that would
+     * otherwise re-enter forever. Cleared via try/finally around every
+     * resolution attempt, success or failure, so a failure never leaves
+     * stale in-flight state behind.
+     *
+     * @var array<string, true>
+     */
+    private array $resolving = [];
+
+    /**
      * @param list<ServiceProvider>                                               $providers
      * @param array<string, \Closure(ContainerInterface): object> $kernelBindings
      */
@@ -41,6 +56,28 @@ final class KernelHandlerContainer implements ContainerInterface
             return $this->cache[$id];
         }
 
+        // Circular dependency: $id is already being resolved further up this
+        // same get() call stack. Report the ordered in-flight chain from
+        // where $id first started to this repeat, rather than recursing to
+        // stack/memory exhaustion.
+        if (isset($this->resolving[$id])) {
+            $chain = array_keys($this->resolving);
+            $start = array_search($id, $chain, true);
+            $cycle = [...array_slice($chain, $start === false ? 0 : $start), $id];
+
+            throw new CircularServiceResolutionException($cycle);
+        }
+
+        $this->resolving[$id] = true;
+        try {
+            return $this->resolveUncached($id);
+        } finally {
+            unset($this->resolving[$id]);
+        }
+    }
+
+    private function resolveUncached(string $id): object
+    {
         // 1. Explicit kernel bindings (BootDiagnosticReport, HealthCheckerInterface, …).
         if (isset($this->kernelBindings[$id])) {
             $instance = ($this->kernelBindings[$id])($this);

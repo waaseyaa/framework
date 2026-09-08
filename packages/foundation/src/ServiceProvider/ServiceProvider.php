@@ -24,6 +24,19 @@ abstract class ServiceProvider implements ServiceProviderInterface
     private array $resolved = [];
 
     /**
+     * In-flight abstracts currently being resolved on THIS object, in the
+     * order their factory invocation started. Only ever populated on the
+     * merge root — a merged child forwards every {@see resolve()} call to
+     * its root before this guard is consulted, so a cycle that crosses a
+     * {@see mergeChildProvider()} boundary is still caught in one place.
+     * Cleared via try/finally around every factory invocation, success or
+     * failure, so a resolution failure never leaves stale in-flight state.
+     *
+     * @var array<string, true>
+     */
+    private array $resolving = [];
+
+    /**
      * When this provider has been merged into a "stack" provider via
      * {@see mergeChildProvider()}, this points at the merge root so all
      * resolution funnels through a single {@see resolve()}/{@see $resolved}
@@ -193,6 +206,18 @@ abstract class ServiceProvider implements ServiceProviderInterface
             return $this->resolved[$abstract];
         }
 
+        // Circular dependency: $abstract's factory is already on this same
+        // resolution call stack. Report the ordered in-flight chain from
+        // where $abstract first started to this repeat, rather than letting
+        // the recursion continue to stack/memory exhaustion.
+        if (isset($this->resolving[$abstract])) {
+            $chain = array_keys($this->resolving);
+            $start = array_search($abstract, $chain, true);
+            $cycle = [...array_slice($chain, $start === false ? 0 : $start), $abstract];
+
+            throw new CircularServiceResolutionException($cycle);
+        }
+
         if (!isset($this->bindings[$abstract])) {
             if ($this->kernelServices !== null) {
                 $resolved = $this->kernelServices->get($abstract);
@@ -206,7 +231,12 @@ abstract class ServiceProvider implements ServiceProviderInterface
         $binding = $this->bindings[$abstract];
         $concrete = $binding['concrete'];
 
-        $instance = is_callable($concrete) ? $concrete() : new $concrete();
+        $this->resolving[$abstract] = true;
+        try {
+            $instance = is_callable($concrete) ? $concrete() : new $concrete();
+        } finally {
+            unset($this->resolving[$abstract]);
+        }
 
         if (!is_object($instance)) {
             throw new \RuntimeException("Concrete for {$abstract} did not produce an object.");
