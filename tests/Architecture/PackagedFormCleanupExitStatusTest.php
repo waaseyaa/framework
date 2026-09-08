@@ -48,6 +48,7 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
      */
     private const SCRIPTS_WITH_EXIT_TRAP = [
         'check-bimaaji-skill-resources',
+        'check-blueprint-governance-enforcement',
         'check-cli-ai-commands-optional',
         'check-cli-health-report',
         'check-cli-io-consumer-contract',

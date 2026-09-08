@@ -869,6 +869,10 @@ The implementation roadmap, current subsystem inventory, one-to-one component ma
 
 ## Manual governance scaffold output
 
+<!-- Spec reviewed 2026-09-08 - #2848 fixture-source-fresh: WorkflowDefinitionEmitter
+assignments emission is CFG-03 writable sync (not bare key/value YAML). Scaffold
+stdout JSON assignment maps and definition hydration are unchanged. -->
+
 `make:policy <name> --entity=<id> [--grant=<operation>:<permission>]...`
 requires an explicit entity id; an optional `--entity-class` supplies its application
 class. It renders the canonical access-policy interface and attribute through the
@@ -882,6 +886,23 @@ and `assignment` map keyed by `entity_type.bundle`. Duplicate transition IDs,
 unknown referenced states and undeclared initial states refuse with exit 2.
 The blueprint PHP renderer and manual JSON output share one canonical definition
 transformation; serialization must not duplicate workflow semantics.
+
+When the blueprint compiler emits workflow artifacts through
+`WorkflowDefinitionEmitter`, each declared workflow still yields a PHP definition
+class whose `DEFINITION` hydrates `Waaseyaa\Workflows\Workflow`. The aggregate
+`config/sync/workflows.assignments.yml` is emitted only when at least one binding
+exists, and it is a CFG-03 writable sync artifact for
+`workflows.assignments@1`: `_meta` carries the deterministic uuid, schema id /
+version / canonical hash, and owner contract from
+`WorkflowAssignmentsConfig::register`, and the field map is the authored
+`entity_type.bundle → workflow_id` rows. Bare key/value YAML without that envelope
+is not the emitter contract. Emit-time registration reads schema identity only;
+it does not run the package's semantic binding-admissibility validator against
+installed entity types. Zero bindings still emit no `config/sync/*` assignments
+file (never an empty CFG-03 object). Schema ownership and import-time semantic
+gates remain in [`content-workflow.md`](./content-workflow.md) and
+[`config-management.md`](./config-management.md); site-compiler product shape
+remains in [`site-golden-path.md`](./site-golden-path.md).
 
 Both commands retain ADR-025 D4 stdout-only behavior. Output is not registered or
 applied by printing it. Application admission, registration and activation use the

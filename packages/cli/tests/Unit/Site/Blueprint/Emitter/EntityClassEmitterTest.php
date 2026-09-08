@@ -209,15 +209,15 @@ final class EntityClassEmitterTest extends TestCase
     }
 
     /**
-     * #2788 (01E), F5/G5 follow-up: the owner relationship field and (for a
-     * workflow-bound entity) `workflow_state` are sealed `Protected` with
-     * `authorizationInput` — every other field is `Public`. Loaded through
+     * The owner relationship field and, for a workflow-bound entity, the
+     * engine-owned `status` and `workflow_state` fields are sealed `Protected`
+     * with `authorizationInput` — every other field is `Public`. Loaded through
      * the real entity/field-read runtime (`EntityBase::level()`,
      * `EntityBase::get()`), not asserted only against the generated source
      * text.
      */
     #[Test]
-    public function theOwnerFieldAndWorkflowStateAreSealedProtectedEveryOtherFieldIsPublic(): void
+    public function theOwnerAndWorkflowFieldsAreSealedProtectedEveryOtherFieldIsPublic(): void
     {
         $manifest = $this->manifest('complete.yaml');
         $emission = new EntityClassEmitter()->emit($manifest->applicationBlueprint, $manifest);
@@ -248,6 +248,7 @@ final class EntityClassEmitterTest extends TestCase
 
             self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Public, $entity->fieldReadLevel('title'));
             self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Protected, $entity->fieldReadLevel('author'));
+            self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Protected, $entity->fieldReadLevel('status'));
             self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Protected, $entity->fieldReadLevel('workflow_state'));
 
             self::assertSame('Welcome', $entity->get('title'));

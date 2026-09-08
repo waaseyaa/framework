@@ -1,0 +1,516 @@
+#!/usr/bin/env bash
+
+# Packaged runtime acceptance for #2848 (FW-GOVERNANCE-PACKAGED-ACCEPTANCE-01).
+#
+# Adapts check-site-recipe-provider-activation's archive/path-repository
+# consumer pattern (no second package or test authority) to prove that a
+# compiled application_blueprint's generated governance registrations
+# (App\Provider\ApplicationBlueprintGovernanceServiceProvider,
+# App\Provider\ApplicationBlueprintServiceProvider) actually participate in
+# real packaged runtime enforcement, not just generated text or a hand-built
+# provider instance.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-blueprint-governance.XXXXXX")"
+source_root="$work/source"
+authoring="$work/authoring"
+consumer="$work/consumer"
+custody="$work/custody"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+write_signing_config() {
+    local target="$1" role="$2" reference="$3" public_key="$4"
+
+    php -r '
+        [$path, $reference, $publicKey, $role] = array_slice($argv, 1);
+        $source = (string) file_get_contents($path);
+        $signing = "    \x27config_manifest_signing\x27 => [\n"
+            . "        \x27trust_keys\x27 => [\n"
+            . "            \x27" . $reference . "\x27 => [\x27algorithm\x27 => \x27Ed25519\x27, \x27public_key\x27 => \x27" . $publicKey . "\x27],\n"
+            . "        ],\n"
+            . "        \x27revoked_trust_keys\x27 => [],\n";
+        if ($role === "authoring") {
+            $signing .= "        \x27signing_key\x27 => [\n"
+                . "            \x27trust_key_reference\x27 => \x27" . $reference . "\x27,\n"
+                . "            \x27secret_reference\x27 => [\n"
+                . "                \x27provider\x27 => \x27authoring-file\x27,\n"
+                . "                \x27identifier\x27 => \x27manifest-signing\x27,\n"
+                . "                \x27secret_class\x27 => \x27token-signing-private-key\x27,\n"
+                . "                \x27purpose\x27 => \x27waaseyaa.config.manifest-signing.v1\x27,\n"
+                . "            ],\n"
+                . "        ],\n";
+        }
+        $signing .= "    ],\n";
+        $updated = preg_replace("/^return \[\n/m", "return [\n" . $signing, $source, 1);
+        if (!is_string($updated) || $updated === $source) {
+            fwrite(STDERR, "Could not inject manifest signing configuration.\n");
+            exit(1);
+        }
+        file_put_contents($path, $updated);
+    ' "$target/config/waaseyaa.php" "$reference" "$public_key" "$role"
+}
+
+cleanup() {
+    # Cleanup must not change the proof's exit status; report a leak on stderr.
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+candidate="${CANDIDATE_SHA:-}"
+if [[ -z "$candidate" ]]; then
+    if [[ -n "$("$root/bin/git" -C "$root" status --porcelain=v1 --untracked-files=all)" ]]; then
+        echo 'The default packaged candidate must be a clean immutable HEAD; commit the reviewed candidate or pass CANDIDATE_SHA.' >&2
+        exit 1
+    fi
+    candidate="HEAD"
+fi
+candidate="$("$root/bin/git" -C "$root" rev-parse --verify "${candidate}^{commit}")"
+
+mkdir -p "$source_root" "$authoring" "$consumer" "$custody"
+chmod 0700 "$custody"
+"$root/bin/git" -C "$root" archive --format=tar "$candidate" \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# One disposable Ed25519 key pair. The private half stays outside both
+# projects; the importing consumer receives only the public trust key.
+php -r '
+    $pair = sodium_crypto_sign_keypair();
+    file_put_contents($argv[1] . "/manifest-signing.key", sodium_crypto_sign_secretkey($pair));
+    chmod($argv[1] . "/manifest-signing.key", 0600);
+    file_put_contents($argv[1] . "/manifest-signing.pub", base64_encode(sodium_crypto_sign_publickey($pair)));
+' "$custody"
+public_key="$(cat "$custody/manifest-signing.pub")"
+trust_reference='cfg04:blueprint-governance-proof'
+
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("g", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/blueprint-governance.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
+
+# A physically separate authoring host uses the same archived package cohort.
+# Only this host installs the custody provider and signing-key reference.
+cp -R "$source_root/skeleton/." "$authoring/"
+rm -f "$authoring/composer.lock" "$authoring/composer.local.json.example"
+mkdir -p "$authoring/storage/framework" "$authoring/storage/files" "$authoring/config/sync" "$authoring/src/Provider"
+cp "$source_root/tests/PackagedForm/fixtures/app-AuthoringCustodyServiceProvider.php" \
+   "$authoring/src/Provider/AuthoringCustodyServiceProvider.php"
+cp "$source_root/tests/PackagedForm/fixtures/app-FileSigningKeyProvider.php" \
+   "$authoring/src/Provider/FileSigningKeyProvider.php"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    $composer["extra"]["waaseyaa"]["providers"][] = "App\\Provider\\AuthoringCustodyServiceProvider";
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$authoring/composer.json" "$source_root"
+
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/blueprint-governance.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$authoring" "$authoring" > "$authoring/.env"
+write_signing_config "$consumer" consumer "$trust_reference" "$public_key"
+write_signing_config "$authoring" authoring "$trust_reference" "$public_key"
+
+if ! "$composer_bin" install --working-dir="$authoring" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer-authoring.out" 2>&1; then
+    tail -100 "$work/composer-authoring.out" >&2
+    exit 1
+fi
+if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authoring-install-init.out" 2>&1; then
+    cat "$work/authoring-install-init.out" >&2
+    echo 'FAIL: install:init failed on the disposable authoring host.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/authoring-install-init.out"
+
+# install:init creates the schema through the command kernel. Match the
+# canonical CFG-03 authoring proof by performing one ordinary full CLI-kernel
+# boot before measuring the store; that boot owns the post-schema default
+# workflow seed, while the later signing command must remain byte-read-only.
+if ! ( cd "$authoring" && php -r '
+    require "vendor/autoload.php";
+    $kernel = new Waaseyaa\Foundation\Kernel\ConsoleKernel((string) getcwd());
+    $kernel->bootForCli();
+' ) >"$work/authoring-stabilize.out" 2>&1; then
+    cat "$work/authoring-stabilize.out" >&2
+    echo 'FAIL: the disposable authoring host could not reach a stable installed boot.' >&2
+    exit 1
+fi
+
+# Installed provenance: every waaseyaa/* package is a real copy from the
+# archived candidate, never a symlink into it.
+php -r '
+    [$consumer, $sourceRoot] = array_slice($argv, 1);
+    $installed = json_decode((string) file_get_contents($consumer . "/vendor/composer/installed.json"), true, flags: JSON_THROW_ON_ERROR);
+    $packages = $installed["packages"] ?? $installed;
+    $sourceRoot = realpath($sourceRoot);
+    foreach ($packages as $package) {
+        $name = $package["name"] ?? null;
+        if (!is_string($name) || !str_starts_with($name, "waaseyaa/") || ($package["type"] ?? null) === "metapackage") {
+            continue;
+        }
+        $installPath = $package["install-path"] ?? null;
+        if (!is_string($installPath) || $installPath === "") {
+            throw new RuntimeException($name . " is missing an install path.");
+        }
+        $raw = dirname($consumer . "/vendor/composer/installed.json") . "/" . $installPath;
+        if (!is_dir($raw) || is_link($raw)) {
+            throw new RuntimeException($name . " was not installed as a real copy.");
+        }
+    }
+    fwrite(STDOUT, "Installed provenance OK: every waaseyaa/* package is a real copy.\n");
+' "$consumer" "$source_root"
+
+# The candidate's own canonical complete blueprint fixture, copied at runtime
+# (not re-authored): packages/site-contract/tests/Fixtures/Blueprint/valid/complete.yaml.
+lock_sha256="$(sha256sum "$consumer/composer.lock" | awk '{print $1}')"
+cp "$source_root/packages/site-contract/tests/Fixtures/Blueprint/valid/complete.yaml" "$consumer/answers.yaml"
+sed -i "s/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/${lock_sha256}/" "$consumer/answers.yaml"
+
+tree_digest() {
+    ( cd "$1" && find . -type f -not -path './vendor/*' -not -name '*.sqlite' | sort | xargs sha256sum | sha256sum | awk '{print $1}' )
+}
+
+read_active_token() {
+    ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/active-token.out" 2>&1
+    active_generation="$(sed -nE 's/.*generation ([a-f0-9]{64}).*/\1/p' "$work/active-token.out" | head -1)"
+    active_sequence="$(sed -nE 's/.*sequence ([0-9]+).*/\1/p' "$work/active-token.out" | head -1)"
+    if [[ -z "$active_generation" || -z "$active_sequence" ]]; then
+        cat "$work/active-token.out" >&2
+        echo 'FAIL: could not read the importing consumer active configuration token.' >&2
+        exit 1
+    fi
+}
+
+# --- Unknown-metadata negative: mutate one policy condition to an
+# already-unit-covered unsupported kind (mirrors
+# packages/site-contract/tests/Fixtures/Blueprint/invalid/unsupported-condition-kind.yaml),
+# run the real packaged dry-run JSON path, require the typed refusal, and
+# prove a byte-identical whole-tree digest with no .waaseyaa. ---
+cp "$consumer/answers.yaml" "$consumer/answers-bad.yaml"
+php -r '
+    $path = $argv[1];
+    $yaml = (string) file_get_contents($path);
+    $needle = "      condition:\n        kind: permission\n        permission: edit article\n";
+    $replacement = "      condition:\n        kind: script\n        script: \"return true;\"\n";
+    if (!str_contains($yaml, $needle)) {
+        fwrite(STDERR, "Could not locate the article_create policy condition to mutate.\n");
+        exit(1);
+    }
+    file_put_contents($path, str_replace($needle, $replacement, $yaml, $count));
+    if ($count !== 1) {
+        fwrite(STDERR, "Expected exactly one mutation site, found {$count}.\n");
+        exit(1);
+    }
+' "$consumer/answers-bad.yaml"
+
+before_bad_digest="$(tree_digest "$consumer")"
+set +e
+( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers-bad.yaml --project-root=. --dry-run ) >"$work/bad-dry-run.json" 2>"$work/bad-dry-run.err"
+bad_exit=$?
+set -e
+if [[ "$bad_exit" -eq 0 ]]; then
+    cat "$work/bad-dry-run.json" "$work/bad-dry-run.err" >&2
+    echo 'FAIL: the mutated unsupported-condition blueprint must refuse dry-run, not succeed.' >&2
+    exit 1
+fi
+if ! grep -Fq 'SITE047_BLUEPRINT_UNSUPPORTED_CONDITION' "$work/bad-dry-run.json" "$work/bad-dry-run.err"; then
+    cat "$work/bad-dry-run.json" "$work/bad-dry-run.err" >&2
+    echo 'FAIL: expected the typed SITE047_BLUEPRINT_UNSUPPORTED_CONDITION refusal.' >&2
+    exit 1
+fi
+if [[ -e "$consumer/.waaseyaa" ]]; then
+    echo 'FAIL: the refused dry-run created .waaseyaa.' >&2
+    exit 1
+fi
+after_bad_digest="$(tree_digest "$consumer")"
+if [[ "$before_bad_digest" != "$after_bad_digest" ]]; then
+    echo 'FAIL: the refused dry-run changed the project tree.' >&2
+    exit 1
+fi
+rm -f "$consumer/answers-bad.yaml"
+echo 'Unknown-metadata dry-run refusal verified (SITE047, byte-identical tree, no .waaseyaa).'
+
+# --- Real decision receipt via the installed production API, not hand JSON. ---
+( cd "$consumer" && php -r '
+    require "vendor/autoload.php";
+    use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
+    use Waaseyaa\SiteContract\SiteManifestParser;
+    $manifest = new SiteManifestParser()->parse((string) file_get_contents("answers.yaml"));
+    $receipt = BlueprintDecisionReceipt::fromArray([
+        "schema" => BlueprintDecisionReceipt::SCHEMA_ID,
+        "version" => BlueprintDecisionReceipt::CONTRACT_VERSION,
+        "decision" => "approved",
+        "blueprint_digest" => $manifest->applicationBlueprint->digest,
+        "manifest_digest" => $manifest->digest,
+        "actor" => "packaged-acceptance-operator",
+        "decided_at" => "2026-09-07T00:00:00Z",
+        "mechanism" => "manual-review",
+    ]);
+    file_put_contents("decision.json", $receipt->canonicalJson() . "\n");
+' )
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers.yaml --decision-receipt=decision.json --project-root=. --dry-run ) >"$work/planned.json" 2>"$work/planned.err"; then
+    cat "$work/planned.json" "$work/planned.err" >&2
+    echo 'FAIL: the real complete blueprint failed to preview.' >&2
+    exit 1
+fi
+grep -Fq '"outcome":"planned"' "$work/planned.json" || { cat "$work/planned.json" >&2; exit 1; }
+[[ ! -e "$consumer/.waaseyaa" ]] || { echo 'FAIL: dry-run created .waaseyaa.' >&2; exit 1; }
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers.yaml --decision-receipt=decision.json --project-root=. --yes ) >"$work/applied.json" 2>"$work/applied.err"; then
+    cat "$work/applied.json" "$work/applied.err" >&2
+    echo 'FAIL: the real complete blueprint failed to apply.' >&2
+    exit 1
+fi
+grep -Fq '"outcome":"applied"' "$work/applied.json" || { cat "$work/applied.json" >&2; exit 1; }
+
+# Literal root composer.json registers both providers exactly once.
+php -r '
+    $composer = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    foreach (["App\\Provider\\ApplicationBlueprintGovernanceServiceProvider", "App\\Provider\\ApplicationBlueprintServiceProvider"] as $fqcn) {
+        $count = count(array_filter($providers, static fn(string $p): bool => $p === $fqcn));
+        if ($count !== 1) {
+            fwrite(STDERR, "{$fqcn}: expected exactly once, found {$count}\n");
+            exit(1);
+        }
+    }
+    fwrite(STDOUT, "Both blueprint providers registered exactly once in literal root composer.json.\n");
+' "$consumer/composer.json"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
+    cat "$work/install-init.out" >&2
+    echo 'FAIL: install:init failed on the blueprint-activated consumer.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/install-init.out"
+
+# Move the generated bundle to the authoring host, sign it through the real
+# config:manifest:sign command, then move only the envelope back. Importing
+# custody remains public-key-only and the active authoring store cannot change.
+rm -rf -- "$authoring/config/sync"
+mkdir -p "$authoring/config/sync"
+cp -R "$consumer/config/sync/." "$authoring/config/sync/"
+if ! diff -qr "$consumer/config/sync" "$authoring/config/sync" >"$work/sync-copy.diff"; then
+    cat "$work/sync-copy.diff" >&2
+    echo 'FAIL: the authoring bundle differs from the generated consumer bundle.' >&2
+    exit 1
+fi
+
+authoring_active_before="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
+if ! ( cd "$authoring" \
+        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
+           php vendor/bin/waaseyaa config:manifest:sign --scope=site:blueprint-governance-proof ) >"$work/sign.out" 2>&1; then
+    cat "$work/sign.out" >&2
+    echo 'FAIL: the disposable authoring host could not sign the generated bundle.' >&2
+    exit 1
+fi
+grep -Fq 'Envelope written to' "$work/sign.out"
+test -f "$authoring/config/sync.envelope.json"
+authoring_active_after="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
+if [[ "$authoring_active_before" != "$authoring_active_after" ]]; then
+    echo 'FAIL: signing mutated the disposable authoring host active store.' >&2
+    exit 1
+fi
+if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
+    cat "$work/sign.out" >&2
+    echo 'FAIL: signing output mentions secret material.' >&2
+    exit 1
+fi
+
+cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
+
+# The consumer is a real-copy install, so public Framework files whose names
+# document signing are present under vendor. Judge custody by secret bytes and
+# app-owned references rather than treating those public filenames as keys.
+if ! php -r '
+    [$root, $privateKeyPath] = array_slice($argv, 1);
+    $privateKey = file_get_contents($privateKeyPath);
+    if (!is_string($privateKey) || $privateKey === "") {
+        fwrite(STDERR, "FAIL: the disposable signing key is unreadable.\n");
+        exit(1);
+    }
+    $seed = substr($privateKey, 0, SODIUM_CRYPTO_SIGN_SEEDBYTES);
+    $pkcs8Der = hex2bin("302e020100300506032b657004220420") . $seed;
+    $needles = [
+        $privateKey,
+        $seed,
+        base64_encode($privateKey),
+        base64_encode($seed),
+        bin2hex($privateKey),
+        bin2hex($seed),
+        $pkcs8Der,
+        base64_encode($pkcs8Der),
+    ];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    );
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || $file->isLink()) {
+            continue;
+        }
+        $bytes = file_get_contents($file->getPathname());
+        if (!is_string($bytes)) {
+            fwrite(STDERR, "FAIL: consumer key-hygiene scan could not read " . $file->getPathname() . "\n");
+            exit(1);
+        }
+        foreach ($needles as $needle) {
+            if (str_contains($bytes, $needle)) {
+                fwrite(STDERR, "FAIL: the importing consumer contains private signing-key bytes in " . $file->getPathname() . "\n");
+                exit(1);
+            }
+        }
+        if (preg_match_all(
+            "/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\\s+([A-Za-z0-9+\\/=\\r\\n]+)-----END [A-Z0-9 ]*PRIVATE KEY-----/",
+            $bytes,
+            $pemMatches,
+        ) !== false) {
+            foreach ($pemMatches[1] as $encodedPem) {
+                $decodedPem = base64_decode(preg_replace("/\\s+/", "", $encodedPem) ?? "", true);
+                if (is_string($decodedPem) && (str_contains($decodedPem, $privateKey) || str_contains($decodedPem, $seed))) {
+                    fwrite(STDERR, "FAIL: the importing consumer contains the private signing key in PEM form.\n");
+                    exit(1);
+                }
+            }
+        }
+    }
+' "$consumer" "$custody/manifest-signing.key"; then
+    exit 1
+fi
+consumer_key_files="$(find "$consumer" -type f -name '*.key' -print)"
+if [[ -n "$consumer_key_files" ]]; then
+    echo 'FAIL: the importing consumer contains a key file:' >&2
+    printf '%s\n' "$consumer_key_files" >&2
+    exit 1
+fi
+if grep -rqE 'AuthoringCustodyServiceProvider|FileSigningKeyProvider|WAASEYAA_AUTHORING_SIGNING_KEY_FILE|authoring-file|signing_key' \
+        "$consumer/composer.json" "$consumer/config" "$consumer/src" "$consumer/.env" 2>/dev/null; then
+    echo 'FAIL: the importing consumer contains an authoring-custody reference.' >&2
+    exit 1
+fi
+
+read_active_token
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+        --activation-request-id=blueprint-governance-import-1 \
+        --expected-generation="$active_generation" \
+        --expected-sequence="$active_sequence" ) >"$work/config-import.out" 2>&1; then
+    cat "$work/config-import.out" >&2
+    echo 'FAIL: config:import failed to activate workflows.assignments.' >&2
+    exit 1
+fi
+cat "$work/config-import.out"
+
+editor_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-editor --email=editor@packaged.test --password=governance-editor-pw)"
+viewer_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-viewer --email=viewer@packaged.test --password=governance-viewer-pw)"
+editor_uid="$(sed -n 's/.*ID: \([0-9]*\).*/\1/p' <<<"$editor_out")"
+viewer_uid="$(sed -n 's/.*ID: \([0-9]*\).*/\1/p' <<<"$viewer_out")"
+[[ -n "$editor_uid" && -n "$viewer_uid" ]] || { echo 'FAIL: could not parse created user IDs.' >&2; exit 1; }
+
+( cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$editor_uid" editor ) >"$work/assign-editor.out" 2>&1
+grep -Fq 'Assigned role' "$work/assign-editor.out"
+( cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$viewer_uid" viewer ) >"$work/assign-viewer.out" 2>&1
+grep -Fq 'Assigned role' "$work/assign-viewer.out"
+
+# The executable probe is part of the candidate evidence. Copy its bytes from
+# the same immutable archive used for every installed package.
+cp "$source_root/tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php" "$consumer/blueprint-governance-enforcement-probe.php"
+
+if ! ( cd "$consumer" && php blueprint-governance-enforcement-probe.php positive "$editor_uid" "$viewer_uid" ) >"$work/probe-positive.out" 2>"$work/probe-positive.err"; then
+    cat "$work/probe-positive.out" "$work/probe-positive.err" >&2
+    echo 'FAIL: the packaged kernel governance probe failed with providers registered.' >&2
+    exit 1
+fi
+cat "$work/probe-positive.out"
+for marker in \
+    'governance-probe kernel boot OK' \
+    'governance-probe role-editor-registered: yes' \
+    'governance-probe role-viewer-registered: yes' \
+    'governance-probe permission-catalogue-edit-article: yes' \
+    'governance-probe permission-catalogue-publish: yes' \
+    'governance-probe article-revisionable: yes' \
+    'governance-probe default-deny-person: yes' \
+    'governance-probe entity-access-viewer-denied: yes' \
+    'governance-probe entity-access-editor-allowed: yes' \
+    'governance-probe workflow-transition-viewer-denied: yes' \
+    'governance-probe workflow-transition-editor-allowed: yes'; do
+    grep -Fq "$marker" "$work/probe-positive.out" || { echo "FAIL: missing marker: $marker" >&2; exit 1; }
+done
+
+# --- Discriminating negative control: remove ONLY the literal-root
+# governance provider entry, clear the manifest cache, leave every generated
+# class/config file untouched, and prove the registry disappears / fails
+# closed. ---
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $providers = $composer["extra"]["waaseyaa"]["providers"] ?? [];
+    $composer["extra"]["waaseyaa"]["providers"] = array_values(array_filter(
+        $providers,
+        static fn(string $p): bool => $p !== "App\\Provider\\ApplicationBlueprintGovernanceServiceProvider",
+    ));
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json"
+rm -f "$consumer/storage/framework/packages.php"
+[[ -f "$consumer/src/Provider/ApplicationBlueprintGovernanceServiceProvider.php" ]] || { echo 'FAIL: rival step must leave the generated class file intact.' >&2; exit 1; }
+
+if ! ( cd "$consumer" && php blueprint-governance-enforcement-probe.php negative ) >"$work/probe-negative.out" 2>"$work/probe-negative.err"; then
+    cat "$work/probe-negative.out" "$work/probe-negative.err" >&2
+    echo 'FAIL: the rival kernel boot must still succeed; only registry observations must change.' >&2
+    exit 1
+fi
+cat "$work/probe-negative.out"
+grep -Fq 'governance-probe kernel boot OK' "$work/probe-negative.out"
+grep -Fq 'governance-probe role-editor-registered: no' "$work/probe-negative.out" || { echo 'FAIL: role registry must disappear after removing the literal-root provider entry.' >&2; exit 1; }
+grep -Fq 'governance-probe role-viewer-registered: no' "$work/probe-negative.out" || { echo 'FAIL: role registry must disappear after removing the literal-root provider entry.' >&2; exit 1; }
+grep -Fq 'governance-probe permission-catalogue-edit-article: no' "$work/probe-negative.out" || { echo 'FAIL: permission catalogue must lose the blueprint permissions.' >&2; exit 1; }
+
+set +e
+new_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-rival --email=rival@packaged.test --password=governance-rival-pw)"
+new_uid="$(sed -n 's/.*ID: \([0-9]*\).*/\1/p' <<<"$new_out")"
+assign_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$new_uid" editor 2>&1)"
+assign_exit=$?
+set -e
+if [[ "$assign_exit" -eq 0 ]]; then
+    echo "$assign_out" >&2
+    echo 'FAIL: assigning the now-unregistered editor role must fail closed.' >&2
+    exit 1
+fi
+grep -Fiq 'unknown role' <<<"$assign_out" || { echo "$assign_out" >&2; echo 'FAIL: expected an Unknown role refusal.' >&2; exit 1; }
+
+printf 'Blueprint governance packaged acceptance passed.\n'
+printf 'Candidate: %s\n' "$candidate"

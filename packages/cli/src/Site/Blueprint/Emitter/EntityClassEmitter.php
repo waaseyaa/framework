@@ -64,16 +64,14 @@ use Waaseyaa\SiteContract\SiteManifest;
  * can override — a field this emitter defaults to `Public` cannot be
  * authored as `Protected`. Left open for contract follow-up F2.
  *
- * A workflow-bound entity also gains a generated `workflow_state` field
- * (`read: Protected`, `settings: ['authorizationInput' => true]`,
- * `stored: FieldStorage::Data`) byte-for-byte matching
- * `Node::$workflow_state` (`packages/node/src/Node.php:81-82`) — the raw
- * input a generated `workflow_state` policy condition and `TransitionService`
- * read. This emitter does NOT also emit Node's boolean `status` field on a
- * bound entity (#2788 review F3 tracks widening the emitted set to match
- * `Node` byte-for-byte as a follow-up) — instead, a workflow-bound entity
- * that itself declares a field OR relationship named `status` or
- * `workflow_state` is refused at compile time
+ * A workflow-bound entity also gains generated `status` and `workflow_state`
+ * fields matching the engine-owned inputs on `Node`: `status` is a boolean
+ * Protected authorization input defaulting to false, while `workflow_state`
+ * is a Protected authorization input stored in `FieldStorage::Data`. The
+ * workflow save guard writes both fields on create and update, so declaring
+ * both is required for a generated `sql-column` entity to remain storable.
+ * A workflow-bound entity that itself declares a field OR relationship named
+ * `status` or `workflow_state` is refused at compile time
  * (`GEN007_UNSUPPORTED_DECLARATION`, {@see self::assertNoWorkflowFieldCollision()})
  * rather than silently producing an unparseable duplicate-property class
  * (a bare `workflow_state` collision) or a class whose author-declared field
@@ -267,13 +265,15 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
             $lines[] = '';
         }
 
-        // F5: a workflow-bound entity needs the raw `workflow_state` a
-        // generated `workflow_state` policy condition and `TransitionService`
-        // read — declared byte-for-byte as `Node::$workflow_state`
-        // (`packages/node/src/Node.php:81-82`): `_data`-stored, sealed
-        // `Protected`, and marked `authorizationInput` so
-        // `AuthorizationInputReader` releases it to a generated policy.
+        // A workflow-bound entity needs both engine-owned workflow values.
+        // WorkflowStateGuard writes `status` on every guarded save, including
+        // create, so a sql-column entity must declare it as a real column.
+        // Both values are Protected authorization inputs; workflow_state stays
+        // in per-revision `_data`, matching Node's storage shape.
         if ($workflowBound) {
+            $lines[] = "    #[Field(type: 'boolean', label: 'Published', default: false, settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)]";
+            $lines[] = '    public bool $status = false;';
+            $lines[] = '';
             $lines[] = "    #[Field(type: 'string', label: 'Workflow state', settings: ['authorizationInput' => true], stored: FieldStorage::Data, read: FieldReadLevel::Protected)]";
             $lines[] = '    public ?string $workflow_state = null;';
             $lines[] = '';

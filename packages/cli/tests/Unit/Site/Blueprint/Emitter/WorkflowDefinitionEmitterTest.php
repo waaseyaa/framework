@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\WorkflowDefinitionEmitter;
+use Waaseyaa\Config\Sync\ConfigSyncDeserializer;
+use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowState;
@@ -15,6 +17,7 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
+use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
 use Waaseyaa\Workflows\Workflow;
 
@@ -58,8 +61,31 @@ final class WorkflowDefinitionEmitterTest extends TestCase
         );
     }
 
+    #[Test]
+    public function itEmitsAssignmentsAsAWritableCfg03SyncArtifactBoundToWorkflowAssignmentsSchema(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new WorkflowDefinitionEmitter()->emit($manifest->applicationBlueprint, $manifest);
+        $yaml = $this->content($emission->artifacts, 'config/sync/workflows.assignments.yml');
+
+        self::assertStringStartsWith("_meta:\n", $yaml);
+        self::assertStringContainsString('schema_id: ' . WorkflowAssignmentsConfig::CONFIG_NAME, $yaml);
+        self::assertStringContainsString('entity_type: workflows', $yaml);
+        self::assertStringContainsString('entity_id: assignments', $yaml);
+        self::assertStringContainsString('article.article: editorial', $yaml);
+
+        $file = new ConfigSyncDeserializer()->fromYaml($yaml, 'workflows.assignments.yml');
+        self::assertSame('workflows', $file->entityType);
+        self::assertSame('assignments', $file->entityId);
+        self::assertTrue($file->isWritableV1());
+        self::assertSame(['article.article' => 'editorial'], $file->fields);
+        self::assertSame(
+            ConfigSyncFile::deterministicUuid('workflows', 'assignments'),
+            $file->uuid,
+        );
+    }
+
     /**
-     * `DEFINITION` must actually be a valid `Workflow::__construct()` payload
      * that passes the real structural `WorkflowValidator` — not merely a
      * byte-identical snapshot.
      */
