@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\ProjectInit;
 
-use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompilerFactory;
 use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
 use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile;
@@ -89,7 +88,30 @@ final readonly class ProjectConfigAuthorizer
 
             return ProjectConfigAuthorization::issue($manifest->digest, $plan->digest, $envelope);
         } finally {
-            new Filesystem()->remove($temporaryRoot);
+            self::removeTemporaryTree($temporaryRoot);
         }
+    }
+
+    private static function removeTemporaryTree(string $root): void
+    {
+        if (!is_dir($root) || is_link($root)) {
+            if (file_exists($root) || is_link($root)) {
+                unlink($root);
+            }
+
+            return;
+        }
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($iterator as $entry) {
+            if ($entry->isLink() || $entry->isFile()) {
+                unlink($entry->getPathname());
+            } else {
+                rmdir($entry->getPathname());
+            }
+        }
+        rmdir($root);
     }
 }
