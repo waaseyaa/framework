@@ -227,6 +227,27 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "authority_context",
+            "class": "command-orchestrator",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "authority_context",
+            "class": "command-orchestrator",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "authority_context",
+            "class": "command-orchestrator",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 3
+        },
+        {
             "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
             "pattern": "active_bridge",
             "class": "command-composition",
@@ -340,6 +361,20 @@
         },
         {
             "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "command-composition",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "command-composition",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
             "pattern": "import_preflight",
             "class": "command-composition",
             "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
@@ -358,6 +393,13 @@
             "class": "command-composition",
             "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
             "occurrence": 3
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "pattern": "import_preflight",
+            "class": "command-composition",
+            "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
+            "occurrence": 4
         },
         {
             "path": "packages/cli/src/Provider/HealthSchemaServiceProvider.php",
@@ -468,6 +510,27 @@
             "path": "packages/cli/src/Provider/OptimizeServiceProvider.php",
             "pattern": "authority_context",
             "class": "derived-consumer",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisIdentity.php",
+            "pattern": "authority_context",
+            "class": "authority-contract",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisIdentity.php",
+            "pattern": "authority_context",
+            "class": "authority-contract",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisIdentity.php",
+            "pattern": "authority_context",
+            "class": "authority-contract",
             "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
             "occurrence": 3
         },

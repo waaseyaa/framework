@@ -124,6 +124,17 @@ pull-request workflows or to ordinary production runtime. Moving the envelope
 between hosts moves no custody: the sidecar carries only signed public bytes, and
 reading it grants nothing until the verifier checks it against a trusted key.
 
+`project:config:authorize` uses this same authoring-host signer for fresh project
+composition. It renders the canonical plan and exact generated sync bytes before
+`project:init`, then emits a public authorization whose signed producer evidence
+binds the site manifest digest, plan digest, and sequence-1 configuration
+manifest. The generated consumer is provisioned once with the corresponding
+public `trust_keys` entry and its canonical `config/sync` path through
+`config.sync_path` or `WAASEYAA_CONFIG_SYNC_PATH`. It is never provisioned with
+the signing secret or secret-provider reference, and it neither signs nor trusts
+new caller-supplied keys during initialization. Each activation and exact retry
+verifies the authorization with the existing CFG-03 trust policy.
+
 ## Schema and verification
 
 All lifecycle columns, version authority, indexes, and append-only revocation

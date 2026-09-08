@@ -2287,6 +2287,13 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/tests/Unit/ProjectInit/InitialProjectConfigActivationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
             "path": "packages/cli/tests/Unit/Provider/AuditServiceProviderCustodyRetainedRedTest.php",
             "pattern": "dbal_factory",
             "class": "test",
