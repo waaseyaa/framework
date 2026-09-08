@@ -102,7 +102,7 @@ php -r '
         ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
     ];
     $composer["require"]["waaseyaa/framework"] = "*";
-    unset($composer["extra"]["merge-plugin"]);
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$consumer/composer.json" "$source_root"
 
@@ -134,7 +134,7 @@ php -r '
         ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
     ];
     $composer["require"]["waaseyaa/framework"] = "*";
-    unset($composer["extra"]["merge-plugin"]);
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
     $composer["extra"]["waaseyaa"]["providers"][] = "App\\Provider\\AuthoringCustodyServiceProvider";
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$authoring/composer.json" "$source_root"
