@@ -84,6 +84,17 @@ final class SignedEnvelopeConfigImportPreflightTest extends TestCase
     }
 
     #[Test]
+    public function transportedEnvelopeSignedOutsideConfiguredTrustIsRefused(): void
+    {
+        $this->expectException(ConfigImportPreflightException::class);
+        $this->preflight()->assertReadyFromEnvelope(
+            $this->signedEnvelope('attacker-secret'),
+            [],
+            [],
+        );
+    }
+
+    #[Test]
     public function exactCommittedReplayRevalidatesSignatureSequenceAndCurrentSync(): void
     {
         $bundle = $this->preflight(replay: new PreflightTestReplayState(5))

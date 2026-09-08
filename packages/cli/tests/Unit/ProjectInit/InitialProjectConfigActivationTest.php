@@ -136,6 +136,25 @@ final class InitialProjectConfigActivationTest extends TestCase
     }
 
     #[Test]
+    public function aPreviouslyCommittedBundleSequenceRefusesBeforeActivation(): void
+    {
+        $authorization = $this->authorization();
+        $activator = new InitialActivationTestActivator($this->authority, $this->replay);
+        $this->replay->last = 1;
+
+        try {
+            $this->coordinator($activator)->activate(
+                $authorization,
+                $authorization->siteManifestDigest,
+                $authorization->sitePlanDigest,
+            );
+            self::fail('Expected the stale initial bundle to be refused.');
+        } catch (ConfigImportPreflightException) {
+            self::assertSame(0, $activator->activationCalls);
+        }
+    }
+
+    #[Test]
     public function anExistingNonGenesisApplicationRefusesBeforeVerificationOrMutation(): void
     {
         $authorization = $this->authorization();
