@@ -156,6 +156,16 @@ if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authori
 fi
 grep -Fq 'Installation is complete.' "$work/authoring-install-init.out"
 
+# install:init creates the schema after provider boot. A fresh second process
+# performs the framework's ordinary post-schema default-workflow seed; do that
+# before measuring the authoring store so the signing assertion isolates the
+# signing command rather than the first schema-capable kernel boot.
+if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authoring-stabilize.out" 2>&1; then
+    cat "$work/authoring-stabilize.out" >&2
+    echo 'FAIL: the disposable authoring host could not reach a stable installed boot.' >&2
+    exit 1
+fi
+
 # Installed provenance: every waaseyaa/* package is a real copy from the
 # archived candidate, never a symlink into it.
 php -r '
