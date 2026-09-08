@@ -1,5 +1,6 @@
 # Revision system (unified, with an optional translation axis)
 
+<!-- Spec reviewed 2026-09-08 - #3034: EntityRepository reads and writes the base-row revision pointer through the entity type's configured `revision` key (default `revision_id`). Revision-history tables retain their repository-owned internal `revision_id` column. References below to a base `revision_id` pointer describe the default key; they do not require entity types to use that name. -->
 <!-- Spec reviewed 2026-09-02 - #2786: NodeServiceProvider declares the `node_type` config entity's `dependencies` field with the registered `json` field-type plugin instead of the unregistered `map` id. Field registration is now the shared admission gate and fails closed for ids the plugin registry cannot project, so `map` would refuse kernel boot. Revision/default-revision behaviour documented here is unchanged; `node_type` is not revisionable. -->
 <!-- Spec reviewed 2026-08-26 - #2562: ContentPublisher is a second production arming site for default-revision discipline (draft saves after a live published pointer). `EntityRepository::promotePublishedRevision()` applies complete-promotion semantics without a workflows subscriber so unbound publish can rewrite the served base row. Storage still does not infer discipline from pointer presence (Playbook H). -->
 <!-- Spec reviewed 2026-08-26 - #2562 review: `clearPublishedRevision()` drops the published pointer and materializes unpublished status on the served base row without copying a diverged working copy. `loadRevision()` skips the live bundle-subtable overlay when the requested revision is not the base `revision_id`. `shouldCreateRevision()` honors `isNewRevision()` on trait-only ContentEntityBase types. -->
@@ -55,13 +56,14 @@ it does now.
 
 | Table | When | Key | Carries |
 |---|---|---|---|
-| `<entity>` | always | `id` (+ `revision_id`, `published_revision_id` pointers) | current/tip values |
+| `<entity>` | always | `id` (+ configured revision key, default `revision_id`; `published_revision_id`) | current/tip values |
 | `<entity>_revision` | `revisionable` | `(entity_id, revision_id)` | full snapshot per default-language revision (unchanged) |
 | `<entity>__translation__revision` | `revisionable` **and** `translatable` | `(entity_id, langcode, revision_id)` | per-language snapshot; `revision_id` monotonic **per `(entity_id, langcode)`** |
 
-We keep A's `revision_id` idiom on both tables (not the M-004 `vid` surrogate),
-so single-axis and the translation axis read the same way and the existing
-single-axis path is untouched. `<entity>__translation__revision` columns:
+The base pointer column is the entity type's `keys.revision` value and defaults
+to `revision_id`. Revision-history tables keep A's internal `revision_id` idiom
+(not the M-004 `vid` surrogate), so single-axis and translation-axis history
+use the same repository-owned identifier. `<entity>__translation__revision` columns:
 `entity_id`, `langcode`, `revision_id`, `revision_created`, `revision_log`,
 `revision_author`, and the field values (a `_data` JSON blob for sql-blob
 entities, the framework default). A composite `UNIQUE (entity_id, langcode, revision_id)`
