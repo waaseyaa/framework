@@ -321,8 +321,18 @@ final class SiteArtifactRenderer
                 exit($exitCode);
             }
             $tests = __TESTS__;
+            // vendor/bin/phpunit's own cacheDirectory (".phpunit.cache" in
+            // phpunit.xml.dist) records real wall-clock test timings in
+            // "test-run-history" on every run. Left at that XML default, the
+            // file lands at the PROJECT ROOT, so two verification runs
+            // against an otherwise-unchanged project produce two different
+            // "identical" trees. --cache-directory here overrides it to a
+            // path under storage/, which is already ephemeral runtime state
+            // (see .gitignore) excluded from every artifact-bundle consumer,
+            // instead of letting the non-deterministic bytes land somewhere
+            // a byte-equality check has to notice and filter out.
             foreach ($tests as $test) {
-                $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($runner) . ' ' . escapeshellarg($root . '/' . $test) . ' --no-coverage';
+                $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($runner) . ' ' . escapeshellarg($root . '/' . $test) . ' --no-coverage --cache-directory=' . escapeshellarg($root . '/storage/.phpunit.cache');
                 passthru($command, $exitCode);
                 if ($exitCode !== 0) {
                     exit($exitCode);

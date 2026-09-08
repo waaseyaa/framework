@@ -63,6 +63,23 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertSame(0o755, $first->artifacts['bin/maintenance/site-verify']->mode);
         self::assertStringContainsString('chdir($root)', $first->artifacts['bin/maintenance/site-verify']->content);
         self::assertStringContainsString('site:doctor --strict --format=json', $first->artifacts['bin/maintenance/site-verify']->content);
+        // FW-REHYDRATION-DRIFT-01 (placeholder — no GitHub issue filed yet):
+        // vendor/bin/phpunit's own cacheDirectory (".phpunit.cache" in the
+        // skeleton's phpunit.xml.dist) records real wall-clock test timings
+        // in "test-run-history" on every run. Left at its XML default, that
+        // file lands at the PROJECT ROOT — a location every artifact-bundle
+        // consumer (e.g. Studio's materialization protocol) must treat as
+        // part of the deliverable tree, so two verification runs against an
+        // otherwise-identical project produce two different "identical"
+        // bundles. Overriding --cache-directory here relocates that cache
+        // under storage/, which the skeleton's own .gitignore already
+        // excludes as ephemeral runtime state (matching vendor/) — so the
+        // non-deterministic bytes are never produced anywhere a byte-equality
+        // check inspects, instead of being produced and then filtered out.
+        self::assertStringContainsString(
+            "--cache-directory=' . escapeshellarg(\$root . '/storage/.phpunit.cache')",
+            $first->artifacts['bin/maintenance/site-verify']->content,
+        );
 
         // #2644: the generated acceptance test originally asserted
         // is_executable() on an extensionless file. Windows resolves
