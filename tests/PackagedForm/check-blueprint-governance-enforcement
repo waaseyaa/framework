@@ -342,11 +342,47 @@ if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
 fi
 
 cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
-if ! "$root/tests/PackagedForm/check-consumer-key-hygiene" "$consumer" "$custody/manifest-signing.key"; then
+
+# The consumer is a real-copy install, so public Framework files whose names
+# document signing are present under vendor. Judge custody by secret bytes and
+# app-owned references rather than treating those public filenames as keys.
+if ! php -r '
+    [$root, $privateKeyPath] = array_slice($argv, 1);
+    $privateKey = file_get_contents($privateKeyPath);
+    if (!is_string($privateKey) || $privateKey === "") {
+        fwrite(STDERR, "FAIL: the disposable signing key is unreadable.\n");
+        exit(1);
+    }
+    $encodedPrivateKey = base64_encode($privateKey);
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    );
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || $file->isLink()) {
+            continue;
+        }
+        $bytes = file_get_contents($file->getPathname());
+        if (!is_string($bytes)) {
+            fwrite(STDERR, "FAIL: consumer key-hygiene scan could not read " . $file->getPathname() . "\n");
+            exit(1);
+        }
+        if (str_contains($bytes, $privateKey) || str_contains($bytes, $encodedPrivateKey)) {
+            fwrite(STDERR, "FAIL: the importing consumer contains private signing-key bytes.\n");
+            exit(1);
+        }
+    }
+' "$consumer" "$custody/manifest-signing.key"; then
     exit 1
 fi
-if grep -Fq 'signing_key' "$consumer/config/waaseyaa.php"; then
-    echo 'FAIL: the importing consumer contains a signing-key reference.' >&2
+consumer_key_files="$(find "$consumer" -type f -name '*.key' -print)"
+if [[ -n "$consumer_key_files" ]]; then
+    echo 'FAIL: the importing consumer contains a key file:' >&2
+    printf '%s\n' "$consumer_key_files" >&2
+    exit 1
+fi
+if grep -rqE 'AuthoringCustodyServiceProvider|FileSigningKeyProvider|WAASEYAA_AUTHORING_SIGNING_KEY_FILE|authoring-file|signing_key' \
+        "$consumer/composer.json" "$consumer/config" "$consumer/src" "$consumer/.env" 2>/dev/null; then
+    echo 'FAIL: the importing consumer contains an authoring-custody reference.' >&2
     exit 1
 fi
 
