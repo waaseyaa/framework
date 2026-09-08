@@ -19,6 +19,7 @@ use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(ProjectConfigAuthorizer::class)]
+#[CoversClass(\Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler::class)]
 final class ProjectConfigAuthorizerTest extends TestCase
 {
     #[Test]
@@ -74,6 +75,68 @@ final class ProjectConfigAuthorizerTest extends TestCase
         self::assertSame($expectedPlan->digest, $authorization->sitePlanDigest);
         self::assertNotNull($stagedRoot);
         self::assertDirectoryDoesNotExist($stagedRoot);
+    }
+
+
+    #[Test]
+    public function commandAuthorizesActualDocumentsAndRefusesMissingCustodyWithoutSuccessOutput(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_authorize_handler_' . bin2hex(random_bytes(6));
+        mkdir($root, 0700);
+        try {
+            $yaml = (string) file_get_contents(__DIR__ . '/../../../../site-contract/tests/Fixtures/Blueprint/valid/complete.yaml');
+            $manifest = new SiteManifestParser()->parse($yaml);
+            $receipt = BlueprintDecisionReceipt::fromArray([
+                'schema' => BlueprintDecisionReceipt::SCHEMA_ID,
+                'version' => BlueprintDecisionReceipt::CONTRACT_VERSION,
+                'decision' => 'approved',
+                'blueprint_digest' => $manifest->applicationBlueprint?->digest,
+                'manifest_digest' => $manifest->digest,
+                'actor' => 'test-reviewer', 'decided_at' => '2026-09-08T00:00:00Z', 'mechanism' => 'test',
+            ]);
+            file_put_contents($root . '/answers.yaml', $yaml);
+            file_put_contents($root . '/receipt.json', $receipt->canonicalJson());
+            $authorizer = new ProjectConfigAuthorizer(function (string $syncPath, string $scope, int $sequence, array $evidence): ConfigManifestSigningResult {
+                $envelope = $this->envelope($scope, $sequence, $evidence);
+                ConfigManifestEnvelopeFile::write($syncPath, $envelope);
+
+                return new ConfigManifestSigningResult(ConfigManifestEnvelopeFile::pathFor($syncPath), hash('sha256', $envelope->manifestBytes), $scope, $sequence, 'cfg04:test', 1, []);
+            });
+            foreach ([false, true] as $absolute) {
+                $options = ['answers' => ($absolute ? $root . '/' : '') . 'answers.yaml', 'decision-receipt' => 'receipt.json'];
+                [$io, $out, $err] = $this->commandIo($options);
+                $handler = new \Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler($root, static fn() => $authorizer);
+                self::assertSame(0, $handler->execute($io));
+                $result = \Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorization::fromJson($out->fetch());
+                self::assertSame($manifest->digest, $result->siteManifestDigest);
+                self::assertSame('', $err->fetch());
+            }
+            foreach ([[], ['answers' => 'missing.yaml', 'decision-receipt' => 'receipt.json'], ['answers' => 'answers.yaml', 'decision-receipt' => 'receipt.json']] as $options) {
+                [$io, $out, $err] = $this->commandIo($options);
+                self::assertSame(1, new \Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler($root, static fn() => null)->execute($io));
+                self::assertSame('', $out->fetch());
+                self::assertStringContainsString('project:config:authorize refused:', $err->fetch());
+            }
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $path) { unlink($path); }
+            rmdir($root);
+        }
+    }
+
+    /** @param array<string,string> $options @return array{\Waaseyaa\CLI\Command\SymfonyCommandIO,\Symfony\Component\Console\Output\BufferedOutput,\Symfony\Component\Console\Output\BufferedOutput} */
+    private function commandIo(array $options): array
+    {
+        $definitions = [];
+        $values = [];
+        foreach ($options as $name => $value) {
+            $definitions[] = new \Symfony\Component\Console\Input\InputOption($name, null, \Symfony\Component\Console\Input\InputOption::VALUE_REQUIRED);
+            $values['--' . $name] = $value;
+        }
+        $input = new \Symfony\Component\Console\Input\ArrayInput($values, new \Symfony\Component\Console\Input\InputDefinition($definitions));
+        $out = new \Symfony\Component\Console\Output\BufferedOutput();
+        $err = new \Symfony\Component\Console\Output\BufferedOutput();
+
+        return [new \Waaseyaa\CLI\Command\SymfonyCommandIO($input, $out, $err), $out, $err];
     }
 
     /** @param array<string, string> $evidence */

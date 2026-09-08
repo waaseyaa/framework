@@ -84,6 +84,49 @@ final class ProjectConfigAuthorizationTest extends TestCase
         self::assertFalse($parser->isCompleted($payload, $authorization));
     }
 
+
+    #[Test]
+    public function childFailuresRequireClosedNonemptyErrorObjects(): void
+    {
+        $parser = new ProjectConfigActivationResultParser();
+        $valid = ['schema' => 'waaseyaa.project_config_activation_result', 'version' => 1, 'status' => 'refused', 'errors' => [(object) ['message' => 'Wrong authority']]];
+        self::assertSame('refused', $parser->failureStatus((object) $valid));
+        $valid['status'] = 'uncertain';
+        self::assertSame('uncertain', $parser->failureStatus((object) $valid));
+        foreach ([[], ['message' => 'not a list'], [null], [(object) ['message' => ' ']], [(object) ['message' => 42]], [(object) ['message' => 'failure', 'success' => true]]] as $errors) {
+            $invalid = $valid;
+            $invalid['errors'] = $errors;
+            self::assertNull($parser->failureStatus((object) $invalid));
+        }
+        $valid['unknown'] = true;
+        self::assertNull($parser->failureStatus((object) $valid));
+    }
+
+
+    #[Test]
+    public function authorizationRejectsMalformedTransportAndAmbiguousContractFields(): void
+    {
+        $authorization = ProjectConfigAuthorization::issue(str_repeat('a', 64), str_repeat('b', 64), $this->envelope(str_repeat('a', 64), str_repeat('b', 64)));
+        foreach (['{', 'null', '[]', json_encode($authorization->toArray(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)] as $bytes) {
+            try {
+                ProjectConfigAuthorization::fromJson($bytes);
+                self::fail('Malformed or noncanonical transport was accepted.');
+            } catch (\InvalidArgumentException $error) {
+                self::assertStringContainsString('JSON', $error->getMessage());
+            }
+        }
+        foreach (['unknown' => true, 'version' => '1', 'schema' => 'other', 'site_manifest_digest' => str_repeat('A', 64), 'site_plan_digest' => null, 'envelope' => []] as $field => $value) {
+            $document = $authorization->toArray();
+            $document[$field] = $value;
+            try {
+                ProjectConfigAuthorization::fromArray($document);
+                self::fail('Invalid contract field was accepted: ' . $field);
+            } catch (\InvalidArgumentException $error) {
+                self::assertStringContainsString('Project configuration authorization', $error->getMessage());
+            }
+        }
+    }
+
     private function envelope(string $manifestDigest, string $planDigest): SignedConfigManifestEnvelope
     {
         $document = [

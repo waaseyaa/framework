@@ -38,6 +38,8 @@ use Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight;
 use Waaseyaa\Config\Sync\ValidatedConfigSyncEntry;
 
 #[CoversClass(InitialProjectConfigActivation::class)]
+#[CoversClass(\Waaseyaa\CLI\Handler\ProjectConfigActivateHandler::class)]
+#[CoversClass(\Waaseyaa\CLI\ProjectInit\InitialProjectConfigActivationResult::class)]
 final class InitialProjectConfigActivationTest extends TestCase
 {
     private string $root;
@@ -166,6 +168,75 @@ final class InitialProjectConfigActivationTest extends TestCase
         $this->coordinator($activator)->activate($authorization, $authorization->siteManifestDigest, $authorization->sitePlanDigest);
     }
 
+
+    #[Test]
+    public function commandUsesCommittedSiteIdentityAndReportsExactReplay(): void
+    {
+        $identity = $this->writeConsumerIdentity();
+        $digests = $identity->evaluate();
+        $authorization = $this->authorization($digests['manifest'], $digests['plan']);
+        $path = $this->root . '/authorization.json';
+        file_put_contents($path, $authorization->canonicalJson());
+        $activator = new InitialActivationTestActivator($this->authority, $this->replay);
+        $handler = new \Waaseyaa\CLI\Handler\ProjectConfigActivateHandler($this->coordinator($activator), $identity);
+        foreach (['completed', 'already_completed'] as $status) {
+            [$io, $output] = $this->activationIo($path);
+            self::assertSame(0, $handler->execute($io));
+            $result = json_decode($output->fetch(), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame($status, $result['status']);
+            self::assertSame($authorization->bundleManifest->manifestHash, $result['manifest_hash']);
+            self::assertSame([], $result['errors']);
+            self::assertSame($activator->current->generationId, $result['generation_id']);
+        }
+        self::assertSame(1, $activator->activationCalls);
+    }
+
+    #[Test]
+    public function commandRefusesMissingAndMalformedInputsAndPreservesUncertainOutcome(): void
+    {
+        $identity = $this->writeConsumerIdentity();
+        $digests = $identity->evaluate();
+        $path = $this->root . '/authorization.json';
+        $activator = new InitialActivationTestActivator($this->authority, $this->replay, interruptBeforeCommit: true);
+        $handler = new \Waaseyaa\CLI\Handler\ProjectConfigActivateHandler($this->coordinator($activator), $identity);
+        file_put_contents($path, '{}');
+        foreach (['', $this->root . '/absent.json', $path] as $input) {
+            [$io, $output] = $this->activationIo($input);
+            self::assertSame(1, $handler->execute($io));
+            $result = json_decode($output->fetch(), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame('refused', $result['status']);
+            self::assertNotEmpty($result['errors']);
+        }
+        self::assertSame(0, $activator->activationCalls);
+        file_put_contents($path, $this->authorization($digests['manifest'], $digests['plan'])->canonicalJson());
+        [$io, $output] = $this->activationIo($path);
+        self::assertSame(1, $handler->execute($io));
+        $result = json_decode($output->fetch(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('uncertain', $result['status']);
+        self::assertStringContainsString('retry', $result['errors'][0]['message']);
+        self::assertSame(0, $activator->rollbackCalls);
+    }
+
+    private function writeConsumerIdentity(): \Waaseyaa\CLI\ProjectInit\ProjectConfigSiteIdentity
+    {
+        mkdir($this->root . '/.waaseyaa');
+        copy(__DIR__ . '/../../../../site-contract/tests/Fixtures/Blueprint/valid/complete.yaml', $this->root . '/.waaseyaa/site.yaml');
+
+        return new \Waaseyaa\CLI\ProjectInit\ProjectConfigSiteIdentity($this->root);
+    }
+
+    /** @return array{\Waaseyaa\CLI\Command\SymfonyCommandIO,\Symfony\Component\Console\Output\BufferedOutput} */
+    private function activationIo(string $path): array
+    {
+        $definition = new \Symfony\Component\Console\Input\InputDefinition([
+            new \Symfony\Component\Console\Input\InputOption('authorization', null, \Symfony\Component\Console\Input\InputOption::VALUE_REQUIRED),
+        ]);
+        $input = new \Symfony\Component\Console\Input\ArrayInput(['--authorization' => $path], $definition);
+        $output = new \Symfony\Component\Console\Output\BufferedOutput();
+
+        return [new \Waaseyaa\CLI\Command\SymfonyCommandIO($input, $output), $output];
+    }
+
     private function coordinator(InitialActivationTestActivator $activator): InitialProjectConfigActivation
     {
         $compatibility = new ConfigPackageCompatibility([
@@ -196,10 +267,10 @@ final class InitialProjectConfigActivationTest extends TestCase
         );
     }
 
-    private function authorization(): ProjectConfigAuthorization
+    private function authorization(?string $manifestDigest = null, ?string $planDigest = null): ProjectConfigAuthorization
     {
-        $manifestDigest = str_repeat('b', 64);
-        $planDigest = str_repeat('c', 64);
+        $manifestDigest ??= str_repeat('b', 64);
+        $planDigest ??= str_repeat('c', 64);
         $file = $this->syncFile('Community Events');
         $bytes = new ConfigSyncSerializer()->toYaml($file);
         $manifest = ConfigSyncBundleManifest::fromValidatedBundle(
