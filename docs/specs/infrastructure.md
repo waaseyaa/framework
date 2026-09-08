@@ -1,4 +1,18 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-08 - #3025: CacheConfiguration::getConfiguredBins()
+is the canonical, deterministically-ordered enumeration of every bin a
+configuration registers (class-mapped or factory-registered), covered in the
+"CacheFactory and CacheConfiguration" section below. AbstractKernel::
+buildCacheFactory(RuntimeEpochInterface) is the single place the framework's
+production bins (render, discovery, mcp_read) are composed from; HttpKernel::
+finalizeBoot() and the CLI handler-container's CacheFactoryInterface/
+CacheConfiguration kernel bindings (AbstractKernel::buildHandlerContainer())
+both call it, so `cache:clear` (packages/cli/src/Handler/CacheClearHandler.php)
+enumerates and clears exactly the bins HTTP-serving boot registers -- never a
+separately maintained list. Before this, CacheFactoryInterface had no kernel
+binding at all in ConsoleKernel's boot path, so cache:clear could not be
+constructed by the real CLI. Canonical command behavior: docs/specs/cli-kernel.md
+does not cover this handler; see the class docblock and CacheClearHandlerTest. -->
 <!-- Spec reviewed 2026-09-07 - #2664 / FW-PROJECT-INITIALIZER-01: ConsoleKernel
 recognizes project:init at the same pre-boot composition seam as the existing
 site lifecycle commands. The parent command itself remains boot-free; it runs
@@ -679,6 +693,31 @@ $factory = new CacheFactory($config);
 $cache = $factory->get('cache_entity');  // returns DatabaseBackend
 $cache = $factory->get('cache_other');   // returns MemoryBackend
 ```
+
+`CacheConfiguration::getConfiguredBins(): list<string>` is the canonical
+enumeration of every bin explicitly registered on a configuration -- the union
+of `setBackendForBin()` and `setFactoryForBin()` keys, deterministically
+ordered (bin-mapping entries first, then factory entries, duplicates
+collapsed). It deliberately excludes the default backend: a bin name nobody
+registered is not "configured" just because `CacheFactory::get()` will still
+hand back a usable (fresh, unconfigured) instance for it. `CacheFactory::
+getConfiguration(): CacheConfiguration` returns the configuration a factory
+resolves against, so a caller holding only `CacheFactoryInterface` (which does
+not expose bin enumeration, to avoid a breaking interface change) can still
+reach it: `$factory->getConfiguration()->getConfiguredBins()` when `$factory`
+is a `CacheFactory` (`CacheFactoryInterface`'s only implementation).
+
+`AbstractKernel::buildCacheFactory(RuntimeEpochInterface $runtimeEpoch):
+CacheFactory` is the single place the framework's production bins (`render`,
+`discovery`, `mcp_read`) are registered. `HttpKernel::finalizeBoot()` calls it
+after resolving the runtime epoch through its HTTP service resolver (with a
+development-mode `StableRuntimeEpoch` fallback); `AbstractKernel::
+buildHandlerContainer()` binds `CacheFactoryInterface` and `CacheConfiguration`
+in its CLI handler-container kernel bindings, resolving the runtime epoch
+through ordinary provider binding and calling the same method. Both boot paths
+therefore compose the exact same bin list from one call site -- a CLI command
+enumerating "the application's configured bins" (`cache:clear`, #3025) can
+never drift out of sync with what HTTP-serving boot actually registers.
 
 ### Tag invalidation
 
