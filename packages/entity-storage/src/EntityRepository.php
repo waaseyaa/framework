@@ -54,6 +54,7 @@ use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\EntityMutationAuthorityBackfilledEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
+use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
 use Waaseyaa\EntityStorage\Exception\MissingEntityMutationTokenException;
 use Waaseyaa\EntityStorage\Exception\MutationAuthorityBackfillException;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
@@ -658,10 +659,8 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     public function save(EntityInterface $entity, bool $validate = true, ?SaveContext $context = null): int
     {
         if ($this->mutationAuthority !== null && $this->database !== null) {
-            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
-
-            return $unitOfWork->transaction(
-                fn(): int => $this->doSave($entity, $unitOfWork, $validate, $context),
+            return $this->executeInUnitOfWork(
+                fn(UnitOfWork $unitOfWork): int => $this->doSave($entity, $unitOfWork, $validate, $context),
             );
         }
 
@@ -686,10 +685,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw new \LogicException('Atomic publication requires revision storage.');
         }
 
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
         $expectedMutationToken = $entity instanceof EntityBase ? $entity->mutationToken() : null;
 
-        return $unitOfWork->transaction(function () use ($entity, $mutation, $publishRevision, $validate, $publicationFinalizer, $beforeCommit, $unitOfWork, $expectedMutationToken): EntityInterface {
+        return $this->executeInUnitOfWork(function (UnitOfWork $unitOfWork) use ($entity, $mutation, $publishRevision, $validate, $publicationFinalizer, $beforeCommit, $expectedMutationToken): EntityInterface {
             $this->doSave(
                 $entity,
                 $unitOfWork,
@@ -742,8 +740,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     public function delete(EntityInterface $entity): void
     {
         if ($this->mutationAuthority !== null && $this->database !== null) {
-            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
-            $unitOfWork->transaction(function () use ($entity, $unitOfWork): void {
+            $this->executeInUnitOfWork(function (UnitOfWork $unitOfWork) use ($entity): void {
                 $this->doDelete($entity, $unitOfWork);
             });
 
@@ -763,9 +760,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw new \LogicException('saveMany() requires a database connection for transaction support.');
         }
 
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
-
-        return $unitOfWork->transaction(function () use ($entities, $validate, $unitOfWork): array {
+        return $this->executeInUnitOfWork(function (UnitOfWork $unitOfWork) use ($entities, $validate): array {
             $results = [];
             foreach ($entities as $entity) {
                 $results[] = $this->doSave($entity, $unitOfWork, $validate);
@@ -785,15 +780,49 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw new \LogicException('deleteMany() requires a database connection for transaction support.');
         }
 
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
-
-        return $unitOfWork->transaction(function () use ($entities, $unitOfWork): int {
+        return $this->executeInUnitOfWork(function (UnitOfWork $unitOfWork) use ($entities): int {
             foreach ($entities as $entity) {
                 $this->doDelete($entity, $unitOfWork);
             }
 
             return count($entities);
         });
+    }
+
+    /**
+     * Run a repository mutation inside a UnitOfWork and translate only *this*
+     * unit's post-commit {@see TransactionCompletionException} into
+     * {@see EntityMutationCommittedSideEffectsFailedException}.
+     *
+     * A completion exception without this outer transaction's commitment token —
+     * including one from an independent nested repository write during PRE_SAVE /
+     * PRE_DELETE, or a retained failure from an earlier reuse of the same
+     * UnitOfWork — is rethrown unchanged so callers cannot treat another
+     * mutation's durable commit as this call's committed outcome (#2999).
+     *
+     * @template T
+     * @param \Closure(UnitOfWork): T $operation
+     * @return T
+     */
+    private function executeInUnitOfWork(\Closure $operation): mixed
+    {
+        if ($this->database === null) {
+            throw new \LogicException('UnitOfWork requires a database connection.');
+        }
+
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
+
+        try {
+            return $unitOfWork->transaction(
+                fn(): mixed => $operation($unitOfWork),
+            );
+        } catch (TransactionCompletionException $failure) {
+            if ($failure->committedByUnitToken() === $unitOfWork->commitmentToken()) {
+                throw new EntityMutationCommittedSideEffectsFailedException($failure);
+            }
+
+            throw $failure;
+        }
     }
 
     /**

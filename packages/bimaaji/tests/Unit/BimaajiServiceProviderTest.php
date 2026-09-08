@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\RouteCollection;
 use Waaseyaa\Bimaaji\BimaajiServiceProvider;
+use Waaseyaa\CLI\Command\AiVerifyCommand;
 use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraph;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
@@ -275,8 +276,8 @@ final class BimaajiServiceProviderTest extends TestCase
             yield from $provider->consoleCommands();
         })());
 
-        // Two commands: graph:dump (M1 WP02) + bimaaji:install (M5 WP03).
-        self::assertCount(2, $commands);
+        // Three commands: graph:dump (M1 WP02) + bimaaji:install (M5 WP03) + ai:verify (#2664).
+        self::assertCount(3, $commands);
         $byName = [];
         foreach ($commands as $command) {
             self::assertInstanceOf(\Waaseyaa\CLI\Command\HandlerCommand::class, $command);
@@ -292,6 +293,10 @@ final class BimaajiServiceProviderTest extends TestCase
         // Four flags: --client (array), --features (required+default), --dry-run (none), --force (none).
         $installOptions = array_map(static fn(\Waaseyaa\CLI\Command\HandlerOption $opt): string => $opt->name, $byName['bimaaji:install']->handlerOptions());
         self::assertSame(['client', 'features', 'dry-run', 'force'], $installOptions);
+
+        self::assertArrayHasKey('ai:verify', $byName);
+        $verifyOptions = array_map(static fn(\Waaseyaa\CLI\Command\HandlerOption $opt): string => $opt->name, $byName['ai:verify']->handlerOptions());
+        self::assertSame(['client', 'json'], $verifyOptions);
     }
 
     #[Test]
@@ -379,6 +384,7 @@ final class BimaajiServiceProviderTest extends TestCase
         $provider->register();
 
         self::assertInstanceOf(BimaajiInstallCommand::class, $provider->resolve(BimaajiInstallCommand::class));
+        self::assertInstanceOf(AiVerifyCommand::class, $provider->resolve(AiVerifyCommand::class));
     }
 
     private function makeProvider(): BimaajiServiceProvider

@@ -411,7 +411,64 @@ authority — #2664 owns the single generated-state hash/version engine.
 | `--dry-run` | Boolean | off | Print the would-be write set as `[DRY-RUN] would write <path> (<bytes> bytes from skill=<source>)` lines without touching the filesystem. Returns exit 0. Per-client summary still reports `written` (would-write count), `unchanged` (sha1 matches existing), `skipped` (sandbox-rejected). |
 | `--force` | Boolean | off | Skip every confirmation prompt and overwrite existing files unconditionally. Required when running non-interactively against a project that has a diverging existing target file — without `--force` on non-TTY stdin, the command errors and exits non-zero rather than silently overwriting. |
 
+## `ai:verify` (read-only, #2664)
+
+`bin/waaseyaa ai:verify` is the shipped, read-only verification surface for
+Bimaaji-generated agent guidance. It composes the same seven client
+transformers and packaged skill inventory as `bimaaji:install`, but performs
+no writes, updates, or repairs.
+
+| Flag | Mode | Default | Behavior |
+|---|---|---|---|
+| `--client=<id>` | `Array_` (repeatable, comma-separated) | (none) | Limit verification to manifest-recorded clients. When omitted, every client recorded in `.waaseyaa/bimaaji-install.json` is checked. |
+| `--json` | Boolean | off | Emit a bounded, deterministic JSON report on stdout. No file contents or secrets are included. |
+
 Exit codes:
+
+- `0` — strict manifest read succeeded and every selected check passed.
+- `1` — at least one finding failed, or the project root could not be resolved.
+
+### What it checks
+
+1. **Strict manifest read** — `InstalledManifest::readStrict()` reports
+   `missing`, `unreadable`, `malformed`, and `unsupported_schema` distinctly.
+   The installer's `InstalledManifest::load()` fail-soft behaviour is **not**
+   treated as positive proof.
+2. **Manifest row validation** — duplicate ownership paths, unsafe relative
+   paths, invalid sha1 digests, and escaped targets are refused before any
+   target read.
+3. **Containment and bounds** — every recorded path uses the same three-guard
+   boundary as `bimaaji:install` (textual, ancestor, target). Each file read
+   is capped at 1 MiB.
+4. **Dual evidence per recorded target**
+   - **Wholefile (schema 1)** — compares on-disk bytes to the manifest's sha1
+     record. This is legacy provenance, not a claim of complete future AI
+     lifecycle authority.
+   - **Managed region (current render)** — compares the marker-bounded region
+     to what the current transformer would leave after a splice-preserving
+     refresh. Bytes outside the markers may differ when a consumer added
+     hand-authored content; that is valid and does not fail verification, and
+     it is **not** permission to overwrite on a future install.
+5. **Retired and legacy paths**
+   - A manifest path absent from the current render set but still on disk →
+     `target_retired_present`.
+   - A current render path absent from the manifest → `target_unrecorded`
+     (honest legacy evidence; the verifier does not guess pre-manifest
+     installs).
+   - A file without exactly one well-ordered marker pair →
+     `target_managed_region_unprovable`.
+
+Human output uses stable `ai:verify:` lines. `--json` reports `status`,
+`manifest.status`, `clients`, and sorted `findings` codes only.
+
+### Residual #2664 scope
+
+`ai:verify` does **not** implement `ai:update --check/apply`, `project:init
+--upgrade`, Composer post-update reconciliation, `.waaseyaa/generated.json`
+hash authority, or generated-output removal. Those remain separate acceptance
+for Framework #2664 and linked #2660 lifecycle work.
+
+### Install exit codes
 
 - `0` — every requested client installed cleanly (writes, no-ops, or successful overwrites).
 - `1` — at least one error occurred during the run: an unknown client (Levenshtein suggestion in stderr), a sandbox rejection, a non-interactive overwrite-needed failure (`--force` absent + non-TTY + diverging existing file), or a write failure (permission denied / disk full).
@@ -504,6 +561,7 @@ The command never:
 | Retired-target pruning | Shipped (#2656) — `InstalledManifest` records ownership; see [Ownership and pruning retired targets](#ownership-and-pruning-retired-targets). |
 | Codex per-skill delivery (#2660 Part B) | **Accepted implementation decision; candidate qualification and governed landing remain required.** `codex` moved to `PerSkillFile` behind a verified citation; `ClientCapabilityDiagnostics` and `AbstractPerSkillClientTransformer` implement decisions (b) and (c). Manifest ownership, dry-run, and stale-target retirement needed no changes — they already operate on `targetFiles()`'s declared paths regardless of delivery mode. `tests/PackagedForm/check-bimaaji-skill-resources` now installs the exact candidate as copied package bytes, rejects machine-specific paths in canonical guidance, proves Claude/Codex skill-id, source-hash, and per-skill-byte parity without a monorepo skills fallback, and proves each canonical body appears exactly once for all seven registered clients; it also bounds generated root `AGENTS.md` at 16 KiB. `CodexClientTransformerTest` supplies the matching unit-level parity proof. |
 | Development-tool lifecycle (#2660) | The packaged proof also builds a minimal consumer with `waaseyaa/core` + `waaseyaa/cli` at runtime and the canonical `waaseyaa/ai-development` bundle in `require-dev`; that bundle depends on `waaseyaa/ai-agent`, whose runtime requirements bring in Bimaaji. It runs the real installed `bimaaji:install`, resolves every referenced `bin/waaseyaa` command from the installed catalogue, verifies every manifest-recorded sha1, seeds and detects drift, refreshes the managed region without dropping human content, then runs literal `composer install --no-dev`. Its lifecycle-local manifest verifier rejects absolute, traversal, symlinked, and resolved out-of-root paths. The real installer's write/prune sandbox remains separately covered by `InstallCommandSandboxContainmentTest` and the Windows junction gate above; this packaged proof does not claim a real-installer escape probe. The final installed graph contains neither the development bundle nor Bimaaji, and no client transport configuration; portable generated guidance and its relative-path provenance remain. This is package uninstall, not generated-output uninstall. The shared update/check/apply engine and generated-state removal remain #2664. A packaged real-installer sentinel is residual hardening, not evidence claimed by this change. |
+| `ai:verify` read surface (#2664) | **Bounded candidate; qualification pending.** `bin/waaseyaa ai:verify` is registered through `BimaajiServiceProvider`, reuses the seven transformers plus `InstalledManifest::readStrict()` / `GeneratedStateVerifier`, and reports wholefile sha1 provenance separately from managed-region freshness. It does not implement `ai:update`, upgrade migrations, or `.waaseyaa/generated.json` authority. See [`ai:verify`](#aiverify-read-only-2664). |
 
 PR provenance: `#1557` (WP02), `#1563` (WP03), `#1564` (WP04), the
 WP05 close-out PR, and `#2656` (packaged skill resources). Full M5
