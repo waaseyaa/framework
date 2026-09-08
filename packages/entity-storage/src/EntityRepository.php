@@ -205,6 +205,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     }
 
     /**
+     * Return the entity type's base-row revision pointer key.
+     *
+     * Revision history tables use their own fixed `revision_id` column; this
+     * key applies only to entity values and the base storage row.
+     */
+    private function revisionKey(): string
+    {
+        return $this->entityType->getKeys()['revision'] ?? 'revision_id';
+    }
+
+    /**
      * Repository-owned, non-exported persistence authority. First-party raw
      * values are reachable only through the private closure identity retained
      * by this repository; legacy third-party entities keep the diagnosed WP2
@@ -1251,7 +1262,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     // no-database rejection at the top of doSave() guarantees
                     // it (PHPStan narrows the readonly property through that
                     // gate, so no re-check is needed here).
-                    $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+                    $revisionKey = $this->revisionKey();
                     $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
                     $claimed = $this->database->update($entityTypeId)
                         ->fields([$revisionKey => $revisionId])
@@ -1286,15 +1297,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 if ($disciplined) {
                     // Revision-only save (CW-v1 option-1, §2.1): the base
                     // row must not advance past the published pointer, so
-                    // $values keeps its PRE-save revision_id and the base
+                    // $values keeps its PRE-save revision pointer and the base
                     // write below is skipped entirely. The in-memory entity
                     // still gets its new tip id (next line, unconditional).
                     $writeBase = false;
                 } else {
-                    $values['revision_id'] = $revisionId;
+                    $values[$this->revisionKey()] = $revisionId;
                 }
                 if ($entity instanceof ContentEntityInterface) {
-                    $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+                    $revisionKey = $this->revisionKey();
                     if ($entity instanceof EntityBase) {
                         $entity->_hydrateStructuralRevision(
                             $revisionId,
@@ -1385,7 +1396,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     ? (string) $values['revision_log']
                     : null;
                 $revisionId = $this->writeRevisionRow($writtenId, $values, $log, author: $actor);
-                $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+                $revisionKey = $this->revisionKey();
                 $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
                 $this->database?->update($entityTypeId)
                     ->fields([$revisionKey => $revisionId])
@@ -1603,10 +1614,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         $row[$idKey] = $row['entity_id'];
+        $revisionKey = $this->revisionKey();
+        if ($revisionKey !== 'revision_id') {
+            unset($row['revision_id']);
+        }
+        $row[$revisionKey] = $revisionId;
 
         // Determine if this revision is the current default.
         $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
-        $currentRevId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+        $currentRevId = $baseRow !== null ? (int) ($baseRow[$revisionKey] ?? 0) : 0;
         $latestRevId = $this->revisionDriver->getLatestRevisionId($entityId);
         $row['is_default_revision'] = ($revisionId === $currentRevId);
         $row['is_latest_revision'] = ($revisionId === $latestRevId);
@@ -1638,7 +1654,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
     /**
      * Load the entity's working copy: the tip revision when it has diverged
-     * from the base row's `revision_id` pointer, otherwise {@see find()}.
+     * from the base row's configured revision pointer, otherwise {@see find()}.
      *
      * @see EntityRepositoryInterface::loadWorkingCopy() for the full contract.
      */
@@ -1659,7 +1675,8 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         }
 
         $baseRow = $this->readDriverRow($this->entityType->id(), $id);
-        $baseRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+        $revisionKey = $this->revisionKey();
+        $baseRevisionId = $baseRow !== null ? (int) ($baseRow[$revisionKey] ?? 0) : 0;
 
         if ($latestRevisionId > $baseRevisionId) {
             return $this->loadRevision($id, $latestRevisionId);
@@ -1704,8 +1721,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // writeRevision() below, not knowable yet.
         $priorBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $fromRevisionId = null;
-        if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
-            $fromRevisionId = (int) $priorBaseRow['revision_id'];
+        $revisionKey = $this->revisionKey();
+        if ($priorBaseRow !== null && (int) ($priorBaseRow[$revisionKey] ?? 0) > 0) {
+            $fromRevisionId = (int) $priorBaseRow[$revisionKey];
         }
         $beforeEvent = new BeforeRevisionPointerMoveEvent(
             entityTypeId: $this->entityType->id(),
@@ -1764,7 +1782,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $keys = $this->entityType->getKeys();
                 $idKey = $keys['id'] ?? 'id';
                 $targetRow[$idKey] = $entityId;
-                $targetRow['revision_id'] = $newRevisionId;
+                $targetRow[$revisionKey] = $newRevisionId;
                 $this->writeDriverRow($this->entityType->id(), $entityId, $targetRow);
             }
 
@@ -1794,7 +1812,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
     /**
      * List an entity's revisions, newest first, each hydrated with revision
-     * metadata (revision_id, revision_created, revision_log, is_default_revision,
+     * metadata (configured revision key, revision_created, revision_log, is_default_revision,
      * is_latest_revision). The high-level companion to loadRevision()/rollback().
      *
      * @return list<EntityInterface>
@@ -1859,8 +1877,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $actor = $this->resolveActor(null);
         $priorBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $fromRevisionId = null;
-        if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
-            $fromRevisionId = (int) $priorBaseRow['revision_id'];
+        $revisionKey = $this->revisionKey();
+        if ($priorBaseRow !== null && (int) ($priorBaseRow[$revisionKey] ?? 0) > 0) {
+            $fromRevisionId = (int) $priorBaseRow[$revisionKey];
         }
 
         // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
@@ -1878,7 +1897,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
         // Re-point the base table at this revision's values. Strip revision-table
         // bookkeeping columns; the base table tracks the current revision via the
-        // revision_id pointer column.
+        // configured revision pointer column.
         unset($row['revision_created'], $row['revision_log'], $row['revision_author'], $row['entity_id']);
 
         // Invariant (WP-2 rework, review finding #4 containment): revision-restore
@@ -1899,7 +1918,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         $row[$idKey] = $entityId;
-        $row['revision_id'] = $revisionId;
+        if ($revisionKey !== 'revision_id') {
+            unset($row['revision_id']);
+        }
+        $row[$revisionKey] = $revisionId;
 
         $transaction = $this->database?->transaction();
         $completion = $this->completionFor($transaction);
@@ -1948,7 +1970,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * Load the entity's published revision, or null when nothing is published.
      *
      * Reads the base-table `published_revision_id` pointer (separate from the
-     * current/latest `revision_id` pointer) and hydrates that revision. Returns
+     * current/latest configured revision pointer) and hydrates that revision. Returns
      * null when the pointer is NULL/absent — an unpublished entity, or a base
      * table predating the published-pointer column — so the call is safe and
      * backward-compatible on any revisionable entity type.
@@ -2226,7 +2248,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     $outgoingRow['entity_id'],
                 );
                 $outgoingRow[$idKey] = $entityId;
-                $outgoingRow['revision_id'] = $revisionId;
+                $outgoingRow[$this->revisionKey()] = $revisionId;
                 $outgoingRow['published_revision_id'] = $revisionId;
                 $this->writeDriverRow($this->entityType->id(), $entityId, $outgoingRow);
                 if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
@@ -2684,7 +2706,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 ? (string) $row['default_langcode']
                 : $known[0];
             $entity->_hydrateStructuralLanguages($langcode, $default, $known);
-            $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+            $revisionKey = $this->revisionKey();
             $revisionId = $row[$revisionKey] ?? null;
             if (is_int($revisionId) || is_string($revisionId)) {
                 $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
@@ -2764,11 +2786,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
         $row[$idKey] = $row['entity_id'] ?? $entityId;
         $row[$langKey] = $langcode;
-        $row['revision_id'] = $revisionId;
+        $revisionKey = $this->revisionKey();
+        if ($revisionKey !== 'revision_id') {
+            unset($row['revision_id']);
+        }
+        $row[$revisionKey] = $revisionId;
         $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
         $row['is_latest_revision'] = ($revisionId === $latest);
         $baseRow = $this->readDriverRow($this->entityType->id(), $entityId, $langcode);
-        $baseRevisionId = $baseRow === null ? null : (int) ($baseRow['revision_id'] ?? 0);
+        $baseRevisionId = $baseRow === null ? null : (int) ($baseRow[$revisionKey] ?? 0);
         $row['is_default_revision'] = ($baseRevisionId !== null && $baseRevisionId > 0 && $revisionId === $baseRevisionId);
 
         $entity = $this->hydrate($row);
@@ -2888,7 +2914,8 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
         // The current (default) revision is immortal regardless of policy.
         $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
-        $currentRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+        $revisionKey = $this->revisionKey();
+        $currentRevisionId = $baseRow !== null ? (int) ($baseRow[$revisionKey] ?? 0) : 0;
 
         // The published revision is immortal too (FR-038 extension, #1920 task
         // 5). `?? null` tolerates pre-WP-2 base tables that lack the
@@ -2898,7 +2925,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $publishedRevisionId = $publishedRevisionId !== null ? (int) $publishedRevisionId : null;
 
         // The LATEST revision is immortal too (CW-v1 option-1 PR-1, #1920).
-        // Under default-revision discipline the base `revision_id` pointer
+        // Under default-revision discipline the base revision pointer
         // stops tracking the tip (it stays equal to `published_revision_id`
         // — see doSave()), so the working copy (the latest revision) is no
         // longer covered by the current-revision guard above. Without this,
@@ -3009,7 +3036,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $transaction = $this->database?->transaction();
             try {
                 $revisionId = $this->writeRevisionRow($id, $values, $log, author: $actor);
-                $values['revision_id'] = $revisionId;
+                $values[$this->revisionKey()] = $revisionId;
                 $this->writeDriverRow($this->entityType->id(), $id, $values);
                 $transaction?->commit();
             } catch (\Throwable $e) {
