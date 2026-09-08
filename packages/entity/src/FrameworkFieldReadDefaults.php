@@ -24,6 +24,7 @@ final class FrameworkFieldReadDefaults
         'menu|*|label' => 'public',
         'pipeline|*|label' => 'public',
         'retention_policy|*|name' => 'protected',
+        'trace|*|label' => 'internal',
 
         'relationship|*|confidence' => 'protected',
         'relationship|*|directionality' => 'protected',
