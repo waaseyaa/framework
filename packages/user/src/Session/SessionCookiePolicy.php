@@ -353,9 +353,9 @@ final class SessionCookiePolicy
                     'session.cookie.path must be a string.',
                 );
             }
-            if ($path !== '' && !$this->isSafeCookieAttributeValue($path)) {
+            if ($path !== '' && !$this->isSafeCookiePath($path)) {
                 throw new InvalidSessionCookiePolicyException(
-                    'session.cookie.path must not contain control characters.',
+                    'session.cookie.path must not contain control characters or ";" (Set-Cookie attribute delimiter).',
                 );
             }
         }
@@ -367,9 +367,9 @@ final class SessionCookiePolicy
                     'session.cookie.domain must be a string or null.',
                 );
             }
-            if (is_string($domain) && $domain !== '' && !$this->isSafeCookieAttributeValue($domain)) {
+            if (is_string($domain) && $domain !== '' && !$this->isSafeCookieDomain($domain)) {
                 throw new InvalidSessionCookiePolicyException(
-                    'session.cookie.domain must not contain control characters.',
+                    'session.cookie.domain must be a valid cookie Domain value without ";" or control characters.',
                 );
             }
         }
@@ -381,6 +381,27 @@ final class SessionCookiePolicy
     {
         // Reject CR/LF/NUL and other controls that break Set-Cookie framing.
         return !preg_match('/[\x00-\x1f\x7f]/', $value);
+    }
+
+    private function isSafeCookiePath(string $path): bool
+    {
+        // ";" starts another Set-Cookie attribute (e.g. "; HttpOnly") when
+        // interpolated into path=/… by PHP/Symfony serializers.
+        return $this->isSafeCookieAttributeValue($path) && !str_contains($path, ';');
+    }
+
+    private function isSafeCookieDomain(string $domain): bool
+    {
+        if (!$this->isSafeCookieAttributeValue($domain) || str_contains($domain, ';')) {
+            return false;
+        }
+
+        // Cookie Domain: optional leading dot, LDH labels / IPv4 / IPv6 brackets.
+        // Reject spaces and attribute-like tokens while preserving ordinary FQDNs.
+        return (bool) preg_match(
+            '/^\.?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$|^(\d{1,3}\.){3}\d{1,3}$|^\[([0-9a-f:]+)\]$/i',
+            $domain,
+        );
     }
 
     private function assertConfigurationCompatible(): void
