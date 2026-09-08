@@ -101,6 +101,35 @@ final class FrameworkFieldReadDefaultsParityTest extends TestCase
     }
 
     #[Test]
+    public function registered_trace_label_is_internal_without_a_consumer_artifact(): void
+    {
+        $layout = EntityReadRuntime::layoutFor(
+            FrameworkDefaultFixtureEntity::class,
+            ['id' => 'trace-id', 'label' => 'Operator trace label'],
+            'trace',
+            ['id' => 'id', 'label' => 'label'],
+            registeredEntityType: true,
+        );
+
+        $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
+        $manager->registerEntityType(new EntityType(
+            id: 'trace',
+            label: 'Trace',
+            class: FrameworkDefaultFixtureEntity::class,
+            keys: ['id' => 'id', 'label' => 'label'],
+        ));
+        $result = (new FieldAccessPreflightScanner())->scan(
+            $manager,
+            new FieldAccessLiveInventory('candidate', 'schema', liveKeys: ['trace|*|label']),
+        );
+
+        self::assertSame(FieldReadLevel::Internal, $layout->level('label'));
+        self::assertSame('internal:framework_default', $result->data->fields['trace|*|label'] ?? null);
+        self::assertSame([], $result->data->unclassifiedEntries);
+        self::assertTrue($result->ready);
+    }
+
+    #[Test]
     public function universal_bundle_and_language_defaults_are_runtime_preflight_public(): void
     {
         $values = ['id' => 1, 'bundle' => 'article', 'langcode' => 'en', 'default_langcode' => 'en'];

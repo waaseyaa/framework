@@ -11,7 +11,11 @@ use Waaseyaa\AI\Observability\Analysis\AnomalyDetector;
 use Waaseyaa\AI\Observability\ObservabilityServiceProvider;
 use Waaseyaa\AI\Observability\Recorder\NullTraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface;
+use Waaseyaa\AI\Observability\Trace;
 use Waaseyaa\AI\Observability\TraceContext;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\FrameworkFieldReadDefaults;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
@@ -105,5 +109,29 @@ final class ObservabilityServiceProviderTest extends TestCase
         $entityTypes = $provider->getEntityTypes();
         self::assertCount(1, $entityTypes);
         self::assertSame('trace', $entityTypes[0]->id());
+    }
+
+    #[Test]
+    public function registeredTraceLabelUsesTheInternalFrameworkDefault(): void
+    {
+        $provider = new ObservabilityServiceProvider();
+        $provider->setKernelContext('', [], []);
+        $provider->register();
+
+        $definition = $provider->getEntityTypes()[0];
+        self::assertSame(
+            FieldReadLevel::Internal,
+            FrameworkFieldReadDefaults::resolve($definition->id(), $definition->id(), 'label'),
+        );
+        $layout = EntityReadRuntime::layoutFor(
+            Trace::class,
+            ['id' => 1, 'uuid' => 'trace-uuid', 'label' => 'Operator trace label'],
+            $definition->id(),
+            $definition->getKeys(),
+            registeredEntityType: true,
+            entityTypeDefinitions: $definition->getFieldDefinitions(),
+        );
+
+        self::assertSame(FieldReadLevel::Internal, $layout->level('label'));
     }
 }
