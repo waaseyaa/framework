@@ -27,6 +27,9 @@ final class Article extends ContentEntityBase
     #[Field(type: 'entity_reference', label: 'Author', required: true, settings: ['target_entity_type_id' => 'person', 'authorizationInput' => true], read: FieldReadLevel::Protected)]
     public ?int $author = null;
 
+    #[Field(type: 'boolean', label: 'Published', default: false, settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)]
+    public bool $status = false;
+
     #[Field(type: 'string', label: 'Workflow state', settings: ['authorizationInput' => true], stored: FieldStorage::Data, read: FieldReadLevel::Protected)]
     public ?string $workflow_state = null;
 }
