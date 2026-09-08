@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
@@ -21,6 +22,7 @@ use Waaseyaa\EntityStorage\Migration\LegacyEntityDataPayloadUpgrader;
 use Waaseyaa\Foundation\Kernel\Preflight\FieldAccessActivationPreflight;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 
+#[CoversClass(FieldAccessPreflightHandler::class)]
 final class FieldAccessPreflightHandlerTest extends TestCase
 {
     public function test_legacy_payload_upgrade_command_is_registered_for_idempotent_stage_one_use(): void
