@@ -36,9 +36,9 @@ try {
     $entityTypeManager = $kernel->getEntityTypeManager();
     $accessHandler = $kernel->getAccessHandler();
 
-    $roles = $resolver->resolve(RoleRepository::class);
-    $editorRole = $roles instanceof RoleRepository ? $roles->get('editor') : null;
-    $viewerRole = $roles instanceof RoleRepository ? $roles->get('viewer') : null;
+    $roles = $kernel->roleRepository();
+    $editorRole = $roles->get('editor');
+    $viewerRole = $roles->get('viewer');
     marker('role-editor-registered', $editorRole !== null);
     marker('role-viewer-registered', $viewerRole !== null);
 
@@ -46,7 +46,7 @@ try {
     marker('permission-catalogue-edit-article', $catalogue->hasPermission('edit article'));
     marker('permission-catalogue-publish', $catalogue->hasPermission('use editorial transition publish'));
 
-    $articleType = $entityTypeManager->getEntityType('article');
+    $articleType = $entityTypeManager->getDefinition('article');
     marker('article-revisionable', $articleType->isRevisionable());
 
     if ($editorRole === null || $viewerRole === null) {
