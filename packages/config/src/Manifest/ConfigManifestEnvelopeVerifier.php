@@ -42,6 +42,48 @@ final class ConfigManifestEnvelopeVerifier
         );
     }
 
+    /**
+     * Verify an exact replay only after the activation authority found the
+     * matching committed request. Ordinary imports must use verifySigned().
+     */
+    public function verifyCommittedReplay(
+        SignedConfigManifestEnvelope $envelope,
+        ConfigManifestSignatureVerifierInterface $signatureVerifier,
+        ConfigReplayStateReaderInterface $replayState,
+        int $committedBundleSequence,
+    ): VerifiedConfigManifest {
+        if ($committedBundleSequence < 1) {
+            throw new \InvalidArgumentException('Committed bundle sequence must be positive.');
+        }
+        $header = $envelope->protectedHeader;
+        if (($header['algorithm'] ?? null) !== SignedConfigManifestEnvelope::ALGORITHM_V1) {
+            throw new \InvalidArgumentException('Unsupported envelope algorithm.');
+        }
+        $manifest = $this->decodeAndBindManifest($envelope->manifestBytes, $header);
+        $key = (string) $header['trust_key_reference'];
+        if (!$signatureVerifier->verify($key, SignedConfigManifestEnvelope::ALGORITHM_V1, $envelope->preAuthenticatedBytes($this->encoder), $envelope->signature)) {
+            throw new \RuntimeException('Configuration manifest signature verification failed.');
+        }
+        $scope = (string) $header['bundle_scope'];
+        $sequence = (int) $header['bundle_sequence'];
+        $last = $replayState->lastCommittedSequence($scope, $key);
+        if ($last === null || $sequence !== $committedBundleSequence || $last !== $committedBundleSequence) {
+            throw new \RuntimeException(sprintf(
+                'Configuration bundle does not match exact committed sequence %d.',
+                $committedBundleSequence,
+            ));
+        }
+
+        return new VerifiedConfigManifest(
+            manifest: $manifest,
+            manifestHash: $manifest->manifestHash,
+            bundleScope: $scope,
+            bundleSequence: $sequence,
+            trustKeyReference: $key,
+            signed: true,
+        );
+    }
+
     public function verifyUnsigned(ConfigSyncBundleManifest $manifest, UnsignedConfigPolicy $policy): VerifiedConfigManifest
     {
         if (!$policy->allowsUnsigned || $policy->bootstrapSealHash === null) {

@@ -461,12 +461,35 @@ dispatch share `SiteServiceProvider::projectInitCommand()`. The authoritative
 bounded contract is `FW-PROJECT-INITIALIZER-01`.
 
 The accepted options are `--answers`, `--decision-receipt`, `--preset`,
-`--project-root`, `--dry-run`, `--json`, and `--yes`/`-y`. Site options are
+`--project-root`, `--config-authorization`, `--dry-run`, `--json`, and
+`--yes`/`-y`. Site options are
 forwarded as argv values; semantic validation remains in `site:init`.
 `--dry-run` never starts installation. A failed site phase or unconfirmed child
 cleanup prevents installation. Plain mode preserves attached streams; JSON
 mode emits one bounded parent result. Cleanup failure reports the owned PID
 and bounded diagnostic as `PROJECT_INIT006_CHILD_CLEANUP_FAILED`.
+
+`--config-authorization` is an opt-in fresh-project path. Before invoking
+`project:init`, an authoring host runs `project:config:authorize` with the same
+answers and decision receipt. That command renders the canonical site plan and
+exact generated `config/sync` bytes, then signs them through the existing
+configuration-manifest signer. The consumer is provisioned once with the
+corresponding public `config_manifest_signing.trust_keys` entry and a canonical
+sync directory selected by `config.sync_path` or `WAASEYAA_CONFIG_SYNC_PATH`;
+it receives no signing key or secret-provider configuration.
+
+After `site:init` and `install:init`, the parent invokes
+`project:config:activate` in the generated project. The child derives the
+committed site's canonical manifest and plan digests itself and accepts only an
+authorization bound to that identity and to the complete current sync bytes.
+Initial activation requires the exact empty genesis generation and refuses an
+existing application. An exact retry revalidates the signed bundle, current
+sync, committed request, and current activation token before reporting
+`already_completed`. Once the activation child has started, an absent,
+malformed, open-ended, or contradictory result leaves the parent phase
+`uncertain`; only the closed versioned result contract can establish completion
+or a definite refusal. The parent never claims rollback of an unobservable
+activation.
 
 Verification remains `composer site-verify` after successful initialization.
 This command adds no cross-phase rollback, private completion ledger, upgrade,

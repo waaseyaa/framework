@@ -112,6 +112,31 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function itPublishesTheSeparateAuthoringAndConsumerProjectConfigCommands(): void
+    {
+        $commands = [];
+        foreach (new ConfigCacheDbAuditServiceProvider()->consoleCommands() as $command) {
+            if (str_starts_with((string) $command->name, 'project:config:')) {
+                $commands[(string) $command->name] = [
+                    'handler' => $command->sourceClass(),
+                    'options' => array_column($command->handlerOptions(), 'name'),
+                ];
+            }
+        }
+
+        self::assertSame([
+            'project:config:authorize' => [
+                'handler' => \Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler::class,
+                'options' => ['answers', 'decision-receipt', 'preset', 'project-root'],
+            ],
+            'project:config:activate' => [
+                'handler' => \Waaseyaa\CLI\Handler\ProjectConfigActivateHandler::class,
+                'options' => ['authorization'],
+            ],
+        ], $commands);
+    }
+
+    #[Test]
     public function itRegistersAndResolvesTheCompleteConfigurationCommandGraph(): void
     {
         $base = new ConfigurationAuthorityContext(

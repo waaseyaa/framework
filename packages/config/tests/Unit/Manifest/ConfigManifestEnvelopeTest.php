@@ -171,6 +171,39 @@ final class ConfigManifestEnvelopeTest extends TestCase
         self::assertStringStartsWith('unsigned-sealed-local:', $verified->trustKeyReference);
     }
 
+
+    #[Test]
+    public function exactCommittedReplayStillVerifiesSignatureAndSequenceWithoutWritingState(): void
+    {
+        $envelope = SignedConfigManifestEnvelope::sign($this->manifest(sequence: 8), new TestConfigManifestSigner('test-secret'));
+        $replay = new TestReplayStateReader(8);
+        $verifier = new ConfigManifestEnvelopeVerifier();
+        $verified = $verifier->verifyCommittedReplay($envelope, new TestConfigManifestSignatureVerifier('test-secret'), $replay, 8);
+        self::assertSame(8, $verified->bundleSequence);
+        self::assertSame($envelope->protectedHeader['bundle_scope'], $verified->bundleScope);
+        self::assertTrue($verified->signed);
+        self::assertSame(1, $replay->reads);
+        foreach ([null, 7, 9] as $last) {
+            try {
+                $verifier->verifyCommittedReplay($envelope, new TestConfigManifestSignatureVerifier('test-secret'), new TestReplayStateReader($last), 8);
+                self::fail('Mismatched replay state was accepted.');
+            } catch (\RuntimeException $error) {
+                self::assertStringContainsString('exact committed sequence', $error->getMessage());
+            }
+        }
+        $unread = new TestReplayStateReader(8);
+        try {
+            $verifier->verifyCommittedReplay($envelope, new TestConfigManifestSignatureVerifier('wrong-secret'), $unread, 8);
+            self::fail('Replay accepted an invalid signature.');
+        } catch (\RuntimeException $error) {
+            self::assertStringContainsString('signature verification failed', $error->getMessage());
+            self::assertSame(0, $unread->reads);
+        }
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('must be positive');
+        $verifier->verifyCommittedReplay($envelope, new TestConfigManifestSignatureVerifier('test-secret'), $unread, 0);
+    }
+
     private function manifest(int $sequence = 1): ConfigSyncBundleManifest
     {
         $registry = new ConfigSchemaRegistry();

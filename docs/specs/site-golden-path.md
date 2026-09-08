@@ -910,3 +910,21 @@ implementation. No work package may weaken strict mode to make a fixture pass.
 - replacing application-specific design and content decisions; or
 - treating documentation, passing unit tests, or a green forge badge alone as
   proof of convergence.
+## Runnable generated applications
+
+For an application blueprint that emits configuration, filesystem publication
+alone is not a runnable completion state. After one-time operator trust and
+signing-custody provisioning, orchestration may first obtain a canonical
+authorization from `project:config:authorize`, then call
+`project:init --config-authorization=... --json`. The returned version 2
+result is complete only after site publication, installation, and signed
+configuration activation all succeed or an exact committed retry reconciles.
+Missing trust, changed sync bytes, stale authorization, a different evaluated
+site identity, or a non-genesis active application must refuse.
+
+The consumer's one-time bootstrap configuration includes the authoring key's
+public trust entry and selects `<project-root>/config/sync` as its authority
+sync path. Signing custody remains on the authoring host. Subsequent runs need
+only the answer document, its exact approval receipt, and the public signed
+authorization; they do not copy generated sync files or invoke a separate
+sign/import operator sequence.

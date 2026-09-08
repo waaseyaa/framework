@@ -2039,6 +2039,17 @@ generation otherwise. It is not operator-authorized because it runs before any
 account exists; its boundary is the lifecycle plus that precondition. Every
 configuration change after it uses the ordinary verified import path.
 
+Fresh generated projects may make that first verified change through the
+initial-project coordinator after `install:init` creates genesis. The coordinator
+accepts only a signed bundle at sequence 1, requires the current token to be the
+canonical empty genesis token, and binds its deterministic request identity to
+the resolved configuration authority and signed manifest. It derives the
+consumer site's canonical manifest and plan digests from the committed site
+rather than accepting caller assertions. A committed retry revalidates the full
+sync bundle and requires both the recorded result and the currently serving
+token to match before returning read-only completion. Existing applications are
+outside this fresh-only composition and are refused explicitly.
+
 In the ledger, genesis keeps `operation = 'activate'` — it truthfully is an
 activation — and is marked by an additive `is_genesis` column rather than a new
 verb, so the existing CHECK is not widened and the ledger's security triggers

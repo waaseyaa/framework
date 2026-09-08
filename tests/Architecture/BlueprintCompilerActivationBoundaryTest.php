@@ -109,6 +109,8 @@ final class BlueprintCompilerActivationBoundaryTest extends TestCase
         );
         self::assertSame([
             'packages/cli/src/Handler/SiteInitHandler.php',
+            'packages/cli/src/ProjectInit/ProjectConfigAuthorizer.php',
+            'packages/cli/src/ProjectInit/ProjectConfigSiteIdentity.php',
             'packages/cli/src/Site/SiteDoctorService.php',
         ], $this->productionFilesContainingIdentifier('ApplicationBlueprintCompilerFactory', excludeBlueprintDirectory: true));
         self::assertSame([

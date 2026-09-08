@@ -54,6 +54,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Config\\Sync\\ConfigImportApplyHookInterface', 'disposition' => 'public', 'purpose' => 'Cross-cutting hook fired per applied entity during `config:import` (extension point) (M-003, WP04)'],
         ['fqcn' => 'Waaseyaa\\Config\\Sync\\ConfigImportEntryResult', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\Config\\Sync\\ConfigImportPreflightInterface', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\Config\\Sync\\InitialConfigImportPreflightInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Config\\Sync\\ConfigImportResult', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\Config\\Sync\\ConfigImporter', 'disposition' => 'public', 'purpose' => 'Sync → active in topological order; per-entity transaction; orphan-warn default (M-003, WP04)'],
         ['fqcn' => 'Waaseyaa\\Config\\Sync\\ConfigManifestEntry', 'disposition' => 'public', 'purpose' => 'Per-entity manifest row consumed by exporter/importer dashboards (M-003)'],

@@ -205,17 +205,6 @@ tree_digest() {
     ( cd "$1" && find . -type f -not -path './vendor/*' -not -name '*.sqlite' | sort | xargs sha256sum | sha256sum | awk '{print $1}' )
 }
 
-read_active_token() {
-    ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/active-token.out" 2>&1
-    active_generation="$(sed -nE 's/.*generation ([a-f0-9]{64}).*/\1/p' "$work/active-token.out" | head -1)"
-    active_sequence="$(sed -nE 's/.*sequence ([0-9]+).*/\1/p' "$work/active-token.out" | head -1)"
-    if [[ -z "$active_generation" || -z "$active_sequence" ]]; then
-        cat "$work/active-token.out" >&2
-        echo 'FAIL: could not read the importing consumer active configuration token.' >&2
-        exit 1
-    fi
-}
-
 # --- Unknown-metadata negative: mutate one policy condition to an
 # already-unit-covered unsupported kind (mirrors
 # packages/site-contract/tests/Fixtures/Blueprint/invalid/unsupported-condition-kind.yaml),
@@ -284,20 +273,68 @@ echo 'Unknown-metadata dry-run refusal verified (SITE047, byte-identical tree, n
     file_put_contents("decision.json", $receipt->canonicalJson() . "\n");
 ' )
 
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers.yaml --decision-receipt=decision.json --project-root=. --dry-run ) >"$work/planned.json" 2>"$work/planned.err"; then
-    cat "$work/planned.json" "$work/planned.err" >&2
-    echo 'FAIL: the real complete blueprint failed to preview.' >&2
+# The authoring host compiles and signs the exact generated sync bytes before
+# project:init writes anything in the consumer. The private key remains in the
+# separately provisioned custody directory and the authorization is public,
+# signed transport data only.
+authoring_active_before="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
+if ! ( cd "$authoring" \
+        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
+           php vendor/bin/waaseyaa project:config:authorize \
+             --answers="$consumer/answers.yaml" \
+             --decision-receipt="$consumer/decision.json" \
+             --project-root=. ) >"$work/project-config-authorization.json" 2>"$work/project-config-authorization.err"; then
+    cat "$work/project-config-authorization.json" "$work/project-config-authorization.err" >&2
+    echo 'FAIL: the authoring host could not pre-authorize the generated configuration.' >&2
     exit 1
 fi
-grep -Fq '"outcome":"planned"' "$work/planned.json" || { cat "$work/planned.json" >&2; exit 1; }
-[[ ! -e "$consumer/.waaseyaa" ]] || { echo 'FAIL: dry-run created .waaseyaa.' >&2; exit 1; }
+grep -Fq '"schema":"waaseyaa.project_config_authorization"' "$work/project-config-authorization.json"
+authoring_active_after="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
+if [[ "$authoring_active_before" != "$authoring_active_after" ]]; then
+    echo 'FAIL: project configuration authorization mutated the authoring active store.' >&2
+    exit 1
+fi
+if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/project-config-authorization.json" "$work/project-config-authorization.err"; then
+    cat "$work/project-config-authorization.json" "$work/project-config-authorization.err" >&2
+    echo 'FAIL: project configuration authorization output mentions secret material.' >&2
+    exit 1
+fi
 
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa site:init --json --answers=answers.yaml --decision-receipt=decision.json --project-root=. --yes ) >"$work/applied.json" 2>"$work/applied.err"; then
-    cat "$work/applied.json" "$work/applied.err" >&2
-    echo 'FAIL: the real complete blueprint failed to apply.' >&2
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa project:init \
+        --answers=answers.yaml \
+        --decision-receipt=decision.json \
+        --project-root=. \
+        --config-authorization="$work/project-config-authorization.json" \
+        --yes --json ) >"$work/project-init.json" 2>"$work/project-init.err"; then
+    cat "$work/project-init.json" "$work/project-init.err" >&2
+    echo 'FAIL: project:init did not produce a runnable governed application.' >&2
     exit 1
 fi
-grep -Fq '"outcome":"applied"' "$work/applied.json" || { cat "$work/applied.json" >&2; exit 1; }
+php -r '
+    $result = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    foreach (["site", "install", "activation"] as $phase) {
+        if (($result["phases"][$phase]["status"] ?? null) !== "succeeded") {
+            throw new RuntimeException("project:init phase {$phase} did not succeed");
+        }
+    }
+    if (($result["version"] ?? null) !== 2 || ($result["status"] ?? null) !== "completed") {
+        throw new RuntimeException("project:init did not emit a completed v2 result");
+    }
+' "$work/project-init.json"
+
+# Exact retry must reconcile the already committed request without activating
+# a second generation or relaxing ordinary CFG-03 replay protection.
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa project:init \
+        --answers=answers.yaml \
+        --decision-receipt=decision.json \
+        --project-root=. \
+        --config-authorization="$work/project-config-authorization.json" \
+        --yes --json ) >"$work/project-init-retry.json" 2>"$work/project-init-retry.err"; then
+    cat "$work/project-init-retry.json" "$work/project-init-retry.err" >&2
+    echo 'FAIL: exact project:init retry did not reconcile.' >&2
+    exit 1
+fi
+grep -Fq '"status":"already_completed"' "$work/project-init-retry.json"
 
 # Literal root composer.json registers both providers exactly once.
 php -r '
@@ -312,48 +349,6 @@ php -r '
     }
     fwrite(STDOUT, "Both blueprint providers registered exactly once in literal root composer.json.\n");
 ' "$consumer/composer.json"
-
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
-    cat "$work/install-init.out" >&2
-    echo 'FAIL: install:init failed on the blueprint-activated consumer.' >&2
-    exit 1
-fi
-grep -Fq 'Installation is complete.' "$work/install-init.out"
-
-# Move the generated bundle to the authoring host, sign it through the real
-# config:manifest:sign command, then move only the envelope back. Importing
-# custody remains public-key-only and the active authoring store cannot change.
-rm -rf -- "$authoring/config/sync"
-mkdir -p "$authoring/config/sync"
-cp -R "$consumer/config/sync/." "$authoring/config/sync/"
-if ! diff -qr "$consumer/config/sync" "$authoring/config/sync" >"$work/sync-copy.diff"; then
-    cat "$work/sync-copy.diff" >&2
-    echo 'FAIL: the authoring bundle differs from the generated consumer bundle.' >&2
-    exit 1
-fi
-
-authoring_active_before="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
-if ! ( cd "$authoring" \
-        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
-           php vendor/bin/waaseyaa config:manifest:sign --scope=site:blueprint-governance-proof ) >"$work/sign.out" 2>&1; then
-    cat "$work/sign.out" >&2
-    echo 'FAIL: the disposable authoring host could not sign the generated bundle.' >&2
-    exit 1
-fi
-grep -Fq 'Envelope written to' "$work/sign.out"
-test -f "$authoring/config/sync.envelope.json"
-authoring_active_after="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
-if [[ "$authoring_active_before" != "$authoring_active_after" ]]; then
-    echo 'FAIL: signing mutated the disposable authoring host active store.' >&2
-    exit 1
-fi
-if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
-    cat "$work/sign.out" >&2
-    echo 'FAIL: signing output mentions secret material.' >&2
-    exit 1
-fi
-
-cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
 
 # The consumer is a real-copy install, so public Framework files whose names
 # document signing are present under vendor. Judge custody by secret bytes and
@@ -423,17 +418,6 @@ if grep -rqE 'AuthoringCustodyServiceProvider|FileSigningKeyProvider|WAASEYAA_AU
     echo 'FAIL: the importing consumer contains an authoring-custody reference.' >&2
     exit 1
 fi
-
-read_active_token
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
-        --activation-request-id=blueprint-governance-import-1 \
-        --expected-generation="$active_generation" \
-        --expected-sequence="$active_sequence" ) >"$work/config-import.out" 2>&1; then
-    cat "$work/config-import.out" >&2
-    echo 'FAIL: config:import failed to activate workflows.assignments.' >&2
-    exit 1
-fi
-cat "$work/config-import.out"
 
 editor_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-editor --email=editor@packaged.test --password=governance-editor-pw)"
 viewer_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-viewer --email=viewer@packaged.test --password=governance-viewer-pw)"

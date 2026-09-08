@@ -165,6 +165,76 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "activation_request",
+            "class": "mutation-orchestrator",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "activation_request",
+            "class": "mutation-orchestrator",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "activator_contract",
+            "class": "mutation-orchestrator",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "activator_contract",
+            "class": "mutation-orchestrator",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivation.php",
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivationResult.php",
+            "pattern": "active_token",
+            "class": "result-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/ProjectInit/InitialProjectConfigActivationResult.php",
+            "pattern": "active_token",
+            "class": "result-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 2
+        },
+        {
             "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
             "pattern": "activation_command_option",
             "class": "command-composition",
@@ -247,6 +317,20 @@
             "class": "command-composition",
             "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
             "occurrence": 5
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 7
         },
         {
             "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
@@ -408,6 +492,27 @@
             "class": "activation-contract",
             "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
             "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisIdentity.php",
+            "pattern": "active_token",
+            "class": "token-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisIdentity.php",
+            "pattern": "active_token",
+            "class": "token-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisIdentity.php",
+            "pattern": "active_token",
+            "class": "token-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 3
         },
         {
             "path": "packages/config/src/Activation/ConfigurationRollbackRequest.php",

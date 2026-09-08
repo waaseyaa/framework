@@ -19,6 +19,11 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\AuditLogHandler;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
 use Waaseyaa\CLI\Handler\DbInitHandler;
+use Waaseyaa\CLI\Handler\ProjectConfigActivateHandler;
+use Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler;
+use Waaseyaa\CLI\ProjectInit\InitialProjectConfigActivation;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorizer;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigSiteIdentity;
 use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
@@ -36,6 +41,7 @@ use Waaseyaa\Config\Sync\ConfigStatusReporter;
 use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
 use Waaseyaa\Config\Sync\ConfigSyncValidator;
+use Waaseyaa\Config\Sync\InitialConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
@@ -166,6 +172,35 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
         $this->singleton(ConfigResetCommand::class, fn(): ConfigResetCommand => new ConfigResetCommand(
             $this->resolve(ConfigResetter::class),
         ));
+        $this->singleton(ProjectConfigAuthorizeHandler::class, function (): ProjectConfigAuthorizeHandler {
+            return new ProjectConfigAuthorizeHandler(
+                $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd(),
+                function (): ?ProjectConfigAuthorizer {
+                    $signer = $this->manifestBundleSigner();
+
+                    return $signer === null ? null : new ProjectConfigAuthorizer($signer->sign(...));
+                },
+            );
+        });
+        $this->singleton(ProjectConfigActivateHandler::class, function (): ProjectConfigActivateHandler {
+            $repository = $this->resolve(ConfigSyncRepository::class);
+            $activator = $this->resolve(ConfigurationActivatorInterface::class);
+            $authority = $this->resolve(ConfigurationAuthorityContext::class);
+            $preflight = $this->kernelServices?->get(ConfigImportPreflightInterface::class);
+            assert($repository instanceof ConfigSyncRepository);
+            assert($activator instanceof ConfigurationActivatorInterface);
+            assert($authority instanceof ConfigurationAuthorityContext);
+            if (!$preflight instanceof InitialConfigImportPreflightInterface) {
+                throw new ConfigurationAuthorityUnavailableException(
+                    'Initial project configuration requires the signed verifying CFG-03 import authority.',
+                );
+            }
+
+            return new ProjectConfigActivateHandler(
+                new InitialProjectConfigActivation($repository, $preflight, $activator, $authority),
+                new ProjectConfigSiteIdentity($this->projectRoot !== '' ? $this->projectRoot : (string) getcwd()),
+            );
+        });
     }
 
     public function capabilityRequirements(): iterable
@@ -183,6 +218,27 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Preview without writing sync files.'),
             ],
             handler: [ConfigExportCommand::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'project:config:authorize',
+            description: 'Compile and sign the exact generated initial configuration on an authoring host',
+            options: [
+                new HandlerOption('answers', mode: HandlerOptionMode::Required, description: 'Complete site answer document'),
+                new HandlerOption('decision-receipt', mode: HandlerOptionMode::Required, description: 'Approval receipt for the exact blueprint and site manifest'),
+                new HandlerOption('preset', mode: HandlerOptionMode::Required, description: 'Optional initialization preset applied to the answer seed'),
+                new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Authoring project root used to resolve relative inputs'),
+            ],
+            handler: [ProjectConfigAuthorizeHandler::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'project:config:activate',
+            description: 'Verify and activate one signed configuration authorization on a fresh consumer',
+            options: [
+                new HandlerOption('authorization', mode: HandlerOptionMode::Required, description: 'Canonical project configuration authorization document'),
+            ],
+            handler: [ProjectConfigActivateHandler::class, 'execute'],
         );
 
         yield new HandlerCommand(
@@ -289,6 +345,22 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             ],
             handler: [AuditLogHandler::class, 'execute'],
         );
+    }
+
+    private function manifestBundleSigner(): ?ConfigManifestBundleSigner
+    {
+        $signer = $this->resolveOptional(ConfigManifestSignerInterface::class);
+        if (!$signer instanceof ConfigManifestSignerInterface) {
+            return null;
+        }
+        $registry = $this->resolve(ConfigSchemaRegistry::class);
+        $validator = $this->resolve(ConfigSyncBundleValidator::class);
+        $compatibility = $this->resolve(ConfigPackageCompatibility::class);
+        assert($registry instanceof ConfigSchemaRegistry);
+        assert($validator instanceof ConfigSyncBundleValidator);
+        assert($compatibility instanceof ConfigPackageCompatibility);
+
+        return new ConfigManifestBundleSigner($validator, $registry, $compatibility, $signer);
     }
 
     public static function dbInitCommand(string $projectRoot): HandlerCommand

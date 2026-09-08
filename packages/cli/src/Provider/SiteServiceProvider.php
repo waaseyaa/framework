@@ -60,6 +60,7 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
                 new HandlerOption('decision-receipt', mode: HandlerOptionMode::Required, description: 'Approval receipt forwarded to site:init'),
                 new HandlerOption('preset', mode: HandlerOptionMode::Required, description: 'Initialization preset forwarded to site:init'),
                 new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Existing application project root'),
+                new HandlerOption('config-authorization', mode: HandlerOptionMode::Required, description: 'Opt in to signed generated configuration activation using this authoring-host document (requires --json)'),
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Preview site initialization without running installation'),
                 new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit one result describing both initialization phases'),
                 new HandlerOption('yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Forward publication confirmation to site:init'),

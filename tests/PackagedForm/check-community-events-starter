@@ -16,6 +16,8 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-community-events.XXXXXX")"
 artifacts="$work/artifacts"
 seal="$work/seal.json"
 consumer="$work/consumer"
+authoring="$work/authoring"
+custody="$work/custody"
 keep_work=false
 [[ "${1:-}" != "--keep" ]] || keep_work=true
 
@@ -30,6 +32,38 @@ cleanup() {
     return "$status"
 }
 trap cleanup EXIT
+
+write_signing_config() {
+    local target="$1" role="$2" reference="$3" public_key="$4"
+
+    php -r '
+        [$path, $reference, $publicKey, $role] = array_slice($argv, 1);
+        $source = (string) file_get_contents($path);
+        $signing = "    \x27config_manifest_signing\x27 => [\n"
+            . "        \x27trust_keys\x27 => [\n"
+            . "            \x27" . $reference . "\x27 => [\x27algorithm\x27 => \x27Ed25519\x27, \x27public_key\x27 => \x27" . $publicKey . "\x27],\n"
+            . "        ],\n"
+            . "        \x27revoked_trust_keys\x27 => [],\n";
+        if ($role === "authoring") {
+            $signing .= "        \x27signing_key\x27 => [\n"
+                . "            \x27trust_key_reference\x27 => \x27" . $reference . "\x27,\n"
+                . "            \x27secret_reference\x27 => [\n"
+                . "                \x27provider\x27 => \x27authoring-file\x27,\n"
+                . "                \x27identifier\x27 => \x27manifest-signing\x27,\n"
+                . "                \x27secret_class\x27 => \x27token-signing-private-key\x27,\n"
+                . "                \x27purpose\x27 => \x27waaseyaa.config.manifest-signing.v1\x27,\n"
+                . "            ],\n"
+                . "        ],\n";
+        }
+        $signing .= "    ],\n";
+        $updated = preg_replace("/^return \[\n/m", "return [\n" . $signing, $source, 1);
+        if (!is_string($updated) || $updated === $source) {
+            fwrite(STDERR, "Could not inject manifest signing configuration.\n");
+            exit(1);
+        }
+        file_put_contents($path, $updated);
+    ' "$target/config/waaseyaa.php" "$reference" "$public_key" "$role"
+}
 
 if [[ -n "$("$root/bin/git" -C "$root" status --porcelain=v1 --untracked-files=all)" ]]; then
     echo 'The packaged candidate must be a clean immutable HEAD.' >&2
@@ -59,6 +93,47 @@ rm -f "$consumer/composer.lock"
     --no-interaction --no-progress >"$work/composer-install.out" 2>&1
 "$composer_bin" run-script --working-dir="$consumer" post-create-project-cmd \
     >"$work/post-create.out" 2>&1
+
+# Provision trust once on the consumer and keep signing custody on a physically
+# separate authoring host. The authorization command receives only references
+# to the operator-provisioned key and never copies private material into the
+# generated application.
+mkdir -p "$custody"
+chmod 0700 "$custody"
+php -r '
+    $pair = sodium_crypto_sign_keypair();
+    file_put_contents($argv[1] . "/manifest-signing.key", sodium_crypto_sign_secretkey($pair));
+    chmod($argv[1] . "/manifest-signing.key", 0600);
+    file_put_contents($argv[1] . "/manifest-signing.pub", base64_encode(sodium_crypto_sign_publickey($pair)));
+' "$custody"
+public_key="$(cat "$custody/manifest-signing.pub")"
+trust_reference='cfg04:community-events-packaged'
+cp -R "$consumer" "$authoring"
+# The canonical compiler owns config/sync. Select it once as part of consumer
+# authority provisioning so later unattended runs use the same pinned path.
+printf '\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' "$consumer" >>"$consumer/.env"
+write_signing_config "$consumer" consumer "$trust_reference" "$public_key"
+mkdir -p "$authoring/src/Provider"
+cp "$root/tests/PackagedForm/fixtures/app-AuthoringCustodyServiceProvider.php" \
+    "$authoring/src/Provider/AuthoringCustodyServiceProvider.php"
+cp "$root/tests/PackagedForm/fixtures/app-FileSigningKeyProvider.php" \
+    "$authoring/src/Provider/FileSigningKeyProvider.php"
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["extra"]["waaseyaa"]["providers"][] = "App\\Provider\\AuthoringCustodyServiceProvider";
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$authoring/composer.json"
+write_signing_config "$authoring" authoring "$trust_reference" "$public_key"
+"$composer_bin" dump-autoload --working-dir="$authoring" --no-interaction --no-scripts \
+    >"$work/authoring-autoload.out" 2>&1
+( cd "$authoring" && APP_ENV=local php vendor/bin/waaseyaa install:init ) \
+    >"$work/authoring-install-init.out" 2>&1
+( cd "$authoring" && APP_ENV=local php -r '
+    require "vendor/autoload.php";
+    $kernel = new Waaseyaa\Foundation\Kernel\ConsoleKernel((string) getcwd());
+    $kernel->bootForCli();
+' ) >"$work/authoring-stabilize.out" 2>&1
 
 installed_starter="$consumer/vendor/waaseyaa/site-contract/resources/starters/community-events/v1.yaml"
 test -f "$installed_starter" || { echo 'Installed site-contract artifact has no community-events@1 starter.' >&2; exit 1; }
@@ -102,6 +177,29 @@ php -r '
     file_put_contents($argv[1] . "/decision.json", $receipt->canonicalJson() . "\n");
 ' "$consumer"
 
+authoring_store_before="$(sha256sum "$authoring/storage/waaseyaa.sqlite" | awk '{print $1}')"
+if ! ( cd "$authoring" \
+        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
+           APP_ENV=local php vendor/bin/waaseyaa project:config:authorize \
+             --answers="$consumer/community-events.yaml" \
+             --decision-receipt="$consumer/decision.json" \
+             --project-root=. ) >"$work/project-config-authorization.json" 2>"$work/project-config-authorization.err"; then
+    cat "$work/project-config-authorization.json" "$work/project-config-authorization.err" >&2
+    echo 'The authoring host could not pre-authorize Community Events configuration.' >&2
+    exit 1
+fi
+authoring_store_after="$(sha256sum "$authoring/storage/waaseyaa.sqlite" | awk '{print $1}')"
+[[ "$authoring_store_before" == "$authoring_store_after" ]] || {
+    echo 'Project configuration authorization mutated the authoring active store.' >&2
+    exit 1
+}
+grep -Fq '"schema":"waaseyaa.project_config_authorization"' "$work/project-config-authorization.json"
+if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' \
+        "$work/project-config-authorization.json" "$work/project-config-authorization.err"; then
+    echo 'Project configuration authorization output mentions secret material.' >&2
+    exit 1
+fi
+
 snapshot() {
     local destination="$1"
     ( cd "$consumer" && find . \
@@ -112,8 +210,9 @@ snapshot() {
 run_init() {
     local output="$1"
     shift
-    ( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa site:init --json \
-        --answers=community-events.yaml --decision-receipt=decision.json "$@" ) >"$output"
+    ( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa project:init --json \
+        --answers=community-events.yaml --decision-receipt=decision.json \
+        --config-authorization="$work/project-config-authorization.json" "$@" ) >"$output"
 }
 
 echo '== Phase 3/7: canonical dry-run is reviewed and writes nothing'
@@ -124,10 +223,13 @@ cmp "$work/before-preview.sha256" "$work/after-preview.sha256"
 php -r '
     require $argv[2] . "/vendor/autoload.php";
     $document = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
-    if (($document["result"]["outcome"] ?? null) !== "planned") { throw new RuntimeException("preview was not planned"); }
-    $plan = $document["evaluation"]["plan"] ?? null;
+    if (($document["version"] ?? null) !== 2 || ($document["status"] ?? null) !== "previewed") { throw new RuntimeException("project preview was not a v2 result"); }
+    if (($document["phases"]["activation"]["status"] ?? null) !== "not_started") { throw new RuntimeException("dry-run activation was started"); }
+    $site = $document["phases"]["site"]["result"] ?? null;
+    if (($site["result"]["outcome"] ?? null) !== "planned") { throw new RuntimeException("preview was not planned"); }
+    $plan = $site["evaluation"]["plan"] ?? null;
     $digest = hash("sha256", Waaseyaa\SiteContract\CanonicalJson::encode($plan) . "\n");
-    if ($digest !== ($document["evaluation"]["plan_digest"] ?? null)) { throw new RuntimeException("plan digest mismatch"); }
+    if ($digest !== ($site["evaluation"]["plan_digest"] ?? null)) { throw new RuntimeException("plan digest mismatch"); }
     foreach (["tests/Blueprint/EntityAccessChecksTest.php", "tests/Blueprint/JsonApiGovernanceChecksTest.php", "tests/Blueprint/WorkflowTransitionChecksTest.php"] as $path) {
         $paths = array_column($plan["artifacts"] ?? [], "path");
         if (!in_array($path, $paths, true)) { throw new RuntimeException("missing generated companion: {$path}"); }
@@ -145,13 +247,44 @@ php -r '
     $receipt = Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::fromArray(
         json_decode((string) file_get_contents($argv[1] . "/decision.json"), true, flags: JSON_THROW_ON_ERROR),
     );
-    if (($applied["result"]["outcome"] ?? null) !== "applied") { throw new RuntimeException("apply did not publish"); }
-    if (($replayed["result"]["outcome"] ?? null) !== "no_changes") { throw new RuntimeException("replay was not unchanged"); }
+    $plannedSite = $planned["phases"]["site"]["result"] ?? null;
+    $appliedSite = $applied["phases"]["site"]["result"] ?? null;
+    $replayedSite = $replayed["phases"]["site"]["result"] ?? null;
+    if (($appliedSite["result"]["outcome"] ?? null) !== "applied") { throw new RuntimeException("apply did not publish"); }
+    if (($replayedSite["result"]["outcome"] ?? null) !== "no_changes") { throw new RuntimeException("replay was not unchanged"); }
     foreach ([$applied, $replayed] as $document) {
-        if (($document["evaluation"]["plan_digest"] ?? null) !== $planned["evaluation"]["plan_digest"]) { throw new RuntimeException("plan identity drifted"); }
-        if (($document["receipts"][0]["decision_receipt_id"] ?? null) !== $receipt->digest()) { throw new RuntimeException("decision identity drifted"); }
+        foreach (["site", "install", "activation"] as $phase) {
+            if (($document["phases"][$phase]["status"] ?? null) !== "succeeded") { throw new RuntimeException("{$phase} did not succeed"); }
+        }
+        $site = $document["phases"]["site"]["result"] ?? null;
+        if (($site["evaluation"]["plan_digest"] ?? null) !== $plannedSite["evaluation"]["plan_digest"]) { throw new RuntimeException("plan identity drifted"); }
+        if (($site["receipts"][0]["decision_receipt_id"] ?? null) !== $receipt->digest()) { throw new RuntimeException("decision identity drifted"); }
     }
+    if (($applied["phases"]["activation"]["result"]["status"] ?? null) !== "completed") { throw new RuntimeException("initial config was not activated"); }
+    if (($replayed["phases"]["activation"]["result"]["status"] ?? null) !== "already_completed") { throw new RuntimeException("exact retry did not reconcile"); }
+    if (($applied["phases"]["activation"]["result"]["generation_id"] ?? null) !== ($replayed["phases"]["activation"]["result"]["generation_id"] ?? null)) { throw new RuntimeException("retry changed generation identity"); }
 ' "$consumer" "$work/planned.json" "$work/applied.json" "$work/replayed.json"
+php -r '
+    $database = new PDO("sqlite:" . $argv[1] . "/storage/waaseyaa.sqlite");
+    $generation = $database->query(
+        "SELECT generation_id FROM waaseyaa_config_activation_v2 ORDER BY activation_sequence DESC LIMIT 1",
+    )->fetchColumn();
+    if (!is_string($generation) || $generation === "") { throw new RuntimeException("active generation is absent"); }
+    $query = $database->prepare(
+        "SELECT COUNT(*) FROM waaseyaa_config_entry_v2 WHERE generation_id = ? AND config_name = ?",
+    );
+    $query->execute([$generation, "workflows.assignments"]);
+    if ((int) $query->fetchColumn() !== 1) { throw new RuntimeException("active generation has no workflow assignments"); }
+' "$consumer"
+if find "$consumer" -type f -name '*.key' -print -quit | grep -q .; then
+    echo 'The importing consumer contains a private key file.' >&2
+    exit 1
+fi
+if grep -rqE 'AuthoringCustodyServiceProvider|FileSigningKeyProvider|WAASEYAA_AUTHORING_SIGNING_KEY_FILE|authoring-file|signing_key' \
+        "$consumer/composer.json" "$consumer/config" "$consumer/src" "$consumer/.env" 2>/dev/null; then
+    echo 'The importing consumer contains an authoring-custody reference.' >&2
+    exit 1
+fi
 
 echo '== Phase 5/7: registered generated relationships carry exact targets'
 php -r '
@@ -220,7 +353,6 @@ php -r '
     tests/Blueprint/JsonApiGovernanceChecksTest.php \
     tests/Blueprint/RolePermissionChecksTest.php \
     tests/Blueprint/WorkflowTransitionChecksTest.php ) | tee "$work/generated-tests.out"
-( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa install:init ) >"$work/install-init.out"
 ( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa site:doctor --strict --format=json ) >"$work/doctor.json"
 php -r '
     $document = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);

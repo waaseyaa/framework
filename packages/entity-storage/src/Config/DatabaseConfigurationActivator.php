@@ -18,6 +18,7 @@ use Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepRequest;
 use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationGenesisIdentity;
 use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
 use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
 use Waaseyaa\Config\Activation\RefusingConfigurationCandidateSweepAuthorizer;
@@ -286,7 +287,7 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
     /** Content-free identity of the canonical empty generation for one authority. */
     public static function genesisGenerationId(ConfigurationAuthorityContext $context): string
     {
-        return hash('sha256', 'configuration.genesis.empty.v1|' . $context->authorityId);
+        return ConfigurationGenesisIdentity::generationId($context);
     }
 
     public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult
