@@ -156,11 +156,15 @@ if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authori
 fi
 grep -Fq 'Installation is complete.' "$work/authoring-install-init.out"
 
-# install:init creates the schema after provider boot. A fresh second process
-# performs the framework's ordinary post-schema default-workflow seed; do that
-# before measuring the authoring store so the signing assertion isolates the
-# signing command rather than the first schema-capable kernel boot.
-if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authoring-stabilize.out" 2>&1; then
+# install:init creates the schema through the command kernel. Match the
+# canonical CFG-03 authoring proof by performing one ordinary full CLI-kernel
+# boot before measuring the store; that boot owns the post-schema default
+# workflow seed, while the later signing command must remain byte-read-only.
+if ! ( cd "$authoring" && php -r '
+    require "vendor/autoload.php";
+    $kernel = new Waaseyaa\Foundation\Kernel\ConsoleKernel((string) getcwd());
+    $kernel->bootForCli();
+' ) >"$work/authoring-stabilize.out" 2>&1; then
     cat "$work/authoring-stabilize.out" >&2
     echo 'FAIL: the disposable authoring host could not reach a stable installed boot.' >&2
     exit 1
