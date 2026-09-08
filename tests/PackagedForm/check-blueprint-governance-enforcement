@@ -445,10 +445,9 @@ grep -Fq 'Assigned role' "$work/assign-editor.out"
 ( cd "$consumer" && php vendor/bin/waaseyaa user:assign-role "$viewer_uid" viewer ) >"$work/assign-viewer.out" 2>&1
 grep -Fq 'Assigned role' "$work/assign-viewer.out"
 
-# The probe is test-driver tooling, not runtime under test, so — mirroring
-# check-site-init-profile-acceptance's own `probe=$root/tests/...` reference —
-# it is read from the live checkout rather than the archived candidate.
-cp "$root/tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php" "$consumer/blueprint-governance-enforcement-probe.php"
+# The executable probe is part of the candidate evidence. Copy its bytes from
+# the same immutable archive used for every installed package.
+cp "$source_root/tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php" "$consumer/blueprint-governance-enforcement-probe.php"
 
 if ! ( cd "$consumer" && php blueprint-governance-enforcement-probe.php positive "$editor_uid" "$viewer_uid" ) >"$work/probe-positive.out" 2>"$work/probe-positive.err"; then
     cat "$work/probe-positive.out" "$work/probe-positive.err" >&2

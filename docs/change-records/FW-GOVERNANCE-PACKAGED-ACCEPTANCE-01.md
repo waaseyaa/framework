@@ -1,69 +1,40 @@
 # FW-GOVERNANCE-PACKAGED-ACCEPTANCE-01
 
-Status: local repair qualified at the emitted-artifact boundary; exact committed-tip packaged qualification pending. Forge mirror: Framework #2848. Extends `FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01`'s "Remaining acceptance and ownership" section.
+Status: locally qualified combined candidate; final exact-tip packaged rerun and normal pull-request gates pending. Forge mirror: Framework #2848. Extends `FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01`.
 
-## Scope
+## Scope and final behavior
 
-This slice adds a packaged-runtime acceptance harness for the compiled `application_blueprint` governance surface and repairs the first contract gap that harness exposed. The repair changes `WorkflowDefinitionEmitter` so `config/sync/workflows.assignments.yml` is emitted as a writable CFG-03 `ConfigSyncFile`, updates its unit and console-integration tests, promotes the corresponding seven generated fixtures, refreshes the S1 schema-authority roster, and records the observable CLI contract in `docs/specs/cli-kernel.md`.
+This slice makes compiled `application_blueprint` governance usable by the production kernel and records it through a packaged-runtime harness:
 
-The packaged harness and kernel probe remain the durable end-to-end acceptance boundary:
+- `WorkflowDefinitionEmitter` serializes `config/sync/workflows.assignments.yml` as a writable CFG-03 `ConfigSyncFile`, using the registered `workflows.assignments` schema identity and canonical owner metadata.
+- `EntityClassEmitter` adds the reserved boolean `status` field to workflow-bound revisionable entity classes. The field is column-stored, defaults to `false`, is `Protected`, and participates in authorization input so workflow publication changes durable serving state.
+- Generator-owned PHP/JSON fixtures, the S1 schema-authority roster, and `docs/specs/cli-kernel.md` describe the emitted bytes accepted by the config importer and runtime.
+- `tests/PackagedForm/check-blueprint-governance-enforcement` installs an archived candidate as real package copies, refuses unknown blueprint metadata atomically, applies the reviewed blueprint, signs generated config through a physically separate authoring host, imports only a public-key-verifiable envelope, and boots the production `HttpKernel`.
+- `tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php` resolves production roles, permission catalogue, entity access, and transition services. The positive path requires a denied viewer transition to leave the full base and revision rows unchanged, then requires editor publication to persist `status = 1`, `workflow_state = published`, revision key/published pointer `vid = 2`, and internal revision ids `[1, 2]`. The harness copies this probe from the archived candidate tree, so `CANDIDATE_SHA` binds the executable probe bytes as well as package source.
 
-- `tests/PackagedForm/check-blueprint-governance-enforcement`
-- `tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php`
+## Historical discriminators
 
-## Historical RED discriminator
+The first packaged run stopped because the generated assignment file lacked CFG-03 `_meta`; the next stopped because unsigned config import is correctly refused. Those failures led to the writable assignment artifact and the separate-custody signing harness. Later production-kernel qualification exposed two independent runtime gaps: generated workflow entities lacked a durable `status` field, repaired in this slice, and custom base-row revision keys were hard-coded as `revision_id`, repaired separately by Framework #3034. The original RED logs remain evidence of those findings; they are not current outcomes.
 
-The first packaged run passed installed-provenance checks, unknown-metadata refusal with a byte-identical consumer tree, installed-API decision-receipt creation, real packaged `site:init` preview/apply, literal-root provider registration, and `install:init`. It then stopped at the first material contract failure:
+## Executed evidence
 
-```text
-$ php vendor/bin/waaseyaa config:import
-[error] Waaseyaa\Config\Exception\ConfigSerializationException: Sync file "workflows.assignments.yml" is missing the required `_meta` block.
-Sync file "workflows.assignments.yml" is missing the required `_meta` block.
-```
+At clean local merge `7af00a6e6df38db308a1182e730741ba9673f123`, whose second parent is reviewed #3034 source commit `ec629b17409d9361df9d3f3a47f8ae3124e7789c`:
 
-At that point `WorkflowDefinitionEmitter::renderAssignments()` emitted only `article.article: editorial`. `ConfigSyncDeserializer` requires the CFG-03 metadata envelope, so the real import and kernel-governance legs could not proceed. The original run did not weaken the harness or claim that the unexecuted kernel probe passed.
+- `CANDIDATE_SHA=7af00a6e6df38db308a1182e730741ba9673f123 tests/PackagedForm/check-blueprint-governance-enforcement` passed. It verified real-copy package provenance, `SITE047` unknown-metadata refusal with a byte-identical tree, signed CFG-03 import, production-kernel roles/permissions/access, allowed and denied workflow transitions, and fail-closed behavior after removing only the generated governance provider registration.
+- `tests/PackagedForm/check-community-events-starter --keep` passed all seven phases. Its generated suite passed **45 tests / 135 assertions**, and the real write-path reference discriminator accepted valid Organizer/Venue references while refusing missing references.
+- A retained Community Events consumer was then given an explicitly signed config envelope through the same separate authoring custody. A production `ConsoleKernel` discriminator passed draft to review to published with contributor publish denied atomically, configured base revision key `vid`, durable `status = 1`, published/base pointer `vid = 3`, internal revision ids `[1, 2, 3]`, and persisted Organizer/Venue references.
+- Independent focused review of the status-field emitter and tests passed **30 tests / 377 assertions**. Earlier focused emitter/config tests, S1 authority, drift, fixture provenance, and per-file hash reviews remain retained in the qualification outputs.
 
-## Repair
+The final durable-transition assertions were added after the `7af00a6e6` packaged receipt. They require one exact-tip packaged rerun after the coherent local commit; prior package and full-kernel runs establish the runtime behavior but do not claim to execute uncommitted probe bytes.
 
-`WorkflowDefinitionEmitter::renderAssignments()` now constructs a writable `ConfigSyncFile` for entity type `workflows` and entity id `assignments`. It obtains the canonical schema identity and owner contract from `WorkflowAssignmentsConfig::register()`, uses the deterministic CFG-03 UUID, and serializes the authored assignment field map with `ConfigSyncSerializer`.
+## Explicit activation prerequisite and residual ownership
 
-This choice keeps schema identity with the existing guarded registration. The empty `EntityTypeManager` supplies the registration call shape only; emitter-time generation does not validate authored binding rows against installed entity types. The emitter still omits `workflows.assignments.yml` when the blueprint has no assignment rows.
+Generated `config/sync/workflows.assignments.yml` is not automatically activated by the current application journey. `site:apply` publishes the reviewed filesystem artifact set, `project:init` composes `site:init` and `install:init`, and `install:init` activates the installation generation; none invokes the separately governed signed `config:import` command for generated workflow assignments. The Community Events full-kernel proof therefore performed an explicit signed import before exercising transitions.
 
-The golden assignment artifact now begins with `_meta`, carries `schema_id: workflows.assignments` and its version/hash/owner fields, and preserves `article.article: editorial` as the writable field value. The six plan/apply/replay JSON fixtures were regenerated from the repaired candidate so their embedded bytes and digests agree with the new artifact.
+Framework #3037 owns canonical, phase-aware generated configuration activation and retry behavior. Until that lands, this slice proves that the generated artifact can be signed, imported, and enforced by production kernels; it does not claim zero-touch generated-application readiness. Framework #2981's whole consumer journey remains open on that prerequisite.
 
-## Current local evidence
+## Final integration gates
 
-The following evidence binds the accepted dirty candidate at base tip `6bc79d76513d3f9104dea746e7f44bd384d7bcec`:
+After the coherent payload is committed and reconciled with current `main`, run the exact-tip packaged harness, the focused emitter/config test pair, S1 schema authority, committed-range drift detection, and normal repository PR preflight. Reconciliation must retain the landed #3034 metadata while preserving the reviewed source bytes; source equivalence must be recorded if only generated metadata changes.
 
-- The focused CLI test command passed: **19 tests, 338 assertions**. The new unit discriminator parses the emitted YAML through the real `ConfigSyncDeserializer`, verifies `isWritableV1()`, the deterministic UUID, `workflows` / `assignments` identity, and the authored field map. The console integration test verifies the repaired bytes through preview, apply, and idempotent replay.
-- The isolated fixture-generation run used candidate-local PHP 8.5.8 and candidate-local `vendor/autoload.php`. All eight recorded CLI commands exited 0, and the regenerated output map contained exactly the seven accepted fixture paths.
-- `php bin/check-s1-schema-authority` passed with **1,916 occurrences across 461 files** after the generated roster added only the two packaged-probe `->create()` entries, classified `legacy_schema_method` / `test-only`.
-- `bash tools/drift-detector.sh --include-worktree origin/main` exited 0 after `docs/specs/cli-kernel.md` documented the repaired CFG-03 output shape.
-- Independent reviews accepted the three source/test bytes, seven fixtures, S1 roster delta, and specification delta. Their exact per-file hashes are retained in the integration evidence; no source or fixture byte was changed by this documentation repair.
-
-## Remaining qualification
-
-The first exact-tip run after merging the repair with `origin/main` reached the repaired assignment artifact, then correctly refused `config:import` because the disposable consumer had no signed CFG-03 manifest envelope. The refusal was:
-
-```text
-Configuration import requires a signed CFG-03 manifest envelope at config/sync.envelope.json.
-Unsigned configuration is refused.
-```
-
-That is a harness gap, not a reason to weaken configuration authority. The bounded repair uses the repository's canonical two-host path: generate a disposable Ed25519 key in a custody directory owned by neither project; build a separate authoring consumer from the same archived candidate; expose signing custody only through the existing authoring service provider and secret registry; give the importing consumer only the public trust key; copy the generated sync bundle to the authoring host; run the real `config:manifest:sign`; copy only `sync.envelope.json` back; verify consumer key hygiene; then run the existing `config:import` and kernel probes. No private key or signing provider enters the importing consumer.
-
-The full packaged harness must be rerun against a commit containing that harness repair. Its archive is intentionally bound to `CANDIDATE_SHA`; running it against working-tree bytes would not test the candidate named by the receipt.
-
-After the coherent payload is committed and reconciled with the current landing base, exact-tip qualification must run:
-
-```text
-CANDIDATE_SHA=HEAD ./tests/PackagedForm/check-blueprint-governance-enforcement
-```
-
-That run must prove `config:import`, creation and role assignment for the two principals, the booted-`HttpKernel` positive governance observations, and the literal-root governance-provider removal/cache-clear negative control. The focused evidence above proves the repaired emitted-artifact contract; it does not substitute for those packaged runtime assertions.
-
-The final committed tip also requires the focused PHPUnit pair, S1 authority check, committed-range drift detector, and normal repository PR preflight. Remote `main` advanced after this local base and overlaps `docs/specs/cli-kernel.md`; the observed three-way text merge is clean, but the reconciled document must be rehashed and checked.
-
-## Authorization boundary
-
-This record covers a local Framework candidate. It does not claim publication, hosted CI, merge, release, deployment, production enablement, or completion of the wider Studio MVP. Framework delivery continues through the normal reviewed pull-request path.
+This record covers a local Framework candidate. It does not claim publication, hosted CI, merge, release, deployment, production enablement, or completion of the wider Studio MVP.

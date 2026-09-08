@@ -18,6 +18,7 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\RoleRepository;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
@@ -36,6 +37,11 @@ try {
     $resolver = $kernel->getHttpServiceResolver();
     $entityTypeManager = $kernel->getEntityTypeManager();
     $accessHandler = $kernel->getAccessHandler();
+    $database = $kernel->getDatabase();
+    if (!$database instanceof DBALDatabase) {
+        fwrite(STDERR, "::error::governance-probe did not boot the production DBAL database\n");
+        exit(1);
+    }
 
     $roles = $kernel->roleRepository();
     $editorRole = $roles->get('editor');
@@ -93,6 +99,15 @@ try {
     ]);
     $article->enforceIsNew();
     $articleRepository->save($article, validate: false);
+    $articleId = (string) $article->id();
+    $articleBase = static fn(): array => $database->getConnection()->fetchAssociative(
+        'SELECT * FROM article WHERE id = ?',
+        [$articleId],
+    ) ?: throw new RuntimeException('governance-probe article base row missing');
+    $articleRevisions = static fn(): array => $database->getConnection()->fetchAllAssociative(
+        'SELECT * FROM article_revision WHERE entity_id = ? ORDER BY revision_id',
+        [$articleId],
+    );
 
     // Default deny: person has no declared policy at all.
     $personDenied = !$accessHandler->check($person, 'view', $viewerPrincipal)->isAllowed()
@@ -112,19 +127,31 @@ try {
         exit(1);
     }
 
+    $beforeDeniedBase = $articleBase();
+    $beforeDeniedRevisions = $articleRevisions();
     $viewerTransitionDenied = false;
     try {
         $transitionService->transition($article, 'publish', $viewerPrincipal);
     } catch (TransitionDeniedException $exception) {
         $viewerTransitionDenied = $exception->reason === TransitionDeniedException::REASON_PERMISSION;
     }
+    if ($articleBase() !== $beforeDeniedBase || $articleRevisions() !== $beforeDeniedRevisions) {
+        fwrite(STDERR, "::error::governance-probe denied transition changed durable article state\n");
+        exit(1);
+    }
     marker('workflow-transition-viewer-denied', $viewerTransitionDenied);
 
     $editorTransitionAllowed = false;
     try {
         $transitionService->transition($article, 'publish', $editorPrincipal);
-        $reloaded = $articleRepository->find($article->id());
-        $editorTransitionAllowed = $reloaded !== null;
+        $reloaded = $articleRepository->find($articleId);
+        $publishedBase = $articleBase();
+        $editorTransitionAllowed = $reloaded?->getRevisionId() === 2
+            && (int) ($publishedBase['status'] ?? 0) === 1
+            && (string) ($publishedBase['workflow_state'] ?? '') === 'published'
+            && (int) ($publishedBase['vid'] ?? 0) === 2
+            && (int) ($publishedBase['published_revision_id'] ?? 0) === 2
+            && array_map('intval', array_column($articleRevisions(), 'revision_id')) === [1, 2];
     } catch (TransitionDeniedException) {
         $editorTransitionAllowed = false;
     }
