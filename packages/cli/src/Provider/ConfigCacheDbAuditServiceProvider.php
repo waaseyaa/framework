@@ -226,6 +226,8 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             options: [
                 new HandlerOption('answers', mode: HandlerOptionMode::Required, description: 'Complete site answer document'),
                 new HandlerOption('decision-receipt', mode: HandlerOptionMode::Required, description: 'Approval receipt for the exact blueprint and site manifest'),
+                new HandlerOption('expected-site-manifest-digest', mode: HandlerOptionMode::Required, description: 'Expected canonical site manifest SHA-256; supply with --expected-site-plan-digest'),
+                new HandlerOption('expected-site-plan-digest', mode: HandlerOptionMode::Required, description: 'Expected canonical site plan SHA-256; supply with --expected-site-manifest-digest'),
                 new HandlerOption('preset', mode: HandlerOptionMode::Required, description: 'Optional initialization preset applied to the answer seed'),
                 new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Authoring project root used to resolve relative inputs'),
             ],

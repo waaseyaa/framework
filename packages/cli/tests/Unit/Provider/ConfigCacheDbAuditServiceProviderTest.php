@@ -127,7 +127,14 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
         self::assertSame([
             'project:config:authorize' => [
                 'handler' => \Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler::class,
-                'options' => ['answers', 'decision-receipt', 'preset', 'project-root'],
+                'options' => [
+                    'answers',
+                    'decision-receipt',
+                    'expected-site-manifest-digest',
+                    'expected-site-plan-digest',
+                    'preset',
+                    'project-root',
+                ],
             ],
             'project:config:activate' => [
                 'handler' => \Waaseyaa\CLI\Handler\ProjectConfigActivateHandler::class,
