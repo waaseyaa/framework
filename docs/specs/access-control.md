@@ -824,22 +824,22 @@ the per-save `withActorUid()` override is the only knob.
 
 `CsrfMiddleware` runs in the HTTP pipeline (priority 20) and enforces session-based CSRF protection for all state-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`). On allowed requests it unwinds over the final dispatched response and attaches the readable token cookie to HTML.
 
-### XSRF-TOKEN cookie
+### CSRF token cookie
 
-After passing a non-validating request through the pipeline, the middleware writes an `XSRF-TOKEN` cookie to `text/html` responses so JavaScript clients can read the current session token. Since the #2177 F1 prerequisite it also writes the same cookie (identical attributes) to **any** response — JSON included — whose request carries an authenticated `_account` and a non-empty `waaseyaa_uid` login-session marker (`attachCookieIfAuthenticated()`): the admin SPA boots against `GET /api/user/me` and never receives a kernel HTML response, so this session-authenticated path seeds its token. Anonymous and bearer-only non-HTML responses stay cookie-free. Cookie attributes:
+After passing a non-validating request through the pipeline, the middleware writes the configured CSRF cookie (default name `XSRF-TOKEN`) to `text/html` responses so JavaScript clients can read the current session token. Since the #2177 F1 prerequisite it also writes the same cookie (identical attributes) to **any** response — JSON included — whose request carries an authenticated `_account` and a non-empty `waaseyaa_uid` login-session marker (`attachCookieIfAuthenticated()`): the admin SPA boots against `GET /api/user/me` and never receives a kernel HTML response, so this session-authenticated path seeds its token. Anonymous and bearer-only non-HTML responses stay cookie-free. Cookie attributes:
 
 | Attribute | Value |
 |-----------|-------|
-| Name | `XSRF-TOKEN` |
+| Name | configured `session.cookie.csrf_name` (default `XSRF-TOKEN`; host-bound `__Host-XSRF-TOKEN`) |
 | Value | `rawurlencode($_SESSION['_csrf_token'])` |
-| `Path` | `/` |
+| `Path` | configured `session.cookie.path` (default `/`; host-bound requires `/`) |
 | `HttpOnly` | `false` (required — JS must be able to read it) |
 | `SameSite` | resolved `session.cookie.samesite` (default `Lax`; empty string omits the attribute; unknown values normalize to `Lax` — Symfony's cookie builder would otherwise throw on every response) |
-| `Domain` | not set |
-| `Secure` | resolved `session.cookie.secure` policy — a configured boolean always wins; `'auto'` (the default) mirrors `$request->isSecure()` |
+| `Domain` | configured `session.cookie.domain` (default unset; host-bound forbids Domain) |
+| `Secure` | resolved `session.cookie.secure` policy — a configured boolean always wins; `'auto'` (the default) mirrors `$request->isSecure()`; host-bound forces Secure |
 | Lifetime | session (no explicit `Expires`/`Max-Age`) |
 
-`Secure` and `SameSite` come from the same resolved `session.cookie` policy the session cookie uses (`Waaseyaa\User\Session\SessionCookiePolicy`, threaded in by `HttpKernel`, #2149): a deployment that forces `secure => true` keeps `Secure` on the XSRF-TOKEN cookie even when a request arrives over plaintext HTTP, instead of the flag silently tracking the request scheme.
+`Secure`, `SameSite`, name, path, and domain come from the same resolved `session.cookie` policy the session cookie uses (`Waaseyaa\User\Session\SessionCookiePolicy`, threaded in by `HttpKernel`, #2149/#3047): a deployment that forces `secure => true` keeps `Secure` on the CSRF cookie even when a request arrives over plaintext HTTP, instead of the flag silently tracking the request scheme.
 
 Inertia consumers benefit automatically: axios reads the cookie and forwards its value as `X-XSRF-TOKEN` on subsequent mutation requests.
 

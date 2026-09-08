@@ -33,9 +33,10 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      * @param AccountInterface|null $devFallback Account returned when no session UID exists. Intended for dev environments only.
      * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides applied before session_start().
      *        Secure-by-default: when null (or when a key is omitted) the hardened defaults
-     *        httponly=true, samesite='Lax', use_strict_mode=true, secure='auto' are applied.
-     *        Any key supplied here overrides the matching default.
-     *        Keys: httponly (bool), secure (bool|'auto' — auto uses HTTPS detection), samesite (string), use_strict_mode (bool).
+     *        httponly=true, samesite='Lax', use_strict_mode=true, secure='auto', path='/',
+     *        csrf_name='XSRF-TOKEN' are applied. Any key supplied here overrides the matching default.
+     *        Keys: httponly (bool), secure (bool|'auto'), samesite (string), use_strict_mode (bool),
+     *        name (?string), csrf_name (string), path (string), domain (?string), host_bound (bool).
      * @param list<string> $trustedProxies IP addresses allowed to set X-Forwarded-Proto.
      * @param AccountContextInterface|null $accountContext Request-scoped acting-account holder,
      *        mirrored alongside the `_account` attribute on every request (mission
@@ -68,9 +69,13 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
         $statelessRequest = $this->isStatelessRequest($request);
-        if (
-            session_status() !== \PHP_SESSION_ACTIVE
-            && !$request->attributes->has('_session')
+        if (session_status() === \PHP_SESSION_ACTIVE) {
+            // Inherited / foreign bootstrap: refuse host-bound or named
+            // deployments when the live PHP session already disagrees (#3047).
+            new SessionCookiePolicy($this->sessionCookieOptions)
+                ->assertCompatibleWithActiveSession();
+        } elseif (
+            !$request->attributes->has('_session')
             && !$statelessRequest
         ) {
             $this->applySessionCookieIni();
@@ -89,7 +94,10 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         // $request->getSession(). NativeSession reads/writes $_SESSION
         // directly, preserving compatibility with AuthManager.
         if (!$request->hasSession()) {
-            $request->setSession(new NativeSession($this->trustedProxies));
+            $request->setSession(new NativeSession(
+                $this->trustedProxies,
+                new SessionCookiePolicy($this->sessionCookieOptions),
+            ));
         }
 
         $existingAccount = $request->attributes->get('_account');
@@ -132,17 +140,27 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      * Secure-by-default session cookie ini.
      *
      * Resolution lives in {@see SessionCookiePolicy} (shared with
-     * CsrfMiddleware's XSRF-TOKEN cookie, #2149): hardened defaults are always
+     * CsrfMiddleware's CSRF cookie, #2149/#3047): hardened defaults are always
      * applied and any key in $sessionCookieOptions overrides the matching
      * default. `secure => 'auto'` only sets the Secure flag when the request
-     * is detected as HTTPS, so plain-HTTP dev sessions keep working.
+     * is detected as HTTPS, so plain-HTTP dev sessions keep working. Host-bound
+     * mode forces Secure, Path=/, no Domain, and `__Host-` names.
      */
     private function applySessionCookieIni(): void
     {
         $policy = new SessionCookiePolicy($this->sessionCookieOptions);
 
+        $sessionName = $policy->sessionName();
+        if ($sessionName !== null) {
+            session_name($sessionName);
+        }
+
         ini_set('session.cookie_httponly', $policy->httpOnly() ? '1' : '0');
         ini_set('session.cookie_secure', $policy->resolveSecure($this->isHttpsRequest()) ? '1' : '0');
+        ini_set('session.cookie_path', $policy->path());
+
+        $domain = $policy->domain();
+        ini_set('session.cookie_domain', $domain ?? '');
 
         // An explicit override may set samesite to '' to opt out; the default never does.
         $sameSite = $policy->sameSite();
@@ -151,6 +169,24 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         ini_set('session.use_strict_mode', $policy->useStrictMode() ? '1' : '0');
+
+        // Align session_set_cookie_params with the same policy. Skip when PHP
+        // cookies are disabled (test harnesses) — ini_set above still applies.
+        // SameSite opt-out (null) must omit the key so an existing ini value is
+        // not overwritten with an empty string.
+        if (filter_var(ini_get('session.use_cookies'), FILTER_VALIDATE_BOOLEAN)) {
+            $params = [
+                'lifetime' => (int) (session_get_cookie_params()['lifetime'] ?? 0),
+                'path' => $policy->path(),
+                'domain' => $domain ?? '',
+                'secure' => $policy->resolveSecure($this->isHttpsRequest()),
+                'httponly' => $policy->httpOnly(),
+            ];
+            if ($sameSite !== null) {
+                $params['samesite'] = $sameSite;
+            }
+            session_set_cookie_params($params);
+        }
     }
 
     /**

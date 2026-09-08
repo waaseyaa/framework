@@ -22,7 +22,6 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     private const TOKEN_FIELD_NAME = '_csrf_token';
     private const TOKEN_HEADER_NAME = 'X-CSRF-Token';
     private const XSRF_HEADER_NAME = 'X-XSRF-TOKEN';
-    private const XSRF_COOKIE_NAME = 'XSRF-TOKEN';
     private const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
     private const CSRF_EXEMPT_CONTENT_TYPES = ['application/vnd.api+json', 'application/json'];
 
@@ -30,11 +29,10 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
 
     /**
      * @param SessionCookiePolicy|null $cookiePolicy Resolved `session.cookie`
-     *        policy governing the XSRF-TOKEN cookie's Secure/SameSite
-     *        attributes (#2149) — the same policy SessionMiddleware applies to
-     *        the session cookie. Null keeps the hardened defaults
-     *        (secure='auto', samesite='Lax'), which match the previous
-     *        hardcoded behavior.
+     *        policy governing the CSRF cookie's name/path/domain/Secure/SameSite
+     *        attributes (#2149, #3047) — the same policy SessionMiddleware applies
+     *        to the session cookie. Null keeps the hardened defaults
+     *        (csrf_name=XSRF-TOKEN, path=/, secure='auto', samesite='Lax').
      */
     public function __construct(?SessionCookiePolicy $cookiePolicy = null)
     {
@@ -81,7 +79,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     }
 
     /**
-     * Attach the XSRF-TOKEN cookie to a response if it is a text/html response.
+     * Attach the CSRF cookie to a response if it is a text/html response.
      *
      * The kernel's middleware pipeline terminates in real controller dispatch,
      * so {@see process()} calls this helper while unwinding over the final
@@ -100,7 +98,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     }
 
     /**
-     * Attach the XSRF-TOKEN cookie to any response for an authenticated session.
+     * Attach the CSRF cookie to any response for an authenticated session.
      *
      * The admin SPA boots against JSON endpoints (e.g. GET /api/user/me), never
      * receiving a text/html response from the kernel, so the HTML-only cookie
@@ -131,9 +129,11 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             return;
         }
 
-        // Idempotency: skip if cookie already present.
+        $cookieName = $policy->csrfName();
+
+        // Idempotency: skip if cookie already present under the configured name.
         foreach ($response->headers->getCookies() as $cookie) {
-            if ($cookie->getName() === self::XSRF_COOKIE_NAME) {
+            if ($cookie->getName() === $cookieName) {
                 return;
             }
         }
@@ -143,16 +143,23 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             return;
         }
 
-        // Secure/SameSite come from the resolved session.cookie policy so a
-        // forced `secure => true` survives plaintext requests (#2149); the
-        // policy's 'auto' defers to $request->isSecure(), which honors
-        // X-Forwarded-Proto via the kernel's trusted-proxy registration.
-        $cookie = Cookie::create(self::XSRF_COOKIE_NAME)
+        // Name/path/domain/Secure/SameSite come from the resolved session.cookie
+        // policy so host-bound and forced-secure deployments stay coherent
+        // (#2149, #3047); the policy's 'auto' defers to $request->isSecure(),
+        // which honors X-Forwarded-Proto via the kernel's trusted-proxy
+        // registration. Cookie lifetime stays unset (browser-session) so login
+        // rotation and expiry behaviour remain unchanged.
+        $cookie = Cookie::create($cookieName)
             ->withValue(rawurlencode($token))
-            ->withPath('/')
+            ->withPath($policy->path())
             ->withSecure($policy->resolveSecure($request->isSecure()))
             ->withHttpOnly(false)
             ->withSameSite($policy->sameSite());
+
+        $domain = $policy->domain();
+        if ($domain !== null) {
+            $cookie = $cookie->withDomain($domain);
+        }
 
         $response->headers->setCookie($cookie);
     }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SchemaProperty } from '~/composables/useSchema'
 import { schemaFormContextKey } from '~/components/schema/schemaFormContext'
+import { readDocumentCsrfCookieToken, resolveCsrfCookieName } from '~/utils/csrfCookie'
 
 const props = defineProps<{
   modelValue: string
@@ -123,9 +124,16 @@ async function loadConstraints() {
 onMounted(loadConstraints)
 
 function xsrfToken(): string | null {
-  if (typeof document === 'undefined') return null
-  const item = document.cookie.split('; ').find(cookie => cookie.startsWith('XSRF-TOKEN='))
-  return item ? item.slice('XSRF-TOKEN='.length) : null
+  let cookieName = resolveCsrfCookieName()
+  try {
+    const pub = useRuntimeConfig().public as { csrfCookieName?: string }
+    cookieName = resolveCsrfCookieName(pub.csrfCookieName)
+  }
+  catch {
+    // Outside Nuxt / unit harness: keep the framework default.
+  }
+
+  return readDocumentCsrfCookieToken(cookieName)
 }
 
 function mimeAllowed(mimeType: string): boolean {
