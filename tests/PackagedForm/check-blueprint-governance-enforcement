@@ -204,6 +204,17 @@ tree_digest() {
     ( cd "$1" && find . -type f -not -path './vendor/*' -not -name '*.sqlite' | sort | xargs sha256sum | sha256sum | awk '{print $1}' )
 }
 
+read_active_token() {
+    ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/active-token.out" 2>&1
+    active_generation="$(sed -nE 's/.*generation ([a-f0-9]{64}).*/\1/p' "$work/active-token.out" | head -1)"
+    active_sequence="$(sed -nE 's/.*sequence ([0-9]+).*/\1/p' "$work/active-token.out" | head -1)"
+    if [[ -z "$active_generation" || -z "$active_sequence" ]]; then
+        cat "$work/active-token.out" >&2
+        echo 'FAIL: could not read the importing consumer active configuration token.' >&2
+        exit 1
+    fi
+}
+
 # --- Unknown-metadata negative: mutate one policy condition to an
 # already-unit-covered unsupported kind (mirrors
 # packages/site-contract/tests/Fixtures/Blueprint/invalid/unsupported-condition-kind.yaml),
@@ -353,7 +364,21 @@ if ! php -r '
         fwrite(STDERR, "FAIL: the disposable signing key is unreadable.\n");
         exit(1);
     }
-    $encodedPrivateKey = base64_encode($privateKey);
+    $seed = substr($privateKey, 0, SODIUM_CRYPTO_SIGN_SEEDBYTES);
+    $pkcs8Der = hex2bin("302e020100300506032b657004220420") . $seed;
+    $needles = [
+        $privateKey,
+        $seed,
+        base64_encode($privateKey),
+        base64_encode($seed),
+        bin2hex($privateKey),
+        bin2hex($seed),
+        $pkcs8Der,
+        base64_encode($pkcs8Der),
+        "-----BEGIN PRIVATE KEY-----",
+        "-----BEGIN ED25519 PRIVATE KEY-----",
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+    ];
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
     );
@@ -366,9 +391,11 @@ if ! php -r '
             fwrite(STDERR, "FAIL: consumer key-hygiene scan could not read " . $file->getPathname() . "\n");
             exit(1);
         }
-        if (str_contains($bytes, $privateKey) || str_contains($bytes, $encodedPrivateKey)) {
-            fwrite(STDERR, "FAIL: the importing consumer contains private signing-key bytes.\n");
-            exit(1);
+        foreach ($needles as $needle) {
+            if (str_contains($bytes, $needle)) {
+                fwrite(STDERR, "FAIL: the importing consumer contains private signing-key bytes.\n");
+                exit(1);
+            }
         }
     }
 ' "$consumer" "$custody/manifest-signing.key"; then
@@ -386,7 +413,11 @@ if grep -rqE 'AuthoringCustodyServiceProvider|FileSigningKeyProvider|WAASEYAA_AU
     exit 1
 fi
 
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import ) >"$work/config-import.out" 2>&1; then
+read_active_token
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+        --activation-request-id=blueprint-governance-import-1 \
+        --expected-generation="$active_generation" \
+        --expected-sequence="$active_sequence" ) >"$work/config-import.out" 2>&1; then
     cat "$work/config-import.out" >&2
     echo 'FAIL: config:import failed to activate workflows.assignments.' >&2
     exit 1
