@@ -50,10 +50,15 @@ final class SessionCookiePolicy
     /**
      * @param array<string, mixed>|null $options Raw `session.cookie` config;
      *        explicit keys win, hardened defaults fill the rest.
+     *
+     * Malformed values are rejected at construction (no silent disable/default):
+     * non-boolean `host_bound`, non-string `path`/`domain`, and control
+     * characters in path/domain. Documented legacy forms (`true`/`false`,
+     * `"1"`/`"0"`/`"on"`/`"off"` for booleans; unset path/domain) still work.
      */
     public function __construct(?array $options = null)
     {
-        $this->explicitOptions = $options ?? [];
+        $this->explicitOptions = $this->normalizeExplicitOptions($options ?? []);
         $this->options = $this->explicitOptions + self::SECURE_COOKIE_DEFAULTS;
         $this->assertConfigurationCompatible();
     }
@@ -184,12 +189,14 @@ final class SessionCookiePolicy
     }
 
     /**
-     * Refuse an already-active PHP session whose live name/path/domain/secure
+     * Refuse an already-active PHP session whose live cookie attributes
      * disagree with this policy (inherited ini or a foreign bootstrap).
      *
      * Compatibility defaults stay silent unless the operator opted into an
-     * explicit name/path/domain or the host-bound profile — existing apps that
+     * explicit cookie attribute or the host-bound profile — existing apps that
      * prestart PHP sessions must keep working when they never touch these keys.
+     * Host-bound and any explicit secure/httponly/samesite always validate the
+     * full effective attribute against `session_get_cookie_params()`.
      */
     public function assertCompatibleWithActiveSession(): void
     {
@@ -200,9 +207,18 @@ final class SessionCookiePolicy
         $enforceName = $this->hostBound() || $this->hasExplicit('name');
         $enforcePath = $this->hostBound() || $this->hasExplicit('path');
         $enforceDomain = $this->hostBound() || $this->hasExplicit('domain');
-        $enforceSecure = $this->hostBound();
+        $enforceSecure = $this->hostBound() || $this->hasExplicitForcedSecure();
+        $enforceHttpOnly = $this->hostBound() || $this->hasExplicit('httponly');
+        $enforceSameSite = $this->hostBound() || $this->hasExplicit('samesite');
 
-        if (!$enforceName && !$enforcePath && !$enforceDomain && !$enforceSecure) {
+        if (
+            !$enforceName
+            && !$enforcePath
+            && !$enforceDomain
+            && !$enforceSecure
+            && !$enforceHttpOnly
+            && !$enforceSameSite
+        ) {
             return;
         }
 
@@ -245,16 +261,126 @@ final class SessionCookiePolicy
             }
         }
 
-        if ($enforceSecure && empty($params['secure'])) {
-            throw new InvalidSessionCookiePolicyException(
-                'Active session cookie is not Secure; host-bound (__Host-) cookies require Secure.',
-            );
+        if ($enforceSecure) {
+            $expectedSecure = $this->hostBound()
+                ? true
+                : filter_var($this->options['secure'], FILTER_VALIDATE_BOOLEAN);
+            $liveSecure = !empty($params['secure']);
+            if ($liveSecure !== $expectedSecure) {
+                throw new InvalidSessionCookiePolicyException(sprintf(
+                    'Active session cookie Secure=%s is incompatible with configured Secure=%s.',
+                    $liveSecure ? 'true' : 'false',
+                    $expectedSecure ? 'true' : 'false',
+                ));
+            }
+        }
+
+        if ($enforceHttpOnly) {
+            $liveHttpOnly = !empty($params['httponly']);
+            if ($liveHttpOnly !== $this->httpOnly()) {
+                throw new InvalidSessionCookiePolicyException(sprintf(
+                    'Active session cookie HttpOnly=%s is incompatible with configured HttpOnly=%s.',
+                    $liveHttpOnly ? 'true' : 'false',
+                    $this->httpOnly() ? 'true' : 'false',
+                ));
+            }
+        }
+
+        if ($enforceSameSite) {
+            $expectedSameSite = $this->sameSite();
+            $liveRaw = $params['samesite'] ?? '';
+            $liveSameSite = is_string($liveRaw) && $liveRaw !== '' ? $liveRaw : null;
+            if ($expectedSameSite === null) {
+                if ($liveSameSite !== null) {
+                    throw new InvalidSessionCookiePolicyException(sprintf(
+                        'Active session cookie SameSite="%s" is incompatible with configured SameSite opt-out.',
+                        $liveSameSite,
+                    ));
+                }
+            } elseif ($liveSameSite === null || strcasecmp($liveSameSite, $expectedSameSite) !== 0) {
+                throw new InvalidSessionCookiePolicyException(sprintf(
+                    'Active session cookie SameSite="%s" is incompatible with configured SameSite="%s".',
+                    $liveSameSite ?? '',
+                    $expectedSameSite,
+                ));
+            }
         }
     }
 
     private function hasExplicit(string $key): bool
     {
         return array_key_exists($key, $this->explicitOptions);
+    }
+
+    /**
+     * True when `secure` is explicitly forced to a boolean (not `'auto'`).
+     * `'auto'` still follows the request scheme and cannot be compared to a
+     * prestarted session without that request context.
+     */
+    private function hasExplicitForcedSecure(): bool
+    {
+        if (!$this->hasExplicit('secure')) {
+            return false;
+        }
+
+        return ($this->explicitOptions['secure'] ?? null) !== 'auto';
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function normalizeExplicitOptions(array $options): array
+    {
+        if (array_key_exists('host_bound', $options)) {
+            $parsed = filter_var(
+                $options['host_bound'],
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE,
+            );
+            if ($parsed === null) {
+                throw new InvalidSessionCookiePolicyException(
+                    'session.cookie.host_bound must be a boolean (or a documented boolean string such as "true"/"false").',
+                );
+            }
+            $options['host_bound'] = $parsed;
+        }
+
+        if (array_key_exists('path', $options)) {
+            $path = $options['path'];
+            if (!is_string($path)) {
+                throw new InvalidSessionCookiePolicyException(
+                    'session.cookie.path must be a string.',
+                );
+            }
+            if ($path !== '' && !$this->isSafeCookieAttributeValue($path)) {
+                throw new InvalidSessionCookiePolicyException(
+                    'session.cookie.path must not contain control characters.',
+                );
+            }
+        }
+
+        if (array_key_exists('domain', $options)) {
+            $domain = $options['domain'];
+            if ($domain !== null && !is_string($domain)) {
+                throw new InvalidSessionCookiePolicyException(
+                    'session.cookie.domain must be a string or null.',
+                );
+            }
+            if (is_string($domain) && $domain !== '' && !$this->isSafeCookieAttributeValue($domain)) {
+                throw new InvalidSessionCookiePolicyException(
+                    'session.cookie.domain must not contain control characters.',
+                );
+            }
+        }
+
+        return $options;
+    }
+
+    private function isSafeCookieAttributeValue(string $value): bool
+    {
+        // Reject CR/LF/NUL and other controls that break Set-Cookie framing.
+        return !preg_match('/[\x00-\x1f\x7f]/', $value);
     }
 
     private function assertConfigurationCompatible(): void

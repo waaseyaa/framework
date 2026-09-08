@@ -839,7 +839,7 @@ After passing a non-validating request through the pipeline, the middleware writ
 | `Secure` | resolved `session.cookie.secure` policy — a configured boolean always wins; `'auto'` (the default) mirrors `$request->isSecure()`; host-bound forces Secure |
 | Lifetime | session (no explicit `Expires`/`Max-Age`) |
 
-`Secure`, `SameSite`, name, path, and domain come from the same resolved `session.cookie` policy the session cookie uses (`Waaseyaa\User\Session\SessionCookiePolicy`, threaded in by `HttpKernel`, #2149/#3047): a deployment that forces `secure => true` keeps `Secure` on the CSRF cookie even when a request arrives over plaintext HTTP, instead of the flag silently tracking the request scheme.
+`Secure`, `SameSite`, name, path, and domain come from the same resolved `session.cookie` policy the session cookie uses (`Waaseyaa\User\Session\SessionCookiePolicy`, threaded in by `HttpKernel`, #2149/#3047): a deployment that forces `secure => true` keeps `Secure` on the CSRF cookie even when a request arrives over plaintext HTTP, instead of the flag silently tracking the request scheme. Malformed `host_bound`/path/domain values are rejected at policy construction. Prestarted PHP sessions are checked against the full effective Secure/HttpOnly/SameSite attributes when those keys (or host-bound) are configured. Packaged Admin HTML served by `AdminSurfaceServiceProvider` rewrites the embedded Nuxt `csrfCookieName` from this policy so host-bound `__Host-XSRF-TOKEN` matches the cookie the SPA decoder reads.
 
 Inertia consumers benefit automatically: axios reads the cookie and forwards its value as `X-XSRF-TOKEN` on subsequent mutation requests.
 

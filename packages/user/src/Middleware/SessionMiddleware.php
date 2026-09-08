@@ -68,17 +68,20 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
-        $statelessRequest = $this->isStatelessRequest($request);
+        // Resolve the cookie policy before the stateless check so a configured
+        // session name (including `__Host-…`) resumes identity even when the
+        // global `session_name()` is still PHP's default (#3047).
+        $cookiePolicy = new SessionCookiePolicy($this->sessionCookieOptions);
+        $statelessRequest = $this->isStatelessRequest($request, $cookiePolicy);
         if (session_status() === \PHP_SESSION_ACTIVE) {
             // Inherited / foreign bootstrap: refuse host-bound or named
             // deployments when the live PHP session already disagrees (#3047).
-            new SessionCookiePolicy($this->sessionCookieOptions)
-                ->assertCompatibleWithActiveSession();
+            $cookiePolicy->assertCompatibleWithActiveSession();
         } elseif (
             !$request->attributes->has('_session')
             && !$statelessRequest
         ) {
-            $this->applySessionCookieIni();
+            $this->applySessionCookieIni($cookiePolicy);
             // PHP's cache limiter otherwise emits a second Cache-Control field
             // outside the Response object. The response middleware below is
             // the single cache-policy authority for session-bound responses.
@@ -96,7 +99,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         if (!$request->hasSession()) {
             $request->setSession(new NativeSession(
                 $this->trustedProxies,
-                new SessionCookiePolicy($this->sessionCookieOptions),
+                $cookiePolicy,
             ));
         }
 
@@ -146,9 +149,9 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      * is detected as HTTPS, so plain-HTTP dev sessions keep working. Host-bound
      * mode forces Secure, Path=/, no Domain, and `__Host-` names.
      */
-    private function applySessionCookieIni(): void
+    private function applySessionCookieIni(?SessionCookiePolicy $policy = null): void
     {
-        $policy = new SessionCookiePolicy($this->sessionCookieOptions);
+        $policy ??= new SessionCookiePolicy($this->sessionCookieOptions);
 
         $sessionName = $policy->sessionName();
         if ($sessionName !== null) {
@@ -195,8 +198,12 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      * the session cookie. With no active session, CsrfMiddleware's
      * token-presence guard also skips the XSRF cookie, so matching
      * responses are entirely Set-Cookie free.
+     *
+     * Cookie presence is resolved against the configured {@see SessionCookiePolicy}
+     * name first (so `__Host-waaseyaa_session` resumes before `session_name()`
+     * is applied), then the live PHP session name / `PHPSESSID` fallback.
      */
-    private function isStatelessRequest(Request $request): bool
+    private function isStatelessRequest(Request $request, SessionCookiePolicy $policy): bool
     {
         if ($this->statelessPathPrefixes === []) {
             return false;
@@ -204,8 +211,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         if (!in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
             return false;
         }
-        $sessionName = session_name();
-        if ($request->cookies->has($sessionName === false ? 'PHPSESSID' : $sessionName)) {
+        if ($this->requestCarriesSessionCookie($request, $policy)) {
             return false;
         }
 
@@ -234,6 +240,22 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         return false;
+    }
+
+    private function requestCarriesSessionCookie(Request $request, SessionCookiePolicy $policy): bool
+    {
+        $configuredName = $policy->sessionName();
+        if ($configuredName !== null && $request->cookies->has($configuredName)) {
+            return true;
+        }
+
+        $liveName = session_name();
+        if (is_string($liveName) && $liveName !== '' && $request->cookies->has($liveName)) {
+            return true;
+        }
+
+        // PHP's default when session_name() has never been set.
+        return $configuredName === null && $request->cookies->has('PHPSESSID');
     }
 
     private function isHttpsRequest(): bool

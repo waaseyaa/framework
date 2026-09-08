@@ -27,9 +27,14 @@ cookie:
 | existing `httponly` / `samesite` / `use_strict_mode` | unchanged | session remains HttpOnly; CSRF remains JS-readable |
 
 Reject at policy construction when `host_bound` is combined with incompatible
-path/domain/secure/name/csrf_name. When a PHP session is **already active**,
-reject if live `session_name()` / `session_get_cookie_params()` disagree with
-the resolved policy (inherited PHP settings / prestarted mismatch).
+path/domain/secure/name/csrf_name, and when `host_bound`/path/domain are
+malformed (non-boolean garbage, non-string path/domain, control characters).
+When a PHP session is **already active**, reject if live `session_name()` /
+`session_get_cookie_params()` disagree with the resolved policy — including
+explicit Secure/HttpOnly/SameSite and the full host-bound profile (inherited
+PHP settings / prestarted mismatch). Stateless-path cookie resume uses the
+configured session name before `session_name()` is applied. Packaged Admin HTML
+rewrites embedded `csrfCookieName` from the runtime policy when served.
 
 ## Owned paths
 

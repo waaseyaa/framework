@@ -29,6 +29,7 @@ use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\Session\SessionCookiePolicy;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
 /**
@@ -155,6 +156,25 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     }
 
     /**
+     * Rewrite the Nuxt public `csrfCookieName` embedded in packaged/app Admin
+     * HTML so it matches the runtime {@see SessionCookiePolicy} CSRF cookie
+     * (#3047). Host-bound PHP emits `__Host-XSRF-TOKEN` while the shipped dist
+     * still embeds `XSRF-TOKEN`; serving HTML unchanged would omit the correct
+     * token on requests/uploads.
+     */
+    public static function applyRuntimeCsrfCookieName(string $html, string $csrfCookieName): string
+    {
+        $rewritten = preg_replace(
+            '/csrfCookieName\s*:\s*"[^"]*"/',
+            'csrfCookieName:"' . addcslashes($csrfCookieName, '"\\') . '"',
+            $html,
+            1,
+        );
+
+        return is_string($rewritten) ? $rewritten : $html;
+    }
+
+    /**
      * Resolve the admin SPA index.html content.
      *
      * Two-tier fallback:
@@ -234,11 +254,15 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $vendorDistContent = is_file($vendorDistDir . '/index.html')
             ? file_get_contents($vendorDistDir . '/index.html')
             : null;
+        $sessionCookie = $this->config['session']['cookie'] ?? null;
+        $csrfCookieName = new SessionCookiePolicy(
+            is_array($sessionCookie) ? $sessionCookie : null,
+        )->csrfName();
 
         $router->addRoute('admin_spa', RouteBuilder::create('/admin/{path}')
             ->methods('GET')
             ->allowAll()
-            ->controller(static function (mixed $request = null, string $path = '') use ($projectRoot, $vendorDistDir, $vendorDistContent): Response {
+            ->controller(static function (mixed $request = null, string $path = '') use ($projectRoot, $vendorDistDir, $vendorDistContent, $csrfCookieName): Response {
                 // Serve static assets (JS, CSS, images) from public/admin/ or vendor dist.
                 if ($path !== '' && !str_contains($path, '..')) {
                     $publicAsset = $projectRoot . '/public/admin/' . $path;
@@ -256,7 +280,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
                 $html = self::resolveAdminIndex($projectRoot, $vendorDistContent);
                 if ($html !== null) {
                     return new Response(
-                        $html,
+                        self::applyRuntimeCsrfCookieName($html, $csrfCookieName),
                         200,
                         ['Content-Type' => 'text/html; charset=UTF-8'],
                     );
