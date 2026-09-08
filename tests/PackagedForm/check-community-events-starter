@@ -109,6 +109,9 @@ php -r '
 public_key="$(cat "$custody/manifest-signing.pub")"
 trust_reference='cfg04:community-events-packaged'
 cp -R "$consumer" "$authoring"
+# The canonical compiler owns config/sync. Select it once as part of consumer
+# authority provisioning so later unattended runs use the same pinned path.
+printf '\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' "$consumer" >>"$consumer/.env"
 write_signing_config "$consumer" consumer "$trust_reference" "$public_key"
 mkdir -p "$authoring/src/Provider"
 cp "$root/tests/PackagedForm/fixtures/app-AuthoringCustodyServiceProvider.php" \
