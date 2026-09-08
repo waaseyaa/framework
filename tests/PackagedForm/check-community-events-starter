@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+
+# Packaged community-events starter acceptance (#2981).
+#
+# Seals the exact clean candidate with the existing split-artifact engine,
+# installs one disposable consumer from those archives, binds the installed
+# starter to that consumer's lock, and drives the canonical preview, approved
+# apply, replay, registered relationship, generated behavior, and Event
+# Organizer/Venue reference-existence boundaries (#2981). It publishes nothing.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+seal_engine="$root/tests/PackagedForm/split-artifact-acceptance.php"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-community-events.XXXXXX")"
+artifacts="$work/artifacts"
+seal="$work/seal.json"
+consumer="$work/consumer"
+keep_work=false
+[[ "${1:-}" != "--keep" ]] || keep_work=true
+
+cleanup() {
+    # Teardown must never change the packaged proof's exit status (#2870).
+    local status=$?
+    if [[ "$keep_work" == true || "$status" -ne 0 ]]; then
+        echo "Work directory retained for evidence: $work" >&2
+    else
+        rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+    fi
+    return "$status"
+}
+trap cleanup EXIT
+
+if [[ -n "$("$root/bin/git" -C "$root" status --porcelain=v1 --untracked-files=all)" ]]; then
+    echo 'The packaged candidate must be a clean immutable HEAD.' >&2
+    exit 1
+fi
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+version="$(tr -d '[:space:]' < "$root/VERSION")"
+
+echo '== Phase 1/7: seal exact candidate and install disposable consumer'
+php "$seal_engine" seal "$root" "$artifacts" "$seal" "$version"
+repository="$(php -r 'echo json_encode(["type" => "artifact", "url" => $argv[1], "only" => ["waaseyaa/*"]], JSON_UNESCAPED_SLASHES);' "$artifacts")"
+"$composer_bin" create-project waaseyaa/waaseyaa "$consumer" \
+    --repository="$repository" --stability=dev --no-install --no-scripts \
+    --no-interaction --no-progress >"$work/create-project.out" 2>&1
+rm -f "$consumer/composer.lock"
+"$composer_bin" config --working-dir="$consumer" repositories.waaseyaa-artifacts "$repository"
+"$composer_bin" install --working-dir="$consumer" --prefer-dist --no-scripts \
+    --no-interaction --no-progress >"$work/composer-install.out" 2>&1
+"$composer_bin" run-script --working-dir="$consumer" post-create-project-cmd \
+    >"$work/post-create.out" 2>&1
+
+installed_starter="$consumer/vendor/waaseyaa/site-contract/resources/starters/community-events/v1.yaml"
+test -f "$installed_starter" || { echo 'Installed site-contract artifact has no community-events@1 starter.' >&2; exit 1; }
+php -r '
+    $installed = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    $seal = json_decode((string) file_get_contents($argv[3]), true, flags: JSON_THROW_ON_ERROR);
+    $packages = $installed["packages"] ?? [];
+    foreach ($packages as $package) {
+        if (($package["name"] ?? null) !== "waaseyaa/site-contract") { continue; }
+        if (($package["installation-source"] ?? null) !== "dist") { throw new RuntimeException("site-contract was not installed from dist"); }
+        $reference = $seal["commit"] ?? null;
+        if (!is_string($reference) || preg_match("/^[0-9a-f]{40}$/", $reference) !== 1) { throw new RuntimeException("seal has no exact source reference"); }
+        file_put_contents($argv[2], json_encode([
+            "package" => $package["name"], "version" => $package["version"], "reference" => $reference,
+            "starter" => "resources/starters/community-events/v1.yaml",
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        exit(0);
+    }
+    throw new RuntimeException("site-contract is absent from installed package metadata");
+' "$consumer/vendor/composer/installed.json" "$work/provenance.json" "$seal"
+
+echo '== Phase 2/7: bind installed starter and issue exact approval'
+cp "$installed_starter" "$consumer/community-events.yaml"
+lock_sha256="$(sha256sum "$consumer/composer.lock" | awk '{print $1}')"
+sed -i "s/0000000000000000000000000000000000000000000000000000000000000000/$lock_sha256/" "$consumer/community-events.yaml"
+if grep -q 'observed_lock_sha256: 000000' "$consumer/community-events.yaml"; then
+    echo 'The starter lock placeholder was not bound.' >&2
+    exit 1
+fi
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    $yaml = (string) file_get_contents($argv[1] . "/community-events.yaml");
+    $manifest = (new Waaseyaa\SiteContract\SiteManifestParser())->parse($yaml, "community-events@1-installed");
+    $receipt = Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::fromArray([
+        "schema" => Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::SCHEMA_ID,
+        "version" => Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::CONTRACT_VERSION,
+        "decision" => "approved", "blueprint_digest" => $manifest->applicationBlueprint->digest,
+        "manifest_digest" => $manifest->digest, "actor" => "packaged-acceptance",
+        "decided_at" => "2026-09-07T12:00:00Z", "mechanism" => "reviewed-starter",
+    ]);
+    file_put_contents($argv[1] . "/decision.json", $receipt->canonicalJson() . "\n");
+' "$consumer"
+
+snapshot() {
+    local destination="$1"
+    ( cd "$consumer" && find . \
+        -path './vendor' -prune -o -path './storage' -prune -o \
+        -type f ! -name '.env' -print0 | sort -z | xargs -0 sha256sum ) >"$destination"
+}
+
+run_init() {
+    local output="$1"
+    shift
+    ( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa site:init --json \
+        --answers=community-events.yaml --decision-receipt=decision.json "$@" ) >"$output"
+}
+
+echo '== Phase 3/7: canonical dry-run is reviewed and writes nothing'
+snapshot "$work/before-preview.sha256"
+run_init "$work/planned.json" --dry-run
+snapshot "$work/after-preview.sha256"
+cmp "$work/before-preview.sha256" "$work/after-preview.sha256"
+php -r '
+    require $argv[2] . "/vendor/autoload.php";
+    $document = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    if (($document["result"]["outcome"] ?? null) !== "planned") { throw new RuntimeException("preview was not planned"); }
+    $plan = $document["evaluation"]["plan"] ?? null;
+    $digest = hash("sha256", Waaseyaa\SiteContract\CanonicalJson::encode($plan) . "\n");
+    if ($digest !== ($document["evaluation"]["plan_digest"] ?? null)) { throw new RuntimeException("plan digest mismatch"); }
+    foreach (["tests/Blueprint/EntityAccessChecksTest.php", "tests/Blueprint/JsonApiGovernanceChecksTest.php", "tests/Blueprint/WorkflowTransitionChecksTest.php"] as $path) {
+        $paths = array_column($plan["artifacts"] ?? [], "path");
+        if (!in_array($path, $paths, true)) { throw new RuntimeException("missing generated companion: {$path}"); }
+    }
+' "$work/planned.json" "$consumer"
+
+echo '== Phase 4/7: approved apply and unchanged replay retain one identity'
+run_init "$work/applied.json" --yes
+run_init "$work/replayed.json" --yes
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    $planned = json_decode((string) file_get_contents($argv[2]), true, flags: JSON_THROW_ON_ERROR);
+    $applied = json_decode((string) file_get_contents($argv[3]), true, flags: JSON_THROW_ON_ERROR);
+    $replayed = json_decode((string) file_get_contents($argv[4]), true, flags: JSON_THROW_ON_ERROR);
+    $receipt = Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::fromArray(
+        json_decode((string) file_get_contents($argv[1] . "/decision.json"), true, flags: JSON_THROW_ON_ERROR),
+    );
+    if (($applied["result"]["outcome"] ?? null) !== "applied") { throw new RuntimeException("apply did not publish"); }
+    if (($replayed["result"]["outcome"] ?? null) !== "no_changes") { throw new RuntimeException("replay was not unchanged"); }
+    foreach ([$applied, $replayed] as $document) {
+        if (($document["evaluation"]["plan_digest"] ?? null) !== $planned["evaluation"]["plan_digest"]) { throw new RuntimeException("plan identity drifted"); }
+        if (($document["receipts"][0]["decision_receipt_id"] ?? null) !== $receipt->digest()) { throw new RuntimeException("decision identity drifted"); }
+    }
+' "$consumer" "$work/planned.json" "$work/applied.json" "$work/replayed.json"
+
+echo '== Phase 5/7: registered generated relationships carry exact targets'
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    $dispatcher = new Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter();
+    $registry = new Waaseyaa\Field\FieldDefinitionRegistry();
+    $manager = new Waaseyaa\Entity\EntityTypeManager($dispatcher, fieldRegistry: $registry);
+    foreach ([App\Entity\Event::class, App\Entity\Organizer::class, App\Entity\Venue::class] as $class) {
+        $manager->registerEntityType(Waaseyaa\Entity\EntityType::fromClass($class), "packaged-community-events");
+    }
+    $fields = $registry->coreFieldsFor("event");
+    foreach (["organizer" => "organizer", "venue" => "venue"] as $field => $target) {
+        if (($fields[$field] ?? null)?->getType() !== "entity_reference") { throw new RuntimeException("{$field} is not a registered reference"); }
+        if ($fields[$field]->getSetting("target_entity_type_id") !== $target) { throw new RuntimeException("{$field} target mismatch"); }
+        if (!$manager->hasDefinition($target)) { throw new RuntimeException("{$field} target is not registered"); }
+    }
+' "$consumer"
+
+echo '== Phase 6/7: generated runtime checks exercise CRUD and workflow grants'
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    $case = (new ReflectionClass(App\Tests\Blueprint\WorkflowTransitionChecksTest::class))->newInstanceWithoutConstructor();
+    $boot = new ReflectionMethod($case, "bootTransitionService");
+    $provider = new App\Provider\ApplicationBlueprintGovernanceServiceProvider();
+    $roles = Waaseyaa\User\RoleRepository::fromProviders([$provider]);
+    $principal = static function (string $roleId) use ($roles): Waaseyaa\Access\AccountInterface {
+        $role = $roles->get($roleId);
+        if ($role === null) { throw new RuntimeException("missing role {$roleId}"); }
+        return Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory::authenticated(1, roles: [$role->id], permissions: $role->permissions);
+    };
+    $newFlow = static function () use ($boot, $case): array {
+        [$service, $repository, $database] = $boot->invoke(
+            $case, App\Entity\Event::class, "event", "event_editorial",
+            App\Workflow\EventEditorialWorkflowDefinition::DEFINITION,
+        );
+        $event = $repository->create(["id" => 1]);
+        $event->enforceIsNew();
+        $repository->save($event, validate: false);
+        return [$service, $repository, $database, $event];
+    };
+    $contributor = $principal("contributor");
+    $reviewer = $principal("reviewer");
+
+    [$service, $repository, $database, $event] = $newFlow();
+    $submitted = $service->transition($event, "submit_for_review", $contributor);
+    if ($submitted->fromState !== "draft" || $submitted->toState !== "review") { throw new RuntimeException("submit transition mismatch"); }
+    $reviewCopy = $repository->loadWorkingCopy("1") ?? throw new RuntimeException("review working copy missing");
+    try {
+        $service->transition($reviewCopy, "publish", $contributor);
+        throw new RuntimeException("contributor published a reviewed event");
+    } catch (Waaseyaa\Workflows\Transition\TransitionDeniedException $exception) {
+        if ($exception->reason !== Waaseyaa\Workflows\Transition\TransitionDeniedException::REASON_PERMISSION) { throw $exception; }
+    }
+    $published = $service->transition($reviewCopy, "publish", $reviewer);
+    if ($published->fromState !== "review" || $published->toState !== "published") { throw new RuntimeException("publish transition mismatch"); }
+
+    [$service, $repository, $database, $event] = $newFlow();
+    $service->transition($event, "submit_for_review", $contributor);
+    $reviewCopy = $repository->loadWorkingCopy("1") ?? throw new RuntimeException("review working copy missing");
+    $returned = $service->transition($reviewCopy, "return_to_draft", $reviewer);
+    if ($returned->fromState !== "review" || $returned->toState !== "draft") { throw new RuntimeException("return transition mismatch"); }
+' "$consumer"
+( cd "$consumer" && vendor/bin/phpunit --no-coverage \
+    tests/Blueprint/EntityAccessChecksTest.php \
+    tests/Blueprint/GovernanceDefaultDenyTest.php \
+    tests/Blueprint/JsonApiGovernanceChecksTest.php \
+    tests/Blueprint/RolePermissionChecksTest.php \
+    tests/Blueprint/WorkflowTransitionChecksTest.php ) | tee "$work/generated-tests.out"
+( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa install:init ) >"$work/install-init.out"
+( cd "$consumer" && APP_ENV=local php vendor/bin/waaseyaa site:doctor --strict --format=json ) >"$work/doctor.json"
+php -r '
+    $document = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    if (($document["findings"] ?? null) !== []) { throw new RuntimeException("strict doctor reported findings"); }
+' "$work/doctor.json"
+
+echo '== Phase 7/7: Event Organizer/Venue reference-existence on real write path'
+php "$root/tests/PackagedForm/community-events-reference-existence.php" "$consumer" \
+    | tee "$work/reference-existence.out"
+
+printf 'Community-events packaged acceptance passed. Candidate: %s\n' "$candidate"
+printf 'Evidence: %s\n' "$work"
