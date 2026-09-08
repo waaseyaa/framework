@@ -1,69 +1,60 @@
 # FW-GOVERNANCE-PACKAGED-ACCEPTANCE-01
 
-Status: acceptance/characterization only, not qualified. Forge mirror: Framework #2848. Extends `FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01`'s "Remaining acceptance and ownership" section.
+Status: local repair qualified at the emitted-artifact boundary; exact committed-tip packaged qualification pending. Forge mirror: Framework #2848. Extends `FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01`'s "Remaining acceptance and ownership" section.
 
 ## Scope
 
-Bounded packaged-runtime acceptance for the compiled `application_blueprint` governance surface (`ApplicationBlueprintCompiler`, `GovernanceProviderEmitter`, `GovernanceCheckEmitter`). No runtime, provider, handler, compiler, existing test/fixture, spec, or manifest was edited. New files only:
+This slice adds a packaged-runtime acceptance harness for the compiled `application_blueprint` governance surface and repairs the first contract gap that harness exposed. The repair changes `WorkflowDefinitionEmitter` so `config/sync/workflows.assignments.yml` is emitted as a writable CFG-03 `ConfigSyncFile`, updates its unit and console-integration tests, promotes the corresponding seven generated fixtures, refreshes the S1 schema-authority roster, and records the observable CLI contract in `docs/specs/cli-kernel.md`.
 
-- `tests/PackagedForm/check-blueprint-governance-enforcement` (bash harness)
-- `tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php` (PHP kernel probe)
-- this change record
-- `changes/unreleased/2848.governance-packaged-acceptance.added.md`
+The packaged harness and kernel probe remain the durable end-to-end acceptance boundary:
 
-## Evidence tiers
+- `tests/PackagedForm/check-blueprint-governance-enforcement`
+- `tests/PackagedForm/fixtures/blueprint-governance-enforcement-probe.php`
 
-**Source/unit evidence (pre-existing, cited, not reproduced here):** `ApplicationBlueprintCompilerTest`, `ApplicationBlueprintCompilerTest`'s `complete.yaml` fixture round-trip, `GovernanceProviderEmitterTest`, `GovernanceCheckEmitterTest`, `SiteBlueprintProcessTest::test_complete_blueprint_console_flow_publishes_governance_and_replays_idempotently` (real console process, byte-identical golden artifacts, plan/registration/companion-test assertions), and the generated companion fixtures under `packages/cli/tests/Fixtures/Blueprint/expected/complete/` (`GovernanceDefaultDenyTest`, `RolePermissionChecksTest`, `EntityAccessChecksTest`, `WorkflowTransitionChecksTest`, `JsonApiGovernanceChecksTest`) — these exercise real production classes (`EntityAccessHandler`, `TransitionService`, `JsonApiController`, `RoleRepository::fromProviders()`) but with hand-wired providers/storage, **not** through literal-root `composer.json` discovery or a booted kernel. They prove the generated code is correct in isolation; they do not prove kernel-wired registration.
+## Historical RED discriminator
 
-**`#2990` limitation (explicitly bounded per the task):** `FW-GOVERNANCE-SCAFFOLD-CONVERGENCE-01` / PR #2990 proves only that `make:policy` and `scaffold:workflow` manual-stdout scaffolds converge on the same emitters the blueprint compiler uses. It does not touch blueprint compilation, packaged installation, or runtime registration, and its own record says so explicitly ("no filesystem publication, provider activation, configuration import, or apply authority is introduced by these handlers"). This acceptance lane is the first attempt at the packaged-runtime half #2990 explicitly left open.
+The first packaged run passed installed-provenance checks, unknown-metadata refusal with a byte-identical consumer tree, installed-API decision-receipt creation, real packaged `site:init` preview/apply, literal-root provider registration, and `install:init`. It then stopped at the first material contract failure:
 
-**New packaged runtime evidence (this candidate, this run):**
-
-Command:
-```
-CANDIDATE_SHA=HEAD ./tests/PackagedForm/check-blueprint-governance-enforcement
-```
-
-The harness adapts `check-site-recipe-provider-activation`'s exact archive → path-repository (`symlink: false`) → skeleton-install → real-CLI pattern: one `git archive` of the clean candidate commit, a disposable consumer installed from copied `waaseyaa/*` path repositories (verified as real copies, never symlinks, via an `installed.json` provenance check), no source fallback for runtime code (the archived `$source_root` supplies every package and the canonical `complete.yaml` blueprint fixture; only the test-driver PHP probe itself is read from the live checkout, mirroring `check-site-init-profile-acceptance`'s own `probe=$root/...` reference — the probe is tooling, not runtime under test).
-
-Steps actually executed and their result:
-
-1. **Installed provenance** — every `waaseyaa/*` package is a real copy (`is_link()` false) resolved from the archived candidate tree. **PASS.**
-2. **Unknown-metadata dry-run refusal** — the candidate's own canonical `packages/site-contract/tests/Fixtures/Blueprint/valid/complete.yaml` is copied at runtime, then one policy condition (`article_create`'s `{kind: permission, permission: edit article}`) is mutated to `{kind: script, script: "return true;"}` — the exact unsupported-condition shape already covered at unit level by `packages/site-contract/tests/Fixtures/Blueprint/invalid/unsupported-condition-kind.yaml`/`.expect`. The real packaged `site:init --json --dry-run` refuses non-zero with the typed `SITE047_BLUEPRINT_UNSUPPORTED_CONDITION` code, creates no `.waaseyaa`, and the whole-project-tree SHA-256 digest (every tracked file's hash, sorted, hashed) is byte-identical before and after. **PASS.**
-3. **Real decision receipt via installed production API** — `Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::fromArray()`/`canonicalJson()` (the installed class, not hand-authored JSON) produces `decision.json` bound to the manifest's own digest and the blueprint's own digest, both read via the installed `SiteManifestParser`.
-4. **`site:init --dry-run` then `--yes` on the unmodified `complete.yaml`** — both report `"outcome":"planned"` / `"outcome":"applied"` through the real packaged JSON CLI path. **PASS.**
-5. **Literal root `composer.json` registration** — `App\Provider\ApplicationBlueprintGovernanceServiceProvider` and `App\Provider\ApplicationBlueprintServiceProvider` are each present exactly once in `extra.waaseyaa.providers` after apply. **PASS.**
-6. **`install:init`** — completes ("Installation is complete."). **PASS.**
-7. **`config:import`** (to activate the authored `workflows.assignments: {article.article: editorial}` binding per `docs/specs/content-workflow.md` — "a consumer must author, sign, verify, and explicitly activate its assignment entry") — **FAILS. This is the honest RED; see below.**
-
-### RED: `config:import` rejects the compiler's own golden `workflows.assignments.yml`
-
-Exact command and output from this run:
-
-```
+```text
 $ php vendor/bin/waaseyaa config:import
 [error] Waaseyaa\Config\Exception\ConfigSerializationException: Sync file "workflows.assignments.yml" is missing the required `_meta` block.
 Sync file "workflows.assignments.yml" is missing the required `_meta` block.
 ```
 
-Root cause, confirmed by reading production code (no edits made): `packages/config/src/Sync/ConfigSyncFile.php`/`ConfigSyncDeserializer.php` require every sync file to carry a `_meta` block (`entity_type`, `uuid`, `langcode`, …) before `ConfigManager::import()` will accept it. `WorkflowDefinitionEmitter::renderAssignments()` (`packages/cli/src/Site/Blueprint/Emitter/WorkflowDefinitionEmitter.php`, `ASSIGNMENTS_PATH = 'config/sync/workflows.assignments.yml'`) emits only the bare mapping (`article.article: editorial\n`) — matching the checked-in golden fixture at `packages/cli/tests/Fixtures/Blueprint/expected/complete/config/sync/workflows.assignments.yml` byte-for-byte. No existing test (unit, integration, or `SiteBlueprintProcessTest`) ever runs this generated file through a real `config:import`; `SiteBlueprintProcessTest` only asserts the file's bytes are written and its plan/registration shape, never activation. This packaged acceptance lane is the first place that gap becomes visible, because it is the first proof to actually run `config:import` against compiler-emitted output.
+At that point `WorkflowDefinitionEmitter::renderAssignments()` emitted only `article.article: editorial`. `ConfigSyncDeserializer` requires the CFG-03 metadata envelope, so the real import and kernel-governance legs could not proceed. The original run did not weaken the harness or claim that the unexecuted kernel probe passed.
 
-**This is the earliest material missing contract in the required chain** ("boot the real packaged HttpKernel ... prove ... generated policy/permission/role/workflow registrations participate in access and transition enforcement"): without an importable `workflows.assignments` binding, `TransitionService`/`WorkflowBindingResolver` cannot resolve the `article` → `editorial` binding at runtime, so the workflow-transition and revisionable-binding legs of the required proof (allowed/denied transition) cannot be reached. Per instruction, the assertion was not weakened and runtime was not edited to force a pass; the harness fails loudly at this exact step and stops.
+## Repair
 
-**Smallest likely runtime repair** (not applied here — out of this lane's authorized scope):
-- `packages/cli/src/Site/Blueprint/Emitter/WorkflowDefinitionEmitter.php` (`renderAssignments()`, ~line 259) — emit the required `_meta` block (or whatever shape `ConfigSyncFile`/`ConfigSyncSerializer` canonically expects for a non-entity "simple config" key) so the generated artifact is importable as-is; **or**
-- `packages/config/src/Sync/ConfigSyncDeserializer.php` / `ConfigSyncFile.php` — if `workflows.assignments` is legitimately a "simple config" key never backed by a config-entity UUID, add an explicit simple-config exemption from the `_meta` requirement (a schema/registry-driven distinction, not a per-file special case).
-- Whichever repair is chosen, the golden fixture `packages/cli/tests/Fixtures/Blueprint/expected/complete/config/sync/workflows.assignments.yml` and `SiteBlueprintProcessTest`'s corresponding assertion (`self::assertSame("article.article: editorial\n", ...)`) are the shared files that change in lockstep — both are outside this lane's exclusive edit scope.
+`WorkflowDefinitionEmitter::renderAssignments()` now constructs a writable `ConfigSyncFile` for entity type `workflows` and entity id `assignments`. It obtains the canonical schema identity and owner contract from `WorkflowAssignmentsConfig::register()`, uses the deterministic CFG-03 UUID, and serializes the authored assignment field map with `ConfigSyncSerializer`.
 
-## Not reached (blocked by the RED above)
+This choice keeps schema identity with the existing guarded registration. The empty `EntityTypeManager` supplies the registration call shape only; emitter-time generation does not validate authored binding rows against installed entity types. The emitter still omits `workflows.assignments.yml` when the blueprint has no assignment rows.
 
-Because `config:import` fails, the harness does not reach: `user:create` + `user:assign-role` for the allowed/denied principals, the real-`HttpKernel`-boot governance probe (`blueprint-governance-enforcement-probe.php`, written and syntax-checked but not exercised end-to-end against a working binding), the default-deny / allowed-vs-denied entity-access / allowed-vs-denied workflow-transition / revisionable-binding observations, or the literal-root governance-provider removal + manifest-cache-clear negative control for those runtime registries. The probe file's `role`/`permission`-catalogue markers (which do not depend on `config:import`) are written but unexercised in this run.
+The golden assignment artifact now begins with `_meta`, carries `schema_id: workflows.assignments` and its version/hash/owner fields, and preserves `article.article: editorial` as the writable field value. The six plan/apply/replay JSON fixtures were regenerated from the repaired candidate so their embedded bytes and digests agree with the new artifact.
 
-## Unknowns
+## Current local evidence
 
-- Whether the intended repair is "teach the emitter to emit `_meta`" or "teach config sync that `workflows.assignments` is simple config" is a design decision outside this lane's authority.
-- Whether, once repaired, the kernel-boot registry negative control (role/permission catalogue disappearing when only the literal-root `ApplicationBlueprintGovernanceServiceProvider` entry is removed) behaves as designed in `blueprint-governance-enforcement-probe.php` is unverified — the probe was written against the documented `RoleRepository::fromProviders()`/`AbstractKernel::permissionCatalogue()` contracts (`packages/foundation/src/Kernel/AbstractKernel.php`) but never executed past the `config:import` step.
+The following evidence binds the accepted dirty candidate at base tip `6bc79d76513d3f9104dea746e7f44bd384d7bcec`:
+
+- The focused CLI test command passed: **19 tests, 338 assertions**. The new unit discriminator parses the emitted YAML through the real `ConfigSyncDeserializer`, verifies `isWritableV1()`, the deterministic UUID, `workflows` / `assignments` identity, and the authored field map. The console integration test verifies the repaired bytes through preview, apply, and idempotent replay.
+- The isolated fixture-generation run used candidate-local PHP 8.5.8 and candidate-local `vendor/autoload.php`. All eight recorded CLI commands exited 0, and the regenerated output map contained exactly the seven accepted fixture paths.
+- `php bin/check-s1-schema-authority` passed with **1,916 occurrences across 461 files** after the generated roster added only the two packaged-probe `->create()` entries, classified `legacy_schema_method` / `test-only`.
+- `bash tools/drift-detector.sh --include-worktree origin/main` exited 0 after `docs/specs/cli-kernel.md` documented the repaired CFG-03 output shape.
+- Independent reviews accepted the three source/test bytes, seven fixtures, S1 roster delta, and specification delta. Their exact per-file hashes are retained in the integration evidence; no source or fixture byte was changed by this documentation repair.
+
+## Remaining qualification
+
+The full packaged harness has not yet been rerun against a commit containing the repair. Its archive is intentionally bound to `CANDIDATE_SHA`; running it with the current uncommitted repair and `CANDIDATE_SHA=HEAD` would archive the earlier RED commit and would not test these working bytes.
+
+After the coherent payload is committed and reconciled with the current landing base, exact-tip qualification must run:
+
+```text
+CANDIDATE_SHA=HEAD ./tests/PackagedForm/check-blueprint-governance-enforcement
+```
+
+That run must prove `config:import`, creation and role assignment for the two principals, the booted-`HttpKernel` positive governance observations, and the literal-root governance-provider removal/cache-clear negative control. The focused evidence above proves the repaired emitted-artifact contract; it does not substitute for those packaged runtime assertions.
+
+The final committed tip also requires the focused PHPUnit pair, S1 authority check, committed-range drift detector, and normal repository PR preflight. Remote `main` advanced after this local base and overlaps `docs/specs/cli-kernel.md`; the observed three-way text merge is clean, but the reconciled document must be rehashed and checked.
 
 ## Authorization boundary
 
-No release, deployment, operator credentials, runtime edit, or production enablement is authorized or performed by this record. This lane changed no runtime, spec, manifest, lock, or existing test/fixture file.
+This record covers a local Framework candidate. It does not claim publication, hosted CI, merge, release, deployment, production enablement, or completion of the wider Studio MVP. Framework delivery continues through the normal reviewed pull-request path.
