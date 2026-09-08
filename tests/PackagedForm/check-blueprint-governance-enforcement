@@ -15,7 +15,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-blueprint-governance.XXXXXX")"
 source_root="$work/source"
+authoring="$work/authoring"
 consumer="$work/consumer"
+custody="$work/custody"
 
 composer_bin="${COMPOSER_BIN:-}"
 if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
@@ -24,6 +26,38 @@ fi
 if [[ -z "$composer_bin" ]]; then
     composer_bin="$(command -v composer)"
 fi
+
+write_signing_config() {
+    local target="$1" role="$2" reference="$3" public_key="$4"
+
+    php -r '
+        [$path, $reference, $publicKey, $role] = array_slice($argv, 1);
+        $source = (string) file_get_contents($path);
+        $signing = "    \x27config_manifest_signing\x27 => [\n"
+            . "        \x27trust_keys\x27 => [\n"
+            . "            \x27" . $reference . "\x27 => [\x27algorithm\x27 => \x27Ed25519\x27, \x27public_key\x27 => \x27" . $publicKey . "\x27],\n"
+            . "        ],\n"
+            . "        \x27revoked_trust_keys\x27 => [],\n";
+        if ($role === "authoring") {
+            $signing .= "        \x27signing_key\x27 => [\n"
+                . "            \x27trust_key_reference\x27 => \x27" . $reference . "\x27,\n"
+                . "            \x27secret_reference\x27 => [\n"
+                . "                \x27provider\x27 => \x27authoring-file\x27,\n"
+                . "                \x27identifier\x27 => \x27manifest-signing\x27,\n"
+                . "                \x27secret_class\x27 => \x27token-signing-private-key\x27,\n"
+                . "                \x27purpose\x27 => \x27waaseyaa.config.manifest-signing.v1\x27,\n"
+                . "            ],\n"
+                . "        ],\n";
+        }
+        $signing .= "    ],\n";
+        $updated = preg_replace("/^return \[\n/m", "return [\n" . $signing, $source, 1);
+        if (!is_string($updated) || $updated === $source) {
+            fwrite(STDERR, "Could not inject manifest signing configuration.\n");
+            exit(1);
+        }
+        file_put_contents($path, $updated);
+    ' "$target/config/waaseyaa.php" "$reference" "$public_key" "$role"
+}
 
 cleanup() {
     rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
@@ -40,9 +74,21 @@ if [[ -z "$candidate" ]]; then
 fi
 candidate="$("$root/bin/git" -C "$root" rev-parse --verify "${candidate}^{commit}")"
 
-mkdir -p "$source_root" "$consumer"
+mkdir -p "$source_root" "$authoring" "$consumer" "$custody"
+chmod 0700 "$custody"
 "$root/bin/git" -C "$root" archive --format=tar "$candidate" \
     | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# One disposable Ed25519 key pair. The private half stays outside both
+# projects; the importing consumer receives only the public trust key.
+php -r '
+    $pair = sodium_crypto_sign_keypair();
+    file_put_contents($argv[1] . "/manifest-signing.key", sodium_crypto_sign_secretkey($pair));
+    chmod($argv[1] . "/manifest-signing.key", 0600);
+    file_put_contents($argv[1] . "/manifest-signing.pub", base64_encode(sodium_crypto_sign_publickey($pair)));
+' "$custody"
+public_key="$(cat "$custody/manifest-signing.pub")"
+trust_reference='cfg04:blueprint-governance-proof'
 
 cp -R "$source_root/skeleton/." "$consumer/"
 rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
@@ -69,6 +115,46 @@ if ! "$composer_bin" install --working-dir="$consumer" \
     tail -100 "$work/composer.out" >&2
     exit 1
 fi
+
+# A physically separate authoring host uses the same archived package cohort.
+# Only this host installs the custody provider and signing-key reference.
+cp -R "$source_root/skeleton/." "$authoring/"
+rm -f "$authoring/composer.lock" "$authoring/composer.local.json.example"
+mkdir -p "$authoring/storage/framework" "$authoring/storage/files" "$authoring/config/sync" "$authoring/src/Provider"
+cp "$source_root/tests/PackagedForm/fixtures/app-AuthoringCustodyServiceProvider.php" \
+   "$authoring/src/Provider/AuthoringCustodyServiceProvider.php"
+cp "$source_root/tests/PackagedForm/fixtures/app-FileSigningKeyProvider.php" \
+   "$authoring/src/Provider/FileSigningKeyProvider.php"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["extra"]["merge-plugin"]);
+    $composer["extra"]["waaseyaa"]["providers"][] = "App\\Provider\\AuthoringCustodyServiceProvider";
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$authoring/composer.json" "$source_root"
+
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/blueprint-governance.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$authoring" "$authoring" > "$authoring/.env"
+write_signing_config "$consumer" consumer "$trust_reference" "$public_key"
+write_signing_config "$authoring" authoring "$trust_reference" "$public_key"
+
+if ! "$composer_bin" install --working-dir="$authoring" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer-authoring.out" 2>&1; then
+    tail -100 "$work/composer-authoring.out" >&2
+    exit 1
+fi
+if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authoring-install-init.out" 2>&1; then
+    cat "$work/authoring-install-init.out" >&2
+    echo 'FAIL: install:init failed on the disposable authoring host.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/authoring-install-init.out"
 
 # Installed provenance: every waaseyaa/* package is a real copy from the
 # archived candidate, never a symlink into it.
@@ -207,6 +293,48 @@ if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-
     exit 1
 fi
 grep -Fq 'Installation is complete.' "$work/install-init.out"
+
+# Move the generated bundle to the authoring host, sign it through the real
+# config:manifest:sign command, then move only the envelope back. Importing
+# custody remains public-key-only and the active authoring store cannot change.
+rm -rf -- "$authoring/config/sync"
+mkdir -p "$authoring/config/sync"
+cp -R "$consumer/config/sync/." "$authoring/config/sync/"
+if ! diff -qr "$consumer/config/sync" "$authoring/config/sync" >"$work/sync-copy.diff"; then
+    cat "$work/sync-copy.diff" >&2
+    echo 'FAIL: the authoring bundle differs from the generated consumer bundle.' >&2
+    exit 1
+fi
+
+authoring_active_before="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
+if ! ( cd "$authoring" \
+        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
+           php vendor/bin/waaseyaa config:manifest:sign --scope=site:blueprint-governance-proof ) >"$work/sign.out" 2>&1; then
+    cat "$work/sign.out" >&2
+    echo 'FAIL: the disposable authoring host could not sign the generated bundle.' >&2
+    exit 1
+fi
+grep -Fq 'Envelope written to' "$work/sign.out"
+test -f "$authoring/config/sync.envelope.json"
+authoring_active_after="$(sha256sum "$authoring/storage/blueprint-governance.sqlite" | cut -d' ' -f1)"
+if [[ "$authoring_active_before" != "$authoring_active_after" ]]; then
+    echo 'FAIL: signing mutated the disposable authoring host active store.' >&2
+    exit 1
+fi
+if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
+    cat "$work/sign.out" >&2
+    echo 'FAIL: signing output mentions secret material.' >&2
+    exit 1
+fi
+
+cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
+if ! "$root/tests/PackagedForm/check-consumer-key-hygiene" "$consumer" "$custody/manifest-signing.key"; then
+    exit 1
+fi
+if grep -Fq 'signing_key' "$consumer/config/waaseyaa.php"; then
+    echo 'FAIL: the importing consumer contains a signing-key reference.' >&2
+    exit 1
+fi
 
 if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import ) >"$work/config-import.out" 2>&1; then
     cat "$work/config-import.out" >&2

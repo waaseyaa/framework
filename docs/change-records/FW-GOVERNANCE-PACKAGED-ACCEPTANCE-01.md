@@ -43,7 +43,16 @@ The following evidence binds the accepted dirty candidate at base tip `6bc79d765
 
 ## Remaining qualification
 
-The full packaged harness has not yet been rerun against a commit containing the repair. Its archive is intentionally bound to `CANDIDATE_SHA`; running it with the current uncommitted repair and `CANDIDATE_SHA=HEAD` would archive the earlier RED commit and would not test these working bytes.
+The first exact-tip run after merging the repair with `origin/main` reached the repaired assignment artifact, then correctly refused `config:import` because the disposable consumer had no signed CFG-03 manifest envelope. The refusal was:
+
+```text
+Configuration import requires a signed CFG-03 manifest envelope at config/sync.envelope.json.
+Unsigned configuration is refused.
+```
+
+That is a harness gap, not a reason to weaken configuration authority. The bounded repair uses the repository's canonical two-host path: generate a disposable Ed25519 key in a custody directory owned by neither project; build a separate authoring consumer from the same archived candidate; expose signing custody only through the existing authoring service provider and secret registry; give the importing consumer only the public trust key; copy the generated sync bundle to the authoring host; run the real `config:manifest:sign`; copy only `sync.envelope.json` back; verify consumer key hygiene; then run the existing `config:import` and kernel probes. No private key or signing provider enters the importing consumer.
+
+The full packaged harness must be rerun against a commit containing that harness repair. Its archive is intentionally bound to `CANDIDATE_SHA`; running it against working-tree bytes would not test the candidate named by the receipt.
 
 After the coherent payload is committed and reconciled with the current landing base, exact-tip qualification must run:
 
