@@ -12,7 +12,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Database\\DatabaseIdentityProviderInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Database\\DatabaseInterface', 'disposition' => 'public', 'purpose' => 'Doctrine DBAL abstraction: query builder entry point for select, insert, update, delete'],
         ['fqcn' => 'Waaseyaa\\Database\\DeleteInterface', 'disposition' => 'public', 'purpose' => 'Fluent DELETE query builder with conditions'],
-        ['fqcn' => 'Waaseyaa\\Database\\Exception\\TransactionCompletionException', 'disposition' => 'public', 'purpose' => 'Reports completion-effect failures after the database has committed'],
+        ['fqcn' => 'Waaseyaa\\Database\\Exception\\TransactionCompletionException', 'disposition' => 'public', 'purpose' => 'Reports completion-effect failures after the database has committed; optional `committedByUnitToken` correlates UnitOfWork post-commit drains (#2999)'],
         ['fqcn' => 'Waaseyaa\\Database\\ForeignKeySchemaInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Database\\InsertInterface', 'disposition' => 'public', 'purpose' => 'Fluent INSERT query builder'],
         ['fqcn' => 'Waaseyaa\\Database\\SchemaInterface', 'disposition' => 'public', 'purpose' => 'DDL operations: create/alter/drop tables and columns'],

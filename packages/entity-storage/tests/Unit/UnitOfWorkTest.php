@@ -15,6 +15,7 @@ use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\TransactionCompletionInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\EntityStorage\UnitOfWork;
@@ -361,6 +362,7 @@ final class UnitOfWorkTest extends TestCase
             self::fail('The listener failure must be surfaced after the complete event drain.');
         } catch (TransactionCompletionException $failure) {
             self::assertSame(1, count($failure->failures()));
+            self::assertSame($unitOfWork->commitmentToken(), $failure->committedByUnitToken());
         }
 
         $this->assertSame(['later'], $dispatched);
@@ -396,6 +398,7 @@ final class UnitOfWorkTest extends TestCase
             self::fail('A required after-commit failure must be surfaced as a committed completion failure.');
         } catch (TransactionCompletionException $failure) {
             self::assertSame(2, count($failure->failures()));
+            self::assertSame($this->unitOfWork->commitmentToken(), $failure->committedByUnitToken());
         }
 
         self::assertSame(['callback-later', 'event-later'], $dispatched);
@@ -487,6 +490,154 @@ final class UnitOfWorkTest extends TestCase
         } catch (TransactionCompletionException $failure) {
             self::assertCount(1, $failure->failures());
             self::assertSame('listener failed', $failure->failures()[0]->getMessage());
+            self::assertSame($unitOfWork->commitmentToken(), $failure->committedByUnitToken());
         }
+    }
+
+    #[Test]
+    public function nestedCommittedSideEffectsFailureUnwrapsToBareCompletionException(): void
+    {
+        try {
+            $this->unitOfWork->transaction(function (): never {
+                throw new EntityMutationCommittedSideEffectsFailedException(
+                    new TransactionCompletionException([
+                        new \RuntimeException('inner post-commit failed'),
+                    ], committedByUnitToken: 'foreign-unit-token'),
+                );
+            });
+            self::fail('Nested committed-side-effects failure must unwrap before escaping UnitOfWork.');
+        } catch (TransactionCompletionException $failure) {
+            self::assertSame('foreign-unit-token', $failure->committedByUnitToken());
+            self::assertSame('inner post-commit failed', $failure->getPrevious()?->getMessage());
+        } catch (EntityMutationCommittedSideEffectsFailedException) {
+            self::fail('UnitOfWork must not rethrow EntityMutationCommittedSideEffectsFailedException from its callback.');
+        }
+    }
+
+    #[Test]
+    public function reusedUnitTokenFromPriorCommittedFailureDoesNotProveALaterRolledBackTransactionCommitted(): void
+    {
+        $retained = null;
+        try {
+            $this->unitOfWork->transaction(function () use (&$retained): void {
+                $this->database->insert('test_entity')
+                    ->fields(['uuid', 'label', 'bundle', 'langcode', '_data'])
+                    ->values([
+                        'uuid' => 'first-committed',
+                        'label' => 'first committed',
+                        'bundle' => 'article',
+                        'langcode' => 'en',
+                        '_data' => '{}',
+                    ])
+                    ->execute();
+                $this->unitOfWork->afterCommit(static function (): never {
+                    throw new \RuntimeException('first after-commit failed');
+                });
+            });
+            self::fail('First transaction must surface a tokenized completion failure.');
+        } catch (TransactionCompletionException $failure) {
+            $retained = $failure;
+            self::assertSame($this->unitOfWork->commitmentToken(), $failure->committedByUnitToken());
+            self::assertNotSame('', $failure->committedByUnitToken());
+        }
+
+        self::assertInstanceOf(TransactionCompletionException::class, $retained);
+        $firstToken = $retained->committedByUnitToken();
+        self::assertIsString($firstToken);
+
+        $secondTokenSeenInside = null;
+        $escaped = null;
+        try {
+            $this->unitOfWork->transaction(function () use ($retained, &$secondTokenSeenInside): void {
+                $secondTokenSeenInside = $this->unitOfWork->commitmentToken();
+                $this->database->insert('test_entity')
+                    ->fields(['uuid', 'label', 'bundle', 'langcode', '_data'])
+                    ->values([
+                        'uuid' => 'second-rolled-back',
+                        'label' => 'second must roll back',
+                        'bundle' => 'article',
+                        'langcode' => 'en',
+                        '_data' => '{}',
+                    ])
+                    ->execute();
+                throw $retained;
+            });
+            self::fail('Second transaction must rethrow the retained completion exception after rollback.');
+        } catch (TransactionCompletionException $failure) {
+            $escaped = $failure;
+        }
+
+        self::assertSame($retained, $escaped);
+        self::assertSame($firstToken, $escaped->committedByUnitToken());
+        self::assertNotSame('', (string) $secondTokenSeenInside);
+        self::assertNotSame($firstToken, $secondTokenSeenInside);
+        self::assertSame($secondTokenSeenInside, $this->unitOfWork->commitmentToken());
+        self::assertNotSame($firstToken, $this->unitOfWork->commitmentToken());
+
+        $rows = iterator_to_array(
+            $this->database->select('test_entity')->fields('test_entity')->execute(),
+        );
+        self::assertCount(1, $rows);
+        self::assertSame('first-committed', $rows[0]['uuid']);
+        self::assertSame('first committed', $rows[0]['label']);
+    }
+
+    #[Test]
+    public function afterCommitReentryThatSucceedsThenFailsPreservesOriginalCommitmentToken(): void
+    {
+        $outerTokenSeenInside = null;
+        $innerTokenSeenInside = null;
+
+        try {
+            $this->unitOfWork->transaction(function () use (&$outerTokenSeenInside, &$innerTokenSeenInside): void {
+                $outerTokenSeenInside = $this->unitOfWork->commitmentToken();
+                $this->database->insert('test_entity')
+                    ->fields(['uuid', 'label', 'bundle', 'langcode', '_data'])
+                    ->values([
+                        'uuid' => 'outer-committed',
+                        'label' => 'outer committed',
+                        'bundle' => 'article',
+                        'langcode' => 'en',
+                        '_data' => '{}',
+                    ])
+                    ->execute();
+                $this->unitOfWork->afterCommit(function () use (&$innerTokenSeenInside): void {
+                    $this->unitOfWork->transaction(function () use (&$innerTokenSeenInside): void {
+                        $innerTokenSeenInside = $this->unitOfWork->commitmentToken();
+                        $this->database->insert('test_entity')
+                            ->fields(['uuid', 'label', 'bundle', 'langcode', '_data'])
+                            ->values([
+                                'uuid' => 'inner-committed',
+                                'label' => 'inner committed',
+                                'bundle' => 'article',
+                                'langcode' => 'en',
+                                '_data' => '{}',
+                            ])
+                            ->execute();
+                    });
+                    throw new \RuntimeException('outer after-commit failed after successful re-entry');
+                });
+            });
+            self::fail('Outer transaction must surface a tokenized completion failure.');
+        } catch (TransactionCompletionException $failure) {
+            self::assertNotSame('', (string) $outerTokenSeenInside);
+            self::assertNotSame('', (string) $innerTokenSeenInside);
+            self::assertNotSame($outerTokenSeenInside, $innerTokenSeenInside);
+            self::assertSame($outerTokenSeenInside, $failure->committedByUnitToken());
+            // Documented public comparison: escaping failure still matches the live token.
+            self::assertSame($this->unitOfWork->commitmentToken(), $failure->committedByUnitToken());
+            self::assertSame(
+                'outer after-commit failed after successful re-entry',
+                $failure->getPrevious()?->getMessage(),
+            );
+        }
+
+        $rows = iterator_to_array(
+            $this->database->select('test_entity')->fields('test_entity')->execute(),
+        );
+        self::assertCount(2, $rows);
+        $uuids = array_column($rows, 'uuid');
+        sort($uuids);
+        self::assertSame(['inner-committed', 'outer-committed'], $uuids);
     }
 }

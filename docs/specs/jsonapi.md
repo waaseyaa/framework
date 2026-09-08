@@ -188,9 +188,75 @@ surface sanitizes for its own audience; the editing representation is the one
 projection that deliberately does neither, and each raw HTML field is reachable
 only by a caller who may already rewrite that field.
 
-## Writes (`store` / `update`)
+## Writes (`store` / `update` / `delete`)
 
 Incoming JSON:API attributes are applied with `$entity->set($field, $value)` (`JsonApiController::update`). **`set()` runs `castOut`**, so clients may send JSON-native scalars (strings, numbers, booleans) that match storage expectations; the entity persists storage-canonical values into `$values` before `toArray()` is snapshotted on save.
+
+### Committed mutation, failed post-commit side effects (#2999)
+
+When a mutation-authority-backed `EntityRepository` completes the outer database
+commit but a post-commit listener or completion callback fails, the repository
+translates that outer `transaction()` call's post-commit `TransactionCompletionException`
+into
+`Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException`.
+`UnitOfWork` itself still throws the public `TransactionCompletionException`
+(stamped with that outer call's commitment token — rotated per outer
+`transaction()`, stable for nested calls) so existing
+`catch (TransactionCompletionException)` consumers remain compatible.
+
+The repository translation applies **only** when
+`TransactionCompletionException::committedByUnitToken()` matches the outer
+repository call's UnitOfWork commitment token for that same outer transaction.
+A completion failure from an independent nested repository write during
+`PRE_SAVE` / `PRE_DELETE` (different connection / token), or a retained
+tokenized failure from an earlier reuse of the same UnitOfWork object, is
+rethrown as the bare completion exception after the outer mutation rolls back —
+it is **not** this committed signal.
+
+`JsonApiController` catches
+`EntityMutationCommittedSideEffectsFailedException` **only at the repository
+mutation boundary** (`store()` save, both `update()` save paths including
+revision expectation / `saveWithExpectation()`, and `destroy()` delete) — never
+around earlier validation, access, or transition work, and never as a global
+classifier for arbitrary completion exceptions.
+
+The JSON:API error envelope is:
+
+| Member | Value |
+|---|---|
+| HTTP status | `500` |
+| `errors[0].status` | `"500"` |
+| `errors[0].title` | `"Committed mutation side effects failed"` |
+| `errors[0].code` | `"COMMITTED_SIDE_EFFECTS_FAILED"` (`JsonApiController::COMMITTED_SIDE_EFFECTS_FAILED_CODE`) |
+| `errors[0].detail` | Sanitized operator guidance only — **must not** echo callback messages, exception classes, stack traces, or submitted payloads |
+| `errors[0].meta.committed` | `true` |
+| `errors[0].meta.operation` | `"create"`, `"update"`, or `"delete"` |
+| `errors[0].meta.resource_type` | The entity type id |
+| `errors[0].meta.resource_id` | The persisted entity id known after the committed mutation |
+
+This is **not** success (`2xx`), conflict (`409`), or validation/precondition
+refusal (`422` / `428`). The detail states that retrying the same request is
+unsafe: the durable row already exists (or, for delete, is already absent) while
+downstream side effects may still need separate reconciliation. Pre-commit /
+`PRE_SAVE` / `PRE_DELETE` guard failures — including a completion-shaped
+exception or foreign-unit committed failure raised before this mutation's
+commit — remain distinct: they roll back and must **not** emit
+`COMMITTED_SIDE_EFFECTS_FAILED`.
+
+`JsonApiRouter` and `ControllerDispatcher` pass the controller document through
+unchanged; they do not remap this code to the generic uncaught-exception 500.
+
+**Residual (#2999, out of scope for this contract):** MCP tool error mapping,
+CLI governed-authoring exit semantics, recovery/reconciliation playbooks, and
+caller-specific retry guidance for non-JSON:API surfaces remain open. The
+publishing idempotency completion-signal slice (`FW-POST-COMMIT-OUTCOME-01`
+slice 1) is unchanged. Repositories without mutation authority (non-UnitOfWork
+composition) are also residual: they commit locally then dispatch POST/AFTER
+events immediately, so listener failures escape as the original throwable after
+a durable write; a local `commit()` that raises `TransactionCompletionException`
+can be masked by the inactive-transaction rollback path — they do not emit
+`EntityMutationCommittedSideEffectsFailedException`. Standard kernel JSON:API
+composition always wires mutation authority and is covered by this contract.
 
 ## JSON:API response shape (mission 1107)
 
