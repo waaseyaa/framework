@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\RoleRepository;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
@@ -70,6 +71,13 @@ try {
         fwrite(STDERR, "::error::governance-probe could not load the seeded accounts\n");
         exit(1);
     }
+    $principalFactory = $resolver->resolve(AccountPrincipalFactoryInterface::class);
+    if (!$principalFactory instanceof AccountPrincipalFactoryInterface) {
+        fwrite(STDERR, "::error::governance-probe could not resolve AccountPrincipalFactoryInterface\n");
+        exit(1);
+    }
+    $editorPrincipal = $principalFactory->fromAccount($editorAccount);
+    $viewerPrincipal = $principalFactory->fromAccount($viewerAccount);
 
     $personRepository = $entityTypeManager->getRepository('person');
     $person = $personRepository->create(['name' => 'Jane']);
@@ -87,13 +95,13 @@ try {
     $articleRepository->save($article, validate: false);
 
     // Default deny: person has no declared policy at all.
-    $personDenied = !$accessHandler->check($person, 'view', $viewerAccount)->isAllowed()
-        && !$accessHandler->check($person, 'view', $editorAccount)->isAllowed();
+    $personDenied = !$accessHandler->check($person, 'view', $viewerPrincipal)->isAllowed()
+        && !$accessHandler->check($person, 'view', $editorPrincipal)->isAllowed();
     marker('default-deny-person', $personDenied);
 
     // One denied, one allowed principal on the same entity/operation.
-    $viewerDeniedUpdate = !$accessHandler->check($article, 'update', $viewerAccount)->isAllowed();
-    $editorAllowedUpdate = $accessHandler->check($article, 'update', $editorAccount)->isAllowed();
+    $viewerDeniedUpdate = !$accessHandler->check($article, 'update', $viewerPrincipal)->isAllowed();
+    $editorAllowedUpdate = $accessHandler->check($article, 'update', $editorPrincipal)->isAllowed();
     marker('entity-access-viewer-denied', $viewerDeniedUpdate);
     marker('entity-access-editor-allowed', $editorAllowedUpdate);
 
@@ -106,7 +114,7 @@ try {
 
     $viewerTransitionDenied = false;
     try {
-        $transitionService->transition($article, 'publish', $viewerAccount);
+        $transitionService->transition($article, 'publish', $viewerPrincipal);
     } catch (TransitionDeniedException $exception) {
         $viewerTransitionDenied = $exception->reason === TransitionDeniedException::REASON_PERMISSION;
     }
@@ -114,7 +122,7 @@ try {
 
     $editorTransitionAllowed = false;
     try {
-        $transitionService->transition($article, 'publish', $editorAccount);
+        $transitionService->transition($article, 'publish', $editorPrincipal);
         $reloaded = $articleRepository->find($article->id());
         $editorTransitionAllowed = $reloaded !== null;
     } catch (TransitionDeniedException) {
