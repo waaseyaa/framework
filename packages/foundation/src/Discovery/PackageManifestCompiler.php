@@ -1125,6 +1125,7 @@ final class PackageManifestCompiler
             permissions: $permissions,
             policies: $manifest->policies,
             packageDeclarations: $manifest->packageDeclarations,
+            configContracts: $manifest->configContracts,
             attributeEntityTypes: $manifest->attributeEntityTypes,
             consoleCommandProviders: $manifest->consoleCommandProviders,
             agentTools: $manifest->agentTools,

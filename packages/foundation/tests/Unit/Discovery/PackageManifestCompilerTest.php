@@ -84,6 +84,43 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     /**
+     * A valid package-manifest cache remains the installed-cohort authority on
+     * later processes. Root metadata is remerged on that path, so reconstructing
+     * the value object must preserve every installed configuration contract.
+     */
+    #[Test]
+    public function cached_load_preserves_declared_configuration_contracts_while_remerging_root_metadata(): void
+    {
+        $contract = [
+            'schema-provider' => 'Acme\\Example\\SchemaProvider',
+            'version' => 2,
+            'readable_versions' => [1, 2],
+        ];
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/workflows', 'extra' => ['waaseyaa' => ['config-contract' => $contract]]],
+        ]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['providers' => [\ArrayObject::class]]],
+        ], JSON_THROW_ON_ERROR));
+        $storage = $this->tempDir . '/storage';
+        $compiler = new PackageManifestCompiler($this->tempDir, $storage);
+
+        $compiled = $compiler->compileAndCache();
+        $cacheBytes = (string) file_get_contents($storage . '/framework/packages.php');
+        $loaded = new PackageManifestCompiler($this->tempDir, $storage)->load();
+
+        self::assertSame(['waaseyaa/workflows' => $contract], $compiled->configContracts);
+        self::assertSame(
+            $compiled->configContracts,
+            $loaded->configContracts,
+            'A cache hit must not erase the installed configuration-contract cohort.',
+        );
+        self::assertSame([\ArrayObject::class], $loaded->providers, 'Root provider remerge remains intact.');
+        self::assertSame($cacheBytes, file_get_contents($storage . '/framework/packages.php'), 'A valid cache hit is read-only.');
+    }
+
+    /**
      * A malformed declaration is not the same as no declaration. Demoting it to
      * "contributes nothing" yields an under-specified compatibility cohort that
      * both the signer and the verifier would accept, so discovery fails closed
