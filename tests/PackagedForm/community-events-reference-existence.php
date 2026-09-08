@@ -31,12 +31,14 @@ use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory;
 use Waaseyaa\EntityStorage\Validation\DatabaseValidationReadLedger;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
@@ -59,10 +61,31 @@ $validator = EntityValidator::createDefault(new DatabaseValidationReadLedger($da
 $manager = null;
 $manager = new EntityTypeManager(
     $dispatcher,
-    $fieldRegistry,
-    static function (string $entityTypeId, EntityTypeInterface $definition) use (&$manager, $dispatcher, $database, $validator, $fieldRegistry): EntityRepositoryInterface {
+    repositoryFactory: static function (string $entityTypeId, EntityTypeInterface $definition) use (&$manager, $dispatcher, $database, $validator, $fieldRegistry): EntityRepositoryInterface {
         $resolver = new SingleConnectionResolver($database);
-        $schema = new SqlSchemaHandler($definition, $database, fieldRegistry: $fieldRegistry);
+        $backend = $definition->getPrimaryStorageBackend();
+        $backend = (is_string($backend) && $backend !== '')
+            ? $backend
+            : ReservedBackendIds::SQL_BLOB;
+        $entityLevelFields = [];
+        if ($backend === ReservedBackendIds::SQL_COLUMN) {
+            foreach ($definition->getFieldDefinitions() as $name => $fieldDefinition) {
+                if (!$fieldDefinition instanceof FieldDefinition) {
+                    continue;
+                }
+                if ($definition->isTranslatable() && $fieldDefinition->isTranslatable()) {
+                    continue;
+                }
+                $entityLevelFields[$name] = $fieldDefinition;
+            }
+        }
+        $schema = new SqlSchemaHandler(
+            entityType: $definition,
+            database: $database,
+            fieldRegistry: $fieldRegistry,
+            primaryBackendId: $backend,
+            entityLevelFields: $entityLevelFields,
+        );
         $schema->ensureTable();
         $revisionDriver = null;
         if ($definition->isRevisionable()) {
@@ -81,6 +104,7 @@ $manager = new EntityTypeManager(
             entityReferenceResolver: new EntityIdentifierResolver($manager),
         );
     },
+    fieldRegistry: $fieldRegistry,
 );
 
 foreach ([
