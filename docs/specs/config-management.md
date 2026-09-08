@@ -463,6 +463,23 @@ plan-owned sync bytes through the configured CFG-04 signer, and bind the site
 manifest and plan digests in signed producer evidence. The importing consumer
 receives the authorization document and public trust configuration only.
 
+Provision the two hosts once before unattended initialization. On the
+consumer, configure the authoring key's public `trust_keys` entry and select
+the generated application's canonical sync directory (`config/sync`) through
+`WAASEYAA_CONFIG_SYNC_PATH=<absolute-project-root>/config/sync` or the
+equivalent `config.sync_path` bootstrap value. On the authoring host, configure
+the matching CFG-04 `signing_key` secret reference and its separately operated
+secret provider. Do not place that secret reference, provider, or private key
+in the consumer. These are bootstrap authority inputs; they are not repeated
+for each initialization request.
+
+After provisioning, orchestration passes the same answer and decision-receipt
+documents to `project:config:authorize`, transports its canonical public
+authorization document, and supplies that document to
+`project:init --config-authorization=... --yes --json`. No generated config
+file is copied to an authoring host, and no manual `config:manifest:sign` or
+`config:import` step occurs between the `project:init` phases.
+
 `project:config:activate` is fresh-only. It verifies the embedded CFG-03
 envelope against the consumer's complete current sync directory and installed
 cohort, and may replace only that consumer's exact empty canonical genesis

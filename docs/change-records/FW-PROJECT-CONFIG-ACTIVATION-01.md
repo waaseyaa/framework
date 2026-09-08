@@ -17,6 +17,16 @@ plan-owned `config/sync/*` bytes in a private temporary directory, and invokes
 the existing `ConfigManifestBundleSigner`. No signing key or secret provider is
 placed in the generated consumer.
 
+One-time consumer bootstrap provisioning installs the authoring public key in
+`config_manifest_signing.trust_keys` and selects the compiler-owned
+`<project-root>/config/sync` directory with `WAASEYAA_CONFIG_SYNC_PATH` (or the
+equivalent `config.sync_path` setting). The authoring host separately maps the
+matching CFG-04 `signing_key` secret reference to its custody provider. Those
+settings persist across requests. The per-request path passes the same answers
+and decision receipt to `project:config:authorize`, then passes only its public
+canonical output to `project:init`; it has no intermediate config copy,
+manual-sign, or manual-import step.
+
 The closed `waaseyaa.project_config_authorization` version 1 document embeds a
 CFG-03 version 1 envelope. Its fixed initial scope, sequence, and signed
 producer evidence bind the exact evaluated site-manifest and artifact-plan
@@ -46,4 +56,3 @@ artifacts as committed through the succeeded site phase. A process failure
 whose activation commit cannot be observed reports `uncertain` and tells the
 caller to retry the same request. The composition never claims to roll back
 published site artifacts or calls configuration rollback.
-
