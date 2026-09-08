@@ -60,6 +60,7 @@ write_signing_config() {
 }
 
 cleanup() {
+    # Cleanup must not change the proof's exit status; report a leak on stderr.
     rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
 }
 trap cleanup EXIT
