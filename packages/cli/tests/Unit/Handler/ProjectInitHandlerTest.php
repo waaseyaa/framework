@@ -106,7 +106,7 @@ final class ProjectInitHandlerTest extends TestCase
         $runner = new RecordingProjectInitRunner([
             new ProjectInitProcessResult(0, stdout: $site),
             new ProjectInitProcessResult(0, stdout: 'Installation is complete.'),
-            new ProjectInitProcessResult(0, stdout: '{"status":"completed","generation_id":"' . str_repeat('c', 64) . '"}'),
+            new ProjectInitProcessResult(0, stdout: $this->activationSuccess($authorizationPath)),
         ]);
         $tester = $this->tester(new ProjectInitHandler($root, $runner), $root);
 
@@ -120,8 +120,8 @@ final class ProjectInitHandlerTest extends TestCase
         self::assertSame(0, $tester->getExitCode());
         self::assertCount(3, $runner->calls);
         self::assertSame('project:config:activate', $runner->calls[2]['command'][2]);
-        self::assertContains($manifestDigest, $runner->calls[2]['command']);
-        self::assertContains($planDigest, $runner->calls[2]['command']);
+        self::assertNotContains('--site-manifest-digest', $runner->calls[2]['command']);
+        self::assertNotContains('--site-plan-digest', $runner->calls[2]['command']);
         $result = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
         self::assertSame(2, $result['version']);
         self::assertSame('completed', $result['status']);
@@ -157,6 +157,92 @@ final class ProjectInitHandlerTest extends TestCase
         self::assertSame('succeeded', $result['phases']['install']['status']);
         self::assertSame('uncertain', $result['phases']['activation']['status']);
         self::assertArrayNotHasKey('rollback', $result['phases']);
+    }
+
+    #[Test]
+    public function malformedSuccessfulActivationPayloadCannotClaimCompletion(): void
+    {
+        $root = $this->validProjectRoot();
+        $manifestDigest = str_repeat('a', 64);
+        $planDigest = str_repeat('b', 64);
+        $authorizationPath = $this->writeAuthorization($root, $manifestDigest, $planDigest);
+        $site = CanonicalJson::encode([
+            'evaluation' => ['plan' => ['input_digest' => $manifestDigest], 'plan_digest' => $planDigest],
+            'result' => ['outcome' => 'applied'],
+            'receipts' => [],
+        ]);
+        $runner = new RecordingProjectInitRunner([
+            new ProjectInitProcessResult(0, stdout: $site),
+            new ProjectInitProcessResult(0, stdout: 'Installation is complete.'),
+            new ProjectInitProcessResult(0, stdout: '{}'),
+        ]);
+        $tester = $this->tester(new ProjectInitHandler($root, $runner), $root);
+
+        $tester->execute(['--answers=answers.yaml', '--yes', '--json', '--config-authorization=' . $authorizationPath]);
+
+        $result = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertSame('uncertain', $result['status']);
+        self::assertSame('uncertain', $result['phases']['activation']['status']);
+    }
+
+    #[Test]
+    public function startedActivationWithoutTerminalEvidenceIsUncertain(): void
+    {
+        $root = $this->validProjectRoot();
+        $manifestDigest = str_repeat('a', 64);
+        $planDigest = str_repeat('b', 64);
+        $authorizationPath = $this->writeAuthorization($root, $manifestDigest, $planDigest);
+        $site = CanonicalJson::encode([
+            'evaluation' => ['plan' => ['input_digest' => $manifestDigest], 'plan_digest' => $planDigest],
+            'result' => ['outcome' => 'applied'],
+            'receipts' => [],
+        ]);
+        $runner = new RecordingProjectInitRunner([
+            new ProjectInitProcessResult(0, stdout: $site),
+            new ProjectInitProcessResult(0, stdout: 'Installation is complete.'),
+            new ProjectInitProcessResult(130, stdout: ''),
+        ]);
+        $tester = $this->tester(new ProjectInitHandler($root, $runner), $root);
+
+        $tester->execute(['--answers=answers.yaml', '--yes', '--json', '--config-authorization=' . $authorizationPath]);
+
+        $result = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(130, $tester->getExitCode());
+        self::assertSame('uncertain', $result['status']);
+        self::assertSame('uncertain', $result['phases']['activation']['status']);
+    }
+
+    #[Test]
+    public function closedRefusalEvidenceRemainsAFailedActivation(): void
+    {
+        $root = $this->validProjectRoot();
+        $manifestDigest = str_repeat('a', 64);
+        $planDigest = str_repeat('b', 64);
+        $authorizationPath = $this->writeAuthorization($root, $manifestDigest, $planDigest);
+        $site = CanonicalJson::encode([
+            'evaluation' => ['plan' => ['input_digest' => $manifestDigest], 'plan_digest' => $planDigest],
+            'result' => ['outcome' => 'applied'],
+            'receipts' => [],
+        ]);
+        $runner = new RecordingProjectInitRunner([
+            new ProjectInitProcessResult(0, stdout: $site),
+            new ProjectInitProcessResult(0, stdout: 'Installation is complete.'),
+            new ProjectInitProcessResult(1, stdout: CanonicalJson::encode([
+                'schema' => 'waaseyaa.project_config_activation_result',
+                'version' => 1,
+                'status' => 'refused',
+                'errors' => [['message' => 'trust key is not configured']],
+            ])),
+        ]);
+        $tester = $this->tester(new ProjectInitHandler($root, $runner), $root);
+
+        $tester->execute(['--answers=answers.yaml', '--yes', '--json', '--config-authorization=' . $authorizationPath]);
+
+        $result = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(1, $tester->getExitCode());
+        self::assertSame('failed', $result['status']);
+        self::assertSame('failed', $result['phases']['activation']['status']);
     }
 
     #[Test]
@@ -668,6 +754,22 @@ final class ProjectInitHandlerTest extends TestCase
         file_put_contents($path, ProjectConfigAuthorization::issue($manifestDigest, $planDigest, $envelope)->canonicalJson() . "\n");
 
         return $path;
+    }
+
+    private function activationSuccess(string $authorizationPath): string
+    {
+        $authorization = ProjectConfigAuthorization::fromJson((string) file_get_contents($authorizationPath));
+
+        return CanonicalJson::encode([
+            'schema' => 'waaseyaa.project_config_activation_result',
+            'version' => 1,
+            'status' => 'completed',
+            'request_id' => 'project-config-init-' . str_repeat('d', 32),
+            'generation_id' => str_repeat('c', 64),
+            'activation_sequence' => 2,
+            'manifest_hash' => $authorization->bundleManifest->manifestHash,
+            'errors' => [],
+        ]);
     }
 }
 

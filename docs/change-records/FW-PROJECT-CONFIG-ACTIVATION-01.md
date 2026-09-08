@@ -37,7 +37,10 @@ committed or stale bundle sequence.
 `project:init --config-authorization=... --json` preserves the existing
 site-then-install process boundaries, derives the site identity from the actual
 `site:init` JSON result, and invokes the booted consumer command
-`project:config:activate`. The consumer resolves its own configuration
+`project:config:activate`. That command independently re-parses the consumer's
+committed `.waaseyaa/site.yaml` and runs the canonical blueprint compiler, so
+the activation boundary does not accept site or plan digests asserted in CLI
+arguments. The consumer resolves its own configuration
 authority and sync path, verifies signature, trust, schema, installed package
 cohort, complete current sync bytes, and dependencies, then permits activation
 only from its exact empty canonical genesis generation. Existing applications

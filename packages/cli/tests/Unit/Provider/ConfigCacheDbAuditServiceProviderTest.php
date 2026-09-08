@@ -131,7 +131,7 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
             ],
             'project:config:activate' => [
                 'handler' => \Waaseyaa\CLI\Handler\ProjectConfigActivateHandler::class,
-                'options' => ['authorization', 'site-manifest-digest', 'site-plan-digest'],
+                'options' => ['authorization'],
             ],
         ], $commands);
     }

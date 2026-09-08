@@ -482,8 +482,10 @@ file is copied to an authoring host, and no manual `config:manifest:sign` or
 
 `project:config:activate` is fresh-only. It verifies the embedded CFG-03
 envelope against the consumer's complete current sync directory and installed
-cohort, and may replace only that consumer's exact empty canonical genesis
-generation. A committed retry is read-only reconciliation: it revalidates the
+cohort. It re-parses the consumer's committed `.waaseyaa/site.yaml` and runs
+the canonical blueprint compiler itself; site and plan identity are never
+accepted as caller assertions. It may replace only that consumer's exact empty
+canonical genesis generation. A committed retry is read-only reconciliation: it revalidates the
 signature and current bytes, requires equality with committed replay state,
 and requires the current activation identity to equal the effective signed
 generation. This exception is unavailable to ordinary `config:import` replay.

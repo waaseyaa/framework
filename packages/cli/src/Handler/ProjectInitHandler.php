@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\ProjectInit\ProcOpenProjectInitProcessRunner;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigActivationResultParser;
 use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorization;
 use Waaseyaa\CLI\ProjectInit\ProjectInitProcessResult;
 use Waaseyaa\CLI\ProjectInit\ProjectInitProcessRunnerInterface;
@@ -147,22 +148,36 @@ final readonly class ProjectInitHandler
             $identity = $this->siteIdentity($sitePayload);
             assert($identity !== null);
             $activationResult = $runner->run(
-                $this->buildConfigActivateCommand($authorizationOption, $identity, $projectRoot),
+                $this->buildConfigActivateCommand($authorizationOption, $projectRoot),
                 $projectRoot,
                 true,
             );
             $activationPayload = $activationResult->hasRunnerError()
                 ? null
                 : $this->decodeSingleJsonObject($activationResult->stdout);
-            if ($activationResult->hasRunnerError() || !$activationPayload instanceof \stdClass || $activationResult->exitCode !== 0) {
+            $activationProtocol = new ProjectConfigActivationResultParser();
+            $completed = $activationResult->exitCode === 0
+                && $activationPayload instanceof \stdClass
+                && $activationProtocol->isCompleted($activationPayload, $authorization);
+            if (!$completed) {
+                $failureStatus = $activationResult->exitCode !== 0
+                    && $activationResult->exitCode !== 130
+                    && $activationPayload instanceof \stdClass
+                    ? $activationProtocol->failureStatus($activationPayload)
+                    : null;
                 $phaseStatus = $activationResult->errorCode === ProjectInitProcessResult::ERROR_CHILD_START_FAILED
                     ? 'not_started'
-                    : (($activationPayload->status ?? null) === 'uncertain' || $activationResult->hasRunnerError() ? 'uncertain' : 'failed');
+                    : ($failureStatus === 'refused' ? 'failed' : 'uncertain');
+                $errors = $activationResult->hasRunnerError()
+                    ? [$this->runnerErrorEntry('activation', $activationResult)]
+                    : ($failureStatus === null
+                        ? [['phase' => 'activation', 'code' => self::ERROR_CHILD_PROTOCOL_INVALID]]
+                        : []);
                 $io->writeRaw($this->encodeEnvelope(
                     status: $phaseStatus === 'uncertain' ? 'uncertain' : 'failed',
                     sitePhase: $this->sitePhaseSucceeded($siteResult, $sitePayload),
                     installPhase: $this->installPhaseSucceeded($installResult),
-                    errors: $activationResult->hasRunnerError() ? [$this->runnerErrorEntry('activation', $activationResult)] : [],
+                    errors: $errors,
                     activationPhase: $this->activationPhase($activationResult, $activationPayload, $phaseStatus),
                 ));
 
@@ -265,8 +280,8 @@ final readonly class ProjectInitHandler
         return $command;
     }
 
-    /** @param array{manifest: string, plan: string} $identity @return non-empty-list<string> */
-    private function buildConfigActivateCommand(string $authorization, array $identity, string $projectRoot): array
+    /** @return non-empty-list<string> */
+    private function buildConfigActivateCommand(string $authorization, string $projectRoot): array
     {
         return [
             PHP_BINARY,
@@ -274,10 +289,6 @@ final readonly class ProjectInitHandler
             'project:config:activate',
             '--authorization',
             $this->resolveInputPath($authorization, $projectRoot),
-            '--site-manifest-digest',
-            $identity['manifest'],
-            '--site-plan-digest',
-            $identity['plan'],
             '--no-interaction',
         ];
     }

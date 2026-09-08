@@ -23,6 +23,7 @@ use Waaseyaa\CLI\Handler\ProjectConfigActivateHandler;
 use Waaseyaa\CLI\Handler\ProjectConfigAuthorizeHandler;
 use Waaseyaa\CLI\ProjectInit\InitialProjectConfigActivation;
 use Waaseyaa\CLI\ProjectInit\ProjectConfigAuthorizer;
+use Waaseyaa\CLI\ProjectInit\ProjectConfigSiteIdentity;
 use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
@@ -195,12 +196,10 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 );
             }
 
-            return new ProjectConfigActivateHandler(new InitialProjectConfigActivation(
-                $repository,
-                $preflight,
-                $activator,
-                $authority,
-            ));
+            return new ProjectConfigActivateHandler(
+                new InitialProjectConfigActivation($repository, $preflight, $activator, $authority),
+                new ProjectConfigSiteIdentity($this->projectRoot !== '' ? $this->projectRoot : (string) getcwd()),
+            );
         });
     }
 
@@ -238,8 +237,6 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             description: 'Verify and activate one signed configuration authorization on a fresh consumer',
             options: [
                 new HandlerOption('authorization', mode: HandlerOptionMode::Required, description: 'Canonical project configuration authorization document'),
-                new HandlerOption('site-manifest-digest', mode: HandlerOptionMode::Required, description: 'Manifest digest observed from this project site:init result'),
-                new HandlerOption('site-plan-digest', mode: HandlerOptionMode::Required, description: 'Plan digest observed from this project site:init result'),
             ],
             handler: [ProjectConfigActivateHandler::class, 'execute'],
         );
