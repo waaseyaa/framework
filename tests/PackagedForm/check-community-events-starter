@@ -5,8 +5,8 @@
 # Seals the exact clean candidate with the existing split-artifact engine,
 # installs one disposable consumer from those archives, binds the installed
 # starter to that consumer's lock, and drives the canonical preview, approved
-# apply, replay, registered relationship, and generated behavior boundaries.
-# It publishes nothing.
+# apply, replay, registered relationship, generated behavior, and Event
+# Organizer/Venue reference-existence boundaries (#2981). It publishes nothing.
 
 set -euo pipefail
 
@@ -47,7 +47,7 @@ fi
 candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
 version="$(tr -d '[:space:]' < "$root/VERSION")"
 
-echo '== Phase 1/6: seal exact candidate and install disposable consumer'
+echo '== Phase 1/7: seal exact candidate and install disposable consumer'
 php "$seal_engine" seal "$root" "$artifacts" "$seal" "$version"
 repository="$(php -r 'echo json_encode(["type" => "artifact", "url" => $argv[1], "only" => ["waaseyaa/*"]], JSON_UNESCAPED_SLASHES);' "$artifacts")"
 "$composer_bin" create-project waaseyaa/waaseyaa "$consumer" \
@@ -80,7 +80,7 @@ php -r '
     throw new RuntimeException("site-contract is absent from installed package metadata");
 ' "$consumer/vendor/composer/installed.json" "$work/provenance.json" "$seal"
 
-echo '== Phase 2/6: bind installed starter and issue exact approval'
+echo '== Phase 2/7: bind installed starter and issue exact approval'
 cp "$installed_starter" "$consumer/community-events.yaml"
 lock_sha256="$(sha256sum "$consumer/composer.lock" | awk '{print $1}')"
 sed -i "s/0000000000000000000000000000000000000000000000000000000000000000/$lock_sha256/" "$consumer/community-events.yaml"
@@ -116,7 +116,7 @@ run_init() {
         --answers=community-events.yaml --decision-receipt=decision.json "$@" ) >"$output"
 }
 
-echo '== Phase 3/6: canonical dry-run is reviewed and writes nothing'
+echo '== Phase 3/7: canonical dry-run is reviewed and writes nothing'
 snapshot "$work/before-preview.sha256"
 run_init "$work/planned.json" --dry-run
 snapshot "$work/after-preview.sha256"
@@ -134,7 +134,7 @@ php -r '
     }
 ' "$work/planned.json" "$consumer"
 
-echo '== Phase 4/6: approved apply and unchanged replay retain one identity'
+echo '== Phase 4/7: approved apply and unchanged replay retain one identity'
 run_init "$work/applied.json" --yes
 run_init "$work/replayed.json" --yes
 php -r '
@@ -153,7 +153,7 @@ php -r '
     }
 ' "$consumer" "$work/planned.json" "$work/applied.json" "$work/replayed.json"
 
-echo '== Phase 5/6: registered generated relationships carry exact targets'
+echo '== Phase 5/7: registered generated relationships carry exact targets'
 php -r '
     require $argv[1] . "/vendor/autoload.php";
     $dispatcher = new Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter();
@@ -170,7 +170,7 @@ php -r '
     }
 ' "$consumer"
 
-echo '== Phase 6/6: generated runtime checks exercise CRUD and workflow grants'
+echo '== Phase 6/7: generated runtime checks exercise CRUD and workflow grants'
 php -r '
     require $argv[1] . "/vendor/autoload.php";
     $case = (new ReflectionClass(App\Tests\Blueprint\WorkflowTransitionChecksTest::class))->newInstanceWithoutConstructor();
@@ -226,6 +226,10 @@ php -r '
     $document = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
     if (($document["findings"] ?? null) !== []) { throw new RuntimeException("strict doctor reported findings"); }
 ' "$work/doctor.json"
+
+echo '== Phase 7/7: Event Organizer/Venue reference-existence on real write path'
+php "$root/tests/PackagedForm/community-events-reference-existence.php" "$consumer" \
+    | tee "$work/reference-existence.out"
 
 printf 'Community-events packaged acceptance passed. Candidate: %s\n' "$candidate"
 printf 'Evidence: %s\n' "$work"

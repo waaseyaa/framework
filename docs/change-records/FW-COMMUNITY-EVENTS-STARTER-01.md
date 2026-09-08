@@ -1,9 +1,9 @@
 # FW-COMMUNITY-EVENTS-STARTER-01 — packaged governed starter
 
 Status: partial implementation checkpoint; local packaged-consumer generation,
-governance, and workflow acceptance passed at exact source head
-`55bed0d69e1d20ff3c126ddaadbc18116eed1357`, while runtime relationship
-existence validation remains open.
+governance, workflow acceptance, and Event Organizer/Venue reference-existence
+discrimination are owned by the community-events packaged-form check. Tip
+qualification binds the candidate that last passed that check.
 Anchor mirror: waaseyaa/framework#2981.
 Parent: `623679303266812231d09469628b036a43dd3ccc`.
 
@@ -34,7 +34,10 @@ This source-only slice owns:
 - `packages/cli/tests/Unit/Site/Blueprint/CommunityEventsStarterCompilationTest.php`;
 - `tests/PackagedForm/check-community-events-starter` and its cleanup roster
   entry;
-- this record and `changes/unreleased/2981.community-events-starter.added.md`.
+- `tests/PackagedForm/community-events-reference-existence.php` (Phase 7
+  reference-existence discriminator);
+- this record, `changes/unreleased/2981.community-events-starter.added.md`, and
+  `changes/unreleased/2981.community-events-reference-existence.added.md`.
 
 It does not change the parser, canonicalizer, compiler, governance engine,
 generators owned by #2849, shared CI, Studio, or a release surface.
@@ -75,6 +78,8 @@ A consumer must bind it to its reviewed dependency lock before approval or apply
 
 ## Packaged runtime evidence
 
+### Generation / governance / workflow (prior seal)
+
 The exact clean candidate `55bed0d69e1d20ff3c126ddaadbc18116eed1357`
 was sealed into 79 local Composer artifacts and installed into a disposable
 consumer as `0.1.0-alpha.300`. The installed starter was bound to that
@@ -97,16 +102,40 @@ Review, and reviewer publication and return. The generated access, JSON API,
 default-deny, role, and workflow tests passed: 45 tests, 135 assertions. Strict
 doctor reported no findings.
 
+### Event Organizer/Venue reference existence (this slice)
+
+Packaged-form Phase 7 (`community-events-reference-existence.php`) boots the
+generated Event/Organizer/Venue types with `EntityValidator` +
+`EntityIdentifierResolver` (kernel-equivalent) and proves:
+
+- missing Organizer + valid Venue → `EntityValidationException` on `organizer`,
+  JSON:API `422`, no durable Event row;
+- valid Organizer + missing Venue → property path `venue`, JSON:API `422`, no
+  durable Event row;
+- both missing → property paths `organizer` and `venue`, JSON:API `422`, no
+  durable Event row;
+- both present → JSON:API `201` with persisted organizer/venue ids;
+- anonymous create remains `403` (authorization), distinct from validation
+  refusals.
+
+**Observed baseline (honest):** the generated `JsonApiGovernanceChecksTest`
+still constructs repositories without `EntityValidator` and seeds with
+`validate: false`, so its create-allowed case can return `201` for numeric
+organizer/venue attributes without target rows. That harness omission is not
+treated as production behavior. Framework #2989 supplies the existence
+substrate; Phase 7 shows it on the community-events generated types when
+validation is active. No defect requiring a generator or #2989 code change was
+observed under that composition.
+
 ## Remaining #2981 acceptance
 
 This checkpoint does not publish a package or close Studio consumer readiness.
 Still required:
 
-- canonical runtime validation that rejects an Event write when its Organizer
-  or Venue id does not resolve. The artifact consumer currently accepts such a
-  write: its generated JSON API test registers only Event, submits
-  `organizer: 1` and `venue: 1`, and receives `201`. Parser validation of fixture
-  names and runtime field target metadata do not satisfy this criterion;
-- independent review and the repository's governed current-base qualification;
+- independent review and the repository's governed current-base qualification
+  (absorb behind-2 on main via merge, not rebase of the preserved starter);
 - consumer adoption evidence, release notes, and separately authorized package
-  publication.
+  publication;
+- Studio catalog / browser apply / preview wiring (Studio #16 / #4 / #19) —
+  developable against local Framework cohorts; Packagist qualification remains
+  a later delivery check.
