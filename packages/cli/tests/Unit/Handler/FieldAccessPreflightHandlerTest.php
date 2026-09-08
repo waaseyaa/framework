@@ -112,6 +112,12 @@ final class FieldAccessPreflightHandlerTest extends TestCase
         self::assertJson((string) file_get_contents($target));
         self::assertSame([], glob($root.'/.waaseyaa/.field-access-preflight.*') ?: []);
         self::assertSame('unchanged', iterator_to_array($database->query('SELECT value FROM audit_sentinel WHERE id = 1'), false)[0]['value']);
+        // Regression guard for the PROTOCOL302_BUNDLE_ENTRY defect: tempnam()
+        // always creates its temp file at 0600, and this artifact is bundled
+        // as part of the portable project tree (consumed by whatever process
+        // boots the application), so it must land at the same {0644, 0755}
+        // portable contract every other generated project artifact carries.
+        self::assertSame(0o644, fileperms($target) & 0o777, 'the written field-access preflight artifact must be portable (0644), not tempnam()\'s private default (0600)');
 
         unlink($target);
         rmdir($root.'/.waaseyaa');

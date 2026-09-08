@@ -50,8 +50,20 @@ final readonly class FieldAccessPreflightHandler
                 throw new \RuntimeException('Could not create the field-access artifact directory.');
             }
             $target = $directory . '/field-access-preflight.json';
+            // tempnam() always creates its file at 0600, regardless of umask.
+            // This artifact is consumed by whatever process boots the
+            // application (commonly a different user/service than the CLI
+            // invocation that generated it) and is bundled as part of the
+            // portable project tree, so it must carry the same {0644, 0755}
+            // portable-artifact mode every other generated project file
+            // does (see GeneratedArtifact) — chmod explicitly before the
+            // rename that publishes it, mirroring ConfigManifestEnvelopeFile::write().
             $temporary = tempnam($directory, '.field-access-preflight.');
-            if ($temporary === false || file_put_contents($temporary, $json, LOCK_EX) === false || !rename($temporary, $target)) {
+            if ($temporary === false
+                || file_put_contents($temporary, $json, LOCK_EX) === false
+                || !chmod($temporary, 0o644)
+                || !rename($temporary, $target)
+            ) {
                 if (is_string($temporary) && is_file($temporary)) {
                     unlink($temporary);
                 }
