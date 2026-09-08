@@ -222,7 +222,8 @@ final class SessionCookiePolicy
             return;
         }
 
-        $params = session_get_cookie_params();
+        /** @var array<string, mixed> $params */
+        $params = json_decode(json_encode(session_get_cookie_params(), JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
 
         if ($enforceName) {
             $expectedName = $this->sessionName();
@@ -239,7 +240,7 @@ final class SessionCookiePolicy
         }
 
         if ($enforcePath) {
-            $livePath = (string) ($params['path'] ?? '');
+            $livePath = is_string($params['path'] ?? null) ? $params['path'] : '';
             if ($livePath !== $this->path()) {
                 throw new InvalidSessionCookiePolicyException(sprintf(
                     'Active session cookie path "%s" is incompatible with configured path "%s".',
@@ -250,7 +251,7 @@ final class SessionCookiePolicy
         }
 
         if ($enforceDomain) {
-            $liveDomain = (string) ($params['domain'] ?? '');
+            $liveDomain = is_string($params['domain'] ?? null) ? $params['domain'] : '';
             $expectedDomain = $this->domain() ?? '';
             if ($liveDomain !== $expectedDomain) {
                 throw new InvalidSessionCookiePolicyException(sprintf(
@@ -265,7 +266,7 @@ final class SessionCookiePolicy
             $expectedSecure = $this->hostBound()
                 ? true
                 : filter_var($this->options['secure'], FILTER_VALIDATE_BOOLEAN);
-            $liveSecure = !empty($params['secure']);
+            $liveSecure = ($params['secure'] ?? false) === true;
             if ($liveSecure !== $expectedSecure) {
                 throw new InvalidSessionCookiePolicyException(sprintf(
                     'Active session cookie Secure=%s is incompatible with configured Secure=%s.',
@@ -276,7 +277,7 @@ final class SessionCookiePolicy
         }
 
         if ($enforceHttpOnly) {
-            $liveHttpOnly = !empty($params['httponly']);
+            $liveHttpOnly = ($params['httponly'] ?? false) === true;
             if ($liveHttpOnly !== $this->httpOnly()) {
                 throw new InvalidSessionCookiePolicyException(sprintf(
                     'Active session cookie HttpOnly=%s is incompatible with configured HttpOnly=%s.',
@@ -288,7 +289,7 @@ final class SessionCookiePolicy
 
         if ($enforceSameSite) {
             $expectedSameSite = $this->sameSite();
-            $liveRaw = $params['samesite'] ?? '';
+            $liveRaw = $params['samesite'] ?? null;
             $liveSameSite = is_string($liveRaw) && $liveRaw !== '' ? $liveRaw : null;
             if ($expectedSameSite === null) {
                 if ($liveSameSite !== null) {

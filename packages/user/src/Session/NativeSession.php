@@ -37,7 +37,7 @@ final class NativeSession implements SessionInterface
 
         $sameSite = $policy->sameSite() ?? '';
         session_set_cookie_params([
-            'lifetime' => (int) (session_get_cookie_params()['lifetime'] ?? 0),
+            'lifetime' => session_get_cookie_params()['lifetime'],
             'path' => $policy->path(),
             'domain' => $policy->domain() ?? '',
             'secure' => $policy->resolveSecure($this->isSecureConnection()),

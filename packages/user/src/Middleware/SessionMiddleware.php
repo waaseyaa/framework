@@ -179,7 +179,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         // not overwritten with an empty string.
         if (filter_var(ini_get('session.use_cookies'), FILTER_VALIDATE_BOOLEAN)) {
             $params = [
-                'lifetime' => (int) (session_get_cookie_params()['lifetime'] ?? 0),
+                'lifetime' => session_get_cookie_params()['lifetime'],
                 'path' => $policy->path(),
                 'domain' => $domain ?? '',
                 'secure' => $policy->resolveSecure($this->isHttpsRequest()),
@@ -250,7 +250,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         $liveName = session_name();
-        if (is_string($liveName) && $liveName !== '' && $request->cookies->has($liveName)) {
+        if (is_string($liveName) && $request->cookies->has($liveName)) {
             return true;
         }
 
