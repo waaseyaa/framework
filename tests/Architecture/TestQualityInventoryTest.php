@@ -41,9 +41,13 @@ final class TestQualityInventoryTest extends TestCase
         // only as a string literal inside disposable php -r concurrency-proof
         // children. The tenth is #2937's fixed 20ms fork-child delay used to
         // prove that already-launched children are reaped. The eleventh is
-        // #2664's finite project:init child-process lifecycle fixtures. None is
-        // a retry loop (see bin/test-quality-inventory).
-        self::assertCount(11, array_merge(
+        // #2664's finite project:init child-process lifecycle fixtures. The
+        // twelfth is FW-REHYDRATION-DRIFT-01's SiteVerifyPhpunitCacheIsolationTest:
+        // two fixed 20ms delays between consecutive subprocess runs so the
+        // recorded PHPUnit timing genuinely differs, proving its byte-equality
+        // discriminator actually discriminates rather than coincidentally
+        // matching. None is a retry loop (see bin/test-quality-inventory).
+        self::assertCount(12, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));
