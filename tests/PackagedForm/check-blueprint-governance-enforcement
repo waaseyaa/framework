@@ -375,9 +375,6 @@ if ! php -r '
         bin2hex($seed),
         $pkcs8Der,
         base64_encode($pkcs8Der),
-        "-----BEGIN PRIVATE KEY-----",
-        "-----BEGIN ED25519 PRIVATE KEY-----",
-        "-----BEGIN OPENSSH PRIVATE KEY-----",
     ];
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
@@ -393,8 +390,21 @@ if ! php -r '
         }
         foreach ($needles as $needle) {
             if (str_contains($bytes, $needle)) {
-                fwrite(STDERR, "FAIL: the importing consumer contains private signing-key bytes.\n");
+                fwrite(STDERR, "FAIL: the importing consumer contains private signing-key bytes in " . $file->getPathname() . "\n");
                 exit(1);
+            }
+        }
+        if (preg_match_all(
+            "/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\\s+([A-Za-z0-9+\\/=\\r\\n]+)-----END [A-Z0-9 ]*PRIVATE KEY-----/",
+            $bytes,
+            $pemMatches,
+        ) !== false) {
+            foreach ($pemMatches[1] as $encodedPem) {
+                $decodedPem = base64_decode(preg_replace("/\\s+/", "", $encodedPem) ?? "", true);
+                if (is_string($decodedPem) && (str_contains($decodedPem, $privateKey) || str_contains($decodedPem, $seed))) {
+                    fwrite(STDERR, "FAIL: the importing consumer contains the private signing key in PEM form.\n");
+                    exit(1);
+                }
             }
         }
     }
