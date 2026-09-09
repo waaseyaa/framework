@@ -1383,10 +1383,10 @@ abstract class AbstractKernel
     /**
      * Resolve the boot-scoped provider-owned cache composition, when present.
      *
-     * This check deliberately precedes RuntimeEpochInterface resolution in
-     * the CLI adapter. A provider-owned factory does not consume the kernel's
-     * default mcp_read composition and therefore must not acquire that
-     * unrelated dependency merely to preserve its own configured bins.
+     * This check deliberately precedes the CLI adapter's default-cache
+     * dependency resolution. A provider-owned factory does not consume the
+     * kernel's default mcp_read composition and therefore must not acquire
+     * that unrelated dependency merely to preserve its configured bins.
      */
     private function providerCacheFactory(): ?CacheFactory
     {
