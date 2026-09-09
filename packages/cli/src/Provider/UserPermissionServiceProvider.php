@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\CLI\Command\HandlerArgument;
 use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
@@ -14,12 +16,26 @@ use Waaseyaa\CLI\Handler\UserAssignRoleHandler;
 use Waaseyaa\CLI\Handler\UserCreateHandler;
 use Waaseyaa\CLI\Handler\UserProvisionRegisteredHandler;
 use Waaseyaa\CLI\Handler\UserRoleHandler;
+use Waaseyaa\CLI\UserProvisioning\RegisteredRoleAccountProvisioner;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\User\RegisteredRoleAssignmentService;
+use Waaseyaa\User\RoleRepository;
 
 final class UserPermissionServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        // The optional Closure clock is a deterministic-test seam, not a
+        // container service. Construct the public command's provisioner from
+        // the kernel's already validated role registry and audited user-field
+        // services instead of reflection-autowiring that private seam.
+        $this->singleton(RegisteredRoleAccountProvisioner::class, fn(): RegisteredRoleAccountProvisioner => new RegisteredRoleAccountProvisioner(
+            new RegisteredRoleAssignmentService($this->resolve(RoleRepository::class)),
+            $this->resolve(UserIdentityLookupInterface::class),
+            $this->resolve(UserInternalFieldReaderInterface::class),
+        ));
+    }
 
     public function consoleCommands(): iterable
     {
