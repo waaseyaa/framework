@@ -34,6 +34,7 @@ use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
  * connection; nothing here touches the framework's own cache tables.
  */
 #[CoversClass(CacheClearHandler::class)]
+#[CoversClass(AbstractKernel::class)]
 final class CacheClearHandlerTest extends TestCase
 {
     // ------------------------------------------------------------------
