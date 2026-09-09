@@ -184,6 +184,17 @@ foreach ($phpTestFiles as $path) {
             // and exact-child cleanup. The runner owns a bounded deadline; these
             // literals do not retry an assertion until it passes.
             'packages/cli/tests/Unit/ProjectInit/ProcOpenProjectInitProcessRunnerTest.php' => 'subprocess_polling',
+            // FW-REHYDRATION-DRIFT-01: two fixed usleep(20_000) calls force a
+            // different wall-clock timing between two consecutive subprocess
+            // runs of the generated PHPUnit invocation, so the recorded
+            // per-test duration in .phpunit.cache genuinely differs run to
+            // run -- proving the discriminator test actually distinguishes
+            // "byte-identical" from "coincidentally identical". Fixed,
+            // bounded, not a retry loop. A third usleep() token the regex
+            // matches is a string literal inside a generated PHP fixture
+            // (disposable child test source), not a wait in this file's own
+            // executing code.
+            'packages/site-contract/tests/Unit/Generation/SiteVerifyPhpunitCacheIsolationTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;
