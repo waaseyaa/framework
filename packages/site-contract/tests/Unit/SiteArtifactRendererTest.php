@@ -63,7 +63,7 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertSame(0o755, $first->artifacts['bin/maintenance/site-verify']->mode);
         self::assertStringContainsString('chdir($root)', $first->artifacts['bin/maintenance/site-verify']->content);
         self::assertStringContainsString('site:doctor --strict --format=json', $first->artifacts['bin/maintenance/site-verify']->content);
-        // FW-REHYDRATION-DRIFT-01 (placeholder — no GitHub issue filed yet):
+        // FW-REHYDRATION-DRIFT-01 / GitHub #3056:
         // vendor/bin/phpunit's own cacheDirectory (".phpunit.cache" in the
         // skeleton's phpunit.xml.dist) records real wall-clock test timings
         // in "test-run-history" on every run. Left at its XML default, that
@@ -87,8 +87,7 @@ final class SiteArtifactRendererTest extends TestCase
         // perfectly good file — fixed by asserting the shebang on every host
         // and the execute bit only under DIRECTORY_SEPARATOR === '/'.
         //
-        // FW-SITE-VERIFY-NOEXEC-01 (placeholder — no GitHub issue assigned
-        // yet): that POSIX-only is_executable() check itself does not hold
+        // FW-SITE-VERIFY-NOEXEC-01 / GitHub #3054: that POSIX-only is_executable() check itself does not hold
         // inside a hardened container whose project mount is noexec (e.g. a
         // sandboxed execution environment's tmpfs). The file is genuinely
         // mode 0755, but is_executable() reads mount policy, not just the

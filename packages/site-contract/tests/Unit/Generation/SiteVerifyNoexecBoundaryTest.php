@@ -11,7 +11,7 @@ use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /**
- * FW-SITE-VERIFY-NOEXEC-01 (placeholder — no GitHub issue assigned yet).
+ * FW-SITE-VERIFY-NOEXEC-01 / GitHub #3054.
  *
  * Reproduces, without Docker, the two properties the repaired generated
  * acceptance test (`SiteArtifactRenderer::acceptanceTest()`) now measures

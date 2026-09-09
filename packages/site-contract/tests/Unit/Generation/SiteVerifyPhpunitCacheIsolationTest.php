@@ -13,7 +13,7 @@ use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /**
- * FW-REHYDRATION-DRIFT-01 (placeholder — no GitHub issue assigned yet).
+ * FW-REHYDRATION-DRIFT-01 / GitHub #3056.
  *
  * Reproduces, without Docker, the real defect Studio's materialization
  * protocol hit at PROTOCOL304_REHYDRATION_DRIFT: running the generated
