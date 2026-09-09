@@ -1337,30 +1337,9 @@ abstract class AbstractKernel
      */
     public function buildCacheFactory(RuntimeEpochInterface $runtimeEpoch): CacheFactory
     {
-        if ($this->cacheFactory !== null) {
-            return $this->cacheFactory;
-        }
-
-        // Application providers remain authoritative when they explicitly
-        // bind the cache factory. Selecting the first binding uses the same
-        // provider order as HTTP and CLI service resolution. The canonical
-        // concrete factory owns its CacheConfiguration, so both surfaces see
-        // one exact configured-bin inventory instead of a kernel shadow copy.
-        foreach ($this->providers as $provider) {
-            if (!isset($provider->getBindings()[CacheFactoryInterface::class])) {
-                continue;
-            }
-            $factory = $provider->resolve(CacheFactoryInterface::class);
-            if (!$factory instanceof CacheFactory) {
-                throw new \LogicException(sprintf(
-                    'Provider %s must bind %s to %s so the configured cache-bin inventory remains available.',
-                    $provider::class,
-                    CacheFactoryInterface::class,
-                    CacheFactory::class,
-                ));
-            }
-
-            return $this->cacheFactory = $factory;
+        $providerFactory = $this->providerCacheFactory();
+        if ($providerFactory !== null) {
+            return $providerFactory;
         }
 
         assert($this->database instanceof DBALDatabase);
@@ -1399,6 +1378,44 @@ abstract class AbstractKernel
         ));
 
         return $this->cacheFactory = new CacheFactory($cacheConfig, $projectionDiagnostic);
+    }
+
+    /**
+     * Resolve the boot-scoped provider-owned cache composition, when present.
+     *
+     * This check deliberately precedes RuntimeEpochInterface resolution in
+     * the CLI adapter. A provider-owned factory does not consume the kernel's
+     * default mcp_read composition and therefore must not acquire that
+     * unrelated dependency merely to preserve its own configured bins.
+     */
+    private function providerCacheFactory(): ?CacheFactory
+    {
+        if ($this->cacheFactory !== null) {
+            return $this->cacheFactory;
+        }
+
+        // Selecting the first explicit binding uses the same provider order
+        // as HTTP and CLI service resolution. The canonical concrete factory
+        // owns its CacheConfiguration, so both surfaces see one exact
+        // configured-bin inventory instead of a kernel shadow copy.
+        foreach ($this->providers as $provider) {
+            if (!isset($provider->getBindings()[CacheFactoryInterface::class])) {
+                continue;
+            }
+            $factory = $provider->resolve(CacheFactoryInterface::class);
+            if (!$factory instanceof CacheFactory) {
+                throw new \LogicException(sprintf(
+                    'Provider %s must bind %s to %s so the configured cache-bin inventory remains available.',
+                    $provider::class,
+                    CacheFactoryInterface::class,
+                    CacheFactory::class,
+                ));
+            }
+
+            return $this->cacheFactory = $factory;
+        }
+
+        return null;
     }
 
     /**
@@ -1459,6 +1476,11 @@ abstract class AbstractKernel
             // therefore share the same configured-bin authority.
             \Waaseyaa\Cache\CacheFactoryInterface::class =>
                 static function (\Psr\Container\ContainerInterface $c) use ($kernel): \Waaseyaa\Cache\CacheFactory {
+                    $providerFactory = $kernel->providerCacheFactory();
+                    if ($providerFactory !== null) {
+                        return $providerFactory;
+                    }
+
                     $runtimeEpoch = $c->get(\Waaseyaa\Foundation\Runtime\RuntimeEpochInterface::class);
                     assert($runtimeEpoch instanceof \Waaseyaa\Foundation\Runtime\RuntimeEpochInterface);
 

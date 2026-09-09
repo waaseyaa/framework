@@ -471,6 +471,5 @@ final class ApplicationCacheProvider extends ServiceProvider
             static fn(): CacheFactory => self::$factory
                 ?? throw new \LogicException('Application cache provider fixture is not installed.'),
         );
-        $this->singleton(RuntimeEpochInterface::class, StableRuntimeEpoch::class);
     }
 }

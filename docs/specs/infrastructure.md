@@ -718,7 +718,9 @@ authority. When no provider binds a factory, the kernel builds the framework's
 production bins (`render`, `discovery`, `mcp_read`). A provider binding to a
 different implementation fails explicitly because `CacheFactoryInterface`
 does not expose a configured-bin inventory and pairing it with a fabricated
-configuration would reintroduce split authority.
+configuration would reintroduce split authority. The provider-owned path
+does not resolve `RuntimeEpochInterface`: that dependency belongs to the
+kernel's default `mcp_read` composition, which an application factory replaces.
 
 The selected factory is memoized for the kernel boot. `HttpKernel::
 finalizeBoot()` calls this method after resolving the runtime epoch through its
