@@ -99,17 +99,73 @@ final class SubprocessHarnessContractTest extends TestCase
             $source = (string) file_get_contents(self::repositoryRoot() . '/' . $path);
             $usesNonBlockingPipes = preg_match(
                 '/stream_set_blocking\s*\(\s*\$pipes\[[12]\]\s*,\s*false\s*\)|stream_set_blocking\(\$pipe,\s*false\)/',
-                $source,
+                self::executableSource($source),
             ) === 1;
-            $usesFileBackedOutputs = preg_match('/\$stdoutHandle\s*=\s*tmpfile\s*\(\s*\)/', $source) === 1
-                && preg_match('/\$stderrHandle\s*=\s*tmpfile\s*\(\s*\)/', $source) === 1
-                && preg_match('/1\s*=>\s*\$stdoutHandle\s*,\s*2\s*=>\s*\$stderrHandle/', $source) === 1;
+            $usesFileBackedOutputs = self::usesFileBackedProcOpenOutputs($source);
 
             self::assertTrue(
                 $usesNonBlockingPipes || $usesFileBackedOutputs,
                 "{$path} is allowlisted as safe but no longer has non-blocking pipes or file-backed outputs.",
             );
         }
+    }
+
+    #[Test]
+    public function file_backed_output_shape_is_bound_to_the_actual_proc_open_descriptors(): void
+    {
+        $safeRenamedVariables = <<<'PHP'
+            <?php
+            $capturedOutput = tmpfile();
+            $capturedErrors = tmpfile();
+            $process = proc_open(
+                $command,
+                [0 => ['pipe', 'r'], 1 => $capturedOutput, 2 => $capturedErrors],
+                $pipes,
+            );
+            PHP;
+        $unsafeBlockingPipesWithDecoys = <<<'PHP'
+            <?php
+            $stdoutHandle = tmpfile();
+            $stderrHandle = tmpfile();
+            // Historical safe shape: [1 => $stdoutHandle, 2 => $stderrHandle].
+            $process = proc_open(
+                $command,
+                [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes,
+            );
+            $stdout = stream_get_contents($pipes[1]);
+            $stderr = stream_get_contents($pipes[2]);
+            PHP;
+
+        self::assertTrue(self::usesFileBackedProcOpenOutputs($safeRenamedVariables));
+        self::assertFalse(self::usesFileBackedProcOpenOutputs($unsafeBlockingPipesWithDecoys));
+    }
+
+    #[Test]
+    public function packaged_file_backed_runner_rejects_oversized_output_from_either_stream(): void
+    {
+        foreach (['STDOUT', 'STDERR'] as $stream) {
+            $process = self::runPackagedRunnerProbe(
+                "fwrite({$stream}, str_repeat('X', 8193));",
+                5.0,
+            );
+
+            self::assertSame(73, $process->getExitCode(), $process->getErrorOutput());
+            self::assertSame('The provisioning command exceeded its output limit.', $process->getOutput());
+        }
+    }
+
+    #[Test]
+    public function packaged_file_backed_runner_terminates_a_child_at_its_deadline(): void
+    {
+        $started = microtime(true);
+        $process = self::runPackagedRunnerProbe('sleep(60);', 35.0);
+        $elapsed = microtime(true) - $started;
+
+        self::assertSame(73, $process->getExitCode(), $process->getErrorOutput());
+        self::assertSame('The provisioning command exceeded its time limit.', $process->getOutput());
+        self::assertGreaterThanOrEqual(29.0, $elapsed);
+        self::assertLessThan(35.0, $elapsed);
     }
 
     #[Test]
@@ -226,6 +282,250 @@ final class SubprocessHarnessContractTest extends TestCase
         }
 
         return $lines;
+    }
+
+    private static function runPackagedRunnerProbe(string $child, float $timeout): Process
+    {
+        $source = (string) file_get_contents(
+            self::repositoryRoot() . '/tests/PackagedForm/community-events-registered-role-provisioning.php',
+        );
+        $function = self::namedFunctionSource($source, 'runBoundedProcess');
+        $probe = <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            __FUNCTION_SOURCE__
+
+            $child = base64_decode($argv[1], true);
+            if (!is_string($child)) {
+                exit(74);
+            }
+            try {
+                runBoundedProcess([PHP_BINARY, '-r', $child], __DIR__, [], '');
+            } catch (Throwable $exception) {
+                fwrite(STDOUT, $exception->getMessage());
+                exit(73);
+            }
+            PHP;
+        $probe = str_replace('__FUNCTION_SOURCE__', $function, $probe);
+        $path = tempnam(sys_get_temp_dir(), 'waaseyaa-subprocess-contract-');
+        self::assertIsString($path);
+        self::assertNotFalse(file_put_contents($path, $probe));
+
+        $process = new Process([PHP_BINARY, $path, base64_encode($child)]);
+        $process->setTimeout($timeout);
+        try {
+            $process->run();
+        } finally {
+            @unlink($path);
+        }
+
+        return $process;
+    }
+
+    private static function namedFunctionSource(string $source, string $name): string
+    {
+        $tokens = token_get_all($source);
+        foreach ($tokens as $index => $token) {
+            if (!is_array($token) || $token[0] !== T_FUNCTION) {
+                continue;
+            }
+            $nameIndex = self::nextSignificantToken($tokens, $index + 1);
+            if (
+                $nameIndex === null
+                || !is_array($tokens[$nameIndex])
+                || $tokens[$nameIndex][0] !== T_STRING
+                || $tokens[$nameIndex][1] !== $name
+            ) {
+                continue;
+            }
+            $function = '';
+            $started = false;
+            $depth = 0;
+            for ($cursor = $index; $cursor < count($tokens); $cursor++) {
+                $part = $tokens[$cursor];
+                $function .= is_array($part) ? $part[1] : $part;
+                if ($part === '{') {
+                    $started = true;
+                    $depth++;
+                } elseif ($part === '}' && $started) {
+                    $depth--;
+                    if ($depth === 0) {
+                        return $function;
+                    }
+                }
+            }
+        }
+
+        self::fail("Could not extract {$name}() from the packaged runner.");
+    }
+
+    private static function usesFileBackedProcOpenOutputs(string $source): bool
+    {
+        $tokens = token_get_all($source);
+        $found = false;
+        foreach ($tokens as $index => $token) {
+            if (!self::isProcOpenToken($token)) {
+                continue;
+            }
+            $found = true;
+            $open = self::nextSignificantToken($tokens, $index + 1);
+            if ($open === null || $tokens[$open] !== '(') {
+                return false;
+            }
+            $arguments = self::callArguments($tokens, $open);
+            if ($arguments === null || !isset($arguments[1])) {
+                return false;
+            }
+            $descriptorPattern = <<<'REGEX'
+                /^\[0=>\[(?:'pipe'|"pipe"),(?:'r'|"r")\],1=>(\$[A-Za-z_][A-Za-z0-9_]*),2=>(\$[A-Za-z_][A-Za-z0-9_]*)\]$/
+                REGEX;
+            if (
+                preg_match($descriptorPattern, self::compactTokens($arguments[1]), $matches) !== 1
+                || $matches[1] === $matches[2]
+            ) {
+                return false;
+            }
+            $scopeStart = self::lastFunctionToken($tokens, $index);
+            if (
+                !self::lastDirectAssignmentIsTmpfile($tokens, $matches[1], $scopeStart, $index)
+                || !self::lastDirectAssignmentIsTmpfile($tokens, $matches[2], $scopeStart, $index)
+            ) {
+                return false;
+            }
+        }
+
+        return $found;
+    }
+
+    private static function executableSource(string $source): string
+    {
+        $executable = '';
+        foreach (token_get_all($source) as $token) {
+            if (
+                is_array($token)
+                && in_array($token[0], [T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING], true)
+            ) {
+                continue;
+            }
+            $executable .= is_array($token) ? $token[1] : $token;
+        }
+
+        return $executable;
+    }
+
+    /**
+     * @param list<mixed> $tokens
+     * @return list<list<mixed>>|null
+     */
+    private static function callArguments(array $tokens, int $open): ?array
+    {
+        $arguments = [];
+        $current = [];
+        $depth = 0;
+        for ($index = $open + 1; $index < count($tokens); $index++) {
+            $token = $tokens[$index];
+            if ($token === ')' && $depth === 0) {
+                $arguments[] = $current;
+
+                return $arguments;
+            }
+            if (in_array($token, ['(', '[', '{'], true)) {
+                $depth++;
+            } elseif (in_array($token, [')', ']', '}'], true)) {
+                $depth--;
+            } elseif ($token === ',' && $depth === 0) {
+                $arguments[] = $current;
+                $current = [];
+                continue;
+            }
+            $current[] = $token;
+        }
+
+        return null;
+    }
+
+    /** @param list<mixed> $tokens */
+    private static function compactTokens(array $tokens): string
+    {
+        $compact = '';
+        foreach ($tokens as $token) {
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            $compact .= is_array($token) ? $token[1] : $token;
+        }
+
+        return $compact;
+    }
+
+    /** @param list<mixed> $tokens */
+    private static function lastDirectAssignmentIsTmpfile(
+        array $tokens,
+        string $variable,
+        int $start,
+        int $before,
+    ): bool {
+        $isTmpfile = false;
+        for ($index = $start; $index < $before; $index++) {
+            $token = $tokens[$index];
+            if (!is_array($token) || $token[0] !== T_VARIABLE || $token[1] !== $variable) {
+                continue;
+            }
+            $assignment = self::nextSignificantToken($tokens, $index + 1);
+            if ($assignment === null || $tokens[$assignment] !== '=') {
+                continue;
+            }
+            $value = self::nextSignificantToken($tokens, $assignment + 1);
+            $open = $value === null ? null : self::nextSignificantToken($tokens, $value + 1);
+            $close = $open === null ? null : self::nextSignificantToken($tokens, $open + 1);
+            $isTmpfile = $value !== null
+                && is_array($tokens[$value])
+                && $tokens[$value][0] === T_STRING
+                && strtolower($tokens[$value][1]) === 'tmpfile'
+                && $open !== null
+                && $tokens[$open] === '('
+                && $close !== null
+                && $tokens[$close] === ')';
+        }
+
+        return $isTmpfile;
+    }
+
+    /** @param list<mixed> $tokens */
+    private static function lastFunctionToken(array $tokens, int $before): int
+    {
+        for ($index = $before - 1; $index >= 0; $index--) {
+            $token = $tokens[$index];
+            if (is_array($token) && $token[0] === T_FUNCTION) {
+                return $index;
+            }
+        }
+
+        return 0;
+    }
+
+    /** @param list<mixed> $tokens */
+    private static function nextSignificantToken(array $tokens, int $start): ?int
+    {
+        for ($index = $start; $index < count($tokens); $index++) {
+            $token = $tokens[$index];
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            return $index;
+        }
+
+        return null;
+    }
+
+    private static function isProcOpenToken(mixed $token): bool
+    {
+        return is_array($token)
+            && (($token[0] === T_STRING && strtolower($token[1]) === 'proc_open')
+                || ($token[0] === T_NAME_FULLY_QUALIFIED && strtolower($token[1]) === '\\proc_open'));
     }
 
     private static function repositoryRoot(): string
