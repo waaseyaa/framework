@@ -488,14 +488,33 @@ final class AuthUiScaffoldManager
         if (!is_dir($manifestDirectory) && !mkdir($manifestDirectory, 0o755, true) && !is_dir($manifestDirectory)) {
             throw new \RuntimeException('Unable to create the auth UI scaffold manifest directory.');
         }
+        // tempnam() always creates its file at 0600, regardless of umask.
+        // This manifest is meant to be committed alongside the generated auth
+        // UI files it tracks (analogous to .waaseyaa/bimaaji-install.json),
+        // so it must carry the same {0644, 0755} portable-artifact mode every
+        // other generated project file does — chmod explicitly before the
+        // rename that publishes it, mirroring ConfigManifestEnvelopeFile::write().
         $temporaryPath = tempnam($manifestDirectory, '.scaffold-manifest.');
         if ($temporaryPath === false) {
             throw new \RuntimeException('Unable to allocate a temporary auth UI scaffold manifest.');
         }
         $bytes = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
-        if (file_put_contents($temporaryPath, $bytes) === false || !rename($temporaryPath, $this->manifestPath())) {
-            @unlink($temporaryPath);
-            throw new \RuntimeException('Unable to write the auth UI scaffold manifest atomically.');
+        try {
+            if (file_put_contents($temporaryPath, $bytes) === false) {
+                throw new \RuntimeException('Unable to write the auth UI scaffold manifest atomically.');
+            }
+            if (!chmod($temporaryPath, 0o644)) {
+                throw new \RuntimeException('Unable to write the auth UI scaffold manifest atomically.');
+            }
+            if (!rename($temporaryPath, $this->manifestPath())) {
+                throw new \RuntimeException('Unable to write the auth UI scaffold manifest atomically.');
+            }
+        } catch (\Throwable $exception) {
+            if (is_file($temporaryPath)) {
+                unlink($temporaryPath);
+            }
+
+            throw $exception;
         }
     }
 
