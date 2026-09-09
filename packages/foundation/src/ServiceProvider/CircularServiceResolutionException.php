@@ -12,9 +12,12 @@ namespace Waaseyaa\Foundation\ServiceProvider;
  * (or auto-wired constructors) that would otherwise re-enter forever, to
  * stack/memory exhaustion.
  *
- * The diagnostic carries ONLY abstract identifiers (binding keys /
- * class-strings) — never factory arguments, constructor arguments, resolved
- * service values, config values, or secrets. It is safe to log verbatim.
+ * The diagnostic carries abstract identifiers (binding keys / class-strings),
+ * never factory arguments, constructor arguments, resolved service values, or
+ * config values. Identifiers are caller-controlled strings, however, and can
+ * themselves contain sensitive text or control characters. Consumers must
+ * encode or redact the message for their log sink rather than assuming it is
+ * safe to log verbatim.
  *
  * Extends {@see \RuntimeException} so every existing `catch (\RuntimeException)`
  * site (e.g. {@see ServiceProvider::resolveOptional()}) keeps behaving

@@ -32,7 +32,10 @@ abstract class ServiceProvider implements ServiceProviderInterface
      * Cleared via try/finally around every factory invocation, success or
      * failure, so a resolution failure never leaves stale in-flight state.
      *
-     * @var array<string, true>
+     * Keys are prefixed before insertion so PHP cannot coerce a numeric-string
+     * abstract such as `"0"` to an integer array key.
+     *
+     * @var array<string, string> prefixed lookup key => original abstract
      */
     private array $resolving = [];
 
@@ -210,8 +213,9 @@ abstract class ServiceProvider implements ServiceProviderInterface
         // resolution call stack. Report the ordered in-flight chain from
         // where $abstract first started to this repeat, rather than letting
         // the recursion continue to stack/memory exhaustion.
-        if (isset($this->resolving[$abstract])) {
-            $chain = array_keys($this->resolving);
+        $resolutionKey = 'abstract:' . $abstract;
+        if (isset($this->resolving[$resolutionKey])) {
+            $chain = array_values($this->resolving);
             $start = array_search($abstract, $chain, true);
             $cycle = [...array_slice($chain, $start === false ? 0 : $start), $abstract];
 
@@ -231,11 +235,11 @@ abstract class ServiceProvider implements ServiceProviderInterface
         $binding = $this->bindings[$abstract];
         $concrete = $binding['concrete'];
 
-        $this->resolving[$abstract] = true;
+        $this->resolving[$resolutionKey] = $abstract;
         try {
             $instance = is_callable($concrete) ? $concrete() : new $concrete();
         } finally {
-            unset($this->resolving[$abstract]);
+            unset($this->resolving[$resolutionKey]);
         }
 
         if (!is_object($instance)) {

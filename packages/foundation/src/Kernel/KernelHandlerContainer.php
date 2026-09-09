@@ -37,7 +37,10 @@ final class KernelHandlerContainer implements ContainerInterface
      * resolution attempt, success or failure, so a failure never leaves
      * stale in-flight state behind.
      *
-     * @var array<string, true>
+     * Keys are prefixed before insertion so PHP cannot coerce a numeric-string
+     * id such as `"0"` to an integer array key.
+     *
+     * @var array<string, string> prefixed lookup key => original id
      */
     private array $resolving = [];
 
@@ -60,19 +63,20 @@ final class KernelHandlerContainer implements ContainerInterface
         // same get() call stack. Report the ordered in-flight chain from
         // where $id first started to this repeat, rather than recursing to
         // stack/memory exhaustion.
-        if (isset($this->resolving[$id])) {
-            $chain = array_keys($this->resolving);
+        $resolutionKey = 'id:' . $id;
+        if (isset($this->resolving[$resolutionKey])) {
+            $chain = array_values($this->resolving);
             $start = array_search($id, $chain, true);
             $cycle = [...array_slice($chain, $start === false ? 0 : $start), $id];
 
             throw new CircularServiceResolutionException($cycle);
         }
 
-        $this->resolving[$id] = true;
+        $this->resolving[$resolutionKey] = $id;
         try {
             return $this->resolveUncached($id);
         } finally {
-            unset($this->resolving[$id]);
+            unset($this->resolving[$resolutionKey]);
         }
     }
 

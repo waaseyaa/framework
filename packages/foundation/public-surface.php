@@ -89,6 +89,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesRolesInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\RequiresCapabilitiesInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\RequiresOptionalPackagesInterface', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\CircularServiceResolutionException', 'disposition' => 'public', 'purpose' => 'Reports an ordered circular dependency path from service-provider or kernel-handler resolution', 'ref' => '#3021'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\KernelServicesInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\ServiceProvider', 'disposition' => 'public', 'purpose' => 'Base class for service providers with DI binding and resolution helpers'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\ServiceProviderInterface', 'disposition' => 'public', 'purpose' => 'Contract for packages to register and boot their services'],

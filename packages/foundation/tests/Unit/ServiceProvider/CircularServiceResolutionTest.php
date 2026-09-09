@@ -46,6 +46,31 @@ final class CircularServiceResolutionTest extends TestCase
     }
 
     #[Test]
+    public function numeric_string_abstract_keeps_a_string_only_cycle_contract(): void
+    {
+        $provider = new class extends ServiceProvider {
+            public function register(): void
+            {
+                $this->bind('0', fn () => $this->resolve('0'));
+            }
+
+            public function resolvePublic(string $abstract): object
+            {
+                return $this->resolve($abstract);
+            }
+        };
+        $provider->register();
+
+        try {
+            $provider->resolvePublic('0');
+            self::fail('Numeric-string self-resolution must throw.');
+        } catch (CircularServiceResolutionException $e) {
+            self::assertSame(['0', '0'], $e->cycle);
+            self::assertSame('Circular service resolution detected: 0 -> 0.', $e->getMessage());
+        }
+    }
+
+    #[Test]
     public function multi_service_cycle_reports_the_exact_ordered_path(): void
     {
         $provider = new class extends ServiceProvider {
@@ -304,9 +329,9 @@ final class CircularServiceResolutionTest extends TestCase
     }
 
     /**
-     * Non-disclosure: the diagnostic must carry ONLY abstract identifiers.
-     * A factory closing over a secret-looking value must never leak it into
-     * the exception message or the structured $cycle property, no matter how
+     * The diagnostic is restricted to abstract identifiers. A value captured
+     * by a factory is not an identifier and must never leak into the exception
+     * message or the structured $cycle property, no matter how
      * deep the cycle recurses before the guard fires.
      */
     #[Test]
@@ -343,6 +368,35 @@ final class CircularServiceResolutionTest extends TestCase
             self::assertStringNotContainsString($secret, $e->getMessage());
             self::assertStringNotContainsString($secret, implode(' ', $e->cycle));
             self::assertSame(['A', 'A'], $e->cycle);
+        }
+    }
+
+    #[Test]
+    public function caller_controlled_identifier_text_is_preserved_for_diagnosis(): void
+    {
+        $identifier = "tenant-token\nsecond-line";
+
+        $provider = new class ($identifier) extends ServiceProvider {
+            public function __construct(private readonly string $identifier) {}
+
+            public function register(): void
+            {
+                $this->bind($this->identifier, fn () => $this->resolve($this->identifier));
+            }
+
+            public function resolvePublic(string $abstract): object
+            {
+                return $this->resolve($abstract);
+            }
+        };
+        $provider->register();
+
+        try {
+            $provider->resolvePublic($identifier);
+            self::fail('Caller-controlled identifier self-resolution must throw.');
+        } catch (CircularServiceResolutionException $e) {
+            self::assertSame([$identifier, $identifier], $e->cycle);
+            self::assertStringContainsString($identifier, $e->getMessage());
         }
     }
 }

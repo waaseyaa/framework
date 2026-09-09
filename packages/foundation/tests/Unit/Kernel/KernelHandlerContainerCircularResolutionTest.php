@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Waaseyaa\Foundation\Kernel\KernelHandlerContainer;
 use Waaseyaa\Foundation\ServiceProvider\CircularServiceResolutionException;
@@ -42,6 +43,25 @@ final class KernelHandlerContainerCircularResolutionTest extends TestCase
                 $e->getMessage(),
             );
             self::assertSame([CircularCtorA::class, CircularCtorB::class, CircularCtorA::class], $e->cycle);
+        }
+    }
+
+    #[Test]
+    public function numeric_string_kernel_id_keeps_a_string_only_cycle_contract(): void
+    {
+        $container = new KernelHandlerContainer(
+            providers: [],
+            kernelBindings: [
+                '0' => static fn (ContainerInterface $services) => $services->get('0'),
+            ],
+        );
+
+        try {
+            $container->get('0');
+            self::fail('Numeric-string kernel-id self-resolution must throw.');
+        } catch (CircularServiceResolutionException $e) {
+            self::assertSame(['0', '0'], $e->cycle);
+            self::assertSame('Circular service resolution detected: 0 -> 0.', $e->getMessage());
         }
     }
 
