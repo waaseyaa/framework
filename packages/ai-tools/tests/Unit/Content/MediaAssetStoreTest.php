@@ -186,6 +186,54 @@ final class MediaAssetStoreTest extends TestCase
         self::assertNull($store->get($sha, $this->actor));
     }
 
+    /**
+     * Served media bytes must be readable by the authorized download route's
+     * consumer (often a different process/user than the uploader). tempnam()
+     * stages at 0600; publishing must chmod before rename, mirroring
+     * ConfigManifestEnvelopeFile::write().
+     */
+    #[Test]
+    public function upload_publishes_served_asset_at_portable_mode_0644(): void
+    {
+        $store = $this->store($this->allowingHandler());
+        $uploaded = $store->upload('pixel.png', $this->pngBytes(), $this->actor);
+        $stored = $this->uploadsDir . '/' . $uploaded['asset_id'] . '.png';
+
+        self::assertFileExists($stored);
+        $mode = fileperms($stored) & 0777;
+        self::assertSame(0o644, $mode, sprintf('expected 0644, got %04o', $mode));
+        self::assertTrue(is_readable($stored));
+        self::assertNotSame(0, $mode & 0004, 'other-readable bit required for cross-user serving');
+    }
+
+    /** Staging temps are intentionally private and must not survive upload(). */
+    #[Test]
+    public function upload_leaves_no_private_staging_files_behind(): void
+    {
+        $store = $this->store($this->allowingHandler());
+        $store->upload('pixel.png', $this->pngBytes(), $this->actor);
+
+        self::assertSame([], glob($this->uploadsDir . '/.staging-*') ?: []);
+    }
+
+    /** Content dedup must not remode an existing on-disk asset. */
+    #[Test]
+    public function content_deduplication_does_not_remode_an_existing_asset(): void
+    {
+        $store = $this->store($this->allowingHandler());
+        $bytes = $this->pngBytes();
+        $sha = hash('sha256', $bytes);
+        $stored = $this->uploadsDir . '/' . $sha . '.png';
+
+        mkdir($this->uploadsDir, 0o755, true);
+        file_put_contents($stored, $bytes);
+        chmod($stored, 0o600);
+
+        $store->upload('pixel.png', $bytes, $this->actor);
+
+        self::assertSame(0o600, fileperms($stored) & 0777);
+    }
+
     #[Test]
     public function an_uploads_directory_outside_the_media_files_root_is_refused_at_construction(): void
     {
