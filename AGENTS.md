@@ -17,3 +17,9 @@ When isolating work in a new git worktree and relocating the agent root, follow
 the remote-first sequence in `docs/governance/agent-contract.md` ("Starting and
 isolating work"): do not point the harness at a local-only branch name before
 `origin` has that ref.
+
+## Local test selection
+
+Read [docs/local-testing-policy.md](docs/local-testing-policy.md) before planning
+verification. Use focused development checks, independent discriminators, and
+one integration qualification; retain all required hooks and hosted gates.

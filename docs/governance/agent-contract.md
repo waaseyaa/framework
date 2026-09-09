@@ -92,7 +92,10 @@ maintainer.
 - Verification is authoritative only when it binds the exact candidate,
   command, inputs, and supported runner. Run local pipelines with
   `set -o pipefail` where pipelines are used.
-- Run the split Unit suite with
+- Follow [the local testing policy](../local-testing-policy.md) when selecting
+  verification scope and reusing evidence. A full local suite is not a default
+  baseline or a per-commit requirement. When the test plan requires the split
+  Unit suite, run it with
   `php -d memory_limit=1G ./vendor/bin/phpunit --testsuite Unit --no-coverage`.
   Follow `CLAUDE.md` and CI for additional scoped gates.
 

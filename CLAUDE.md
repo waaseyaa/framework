@@ -422,3 +422,9 @@ Waaseyaa is the **framework layer**. It owns the entity system, storage engine, 
 - Waaseyaa must not import from Minoo — the dependency flows one way (Minoo → Waaseyaa)
 - Waaseyaa must not reference North Cloud services or APIs
 - Waaseyaa defines the ingestion envelope contract that external tools (Python harvesters) must follow
+
+## Local test selection
+
+Read [docs/local-testing-policy.md](docs/local-testing-policy.md) before planning
+verification. Use focused development checks, independent discriminators, and
+one integration qualification; retain all required hooks and hosted gates.
