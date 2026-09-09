@@ -197,12 +197,11 @@ final class PortableArtifactModeContractTest extends TestCase
 
         $this->assertPortableMode($portable, 'the 0644 fixture');
 
-        try {
-            $this->assertPortableMode($private, 'the 0600 fixture');
-            self::fail('assertPortableMode() must reject a real 0600 file; it did not.');
-        } catch (\PHPUnit\Framework\AssertionFailedError) {
-            self::addToAssertionCount(1);
-        }
+        // expectException — not try/catch around fail() — so a no-op
+        // assertPortableMode() cannot be mistaken for a successful reject.
+        // AssertionFailedError from fail() would be swallowed by that catch.
+        $this->expectException(\PHPUnit\Framework\AssertionFailedError::class);
+        $this->assertPortableMode($private, 'the 0600 fixture');
     }
 
     private function assertPortableMode(string $path, string $description): void
