@@ -13,7 +13,7 @@ Intermediate branch commits may be **recoverable checkpoints**; only the
 | Tier | What it is | What must be true |
 | --- | --- | --- |
 | **Checkpoint** | Intermediate commit on a feature branch (TDD red, WIP, repair steps) | Recoverable via `bin/git`; not claimed release-ready; no stash |
-| **Review candidate** | The one coherent tip SHA offered for acceptance | Full local preflight and three suites; exact-head CI green; design/change-record/evidence bound; one candidate per work unit |
+| **Review candidate** | The one coherent tip SHA offered for acceptance | Required local hooks and the documented risk-based test plan; exact-head CI green; design/change-record/evidence bound; one candidate per work unit |
 | **Landed on `main`** | Squash merge of that candidate | Governed pinned-head squash auto-merge; strict required checks and combined-state custody remain enforced |
 
 A squash creates a new commit identity; retain both the qualified candidate and
@@ -28,7 +28,7 @@ rewrite others’ branches to fake a green-every-SHA history.
 | --- | --- | --- |
 | `pre-commit` | portable paths; `composer cs-check` if staged `.php` | No |
 | `pre-push` | `php bin/check-pr-preflight` (fast repo-state) | No |
-| Before opening / qualifying a PR | `php bin/check-pr-preflight --full` + Unit + Integration + Architecture | Yes (local publication) |
+| Before opening / qualifying a PR | Documented local test plan under [local testing policy](../local-testing-policy.md), plus required hooks | Only when justified by impact or explicit acceptance |
 | Hosted CI | Required ruleset checks on the **exact PR head** | Yes (candidate) |
 | Merge | Governed workflow → `bin/enable-governed-auto-merge` (pinned-head native squash) | Squash to `main` |
 
@@ -60,11 +60,18 @@ landings implicitly.
 
 1. Keep recoverable checkpoints under existing hooks; never `git stash`.
 2. Keep repair history on the branch; one review candidate tip.
-3. Qualify the tip with the canonical runner; retain its receipt and corroborate
-   the committed source with CI on the exact head.
+3. Execute the scoped test plan and retain its evidence. Use the canonical full
+   runner when broad qualification is required; corroborate committed source
+   with CI on the exact head.
 4. Land only through governed auto-merge squash (or the release-cut exception).
 
 ## Canonical local qualifier
+
+This runner remains available for a test plan requiring full local qualification;
+it is not mandatory for every PR. The [local testing policy](../local-testing-policy.md)
+determines local scope. Its receipt terminology below is unchanged: a scoped
+plan does not become a full-run `qualification: true` receipt. Repository
+acceptance also requires review and the required hosted checks.
 
 ```bash
 php bin/qualify-candidate            # preflight --full, then Unit + Integration + Architecture on the exact HEAD
