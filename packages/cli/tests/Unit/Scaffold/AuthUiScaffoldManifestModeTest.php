@@ -2,12 +2,78 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\CLI\Tests\Unit\Scaffold;
+namespace Waaseyaa\CLI\Scaffold {
+    final class AuthUiScaffoldFilesystemFaults
+    {
+        private static ?string $operation = null;
+        private static ?string $triggered = null;
+
+        public static function fail(string $operation): void
+        {
+            self::$operation = $operation;
+            self::$triggered = null;
+        }
+
+        public static function reset(): void
+        {
+            self::$operation = null;
+            self::$triggered = null;
+        }
+
+        public static function shouldFail(string $operation, string $path): bool
+        {
+            if (self::$operation !== $operation || !str_starts_with(basename($path), '.scaffold-manifest.')) {
+                return false;
+            }
+
+            self::$triggered = $operation;
+
+            return true;
+        }
+
+        public static function triggered(): ?string
+        {
+            return self::$triggered;
+        }
+    }
+
+    function file_put_contents(string $filename, mixed $data): int|false
+    {
+        if (AuthUiScaffoldFilesystemFaults::shouldFail('write', $filename)) {
+            return false;
+        }
+
+        return \file_put_contents($filename, $data);
+    }
+
+    function chmod(string $filename, int $permissions): bool
+    {
+        if (AuthUiScaffoldFilesystemFaults::shouldFail('chmod', $filename)) {
+            return false;
+        }
+
+        return \chmod($filename, $permissions);
+    }
+
+    function rename(string $from, string $to): bool
+    {
+        if (AuthUiScaffoldFilesystemFaults::shouldFail('rename', $from)) {
+            return false;
+        }
+
+        return \rename($from, $to);
+    }
+}
+
+namespace Waaseyaa\CLI\Tests\Unit\Scaffold {
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
+use Waaseyaa\CLI\Scaffold\AuthUiScaffoldFilesystemFaults;
 use Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager;
 
 #[CoversClass(AuthUiScaffoldManager::class)]
@@ -79,6 +145,46 @@ final class AuthUiScaffoldManifestModeTest extends TestCase
         );
     }
 
+    /**
+     * @param 'write'|'chmod'|'rename' $operation
+     */
+    #[Test]
+    #[DataProvider('publicationFailures')]
+    public function failedManifestPublicationPreservesTheStableManifestAndRemovesTheStagingFile(string $operation): void
+    {
+        $manager = new AuthUiScaffoldManager($this->tempDir);
+        self::assertSame(5, $manager->publish(force: true, dryRun: false)['copied']);
+
+        $manifestPath = $this->tempDir . '/app/.waaseyaa/scaffold-manifest.json';
+        $originalBytes = file_get_contents($manifestPath);
+        self::assertIsString($originalBytes);
+        $originalMode = fileperms($manifestPath) & 0o777;
+
+        AuthUiScaffoldFilesystemFaults::fail($operation);
+        try {
+            $manager->acceptCurrent();
+            self::fail(sprintf('Expected the %s fault to refuse manifest publication.', $operation));
+        } catch (RuntimeException $exception) {
+            self::assertSame('Unable to write the auth UI scaffold manifest atomically.', $exception->getMessage());
+        } finally {
+            $triggered = AuthUiScaffoldFilesystemFaults::triggered();
+            AuthUiScaffoldFilesystemFaults::reset();
+        }
+
+        self::assertSame($operation, $triggered, 'the requested production filesystem operation must be reached');
+        self::assertSame($originalBytes, file_get_contents($manifestPath));
+        self::assertSame($originalMode, fileperms($manifestPath) & 0o777);
+        self::assertSame([], glob($this->tempDir . '/app/.waaseyaa/.scaffold-manifest.*') ?: []);
+    }
+
+    /** @return iterable<string, array{0: 'write'|'chmod'|'rename'}> */
+    public static function publicationFailures(): iterable
+    {
+        yield 'write failure' => ['write'];
+        yield 'chmod failure' => ['chmod'];
+        yield 'rename failure' => ['rename'];
+    }
+
     #[Test]
     public function thePortableModeAssertionGenuinelyDiscriminatesOnTheRealInodeMode(): void
     {
@@ -123,4 +229,5 @@ final class AuthUiScaffoldManifestModeTest extends TestCase
         file_put_contents($root . '/packages/admin/app/assets/auth.css', ':root {}');
         file_put_contents($root . '/VERSION', "v0.1.0-alpha.299\n");
     }
+}
 }
