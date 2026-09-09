@@ -62,6 +62,11 @@ final class SubprocessHarnessContractTest extends TestCase
             . 'and readLine() polls stdout AND stderr together in one stream_select() loop, draining whichever '
             . 'is ready each iteration under a 15s deadline — stderr is buffered for assertion messages rather '
             . 'than ever left undrained. tearDown() closes every pipe before proc_terminate()+proc_close().',
+        'tests/PackagedForm/community-events-registered-role-provisioning.php' =>
+            'Runs inside a physical packaged consumer whose runtime dependencies do not include symfony/process. '
+            . 'Only stdin is a pipe; stdout and stderr are separate tmpfile() resources passed directly as child '
+            . 'descriptors, so neither output can fill a bounded pipe or block the other. The runner closes stdin '
+            . 'after one bounded request, enforces a 30s deadline with termination, and rejects either output above 8KiB.',
     ];
 
     #[Test]
@@ -84,17 +89,25 @@ final class SubprocessHarnessContractTest extends TestCase
     }
 
     #[Test]
-    public function allowlisted_runners_are_non_blocking(): void
+    public function allowlisted_runners_have_a_deadlock_safe_output_shape(): void
     {
-        // The rationale for each allowlisted file rests on it NOT being the
-        // blocking sequential-drain shape. Assert the mechanism rather than
-        // trusting the prose above.
+        // The rationale for each allowlisted file rests on it not using the
+        // blocking sequential-drain shape. Assert either multiplexed,
+        // non-blocking output pipes or file-backed output descriptors rather
+        // than trusting the prose above.
         foreach (array_keys(self::ALLOWED) as $path) {
             $source = (string) file_get_contents(self::repositoryRoot() . '/' . $path);
-            self::assertMatchesRegularExpression(
+            $usesNonBlockingPipes = preg_match(
                 '/stream_set_blocking\s*\(\s*\$pipes\[[12]\]\s*,\s*false\s*\)|stream_set_blocking\(\$pipe,\s*false\)/',
                 $source,
-                "{$path} is allowlisted as safe but no longer sets its pipes non-blocking.",
+            ) === 1;
+            $usesFileBackedOutputs = preg_match('/\$stdoutHandle\s*=\s*tmpfile\s*\(\s*\)/', $source) === 1
+                && preg_match('/\$stderrHandle\s*=\s*tmpfile\s*\(\s*\)/', $source) === 1
+                && preg_match('/1\s*=>\s*\$stdoutHandle\s*,\s*2\s*=>\s*\$stderrHandle/', $source) === 1;
+
+            self::assertTrue(
+                $usesNonBlockingPipes || $usesFileBackedOutputs,
+                "{$path} is allowlisted as safe but no longer has non-blocking pipes or file-backed outputs.",
             );
         }
     }
