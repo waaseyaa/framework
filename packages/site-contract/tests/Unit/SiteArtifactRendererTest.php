@@ -63,17 +63,64 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertSame(0o755, $first->artifacts['bin/maintenance/site-verify']->mode);
         self::assertStringContainsString('chdir($root)', $first->artifacts['bin/maintenance/site-verify']->content);
         self::assertStringContainsString('site:doctor --strict --format=json', $first->artifacts['bin/maintenance/site-verify']->content);
+        // FW-REHYDRATION-DRIFT-01 / GitHub #3056:
+        // vendor/bin/phpunit's own cacheDirectory (".phpunit.cache" in the
+        // skeleton's phpunit.xml.dist) records real wall-clock test timings
+        // in "test-run-history" on every run. Left at its XML default, that
+        // file lands at the PROJECT ROOT — a location every artifact-bundle
+        // consumer (e.g. Studio's materialization protocol) must treat as
+        // part of the deliverable tree, so two verification runs against an
+        // otherwise-identical project produce two different "identical"
+        // bundles. Overriding --cache-directory here relocates that cache
+        // under storage/, which the skeleton's own .gitignore already
+        // excludes as ephemeral runtime state (matching vendor/) — so the
+        // non-deterministic bytes are never produced anywhere a byte-equality
+        // check inspects, instead of being produced and then filtered out.
+        self::assertStringContainsString(
+            "--cache-directory=' . escapeshellarg(\$root . '/storage/.phpunit.cache')",
+            $first->artifacts['bin/maintenance/site-verify']->content,
+        );
 
-        // #2644: the generated acceptance test asserted is_executable() on an
-        // extensionless file. Windows resolves executability through PATHEXT,
-        // so that assertion failed there for a perfectly good file. The
-        // portability property it stood for — the command is runnable PHP — is
-        // now asserted on every host, and the execute bit only on POSIX.
+        // #2644: the generated acceptance test originally asserted
+        // is_executable() on an extensionless file. Windows resolves
+        // executability through PATHEXT, so that assertion failed there for a
+        // perfectly good file — fixed by asserting the shebang on every host
+        // and the execute bit only under DIRECTORY_SEPARATOR === '/'.
+        //
+        // FW-SITE-VERIFY-NOEXEC-01 / GitHub #3054: that POSIX-only is_executable() check itself does not hold
+        // inside a hardened container whose project mount is noexec (e.g. a
+        // sandboxed execution environment's tmpfs). The file is genuinely
+        // mode 0755, but is_executable() reads mount policy, not just the
+        // inode, and reports false. Two properties, measured two ways:
+        // (1) the artifact carries the promised permission bits — read via
+        // fileperms(), which reports the inode regardless of mount flags, so
+        // it still fails if Framework stops chmod-ing the artifact; and
+        // (2) the command actually runs through the one invocation every
+        // caller uses, `PHP_BINARY <script>` — proven by really spawning it
+        // with `--self-test` and asserting the exit code, not by inspecting
+        // the shebang string alone.
         $acceptance = $first->artifacts['tests/Acceptance/SiteGoldenPathTest.php']->content;
         self::assertStringContainsString("DIRECTORY_SEPARATOR === '/'", $acceptance);
         self::assertStringContainsString('assertStringStartsWith(', $acceptance);
         self::assertStringContainsString("'#!/usr/bin/env php'", $acceptance);
         self::assertStringStartsWith('#!/usr/bin/env php', $first->artifacts['bin/maintenance/site-verify']->content);
+
+        // Property 1: POSIX permission bits, measured mount-independently.
+        self::assertStringContainsString('fileperms(', $acceptance);
+        self::assertStringContainsString('0111', $acceptance);
+        self::assertStringNotContainsString('self::assertTrue(is_executable(', $acceptance);
+
+        // Property 2: actually runnable through the supported PHP invocation
+        // (PHP_BINARY <script>), not merely shebang-prefixed text.
+        self::assertStringContainsString('PHP_BINARY', $acceptance);
+        self::assertStringContainsString('--self-test', $acceptance);
+        self::assertStringContainsString('selfTestExitCode', $acceptance);
+        self::assertStringContainsString('assertSame(', $acceptance);
+
+        // The generated script itself must honor the `--self-test` contract
+        // the acceptance test relies on, without falling into the full
+        // doctor+test pipeline (which would recurse into this very test).
+        self::assertStringContainsString('--self-test', $first->artifacts['bin/maintenance/site-verify']->content);
 
         $metadata = json_decode($first->artifacts['.waaseyaa/generated.json']->content, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('waaseyaa.generated', $metadata['schema']);

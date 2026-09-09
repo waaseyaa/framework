@@ -232,19 +232,42 @@ final class SiteArtifactRenderer
                     $root = dirname(__DIR__, 2);
                     $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
                     self::assertSame('bin/maintenance/site-verify', $manifest->verificationCommand);
-                    self::assertFileExists($root . '/' . $manifest->verificationCommand);
-                    // The property that matters is that the command is runnable
-                    // PHP, which holds on every host. The execute bit is the
-                    // POSIX expression of it: the file has no extension, and
-                    // Windows resolves executability through PATHEXT, so
-                    // is_executable() is false there for a perfectly good file.
-                    self::assertStringStartsWith(
-                        '#!/usr/bin/env php',
-                        (string) file_get_contents($root . '/' . $manifest->verificationCommand),
-                    );
+                    $command = $root . '/' . $manifest->verificationCommand;
+                    self::assertFileExists($command);
+                    self::assertStringStartsWith('#!/usr/bin/env php', (string) file_get_contents($command));
+
+                    // Two properties, measured two separate ways. A hardened
+                    // execution environment can mount the project tree noexec
+                    // (e.g. a sandboxed runner's tmpfs): the file is genuinely
+                    // mode 0755 and owned by the running user, but
+                    // is_executable() / posix_access(X_OK) both report false
+                    // because the *mount*, not the inode, denies execution.
                     if (DIRECTORY_SEPARATOR === '/') {
-                        self::assertTrue(is_executable($root . '/' . $manifest->verificationCommand));
+                        // 1. The artifact carries the POSIX permission bits
+                        // Waaseyaa promises. fileperms() reads the inode mode
+                        // directly, which reports the real bits regardless of
+                        // mount flags — so this still fails the day Framework
+                        // stops chmod-ing the artifact.
+                        $mode = fileperms($command);
+                        self::assertNotFalse($mode, 'unable to stat the generated verification command');
+                        self::assertSame(0111, $mode & 0111, 'the generated verification command must carry execute permission bits');
                     }
+
+                    // 2. The command actually runs through the one invocation
+                    // every caller uses — `PHP_BINARY <script>` (see
+                    // .ci/site-verify.php, the composer.json `site-verify`
+                    // script, and the .ci/site-verify exec wrapper). PHP
+                    // interprets the file's bytes directly; it never asks the
+                    // filesystem for permission to execute it, so this holds
+                    // on a noexec mount. A shebang-prefix check alone proves
+                    // nothing about whether the file actually runs — invoke it.
+                    $invocation = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($command) . ' --self-test';
+                    exec($invocation . ' 2>&1', $selfTestOutput, $selfTestExitCode);
+                    self::assertSame(
+                        0,
+                        $selfTestExitCode,
+                        "the generated verification command did not run through `PHP_BINARY <script>`:\n" . implode("\n", $selfTestOutput),
+                    );
                 }
             }
             PHP;
@@ -264,6 +287,17 @@ final class SiteArtifactRenderer
             <?php
 
             declare(strict_types=1);
+
+            // `--self-test` is a fast, side-effect-free exit that proves this
+            // file runs through `PHP_BINARY <script>` — the one invocation
+            // every caller uses — without recursing into the full
+            // doctor+test pipeline below, which itself runs the very
+            // acceptance test that spawns this flag (see
+            // SiteArtifactRenderer::acceptanceTest()).
+            if (($argv[1] ?? null) === '--self-test') {
+                fwrite(STDOUT, "site-verify: self-test ok\n");
+                exit(0);
+            }
 
             $root = dirname(__DIR__, 2);
             if (!chdir($root)) {
@@ -287,8 +321,18 @@ final class SiteArtifactRenderer
                 exit($exitCode);
             }
             $tests = __TESTS__;
+            // vendor/bin/phpunit's own cacheDirectory (".phpunit.cache" in
+            // phpunit.xml.dist) records real wall-clock test timings in
+            // "test-run-history" on every run. Left at that XML default, the
+            // file lands at the PROJECT ROOT, so two verification runs
+            // against an otherwise-unchanged project produce two different
+            // "identical" trees. --cache-directory here overrides it to a
+            // path under storage/, which is already ephemeral runtime state
+            // (see .gitignore) excluded from every artifact-bundle consumer,
+            // instead of letting the non-deterministic bytes land somewhere
+            // a byte-equality check has to notice and filter out.
             foreach ($tests as $test) {
-                $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($runner) . ' ' . escapeshellarg($root . '/' . $test) . ' --no-coverage';
+                $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($runner) . ' ' . escapeshellarg($root . '/' . $test) . ' --no-coverage --cache-directory=' . escapeshellarg($root . '/storage/.phpunit.cache');
                 passthru($command, $exitCode);
                 if ($exitCode !== 0) {
                     exit($exitCode);
