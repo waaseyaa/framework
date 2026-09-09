@@ -24,6 +24,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Entity\\DateTime\\UtcEntityClock', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Entity\\DefinesEntityType', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Entity\\EntityBase', 'disposition' => 'public', 'purpose' => 'Default implementations of `EntityInterface`; subclasses hardcode entity type ID and keys'],
+        ['fqcn' => 'Waaseyaa\\Entity\\EntityCreationValuesInterface', 'disposition' => 'public', 'purpose' => 'Pure entity-owned normalization of new semantic values before sealed repository construction'],
         ['fqcn' => 'Waaseyaa\\Entity\\EntityInterface', 'disposition' => 'public', 'purpose' => 'Core contract for all entity types: identity, label, type ID, and value access'],
         ['fqcn' => 'Waaseyaa\\Entity\\EntitySerializationBoundary', 'disposition' => 'public', 'purpose' => 'Explicit dormant/enforced PHP serialization boundary for value-bearing entities'],
         ['fqcn' => 'Waaseyaa\\Entity\\EntitySerializationBoundaryConfig', 'disposition' => 'public', 'purpose' => 'Exact activation toggle for entity PHP serialization rejection'],

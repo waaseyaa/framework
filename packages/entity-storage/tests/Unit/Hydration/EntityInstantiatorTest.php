@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Entity\EntityCreationValuesInterface;
 use Waaseyaa\Entity\EntityReadLayout;
 use Waaseyaa\Entity\EntityReadLayoutGeneration;
 use Waaseyaa\Entity\EntityType;
@@ -30,6 +31,28 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 #[CoversClass(EntityInstantiator::class)]
 final class EntityInstantiatorTest extends TestCase
 {
+    #[Test]
+    public function creationPreparationRunsAfterDefaultsAndOverwritesForgedDerivedValues(): void
+    {
+        $entityType = new EntityType(
+            id: 'creation_preparation',
+            label: 'Creation preparation',
+            class: CreationPreparationFixture::class,
+            keys: ['id' => 'id'],
+            _fieldDefinitions: [
+                'source' => new FieldDefinition('source', 'string', defaultValue: 'default-source'),
+                'derived' => new FieldDefinition('derived', 'string'),
+            ],
+        );
+
+        $prepared = new EntityInstantiator($entityType)->prepareCreationValues([
+            'derived' => 'forged',
+        ]);
+
+        self::assertSame('default-source', $prepared['source']);
+        self::assertSame('bound:default-source', $prepared['derived']);
+    }
+
     #[Test]
     public function imperative_entity_type_public_field_remains_readable_after_sealed_hydration(): void
     {
@@ -437,6 +460,16 @@ final class EntityInstantiatorTest extends TestCase
         self::assertSame($expected, $second->entityStructure()->fieldNames);
     }
 
+}
+
+final class CreationPreparationFixture extends ContentEntityBase implements EntityCreationValuesInterface
+{
+    public static function prepareCreationValues(array $values): array
+    {
+        $values['derived'] = 'bound:' . ($values['source'] ?? 'missing');
+
+        return $values;
+    }
 }
 
 final class RegistryReadsForbiddenFixture implements FieldDefinitionRegistryInterface

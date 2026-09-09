@@ -46,8 +46,11 @@ final class TestQualityInventoryTest extends TestCase
         // two fixed 20ms delays between consecutive subprocess runs so the
         // recorded PHPUnit timing genuinely differs, proving its byte-equality
         // discriminator actually discriminates rather than coincidentally
-        // matching. None is a retry loop (see bin/test-quality-inventory).
-        self::assertCount(12, array_merge(
+        // matching. The thirteenth is #3046's fixed 60s disposable child used
+        // to prove the packaged runner enforces its own 30s timeout beneath an
+        // independent 35s outer bound. None is a retry loop (see
+        // bin/test-quality-inventory).
+        self::assertCount(13, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));

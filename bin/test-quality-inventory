@@ -195,6 +195,12 @@ foreach ($phpTestFiles as $path) {
             // (disposable child test source), not a wait in this file's own
             // executing code.
             'packages/site-contract/tests/Unit/Generation/SiteVerifyPhpunitCacheIsolationTest.php' => 'subprocess_polling',
+            // #3046: sleep(60) appears only inside a disposable php -r child
+            // passed to the packaged runner to prove its own 30s termination
+            // deadline. Symfony Process independently caps the probe at 35s;
+            // it is a fixed subprocess-lifecycle proof, never an assertion
+            // retry loop.
+            'tests/Architecture/SubprocessHarnessContractTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;

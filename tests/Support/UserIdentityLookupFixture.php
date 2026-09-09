@@ -38,6 +38,15 @@ final class UserIdentityLookupFixture implements UserIdentityLookupInterface
             ->execute() !== [];
     }
 
+    public function loginExists(EntityRepositoryInterface $repository, string $login): bool
+    {
+        return $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('name', $login, 'CASE_INSENSITIVE_EQUALS')
+            ->range(0, 1)
+            ->execute() !== [];
+    }
+
     public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface
     {
         foreach (['=', 'CASE_INSENSITIVE_EQUALS'] as $operator) {
