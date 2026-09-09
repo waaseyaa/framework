@@ -35,7 +35,7 @@ final class UserProvisionRegisteredProcessTest extends TestCase
     }
 
     #[Test]
-    public function concurrentRetryAndFreshProcessInspectionPreserveRegisteredRolesWithoutSecretEvidence(): void
+    public function canonicalGeneratedCommunityEventsRolesPersistAcrossFreshProcessesWithoutSecretEvidence(): void
     {
         $contributor = $this->request('community-owner', 'owner@example.test', 'contributor');
         $first = $this->process('provision', $contributor);
@@ -74,20 +74,38 @@ final class UserProvisionRegisteredProcessTest extends TestCase
         self::assertSame(0, $reviewer->run(), $reviewer->getErrorOutput());
         self::assertSame('created', json_decode($reviewer->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
 
+        $administrator = $this->process(
+            'provision',
+            $this->request('community-administrator', 'administrator@example.test', 'event_administrator'),
+        );
+        self::assertSame(0, $administrator->run(), $administrator->getErrorOutput());
+        self::assertSame('created', json_decode($administrator->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
+
+        $invalidRole = $this->process(
+            'provision',
+            $this->request('community-invalid', 'invalid@example.test', 'invented_role'),
+        );
+        self::assertSame(1, $invalidRole->run(), $invalidRole->getErrorOutput());
+        self::assertSame('unknown_role', json_decode($invalidRole->getOutput(), true, flags: JSON_THROW_ON_ERROR)['code']);
+
         $inspection = $this->process('inspect');
         self::assertSame(0, $inspection->run(), $inspection->getErrorOutput());
         self::assertSame([
+            'community-administrator' => [
+                'permissions' => ['create event', 'edit draft event', 'manage events', 'manage locations', 'publish event', 'return event', 'submit event', 'view event', 'view organizer', 'view venue'],
+                'roles' => ['event_administrator'],
+            ],
             'community-owner' => [
-                'permissions' => ['create events', 'edit own events'],
+                'permissions' => ['create event', 'edit draft event', 'submit event', 'view event', 'view organizer', 'view venue'],
                 'roles' => ['contributor'],
             ],
             'community-reviewer' => [
-                'permissions' => ['review events', 'publish events'],
+                'permissions' => ['publish event', 'return event', 'view event', 'view organizer', 'view venue'],
                 'roles' => ['reviewer'],
             ],
         ], json_decode($inspection->getOutput(), true, flags: JSON_THROW_ON_ERROR));
 
-        foreach ([$first, $second, $reviewer, $inspection] as $process) {
+        foreach ([$first, $second, $reviewer, $administrator, $invalidRole, $inspection] as $process) {
             self::assertSame('', $process->getErrorOutput());
             self::assertStringNotContainsString(self::PASSWORD, $process->getOutput());
             self::assertStringNotContainsString(self::PASSWORD, $process->getErrorOutput());

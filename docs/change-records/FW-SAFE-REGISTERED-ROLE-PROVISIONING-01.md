@@ -54,6 +54,17 @@ The audited user-identity reader now exposes `loginExists()` alongside
 historical name/mail ownership before creation; it does not issue a private
 unaudited identity query.
 
+The Community Events process fixture materializes its provider from the
+Framework-owned `community-events@1` starter through the canonical compiler;
+it contains no handwritten role provider. Packaged-form acceptance additionally
+installs the exact candidate into a disposable generated application, applies
+that starter, and runs the public command against the application's booted
+repository. A later process compares stored contributor, reviewer, and event
+administrator authorization with both the emitted provider and the kernel's
+validated role repository. Exact retry, identity conflict, unknown role,
+reserved administrator, exit/result agreement, and credential non-disclosure
+remain explicit controls.
+
 ## Compatibility boundary
 
 Existing rows remain nullable and do not make schema sync fail. Hydration never

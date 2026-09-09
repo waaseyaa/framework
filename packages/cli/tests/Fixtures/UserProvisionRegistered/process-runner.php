@@ -8,6 +8,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Handler\UserProvisionRegisteredHandler;
+use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompilerFactory;
 use Waaseyaa\CLI\UserProvisioning\RegisteredRoleAccountProvisioner;
 use Waaseyaa\Database\DBALDatabase;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -26,28 +27,14 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Testing\EntityMutationAuthoritySchema;
 use Waaseyaa\Field\FieldDefinitionInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
-use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\SiteManifestParser;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\RegisteredRoleAssignmentService;
-use Waaseyaa\User\Role;
 use Waaseyaa\User\RoleRepository;
 use Waaseyaa\User\User;
 
 require dirname(__DIR__, 5) . '/vendor/autoload.php';
-
-final class CommunityEventsRoleProviderFixture extends ServiceProvider implements ProvidesRolesInterface
-{
-    public function register(): void {}
-
-    public function roles(): iterable
-    {
-        yield new Role('contributor', 'Contributor', ['create events', 'edit own events']);
-        yield new Role('reviewer', 'Reviewer', ['review events', 'publish events']);
-        yield new Role('administrator', 'Administrator', ['administer site']);
-    }
-}
 
 final readonly class ProcessIdentityLookupFixture implements UserIdentityLookupInterface
 {
@@ -142,9 +129,11 @@ $schema = new SqlSchemaHandler($type, $database);
 if ($mode === 'prepare') {
     $schema->ensureTable();
     EntityMutationAuthoritySchema::ensure($database);
+    materializeCanonicalCommunityEventsProvider(dirname($databasePath) . '/generated-app');
     exit(0);
 }
 $schema->assertRuntimeSchema();
+loadCanonicalCommunityEventsProvider(dirname($databasePath) . '/generated-app');
 $boundary = new StorageBoundary();
 $repository = new EntityRepository(
     $type,
@@ -220,7 +209,7 @@ if ($mode === 'inspect-contended') {
 
 if ($mode === 'inspect') {
     $rows = [];
-    foreach (['community-owner', 'community-reviewer'] as $name) {
+    foreach (['community-administrator', 'community-owner', 'community-reviewer'] as $name) {
         $ids = $repository->getQuery()->accessCheck(false)->condition('name', $name)->range(0, 1)->execute();
         $user = $ids === [] ? null : $repository->find((string) $ids[0]);
         if (!$user instanceof EntityInterface) {
@@ -233,7 +222,7 @@ if ($mode === 'inspect') {
     exit(0);
 }
 
-$roles = RoleRepository::fromProviders([new CommunityEventsRoleProviderFixture()]);
+$roles = RoleRepository::fromProviders([new App\Provider\ApplicationBlueprintGovernanceServiceProvider()]);
 $handler = new UserProvisionRegisteredHandler(
     new ProcessEntityTypeManagerFixture($type, $repository),
     new RegisteredRoleAccountProvisioner(
@@ -248,3 +237,50 @@ $exit = $handler->execute(new SymfonyCommandIO(new ArrayInput([]), $stdout, $std
 echo $stdout->fetch();
 fwrite(STDERR, $stderr->fetch());
 exit($exit);
+
+function materializeCanonicalCommunityEventsProvider(string $applicationRoot): void
+{
+    $repositoryRoot = dirname(__DIR__, 5);
+    $manifest = (new SiteManifestParser())->parse(
+        (string) file_get_contents($repositoryRoot . '/packages/site-contract/resources/starters/community-events/v1.yaml'),
+        'community-events@1-process-fixture',
+    );
+    $plan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+    $required = [
+        'src/Access/ApplicationBlueprintPermissions.php',
+        'src/Provider/ApplicationBlueprintGovernanceServiceProvider.php',
+        'src/Workflow/EventEditorialWorkflowDefinition.php',
+    ];
+    foreach ($plan->artifacts as $artifact) {
+        if (!in_array($artifact->path, $required, true)) {
+            continue;
+        }
+        $path = $applicationRoot . '/' . $artifact->path;
+        if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0o700, true)) {
+            throw new RuntimeException('Could not create the generated application directory.');
+        }
+        if (file_put_contents($path, $artifact->content) === false) {
+            throw new RuntimeException('Could not write the generated application provider.');
+        }
+    }
+    foreach ($required as $path) {
+        if (!is_file($applicationRoot . '/' . $path)) {
+            throw new RuntimeException('The canonical compiler omitted a required governance artifact.');
+        }
+    }
+}
+
+function loadCanonicalCommunityEventsProvider(string $applicationRoot): void
+{
+    foreach ([
+        'src/Access/ApplicationBlueprintPermissions.php',
+        'src/Workflow/EventEditorialWorkflowDefinition.php',
+        'src/Provider/ApplicationBlueprintGovernanceServiceProvider.php',
+    ] as $path) {
+        $source = $applicationRoot . '/' . $path;
+        if (!is_file($source)) {
+            throw new RuntimeException('The generated Community Events provider is absent.');
+        }
+        require_once $source;
+    }
+}
