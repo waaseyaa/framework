@@ -23,4 +23,9 @@ export interface AdminConfig {
     /** Whether email verification is required before login. */
     readonly requireVerifiedEmail: boolean
   }
+  /**
+   * CSRF double-submit cookie name. Must match PHP `session.cookie.csrf_name`
+   * (default `XSRF-TOKEN`; host-bound `__Host-XSRF-TOKEN`).
+   */
+  readonly csrfCookieName: string
 }

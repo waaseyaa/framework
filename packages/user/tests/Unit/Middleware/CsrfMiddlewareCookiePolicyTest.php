@@ -262,14 +262,44 @@ final class CsrfMiddlewareCookiePolicyTest extends TestCase
         };
     }
 
-    private function findXsrfCookie(Response $response): ?Cookie
+    private function findXsrfCookie(Response $response, string $name = 'XSRF-TOKEN'): ?Cookie
     {
         foreach ($response->headers->getCookies() as $cookie) {
-            if ($cookie->getName() === 'XSRF-TOKEN') {
+            if ($cookie->getName() === $name) {
                 return $cookie;
             }
         }
 
         return null;
+    }
+
+    #[Test]
+    public function host_bound_csrf_cookie_uses_host_name_secure_root_path_and_omits_domain(): void
+    {
+        $_SESSION['_csrf_token'] = 'host-bound-token';
+
+        $middleware = new CsrfMiddleware(new SessionCookiePolicy(['host_bound' => true]));
+        $request = Request::create('https://app.example.test/page', 'GET');
+        $response = $middleware->process($request, $this->htmlPassthrough());
+        $cookie = $this->findXsrfCookie($response, SessionCookiePolicy::HOST_BOUND_CSRF_COOKIE_NAME);
+
+        $this->assertNotNull($cookie);
+        $this->assertTrue($cookie->isSecure());
+        $this->assertSame('/', $cookie->getPath());
+        $this->assertTrue($cookie->getDomain() === '' || $cookie->getDomain() === null);
+        $this->assertSame(rawurlencode('host-bound-token'), $cookie->getValue());
+        // Native-header evidence only — browser __Host- enforcement is a separate acceptance lane.
+    }
+
+    #[Test]
+    public function configured_csrf_name_is_used_on_html_responses(): void
+    {
+        $_SESSION['_csrf_token'] = 'named-token';
+
+        $middleware = new CsrfMiddleware(new SessionCookiePolicy(['csrf_name' => 'APP-XSRF']));
+        $request = Request::create('/page', 'GET');
+        $response = $middleware->process($request, $this->htmlPassthrough());
+        $this->assertNotNull($this->findXsrfCookie($response, 'APP-XSRF'));
+        $this->assertNull($this->findXsrfCookie($response, 'XSRF-TOKEN'));
     }
 }

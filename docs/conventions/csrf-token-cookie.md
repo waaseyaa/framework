@@ -82,13 +82,13 @@ The `XSRF-TOKEN` cookie is written on every `text/html` response, and — since 
 
 | Attribute | Value | Notes |
 |---|---|---|
-| Name | `XSRF-TOKEN` | Exact case. Inertia's axios looks for this name. |
-| Value | `urlencode($_SESSION['_csrf_token'])` | URL-encoded. Server URL-decodes before comparison. |
+| Name | configured `session.cookie.csrf_name` (default `XSRF-TOKEN`; host-bound `__Host-XSRF-TOKEN`) | Exact case. Inertia's axios looks for `XSRF-TOKEN` unless the deployment overrides the name and the SPA `csrfCookieName`. |
+| Value | `urlencode($_SESSION['_csrf_token'])` | URL-encoded. Server URL-decodes before comparison. Admin SPA readers must use the shared decoder (`packages/admin/app/utils/csrfCookie.ts`). |
 | `HttpOnly` | absent / `false` | JavaScript MUST be able to read it. |
-| `Secure` | resolved `session.cookie.secure` policy | A configured boolean always wins (#2149). The `'auto'` default follows the request scheme, with `X-Forwarded-Proto` honored via the kernel's trusted-proxy registration. |
+| `Secure` | resolved `session.cookie.secure` policy | A configured boolean always wins (#2149). The `'auto'` default follows the request scheme, with `X-Forwarded-Proto` honored via the kernel's trusted-proxy registration. Host-bound mode always forces Secure (#3047). |
 | `SameSite` | resolved `session.cookie.samesite` (default `Lax`) | Shared with the session cookie via `SessionCookiePolicy`. An empty-string override omits the attribute; unknown values normalize to `Lax` (a typo must not 500 every response). |
-| `Path` | `/` | App-wide. |
-| `Domain` | _(unset)_ | Browser defaults to current host. |
+| `Path` | configured `session.cookie.path` (default `/`) | Host-bound requires `/`. |
+| `Domain` | configured `session.cookie.domain` (default unset) | Host-bound forbids Domain so browsers apply the `__Host-` prefix rules. |
 | `Max-Age` / `Expires` | _(unset — session cookie)_ | Lives for the browser session, matches session token lifetime. |
 
 > Authoritative source: `kitty-specs/inertia-file-upload-csrf-01KQZJQJ/contracts/csrf-token-cookie.md`
