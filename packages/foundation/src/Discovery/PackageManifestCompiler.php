@@ -394,7 +394,7 @@ final class PackageManifestCompiler
         $manifest = $this->compile();
 
         $dir = $this->storagePath . '/framework';
-        if (!is_dir($dir) && !mkdir($dir, 0o755, true)) {
+        if (!is_dir($dir) && !@mkdir($dir, 0o755, true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf('Failed to create cache directory: %s', $dir));
         }
 

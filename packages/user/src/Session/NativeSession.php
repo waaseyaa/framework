@@ -20,6 +20,7 @@ final class NativeSession implements SessionInterface
     /** @param list<string> $trustedProxies IP addresses allowed to set X-Forwarded-Proto */
     public function __construct(
         private readonly array $trustedProxies = [],
+        private readonly ?SessionCookiePolicy $cookiePolicy = null,
     ) {}
 
     public function start(): bool
@@ -28,10 +29,20 @@ final class NativeSession implements SessionInterface
             return true;
         }
 
+        $policy = $this->cookiePolicy ?? new SessionCookiePolicy();
+        $sessionName = $policy->sessionName();
+        if ($sessionName !== null) {
+            session_name($sessionName);
+        }
+
+        $sameSite = $policy->sameSite() ?? '';
         session_set_cookie_params([
-            'httponly' => true,
-            'secure' => $this->isSecureConnection(),
-            'samesite' => 'Lax',
+            'lifetime' => session_get_cookie_params()['lifetime'],
+            'path' => $policy->path(),
+            'domain' => $policy->domain() ?? '',
+            'secure' => $policy->resolveSecure($this->isSecureConnection()),
+            'httponly' => $policy->httpOnly(),
+            'samesite' => $sameSite,
         ]);
 
         return session_start();

@@ -29,6 +29,7 @@ use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\Session\SessionCookiePolicy;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
 /**
@@ -155,6 +156,28 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     }
 
     /**
+     * Rewrite the Nuxt public `csrfCookieName` embedded in packaged/app Admin
+     * HTML so it matches the runtime {@see SessionCookiePolicy} CSRF cookie
+     * (#3047). Host-bound PHP emits `__Host-XSRF-TOKEN` while the shipped dist
+     * still embeds `XSRF-TOKEN`; serving HTML unchanged would omit the correct
+     * token on requests/uploads.
+     *
+     * Replacement uses a callback so literal `$` in a configured cookie name
+     * (e.g. `APP$1-XSRF`) is not interpreted as a `preg_replace` backreference.
+     */
+    public static function applyRuntimeCsrfCookieName(string $html, string $csrfCookieName): string
+    {
+        $rewritten = preg_replace_callback(
+            '/csrfCookieName\s*:\s*"[^"]*"/',
+            static fn(): string => 'csrfCookieName:"' . addcslashes($csrfCookieName, '"\\') . '"',
+            $html,
+            1,
+        );
+
+        return is_string($rewritten) ? $rewritten : $html;
+    }
+
+    /**
      * Resolve the admin SPA index.html content.
      *
      * Two-tier fallback:
@@ -178,8 +201,13 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
      *
      * PHP's built-in server defaults to text/html for BinaryFileResponse,
      * so we read the file and set the MIME type explicitly.
+     *
+     * When `$csrfCookieName` is provided and the asset is HTML, the packaged
+     * Nuxt `csrfCookieName` is rewritten from the runtime session cookie policy
+     * so direct entry points (`/admin/index.html`, `/admin/login/index.html`,
+     * `/admin/200.html`, …) match the SPA fallback path (#3047).
      */
-    public static function serveStaticFile(string $filePath): Response
+    public static function serveStaticFile(string $filePath, ?string $csrfCookieName = null): Response
     {
         $mimeTypes = [
             'js' => 'application/javascript',
@@ -201,9 +229,13 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
 
         $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
         $contentType = $mimeTypes[$ext] ?? 'application/octet-stream';
+        $content = file_get_contents($filePath);
+        if ($ext === 'html' && is_string($content) && $csrfCookieName !== null && $csrfCookieName !== '') {
+            $content = self::applyRuntimeCsrfCookieName($content, $csrfCookieName);
+        }
 
         return new Response(
-            file_get_contents($filePath),
+            $content === false ? '' : $content,
             200,
             ['Content-Type' => $contentType],
         );
@@ -234,21 +266,26 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $vendorDistContent = is_file($vendorDistDir . '/index.html')
             ? file_get_contents($vendorDistDir . '/index.html')
             : null;
+        $sessionCookie = $this->config['session']['cookie'] ?? null;
+        $csrfCookieName = new SessionCookiePolicy(
+            is_array($sessionCookie) ? $sessionCookie : null,
+        )->csrfName();
 
         $router->addRoute('admin_spa', RouteBuilder::create('/admin/{path}')
             ->methods('GET')
             ->allowAll()
-            ->controller(static function (mixed $request = null, string $path = '') use ($projectRoot, $vendorDistDir, $vendorDistContent): Response {
+            ->controller(static function (mixed $request = null, string $path = '') use ($projectRoot, $vendorDistDir, $vendorDistContent, $csrfCookieName): Response {
                 // Serve static assets (JS, CSS, images) from public/admin/ or vendor dist.
+                // HTML assets receive the same runtime csrfCookieName rewrite as the SPA fallback.
                 if ($path !== '' && !str_contains($path, '..')) {
                     $publicAsset = $projectRoot . '/public/admin/' . $path;
                     if (is_file($publicAsset)) {
-                        return self::serveStaticFile($publicAsset);
+                        return self::serveStaticFile($publicAsset, $csrfCookieName);
                     }
 
                     $vendorAsset = $vendorDistDir . '/' . $path;
                     if (is_file($vendorAsset)) {
-                        return self::serveStaticFile($vendorAsset);
+                        return self::serveStaticFile($vendorAsset, $csrfCookieName);
                     }
                 }
 
@@ -256,7 +293,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
                 $html = self::resolveAdminIndex($projectRoot, $vendorDistContent);
                 if ($html !== null) {
                     return new Response(
-                        $html,
+                        self::applyRuntimeCsrfCookieName($html, $csrfCookieName),
                         200,
                         ['Content-Type' => 'text/html; charset=UTF-8'],
                     );

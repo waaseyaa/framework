@@ -124,4 +124,43 @@ final class CacheConfiguration
     {
         return $this->binMapping;
     }
+
+    /**
+     * The canonical enumeration of every bin this configuration explicitly
+     * registers, whether by class mapping ({@see setBackendForBin}) or by
+     * factory ({@see setFactoryForBin}).
+     *
+     * This is the single accessor callers should use to discover "the
+     * application's configured bins" (e.g. `cache:clear`'s bin inventory,
+     * #3025) instead of maintaining a separately hand-kept list: a bin
+     * registered here can never be invisible to a caller that reads this
+     * method, and a bin never registered here can never be falsely reported
+     * as configured. Deterministically ordered (bin-mapping entries first in
+     * registration order, then factory entries in registration order, with
+     * duplicates collapsed) so output and iteration are reproducible.
+     *
+     * The default backend (used for any bin name that reaches
+     * {@see getBackendForBin} or {@see getFactoryForBin} without an explicit
+     * registration here, e.g. an ad hoc bin name a caller invents) is
+     * intentionally excluded: it is not a bin the application configured,
+     * it is CacheFactory's unconfigured fallback.
+     *
+     * @return list<string>
+     */
+    public function getConfiguredBins(): array
+    {
+        $bins = [];
+        foreach (array_keys($this->binMapping) as $bin) {
+            $bins[$bin] = true;
+        }
+        foreach (array_keys($this->binFactories) as $bin) {
+            $bins[$bin] = true;
+        }
+
+        // PHP coerces a numeric-string array key to int, so array_keys() would
+        // hand back int(123) for a bin registered as '123' — violating the
+        // declared list<string> and making the consumer report a configured
+        // bin as "not configured". Cast back to the registered string form.
+        return array_map(strval(...), array_keys($bins));
+    }
 }

@@ -23,6 +23,7 @@ use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
 use Waaseyaa\User\Session\NativeSession;
+use Waaseyaa\User\Session\SessionCookiePolicy;
 use Waaseyaa\User\User;
 use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 
@@ -1059,6 +1060,52 @@ final class SessionMiddlewareTest extends TestCase
             $this->assertSame('Strict', ini_get('session.cookie_samesite'), 'explicit samesite must override the Lax default');
             $this->assertSame('1', ini_get('session.use_strict_mode'), 'omitted key must still receive its secure default');
         } finally {
+            foreach ($saved as $key => $value) {
+                if ($value !== false && $value !== '') {
+                    ini_set($key, $value);
+                } else {
+                    ini_restore($key);
+                }
+            }
+        }
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function host_bound_applies_host_session_name_secure_root_path_and_empty_domain(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $keys = [
+            'session.cookie_httponly',
+            'session.cookie_secure',
+            'session.cookie_path',
+            'session.cookie_domain',
+            'session.cookie_samesite',
+            'session.use_strict_mode',
+        ];
+        $saved = [];
+        foreach ($keys as $key) {
+            $saved[$key] = ini_get($key);
+        }
+        $savedName = session_name();
+
+        try {
+            $middleware = new SessionMiddleware($repository, null, null, [
+                'host_bound' => true,
+            ]);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->invoke($middleware);
+
+            $this->assertSame(SessionCookiePolicy::HOST_BOUND_SESSION_COOKIE_NAME, session_name());
+            $this->assertSame('1', ini_get('session.cookie_secure'));
+            $this->assertSame('/', ini_get('session.cookie_path'));
+            $this->assertSame('', ini_get('session.cookie_domain'));
+            $params = session_get_cookie_params();
+            $this->assertSame('/', $params['path']);
+            $this->assertSame('', $params['domain']);
+            $this->assertTrue($params['secure']);
+        } finally {
+            session_name(is_string($savedName) ? $savedName : 'PHPSESSID');
             foreach ($saved as $key => $value) {
                 if ($value !== false && $value !== '') {
                     ini_set($key, $value);

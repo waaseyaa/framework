@@ -27,6 +27,7 @@ export function useAdminConfig(): Readonly<AdminConfig> {
         registration: asString(pub.auth?.registration, 'open'),
         requireVerifiedEmail: asBoolean(pub.auth?.requireVerifiedEmail),
       },
+      csrfCookieName: asString(pub.csrfCookieName, 'XSRF-TOKEN'),
     }
   }).value
 }

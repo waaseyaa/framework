@@ -13,6 +13,12 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Access\Policy\ContentAdminAccessPolicy;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
+use Waaseyaa\Cache\Backend\DatabaseBackend;
+use Waaseyaa\Cache\CacheConfiguration;
+use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\Cache\CacheFactoryInterface;
+use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
+use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
@@ -57,6 +63,8 @@ use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
@@ -99,6 +107,7 @@ abstract class AbstractKernel
     protected EntityAuditLogger $entityAuditLogger;
     protected Migrator $migrator;
     private ?ApplicationSecret $applicationSecret = null;
+    private ?CacheFactory $cacheFactory = null;
     private ?ApplicationMasterRekeyComposition $applicationMasterRekeyComposition = null;
     private readonly RedactorProcessor $sinkSanitizer;
     private readonly bool $rebuildLoggerFromConfig;
@@ -1309,6 +1318,107 @@ abstract class AbstractKernel
     }
 
     /**
+     * Compose the CacheFactory over the framework's production cache bins
+     * (render, discovery, mcp_read).
+     *
+     * The single canonical bin registration: {@see HttpKernel::finalizeBoot()}
+     * and the CLI's `CacheFactoryInterface` handler-container binding (see
+     * {@see buildHandlerContainer()}) both build their CacheFactory through
+     * this method, so the set of bins an HTTP-serving boot registers and the
+     * set a CLI command (e.g. `cache:clear`) discovers can never drift apart
+     * into two independently-maintained lists (#3025).
+     *
+     * The runtime epoch is a caller-supplied parameter rather than resolved
+     * internally: HttpKernel resolves it through its HTTP service resolver
+     * with a development-mode fallback; the CLI handler container resolves
+     * it through ordinary provider binding. Both paths already require
+     * `RuntimeEpochInterface` to be composed for the mcp_read bin to exist
+     * at all, so this method does not re-decide that policy.
+     */
+    public function buildCacheFactory(RuntimeEpochInterface $runtimeEpoch): CacheFactory
+    {
+        $providerFactory = $this->providerCacheFactory();
+        if ($providerFactory !== null) {
+            return $providerFactory;
+        }
+
+        assert($this->database instanceof DBALDatabase);
+        $pdo = $this->database->getConnection()->getNativeConnection();
+        assert($pdo instanceof \PDO);
+
+        $cacheHmacKey = $this->applicationSecret()->derive(ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC);
+        $projectionDiagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(
+            function (string $channel, array $context): void {
+                $this->logger->notice($channel, $context);
+            },
+            EntityPayloadBoundaryConfig::enforced(),
+        );
+
+        $cacheConfig = new CacheConfiguration();
+        $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
+            $pdo,
+            'cache_render',
+            hmacKey: $cacheHmacKey,
+            projectionDiagnostic: $projectionDiagnostic,
+        ));
+        $cacheConfig->setFactoryForBin('discovery', fn(): DatabaseBackend => new DatabaseBackend(
+            $pdo,
+            'cache_discovery',
+            hmacKey: $cacheHmacKey,
+            projectionDiagnostic: $projectionDiagnostic,
+        ));
+        $cacheConfig->setFactoryForBin('mcp_read', fn(): RuntimeEpochCacheBackend => new RuntimeEpochCacheBackend(
+            new DatabaseBackend(
+                $pdo,
+                'cache_mcp_read',
+                hmacKey: $cacheHmacKey,
+                projectionDiagnostic: $projectionDiagnostic,
+            ),
+            $runtimeEpoch->fingerprint(),
+        ));
+
+        return $this->cacheFactory = new CacheFactory($cacheConfig, $projectionDiagnostic);
+    }
+
+    /**
+     * Resolve the boot-scoped provider-owned cache composition, when present.
+     *
+     * This check deliberately precedes the CLI adapter's default-cache
+     * dependency resolution. A provider-owned factory does not consume the
+     * kernel's default mcp_read composition and therefore must not acquire
+     * that unrelated dependency merely to preserve its configured bins.
+     */
+    private function providerCacheFactory(): ?CacheFactory
+    {
+        if ($this->cacheFactory !== null) {
+            return $this->cacheFactory;
+        }
+
+        // Selecting the first explicit binding uses the same provider order
+        // as HTTP and CLI service resolution. The canonical concrete factory
+        // owns its CacheConfiguration, so both surfaces see one exact
+        // configured-bin inventory instead of a kernel shadow copy.
+        foreach ($this->providers as $provider) {
+            if (!isset($provider->getBindings()[CacheFactoryInterface::class])) {
+                continue;
+            }
+            $factory = $provider->resolve(CacheFactoryInterface::class);
+            if (!$factory instanceof CacheFactory) {
+                throw new \LogicException(sprintf(
+                    'Provider %s must bind %s to %s so the configured cache-bin inventory remains available.',
+                    $provider::class,
+                    CacheFactoryInterface::class,
+                    CacheFactory::class,
+                ));
+            }
+
+            return $this->cacheFactory = $factory;
+        }
+
+        return null;
+    }
+
+    /**
      * Build a PSR-11 container backed by the booted service providers.
      *
      * Resolution order:
@@ -1359,6 +1469,36 @@ abstract class AbstractKernel
             // (bound by HealthSchemaServiceProvider) share one checker.
             \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->healthChecker(),
+
+            // The boot-scoped CacheFactory selected by buildCacheFactory()
+            // (#3025): an application provider's explicit factory when one
+            // exists, otherwise the framework production bins. HTTP and CLI
+            // therefore share the same configured-bin authority.
+            \Waaseyaa\Cache\CacheFactoryInterface::class =>
+                static function (\Psr\Container\ContainerInterface $c) use ($kernel): \Waaseyaa\Cache\CacheFactory {
+                    $providerFactory = $kernel->providerCacheFactory();
+                    if ($providerFactory !== null) {
+                        return $providerFactory;
+                    }
+
+                    $runtimeEpoch = $c->get(\Waaseyaa\Foundation\Runtime\RuntimeEpochInterface::class);
+                    assert($runtimeEpoch instanceof \Waaseyaa\Foundation\Runtime\RuntimeEpochInterface);
+
+                    return $kernel->buildCacheFactory($runtimeEpoch);
+                },
+            // The CacheConfiguration the binding above's CacheFactory was
+            // built from, for handlers that need to enumerate configured
+            // bins ({@see \Waaseyaa\Cache\CacheConfiguration::getConfiguredBins()})
+            // rather than only fetch one by name. Resolving
+            // CacheFactoryInterface first hits the container's own cache, so
+            // this does not build a second CacheFactory.
+            \Waaseyaa\Cache\CacheConfiguration::class =>
+                static function (\Psr\Container\ContainerInterface $c): \Waaseyaa\Cache\CacheConfiguration {
+                    $factory = $c->get(\Waaseyaa\Cache\CacheFactoryInterface::class);
+                    assert($factory instanceof \Waaseyaa\Cache\CacheFactory);
+
+                    return $factory->getConfiguration();
+                },
         ];
 
         return new KernelHandlerContainer($providers, $kernelBindings);
