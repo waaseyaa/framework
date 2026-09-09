@@ -27,6 +27,19 @@ final class CacheFactory implements CacheFactoryInterface
         }
     }
 
+    /**
+     * The configuration this factory resolves bins against.
+     *
+     * Lets a caller enumerate the bins actually registered
+     * ({@see CacheConfiguration::getConfiguredBins()}) without maintaining a
+     * second, independently-kept list of "the application's cache bins"
+     * (#3025).
+     */
+    public function getConfiguration(): CacheConfiguration
+    {
+        return $this->configuration;
+    }
+
     public function get(string $bin): CacheBackendInterface
     {
         if (!isset($this->bins[$bin])) {

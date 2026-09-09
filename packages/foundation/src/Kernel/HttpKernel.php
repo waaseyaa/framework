@@ -18,12 +18,7 @@ use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
-use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
-use Waaseyaa\Cache\CacheConfiguration;
-use Waaseyaa\Cache\CacheFactory;
-use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
-use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Field\FieldSchemaAuthority;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Community\CommunityMiddleware;
@@ -52,10 +47,8 @@ use Waaseyaa\Foundation\Middleware\MaintenanceModeMiddleware;
 use Waaseyaa\Foundation\Middleware\RateLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\RateLimit\DatabaseRateLimiter;
-use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
-use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -184,26 +177,6 @@ final class HttpKernel extends AbstractKernel
         $pdo = $this->database->getConnection()->getNativeConnection();
         assert($pdo instanceof \PDO);
 
-        $cacheConfig = new CacheConfiguration();
-        $cacheHmacKey = $this->applicationSecret()->derive(ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC);
-        $projectionDiagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(
-            function (string $channel, array $context): void {
-                $this->logger->notice($channel, $context);
-            },
-            EntityPayloadBoundaryConfig::enforced(),
-        );
-        $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
-            $pdo,
-            'cache_render',
-            hmacKey: $cacheHmacKey,
-            projectionDiagnostic: $projectionDiagnostic,
-        ));
-        $cacheConfig->setFactoryForBin('discovery', fn(): DatabaseBackend => new DatabaseBackend(
-            $pdo,
-            'cache_discovery',
-            hmacKey: $cacheHmacKey,
-            projectionDiagnostic: $projectionDiagnostic,
-        ));
         $runtimeEpoch = $this->getHttpServiceResolver()->resolve(RuntimeEpochInterface::class);
         if (!$runtimeEpoch instanceof RuntimeEpochInterface) {
             if (!$this->isDevelopmentMode()) {
@@ -211,16 +184,10 @@ final class HttpKernel extends AbstractKernel
             }
             $runtimeEpoch = new StableRuntimeEpoch();
         }
-        $cacheConfig->setFactoryForBin('mcp_read', fn(): RuntimeEpochCacheBackend => new RuntimeEpochCacheBackend(
-            new DatabaseBackend(
-                $pdo,
-                'cache_mcp_read',
-                hmacKey: $cacheHmacKey,
-                projectionDiagnostic: $projectionDiagnostic,
-            ),
-            $runtimeEpoch->fingerprint(),
-        ));
-        $cacheFactory = new CacheFactory($cacheConfig, $projectionDiagnostic);
+        // Canonical bin registration shared with the CLI's CacheFactoryInterface
+        // handler-container binding, so `cache:clear` discovers exactly these
+        // bins rather than a separately maintained list (#3025).
+        $cacheFactory = $this->buildCacheFactory($runtimeEpoch);
         $this->renderCacheBackend = $cacheFactory->get('render');
         $this->discoveryCache = $cacheFactory->get('discovery');
         $this->mcpReadCache = $cacheFactory->get('mcp_read');
