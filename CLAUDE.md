@@ -210,8 +210,9 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 - Never `git stash`. Commit to a branch instead.
 - Intermediate branch commits may be recoverable checkpoints, including deliberately
   red TDD states; they are not release-ready. Qualify the one review-candidate tip
-  with `php bin/check-pr-preflight --full` and the Unit, Integration, and Architecture
-  suites locally, then require CI green on the exact pushed head before acceptance.
+  with required local hooks and the impact-based test plan in
+  docs/local-testing-policy.md; full local suites need a concrete reason.
+  Require CI green on the exact pushed head before acceptance.
   Ordinary landings use governed squash auto-merge. See
   `docs/cookbook/commit-qualification.md`.
 - Open PRs via `gh`; require CI green on the exact pushed head before merge.
@@ -422,3 +423,9 @@ Waaseyaa is the **framework layer**. It owns the entity system, storage engine, 
 - Waaseyaa must not import from Minoo — the dependency flows one way (Minoo → Waaseyaa)
 - Waaseyaa must not reference North Cloud services or APIs
 - Waaseyaa defines the ingestion envelope contract that external tools (Python harvesters) must follow
+
+## Local test selection
+
+Read [docs/local-testing-policy.md](docs/local-testing-policy.md) before planning
+verification. Use focused development checks, independent discriminators, and
+one integration qualification; retain all required hooks and hosted gates.

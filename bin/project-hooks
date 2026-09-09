@@ -122,7 +122,7 @@ pre_push() {
     echo "project-hooks: environmental failure (not a real finding)? push with git push --no-verify; hosted CI stays authoritative." >&2
     exit 1
   fi
-  echo "Pre-push preflight passed. Run 'php bin/check-pr-preflight --full' (adds phpstan + dead-code) plus the three test suites before opening a PR."
+  echo "Pre-push preflight passed. Follow docs/local-testing-policy.md for remaining impact-based local checks; required hosted gates remain mandatory."
 }
 
 case "${1:-}" in

@@ -117,8 +117,10 @@ forge mirror as supplemental context when it is available.
 ### Commit checkpoints and review candidates
 
 Feature-branch commits may be recoverable checkpoints. Acceptance qualifies the
-coherent review-candidate head, including full local publication gates and
-exact-head hosted CI, rather than every ancestor. Ordinary landings use governed
+coherent review-candidate head, including required local hooks, the documented
+impact-based test plan in [local testing policy](../local-testing-policy.md), and
+exact-head hosted CI, rather than every ancestor. Full local suites require a
+concrete impact or acceptance reason; they are not a prerequisite for every PR. Ordinary landings use governed
 squash auto-merge with pinned-head and combined-state custody checks. The
 release-cut path preserves the exact release commit validated by its gates;
 rewriting that SHA through a merge operation would break its identity contract.
