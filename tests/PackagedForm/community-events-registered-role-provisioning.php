@@ -12,7 +12,6 @@ declare(strict_types=1);
  * Usage: php community-events-registered-role-provisioning.php <exercise|inspect> <consumer-root>
  */
 
-use Symfony\Component\Process\Process;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\CLI\Handler\UserProvisionRegisteredHandler;
 use Waaseyaa\Entity\EntityInterface;
@@ -138,20 +137,14 @@ function runProvisioningCommand(
     ]) . "\n";
     $command = [PHP_BINARY, $consumer . '/vendor/bin/waaseyaa', 'user:provision-registered'];
     $environment = ['APP_ENV' => 'local'];
-    $process = new Process($command, $consumer, $environment, input: $request, timeout: 30);
-    $exit = $process->run();
-    $stdout = $process->getOutput();
-    $stderr = $process->getErrorOutput();
+    [$exit, $stdout, $stderr] = runBoundedProcess($command, $consumer, $environment, $request);
     if (
-        str_contains($process->getCommandLine(), $password)
+        str_contains(implode(' ', $command), $password)
         || in_array($password, $environment, true)
         || str_contains($stdout, $password)
         || str_contains($stderr, $password)
     ) {
         throw new RuntimeException('Credential bytes escaped the private stdin boundary.');
-    }
-    if ($stderr !== '') {
-        throw new RuntimeException('The provisioning command wrote diagnostic output.');
     }
     try {
         $result = json_decode($stdout, true, 16, JSON_THROW_ON_ERROR);
@@ -172,6 +165,92 @@ function runProvisioningCommand(
     }
 
     return $result;
+}
+
+/**
+ * @param list<string> $command
+ * @param array<string, string> $environment
+ * @return array{int, string, string}
+ */
+function runBoundedProcess(
+    array $command,
+    string $workingDirectory,
+    array $environment,
+    #[\SensitiveParameter]
+    string $input,
+): array {
+    $stdoutHandle = tmpfile();
+    $stderrHandle = tmpfile();
+    if (!is_resource($stdoutHandle) || !is_resource($stderrHandle)) {
+        throw new RuntimeException('Could not create bounded process output streams.');
+    }
+    $process = proc_open(
+        $command,
+        [0 => ['pipe', 'r'], 1 => $stdoutHandle, 2 => $stderrHandle],
+        $pipes,
+        $workingDirectory,
+        $environment,
+    );
+    if (!is_resource($process)) {
+        fclose($stdoutHandle);
+        fclose($stderrHandle);
+        throw new RuntimeException('Could not start the provisioning command.');
+    }
+
+    $deadline = microtime(true) + 30;
+    $exit = -1;
+    try {
+        if (!isset($pipes[0]) || fwrite($pipes[0], $input) !== strlen($input)) {
+            throw new RuntimeException('Could not provide the private provisioning request.');
+        }
+        fclose($pipes[0]);
+        while (true) {
+            $status = proc_get_status($process);
+            if (!is_array($status)) {
+                throw new RuntimeException('Could not observe the provisioning command.');
+            }
+            if (!$status['running']) {
+                $exit = $status['exitcode'];
+                break;
+            }
+            if (microtime(true) >= $deadline) {
+                proc_terminate($process);
+                usleep(100_000);
+                $status = proc_get_status($process);
+                if (is_array($status) && $status['running']) {
+                    proc_terminate($process, 9);
+                }
+                throw new RuntimeException('The provisioning command exceeded its time limit.');
+            }
+            usleep(10_000);
+        }
+    } finally {
+        foreach ($pipes as $pipe) {
+            if (is_resource($pipe)) {
+                fclose($pipe);
+            }
+        }
+        proc_close($process);
+    }
+
+    foreach ([$stdoutHandle, $stderrHandle] as $handle) {
+        $stat = fstat($handle);
+        if (!is_array($stat) || ($stat['size'] ?? 0) > 8192) {
+            fclose($stdoutHandle);
+            fclose($stderrHandle);
+            throw new RuntimeException('The provisioning command exceeded its output limit.');
+        }
+        rewind($handle);
+    }
+    $stdout = stream_get_contents($stdoutHandle);
+    $stderr = stream_get_contents($stderrHandle);
+    fclose($stdoutHandle);
+    fclose($stderrHandle);
+    if (!is_string($stdout) || !is_string($stderr)) {
+        throw new RuntimeException('Could not read the provisioning command result.');
+    }
+
+    return [$exit, $stdout, $stderr];
 }
 
 /** @param array<string, mixed> $result */
