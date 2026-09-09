@@ -17,6 +17,14 @@ use Waaseyaa\SiteContract\CanonicalJson;
 final class UserProvisionRegisteredProcessTest extends TestCase
 {
     private const PASSWORD = 'process-sentinel-private-password';
+    private const CONTRIBUTOR_PERMISSIONS = [
+        'create event',
+        'edit draft event',
+        'submit event',
+        'view event',
+        'view organizer',
+        'view venue',
+    ];
     private string $root;
     private string $runner;
 
@@ -162,10 +170,7 @@ final class UserProvisionRegisteredProcessTest extends TestCase
             $safeWon ? ['contributor'] : [],
             $stored['accounts'][0]['roles'],
         );
-        self::assertSame(
-            $safeWon ? ['create events', 'edit own events'] : [],
-            $stored['accounts'][0]['permissions'],
-        );
+        self::assertSame($safeWon ? self::CONTRIBUTOR_PERMISSIONS : [], $stored['accounts'][0]['permissions']);
 
         $retry = $this->process('provision', $request);
         $retryExit = $retry->run();
@@ -174,6 +179,83 @@ final class UserProvisionRegisteredProcessTest extends TestCase
         self::assertSame($safeWon ? 'existing' : 'refused', $retryResult['status']);
 
         foreach ([$provision, $ordinary, $inspection, $retry] as $process) {
+            self::assertSame('', $process->getErrorOutput());
+            self::assertStringNotContainsString(self::PASSWORD, $process->getCommandLine() . $process->getOutput());
+        }
+    }
+
+    #[Test]
+    public function safeProvisioningWinnerDeterministicallyRetainsCanonicalGeneratedAuthorization(): void
+    {
+        $request = $this->request('contended.owner', 'contended@example.test', 'contributor');
+        $provision = $this->process('provision', $request);
+        self::assertSame(0, $provision->run(), $provision->getErrorOutput());
+        self::assertSame('created', json_decode($provision->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
+
+        $ordinary = $this->process('ordinary-create');
+        self::assertSame(1, $ordinary->run(), $ordinary->getErrorOutput());
+        self::assertSame('conflict', json_decode($ordinary->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
+
+        $stored = $this->inspectContended();
+        self::assertSame([
+            'mail' => 'contended@example.test',
+            'name' => 'contended.owner',
+            'permissions' => self::CONTRIBUTOR_PERMISSIONS,
+            'roles' => ['contributor'],
+        ], $stored);
+
+        $retry = $this->process('provision', $request);
+        self::assertSame(0, $retry->run(), $retry->getErrorOutput());
+        self::assertSame('existing', json_decode($retry->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
+
+        $this->assertSecretAbsent([$provision, $ordinary, $retry]);
+    }
+
+    #[Test]
+    public function ordinaryRepositoryWinnerDeterministicallyRefusesSafeProvisioningWithoutAuthorization(): void
+    {
+        $ordinary = $this->process('ordinary-create');
+        self::assertSame(0, $ordinary->run(), $ordinary->getErrorOutput());
+        self::assertSame('created', json_decode($ordinary->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
+
+        $provision = $this->process(
+            'provision',
+            $this->request('contended.owner', 'contended@example.test', 'contributor'),
+        );
+        self::assertSame(1, $provision->run(), $provision->getErrorOutput());
+        $result = json_decode($provision->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('refused', $result['status']);
+        self::assertSame('identity_conflict', $result['code']);
+
+        $stored = $this->inspectContended();
+        self::assertSame([
+            'mail' => 'Contended@Example.TEST',
+            'name' => 'Contended.Owner',
+            'permissions' => [],
+            'roles' => [],
+        ], $stored);
+
+        $this->assertSecretAbsent([$ordinary, $provision]);
+    }
+
+    /** @return array{mail: string, name: string, permissions: list<string>, roles: list<string>} */
+    private function inspectContended(): array
+    {
+        $inspection = $this->process('inspect-contended');
+        self::assertSame(0, $inspection->run(), $inspection->getErrorOutput());
+        $decoded = json_decode($inspection->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(1, $decoded['count']);
+        self::assertCount(1, $decoded['accounts']);
+        self::assertSame('', $inspection->getErrorOutput());
+        self::assertStringNotContainsString(self::PASSWORD, $inspection->getCommandLine() . $inspection->getOutput());
+
+        return $decoded['accounts'][0];
+    }
+
+    /** @param list<Process> $processes */
+    private function assertSecretAbsent(array $processes): void
+    {
+        foreach ($processes as $process) {
             self::assertSame('', $process->getErrorOutput());
             self::assertStringNotContainsString(self::PASSWORD, $process->getCommandLine() . $process->getOutput());
         }
