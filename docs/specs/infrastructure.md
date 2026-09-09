@@ -3,13 +3,15 @@
 is the canonical, deterministically-ordered enumeration of every bin a
 configuration registers (class-mapped or factory-registered), covered in the
 "CacheFactory and CacheConfiguration" section below. AbstractKernel::
-buildCacheFactory(RuntimeEpochInterface) is the single place the framework's
-production bins (render, discovery, mcp_read) are composed from; HttpKernel::
-finalizeBoot() and the CLI handler-container's CacheFactoryInterface/
-CacheConfiguration kernel bindings (AbstractKernel::buildHandlerContainer())
-both call it, so `cache:clear` (packages/cli/src/Handler/CacheClearHandler.php)
-enumerates and clears exactly the bins HTTP-serving boot registers -- never a
-separately maintained list. Before this, CacheFactoryInterface had no kernel
+buildCacheFactory(RuntimeEpochInterface) is the one boot-scoped composition
+authority: it preserves an explicitly provider-bound canonical CacheFactory and
+its own CacheConfiguration, or creates the framework's render, discovery, and
+mcp_read defaults when no provider supplies one. HttpKernel::finalizeBoot() and
+the CLI handler-container's CacheFactoryInterface/CacheConfiguration bindings
+both consume that memoized factory, so `cache:clear`
+(packages/cli/src/Handler/CacheClearHandler.php) enumerates and clears exactly
+the bins HTTP-serving boot registers -- never a shadow or separately maintained
+list. Before this, CacheFactoryInterface had no kernel
 binding at all in ConsoleKernel's boot path, so cache:clear could not be
 constructed by the real CLI. Canonical command behavior: docs/specs/cli-kernel.md
 does not cover this handler; see the class docblock and CacheClearHandlerTest. -->
@@ -708,16 +710,24 @@ reach it: `$factory->getConfiguration()->getConfiguredBins()` when `$factory`
 is a `CacheFactory` (`CacheFactoryInterface`'s only implementation).
 
 `AbstractKernel::buildCacheFactory(RuntimeEpochInterface $runtimeEpoch):
-CacheFactory` is the single place the framework's production bins (`render`,
-`discovery`, `mcp_read`) are registered. `HttpKernel::finalizeBoot()` calls it
-after resolving the runtime epoch through its HTTP service resolver (with a
-development-mode `StableRuntimeEpoch` fallback); `AbstractKernel::
-buildHandlerContainer()` binds `CacheFactoryInterface` and `CacheConfiguration`
-in its CLI handler-container kernel bindings, resolving the runtime epoch
-through ordinary provider binding and calling the same method. Both boot paths
-therefore compose the exact same bin list from one call site -- a CLI command
-enumerating "the application's configured bins" (`cache:clear`, #3025) can
-never drift out of sync with what HTTP-serving boot actually registers.
+CacheFactory` is the one boot-scoped cache-composition authority. In ordinary
+provider order it first preserves an application provider's explicit
+`CacheFactoryInterface` binding when that binding resolves to the canonical
+`CacheFactory`; that factory's own `CacheConfiguration` remains the inventory
+authority. When no provider binds a factory, the kernel builds the framework's
+production bins (`render`, `discovery`, `mcp_read`). A provider binding to a
+different implementation fails explicitly because `CacheFactoryInterface`
+does not expose a configured-bin inventory and pairing it with a fabricated
+configuration would reintroduce split authority.
+
+The selected factory is memoized for the kernel boot. `HttpKernel::
+finalizeBoot()` calls this method after resolving the runtime epoch through its
+HTTP service resolver (with a development-mode `StableRuntimeEpoch` fallback);
+`AbstractKernel::buildHandlerContainer()` exposes the same factory and its own
+configuration to CLI handlers. Both surfaces therefore use the exact same
+factory and bin list -- a CLI command enumerating "the application's configured
+bins" (`cache:clear`, #3025) cannot drift from or shadow what HTTP-serving boot
+registered.
 
 ### Tag invalidation
 

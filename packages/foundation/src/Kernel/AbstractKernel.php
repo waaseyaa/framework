@@ -16,6 +16,7 @@ use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\Cache\CacheFactoryInterface;
 use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Database\DatabaseInterface;
@@ -106,6 +107,7 @@ abstract class AbstractKernel
     protected EntityAuditLogger $entityAuditLogger;
     protected Migrator $migrator;
     private ?ApplicationSecret $applicationSecret = null;
+    private ?CacheFactory $cacheFactory = null;
     private ?ApplicationMasterRekeyComposition $applicationMasterRekeyComposition = null;
     private readonly RedactorProcessor $sinkSanitizer;
     private readonly bool $rebuildLoggerFromConfig;
@@ -1335,6 +1337,32 @@ abstract class AbstractKernel
      */
     public function buildCacheFactory(RuntimeEpochInterface $runtimeEpoch): CacheFactory
     {
+        if ($this->cacheFactory !== null) {
+            return $this->cacheFactory;
+        }
+
+        // Application providers remain authoritative when they explicitly
+        // bind the cache factory. Selecting the first binding uses the same
+        // provider order as HTTP and CLI service resolution. The canonical
+        // concrete factory owns its CacheConfiguration, so both surfaces see
+        // one exact configured-bin inventory instead of a kernel shadow copy.
+        foreach ($this->providers as $provider) {
+            if (!isset($provider->getBindings()[CacheFactoryInterface::class])) {
+                continue;
+            }
+            $factory = $provider->resolve(CacheFactoryInterface::class);
+            if (!$factory instanceof CacheFactory) {
+                throw new \LogicException(sprintf(
+                    'Provider %s must bind %s to %s so the configured cache-bin inventory remains available.',
+                    $provider::class,
+                    CacheFactoryInterface::class,
+                    CacheFactory::class,
+                ));
+            }
+
+            return $this->cacheFactory = $factory;
+        }
+
         assert($this->database instanceof DBALDatabase);
         $pdo = $this->database->getConnection()->getNativeConnection();
         assert($pdo instanceof \PDO);
@@ -1370,7 +1398,7 @@ abstract class AbstractKernel
             $runtimeEpoch->fingerprint(),
         ));
 
-        return new CacheFactory($cacheConfig, $projectionDiagnostic);
+        return $this->cacheFactory = new CacheFactory($cacheConfig, $projectionDiagnostic);
     }
 
     /**
@@ -1425,11 +1453,10 @@ abstract class AbstractKernel
             \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->healthChecker(),
 
-            // The CacheFactory over the framework's production cache bins
-            // (#3025), so CLI commands (e.g. `cache:clear`, auto-wired here)
-            // operate on the exact bins the HTTP runtime registers rather
-            // than a separately maintained list. Cached by the container
-            // after first resolution, so this closure runs once per boot.
+            // The boot-scoped CacheFactory selected by buildCacheFactory()
+            // (#3025): an application provider's explicit factory when one
+            // exists, otherwise the framework production bins. HTTP and CLI
+            // therefore share the same configured-bin authority.
             \Waaseyaa\Cache\CacheFactoryInterface::class =>
                 static function (\Psr\Container\ContainerInterface $c) use ($kernel): \Waaseyaa\Cache\CacheFactory {
                     $runtimeEpoch = $c->get(\Waaseyaa\Foundation\Runtime\RuntimeEpochInterface::class);

@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\Backend\MemoryBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
@@ -20,7 +21,12 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
+use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\KernelHandlerContainer;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
+use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 /**
@@ -218,8 +224,14 @@ final class CacheClearHandlerTest extends TestCase
         );
 
         $container = new class implements \Psr\Container\ContainerInterface {
-            public function get(string $id): mixed { throw new \RuntimeException("Not found: {$id}"); }
-            public function has(string $id): bool { return false; }
+            public function get(string $id): mixed
+            {
+                throw new \RuntimeException("Not found: {$id}");
+            }
+            public function has(string $id): bool
+            {
+                return false;
+            }
         };
 
         return CliTester::for($definition, $container);
@@ -276,35 +288,60 @@ final class CacheClearHandlerTest extends TestCase
         $this->assertNotFalse($appBinBackend->get('widget-42'));
         $this->assertNotFalse($unconfiguredBackend->get('doc-1'));
 
-        $container = new KernelHandlerContainer(
-            providers: [],
-            kernelBindings: [
-                CacheFactoryInterface::class => static fn(): CacheFactory => $cacheFactory,
-                CacheConfiguration::class => static fn(): CacheConfiguration => $cacheConfiguration,
-            ],
-        );
+        $projectRoot = $this->createMinimalProjectRoot();
+        ApplicationCacheProvider::install($cacheFactory);
+        try {
+            $kernel = new class ($projectRoot) extends AbstractKernel {
+                public function publicBoot(): void
+                {
+                    $this->boot();
+                }
 
-        $definition = $this->findCacheClearDefinition();
-        $tester = CliTester::for($definition, $container);
-        $tester->execute([]);
+                public function cacheFactoryForHttp(RuntimeEpochInterface $runtimeEpoch): CacheFactory
+                {
+                    return $this->buildCacheFactory($runtimeEpoch);
+                }
 
-        $this->assertSame(0, $tester->getExitCode());
-        $output = $tester->getStdout();
-        $this->assertStringContainsString('Cache bin "render" cleared.', $output);
-        $this->assertStringContainsString('Cache bin "discovery" cleared.', $output);
-        $this->assertStringContainsString('Cache bin "app_widget_catalog" cleared.', $output);
-        $this->assertStringContainsString('All cache bins cleared.', $output);
-        // The unconfigured bin was never enumerated, so it is never named.
-        $this->assertStringNotContainsString('search_index', $output);
+                protected function compileManifest(): void
+                {
+                    $this->manifest = new PackageManifest(providers: [ApplicationCacheProvider::class]);
+                }
+            };
+            $kernel->publicBoot();
 
-        // The discriminating assertion: real state is gone, not merely a
-        // line of stdout claiming it is.
-        $this->assertFalse($renderBackend->get('home-page'));
-        $this->assertFalse($discoveryBackend->get('api-catalog'));
-        $this->assertFalse($appBinBackend->get('widget-42'));
+            // The provider-discovered application factory is the one canonical
+            // composition returned to the HTTP boot path and to CLI handlers.
+            // No test-only kernel binding can conceal provider precedence here.
+            $this->assertSame($cacheFactory, $kernel->cacheFactoryForHttp(new StableRuntimeEpoch()));
+            $container = $kernel->buildHandlerContainer();
+            $this->assertSame($cacheFactory, $container->get(CacheFactoryInterface::class));
+            $this->assertSame($cacheConfiguration, $container->get(CacheConfiguration::class));
 
-        // Absent/unrelated application data is untouched.
-        $this->assertNotFalse($unconfiguredBackend->get('doc-1'));
+            $definition = $this->findCacheClearDefinition();
+            $tester = CliTester::for($definition, $container);
+            $tester->execute([]);
+
+            $this->assertSame(0, $tester->getExitCode());
+            $output = $tester->getStdout();
+            $this->assertStringContainsString('Cache bin "render" cleared.', $output);
+            $this->assertStringContainsString('Cache bin "discovery" cleared.', $output);
+            $this->assertStringContainsString('Cache bin "app_widget_catalog" cleared.', $output);
+            $this->assertStringContainsString('All cache bins cleared.', $output);
+            // The unconfigured bin was never enumerated, so it is never named.
+            $this->assertStringNotContainsString('search_index', $output);
+
+            // The discriminating assertion: real state is gone, not merely a
+            // line of stdout claiming it is.
+            $this->assertFalse($renderBackend->get('home-page'));
+            $this->assertFalse($discoveryBackend->get('api-catalog'));
+            $this->assertFalse($appBinBackend->get('widget-42'));
+
+            // Absent/unrelated application data is untouched.
+            $this->assertNotFalse($unconfiguredBackend->get('doc-1'));
+        } finally {
+            ApplicationCacheProvider::reset();
+            new Filesystem()->remove($projectRoot);
+        }
     }
 
     #[Test]
@@ -323,7 +360,10 @@ final class CacheClearHandlerTest extends TestCase
                     ? new \Waaseyaa\Cache\CacheItem($cid, 'undeletable', time(), self::PERMANENT, [], true)
                     : false;
             }
-            public function getMultiple(array &$cids): array { return []; }
+            public function getMultiple(array &$cids): array
+            {
+                return [];
+            }
             public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void {}
             public function delete(string $cid): void {}
             public function deleteMultiple(array $cids): void {}
@@ -386,5 +426,51 @@ final class CacheClearHandlerTest extends TestCase
         }
 
         $this->fail('cache:clear is not registered by ConfigCacheDbAuditServiceProvider.');
+    }
+
+    private function createMinimalProjectRoot(): string
+    {
+        $projectRoot = sys_get_temp_dir() . '/waaseyaa_cache_test_' . bin2hex(random_bytes(8));
+        mkdir($projectRoot . '/config', 0o755, true);
+        mkdir($projectRoot . '/storage', 0o755, true);
+        file_put_contents(
+            $projectRoot . '/config/waaseyaa.php',
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
+        );
+        file_put_contents(
+            $projectRoot . '/config/entity-types.php',
+            "<?php\nreturn [\n    new \\Waaseyaa\\Entity\\EntityType(\n"
+            . "        id: 'test',\n        label: 'Test',\n        class: \\stdClass::class,\n"
+            . "        keys: ['id' => 'id'],\n    ),\n];",
+        );
+
+        return $projectRoot;
+    }
+
+}
+
+
+final class ApplicationCacheProvider extends ServiceProvider
+{
+    private static ?CacheFactory $factory = null;
+
+    public static function install(CacheFactory $factory): void
+    {
+        self::$factory = $factory;
+    }
+
+    public static function reset(): void
+    {
+        self::$factory = null;
+    }
+
+    public function register(): void
+    {
+        $this->singleton(
+            CacheFactoryInterface::class,
+            static fn(): CacheFactory => self::$factory
+                ?? throw new \LogicException('Application cache provider fixture is not installed.'),
+        );
+        $this->singleton(RuntimeEpochInterface::class, StableRuntimeEpoch::class);
     }
 }
