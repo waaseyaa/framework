@@ -15,7 +15,6 @@ use Waaseyaa\Access\User\UserMailSnapshot;
 use Waaseyaa\CLI\UserProvisioning\RegisteredRoleAccountProvisioner;
 use Waaseyaa\CLI\UserProvisioning\RegisteredRoleProvisioningResult;
 use Waaseyaa\Database\Exception\TransactionCompletionException;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
 use Waaseyaa\User\RegisteredRoleAssignmentService;
@@ -40,7 +39,7 @@ final class RegisteredRoleAccountProvisionerTest extends TestCase
             ])),
             $identities,
             $fields,
-            static fn(): int => 1_800_000_000,
+            1_800_000_000,
         );
     }
 

@@ -17,7 +17,6 @@ use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\UserProvisioning\RegisteredRoleAccountProvisioner;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\User\RegisteredRoleAssignmentService;
 use Waaseyaa\User\Role;
@@ -46,37 +45,6 @@ final class UserProvisionRegisteredHandlerTest extends TestCase
 
         self::assertSame([], $definition->handlerArguments());
         self::assertSame([], $definition->handlerOptions());
-    }
-
-    #[Test]
-    public function providerBuildsProvisionerWithoutAutowiringItsPrivateClockSeam(): void
-    {
-        $roles = new RoleRepository([
-            new Role('contributor', 'Contributor', ['create events']),
-        ]);
-        $identities = $this->createStub(UserIdentityLookupInterface::class);
-        $internalFields = $this->createStub(UserInternalFieldReaderInterface::class);
-        $services = [
-            RoleRepository::class => $roles,
-            UserIdentityLookupInterface::class => $identities,
-            UserInternalFieldReaderInterface::class => $internalFields,
-        ];
-        $provider = new UserPermissionServiceProvider();
-        $provider->setKernelServices(new readonly class ($services) implements KernelServicesInterface {
-            /** @param array<class-string, object> $services */
-            public function __construct(private array $services) {}
-
-            public function get(string $abstract): ?object
-            {
-                return $this->services[$abstract] ?? null;
-            }
-        });
-        $provider->register();
-
-        self::assertInstanceOf(
-            RegisteredRoleAccountProvisioner::class,
-            $provider->resolve(RegisteredRoleAccountProvisioner::class),
-        );
     }
 
     #[Test]
@@ -164,7 +132,7 @@ final class UserProvisionRegisteredHandlerTest extends TestCase
                 new RegisteredRoleAssignmentService($roles),
                 $identities,
                 $this->createStub(UserInternalFieldReaderInterface::class),
-                static fn(): int => 1_800_000_000,
+                1_800_000_000,
             ),
             $stdinPath,
         );

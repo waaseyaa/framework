@@ -20,7 +20,7 @@ final readonly class RegisteredRoleAccountProvisioner
         private RegisteredRoleAssignmentService $assignments,
         private UserIdentityLookupInterface $identities,
         private UserInternalFieldReaderInterface $internalFields,
-        private ?\Closure $clock = null,
+        private ?int $createdTimestamp = null,
     ) {}
 
     public function provision(
@@ -70,7 +70,7 @@ final readonly class RegisteredRoleAccountProvisioner
                 'permissions' => $assignment->permissions,
                 'status' => true,
                 'email_verified' => false,
-                'created' => ($this->clock ?? static fn(): int => time())(),
+                'created' => $this->createdTimestamp ?? time(),
             ]);
             $repository->save($user);
         } catch (EntityMutationCommittedSideEffectsFailedException) {

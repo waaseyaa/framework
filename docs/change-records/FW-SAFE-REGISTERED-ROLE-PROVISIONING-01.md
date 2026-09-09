@@ -33,10 +33,10 @@ password hash, role membership, and flattened registered permissions in one
 repository save. It never grants the reserved `administrator` role as a
 fallback.
 
-`UserPermissionServiceProvider` explicitly constructs the public command's
-provisioner from the boot-validated role registry and audited identity/field
-services. The optional deterministic clock remains a private unit-test seam;
-an installed application's handler container does not reflection-autowire it.
+The optional deterministic creation timestamp is a scalar unit-test seam. The
+installed application's handler container therefore leaves it at its default
+while resolving the provisioner from the boot-validated role registry and
+audited identity/field services.
 
 `User` owns two internal lower-case identity keys. Its pure
 `EntityCreationValuesInterface` implementation overwrites caller-supplied keys
