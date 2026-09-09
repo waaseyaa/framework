@@ -116,6 +116,15 @@ describe('FileUpload widget', () => {
     expect(wrapper.find('img').exists()).toBe(true)
   })
 
+  it('forwards a URL-decoded CSRF cookie through the shared reader (#3031)', async () => {
+    document.cookie = `XSRF-TOKEN=${encodeURIComponent('token+with/chars')}`
+    const wrapper = await mountWidget()
+    await choose(wrapper)
+
+    const xhr = MockXMLHttpRequest.instances[0]!
+    expect(xhr.setRequestHeader).toHaveBeenCalledWith('X-XSRF-TOKEN', 'token+with/chars')
+  })
+
   it('programmatically associates the visible label and announces failures', async () => {
     MockXMLHttpRequest.status = 403
     const wrapper = await mountWidget()

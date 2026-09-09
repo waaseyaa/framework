@@ -62,6 +62,9 @@ export default defineNuxtConfig({
         registration: process.env.NUXT_PUBLIC_AUTH_REGISTRATION ?? 'admin',
         requireVerifiedEmail: process.env.NUXT_PUBLIC_AUTH_REQUIRE_VERIFIED_EMAIL === '1',
       },
+      // Must match PHP `session.cookie.csrf_name` (host-bound default
+      // `__Host-XSRF-TOKEN`). Shared decoder: app/utils/csrfCookie.ts (#3047/#3031).
+      csrfCookieName: process.env.NUXT_PUBLIC_CSRF_COOKIE_NAME ?? 'XSRF-TOKEN',
     },
   },
 

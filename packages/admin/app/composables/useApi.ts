@@ -1,10 +1,6 @@
-const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
+import { readDocumentCsrfCookieToken, resolveCsrfCookieName } from '~/utils/csrfCookie'
 
-function readXsrfToken(): string | null {
-  if (typeof document === 'undefined') return null
-  const token = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)?.[1]
-  return token !== undefined ? decodeURIComponent(token) : null
-}
+const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
 function isSameOrigin(target: string): boolean {
   // Relative paths always resolve against the current origin.
@@ -17,15 +13,25 @@ function isSameOrigin(target: string): boolean {
   }
 }
 
+function configuredCsrfCookieName(): string {
+  try {
+    const pub = useRuntimeConfig().public as { csrfCookieName?: string }
+    return resolveCsrfCookieName(pub.csrfCookieName)
+  }
+  catch {
+    return resolveCsrfCookieName()
+  }
+}
+
 export function useApi() {
   async function apiFetch<T>(path: string, options: Record<string, unknown> = {}): Promise<T> {
     const method = String(options.method ?? 'GET').toUpperCase()
     const headers = { ...((options.headers as Record<string, string> | undefined) ?? {}) }
 
-    // CSRF double-submit: forward the XSRF-TOKEN cookie as a header on
+    // CSRF double-submit: forward the configured CSRF cookie as a header on
     // state-changing requests only, and never to cross-origin destinations.
     if (!SAFE_METHODS.includes(method) && isSameOrigin(path)) {
-      const token = readXsrfToken()
+      const token = readDocumentCsrfCookieToken(configuredCsrfCookieName())
       if (token && !headers['X-XSRF-TOKEN']) headers['X-XSRF-TOKEN'] = token
     }
 
