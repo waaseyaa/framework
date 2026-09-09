@@ -84,6 +84,7 @@
         "waaseyaa/foundation": "^0.1.0-alpha.300",
         "waaseyaa/page-builder": "^0.1.0-alpha.300",
         "waaseyaa/routing": "^0.1.0-alpha.300",
+        "waaseyaa/user": "^0.1.0-alpha.300",
         "waaseyaa/workflows": "^0.1.0-alpha.300"
     },
     "require-dev": {
@@ -94,8 +95,7 @@
         "waaseyaa/node": "^0.1.0-alpha.300",
         "waaseyaa/note": "^0.1.0-alpha.300",
         "waaseyaa/taxonomy": "^0.1.0-alpha.300",
-        "waaseyaa/testing": "^0.1.0-alpha.300",
-        "waaseyaa/user": "^0.1.0-alpha.300"
+        "waaseyaa/testing": "^0.1.0-alpha.300"
     },
     "autoload": {
         "psr-4": {

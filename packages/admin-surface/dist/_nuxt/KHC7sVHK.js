@@ -1,0 +1,1 @@
+var e=`XSRF-TOKEN`;function t(t,n=e){if(t===``||n===``)return null;let r=`${n}=`;for(let e of t.split(`;`)){let t=e.trim();if(t.startsWith(r))try{return decodeURIComponent(t.slice(r.length))}catch{return t.slice(r.length)}}return null}function n(t){return typeof t==`string`&&t!==``?t:e}function r(n=e){return typeof document>`u`?null:t(document.cookie,n)}export{n,r as t};
