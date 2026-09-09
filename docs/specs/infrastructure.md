@@ -1,4 +1,20 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-08 - #3025: CacheConfiguration::getConfiguredBins()
+is the canonical, deterministically-ordered enumeration of every bin a
+configuration registers (class-mapped or factory-registered), covered in the
+"CacheFactory and CacheConfiguration" section below. AbstractKernel::
+buildCacheFactory(RuntimeEpochInterface) is the one boot-scoped composition
+authority: it preserves an explicitly provider-bound canonical CacheFactory and
+its own CacheConfiguration, or creates the framework's render, discovery, and
+mcp_read defaults when no provider supplies one. HttpKernel::finalizeBoot() and
+the CLI handler-container's CacheFactoryInterface/CacheConfiguration bindings
+both consume that memoized factory, so `cache:clear`
+(packages/cli/src/Handler/CacheClearHandler.php) enumerates and clears exactly
+the bins HTTP-serving boot registers -- never a shadow or separately maintained
+list. Before this, CacheFactoryInterface had no kernel
+binding at all in ConsoleKernel's boot path, so cache:clear could not be
+constructed by the real CLI. Canonical command behavior: docs/specs/cli-kernel.md
+does not cover this handler; see the class docblock and CacheClearHandlerTest. -->
 <!-- Spec reviewed 2026-09-07 - #2664 / FW-PROJECT-INITIALIZER-01: ConsoleKernel
 recognizes project:init at the same pre-boot composition seam as the existing
 site lifecycle commands. The parent command itself remains boot-free; it runs
@@ -679,6 +695,41 @@ $factory = new CacheFactory($config);
 $cache = $factory->get('cache_entity');  // returns DatabaseBackend
 $cache = $factory->get('cache_other');   // returns MemoryBackend
 ```
+
+`CacheConfiguration::getConfiguredBins(): list<string>` is the canonical
+enumeration of every bin explicitly registered on a configuration -- the union
+of `setBackendForBin()` and `setFactoryForBin()` keys, deterministically
+ordered (bin-mapping entries first, then factory entries, duplicates
+collapsed). It deliberately excludes the default backend: a bin name nobody
+registered is not "configured" just because `CacheFactory::get()` will still
+hand back a usable (fresh, unconfigured) instance for it. `CacheFactory::
+getConfiguration(): CacheConfiguration` returns the configuration a factory
+resolves against, so a caller holding only `CacheFactoryInterface` (which does
+not expose bin enumeration, to avoid a breaking interface change) can still
+reach it: `$factory->getConfiguration()->getConfiguredBins()` when `$factory`
+is a `CacheFactory` (`CacheFactoryInterface`'s only implementation).
+
+`AbstractKernel::buildCacheFactory(RuntimeEpochInterface $runtimeEpoch):
+CacheFactory` is the one boot-scoped cache-composition authority. In ordinary
+provider order it first preserves an application provider's explicit
+`CacheFactoryInterface` binding when that binding resolves to the canonical
+`CacheFactory`; that factory's own `CacheConfiguration` remains the inventory
+authority. When no provider binds a factory, the kernel builds the framework's
+production bins (`render`, `discovery`, `mcp_read`). A provider binding to a
+different implementation fails explicitly because `CacheFactoryInterface`
+does not expose a configured-bin inventory and pairing it with a fabricated
+configuration would reintroduce split authority. The provider-owned path
+does not resolve `RuntimeEpochInterface`: that dependency belongs to the
+kernel's default `mcp_read` composition, which an application factory replaces.
+
+The selected factory is memoized for the kernel boot. `HttpKernel::
+finalizeBoot()` calls this method after resolving the runtime epoch through its
+HTTP service resolver (with a development-mode `StableRuntimeEpoch` fallback);
+`AbstractKernel::buildHandlerContainer()` exposes the same factory and its own
+configuration to CLI handlers. Both surfaces therefore use the exact same
+factory and bin list -- a CLI command enumerating "the application's configured
+bins" (`cache:clear`, #3025) cannot drift from or shadow what HTTP-serving boot
+registered.
 
 ### Tag invalidation
 

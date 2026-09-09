@@ -153,4 +153,16 @@ final class CacheFactoryTest extends TestCase
 
         $this->assertInstanceOf(DatabaseBackend::class, $bin);
     }
+
+    #[Test]
+    public function getConfiguration_returns_the_exact_configuration_the_factory_resolves_against(): void
+    {
+        $config = new CacheConfiguration();
+        $config->setBackendForBin('render', MemoryBackend::class);
+
+        $factory = new CacheFactory($config);
+
+        $this->assertSame($config, $factory->getConfiguration());
+        $this->assertSame(['render'], $factory->getConfiguration()->getConfiguredBins());
+    }
 }

@@ -233,6 +233,12 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         $entity2 = $this->articleStorage->create(['title' => 'Cached Article 2', 'type' => 'news']);
         $this->articleStorage->save($entity2);
 
+        // Bins the application actually configures (#3025: cache:clear
+        // discovers this list rather than a hand-kept default).
+        $cacheConfiguration = new \Waaseyaa\Cache\CacheConfiguration();
+        $cacheConfiguration->setBackendForBin('default', \Waaseyaa\Cache\Backend\MemoryBackend::class);
+        $this->cacheFactory = new CacheFactory($cacheConfiguration);
+
         // Also populate cache.
         $cache = $this->cacheFactory->get('default');
         $cache->set('article:1', 'cached_data_1');
@@ -256,12 +262,15 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         $this->assertNotNull($cacheClearDef);
 
         $cacheFactory = $this->cacheFactory;
-        $cacheContainer = new class ($cacheFactory) implements \Psr\Container\ContainerInterface {
-            public function __construct(private readonly \Waaseyaa\Cache\CacheFactoryInterface $f) {}
+        $cacheContainer = new class ($cacheFactory, $cacheConfiguration) implements \Psr\Container\ContainerInterface {
+            public function __construct(
+                private readonly \Waaseyaa\Cache\CacheFactoryInterface $f,
+                private readonly \Waaseyaa\Cache\CacheConfiguration $cacheConfiguration,
+            ) {}
             public function get(string $id): mixed
             {
                 if ($id === CacheClearHandler::class) {
-                    return new CacheClearHandler($this->f);
+                    return new CacheClearHandler($this->f, $this->cacheConfiguration);
                 }
                 throw new \RuntimeException("Container::get({$id}) unexpected");
             }

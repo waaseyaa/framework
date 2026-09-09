@@ -132,6 +132,15 @@ final class CliCommandIntegrationTest extends TestCase
     #[Test]
     public function testCacheClearCommandClearsAllBins(): void
     {
+        // Bins the application actually configures (#3025: cache:clear
+        // discovers this list rather than a hand-kept default).
+        $cacheConfiguration = new \Waaseyaa\Cache\CacheConfiguration();
+        $cacheConfiguration->setBackendForBin('default', \Waaseyaa\Cache\Backend\MemoryBackend::class);
+        $cacheConfiguration->setBackendForBin('render', \Waaseyaa\Cache\Backend\MemoryBackend::class);
+        $cacheConfiguration->setBackendForBin('discovery', \Waaseyaa\Cache\Backend\MemoryBackend::class);
+        $cacheConfiguration->setBackendForBin('config', \Waaseyaa\Cache\Backend\MemoryBackend::class);
+        $this->cacheFactory = new \Waaseyaa\Cache\CacheFactory($cacheConfiguration);
+
         // Populate caches in multiple bins.
         $defaultBin = $this->cacheFactory->get('default');
         $renderBin = $this->cacheFactory->get('render');
@@ -160,12 +169,15 @@ final class CliCommandIntegrationTest extends TestCase
         }
         $this->assertNotNull($cacheClearDef);
 
-        $container = new class ($this->cacheFactory) implements \Psr\Container\ContainerInterface {
-            public function __construct(private readonly \Waaseyaa\Cache\CacheFactoryInterface $factory) {}
+        $container = new class ($this->cacheFactory, $cacheConfiguration) implements \Psr\Container\ContainerInterface {
+            public function __construct(
+                private readonly \Waaseyaa\Cache\CacheFactoryInterface $factory,
+                private readonly \Waaseyaa\Cache\CacheConfiguration $cacheConfiguration,
+            ) {}
             public function get(string $id): mixed
             {
                 if ($id === CacheClearHandler::class) {
-                    return new CacheClearHandler($this->factory);
+                    return new CacheClearHandler($this->factory, $this->cacheConfiguration);
                 }
                 throw new \RuntimeException("Container::get({$id}) unexpected");
             }

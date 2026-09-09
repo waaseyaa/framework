@@ -2209,45 +2209,80 @@
             "occurrence": 1
         },
         {
-            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "pattern": "runtime_epoch",
             "class": "epoch-consumer",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "occurrence": 1
         },
         {
-            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "pattern": "runtime_epoch",
             "class": "epoch-consumer",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "occurrence": 2
         },
         {
-            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "pattern": "runtime_epoch",
             "class": "epoch-consumer",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "occurrence": 3
         },
         {
-            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "pattern": "runtime_epoch_cache",
             "class": "epoch-consumer",
             "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
             "occurrence": 1
         },
         {
-            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "pattern": "runtime_epoch_cache",
             "class": "epoch-consumer",
             "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
             "occurrence": 2
         },
         {
-            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "pattern": "runtime_epoch_cache",
             "class": "epoch-consumer",
             "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "occurrence": 3
         },
         {

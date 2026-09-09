@@ -106,6 +106,12 @@ function s1ActivationClass(string $path): string
         // across an artifact handoff. It neither reads nor mutates configuration
         // — it is an ownership manifest, which is why it is its own class.
         'packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php' => 'runtime-state-ownership',
+        // #3025: AbstractKernel::buildCacheFactory() is the canonical bin
+        // registration HttpKernel::finalizeBoot() and the CLI's
+        // CacheFactoryInterface handler-container binding both build the
+        // mcp_read RuntimeEpochCacheBackend through, so it carries the same
+        // epoch-consumer role HttpKernel previously held alone.
+        'packages/foundation/src/Kernel/AbstractKernel.php' => 'epoch-consumer',
         'packages/foundation/src/Kernel/HttpKernel.php' => 'epoch-consumer',
         'packages/foundation/src/Runtime/RuntimeEpochCacheBackend.php' => 'epoch-cache',
         'packages/foundation/src/Runtime/RuntimeEpochInterface.php' => 'epoch-contract',
