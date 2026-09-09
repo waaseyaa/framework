@@ -87,3 +87,23 @@ re-verify journey-invocation empirically for whatever new scenario prompts
 it (community-events is not the only starter/journey the framework serves),
 and must not widen #3, #8, #9, #21, or #23 — those are correctly private by
 design.
+
+## Follow-up repair candidate - 2026-09-09
+
+The reviewed follow-up candidate integrates the two confirmed portable-mode
+mismatches that the original community-events pass recorded but did not change:
+
+- Finding #4, tracked by #3061, publishes the auth UI scaffold provenance
+  manifest at mode 0644 before its atomic rename. The same writer serves both
+  scaffold:auth publication and --accept-current; schema, digests, auth UI
+  source ownership, and authentication state remain unchanged.
+- Finding #6, tracked by #2517, publishes newly stored, HTTP-served media bytes
+  at mode 0644 before their atomic rename. Existing content-addressed files
+  retain their current mode, and media authorization/routing remain unchanged.
+
+Both repairs retain private 0600 staging inodes until publication, fail before
+the stable path is exposed if chmod fails, and leave the intentionally private
+findings in this register unchanged. Independent reviews accepted the runtime
+and behavioral test deltas at f06fa4357edb4acfdbd404daafa416944ae4adb7 and
+8ba4fc3f26c48eb1ed00c420223f2f687e3a15c5; publication qualification binds
+the resulting integration candidate on current main.
