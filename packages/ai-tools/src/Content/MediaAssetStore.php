@@ -132,7 +132,13 @@ final readonly class MediaAssetStore implements AssetStoreInterface
 
             $sha = hash('sha256', $bytes);
             $stored = $this->uploadsDir . '/' . $sha . '.' . self::EXTENSIONS[$mime];
-            if (!is_file($stored) && !rename($tmp, $stored)) {
+            // tempnam() always creates its file at 0600, regardless of umask.
+            // The final path is served by MediaDownloadRouter (often a
+            // different process/user than this upload call), so publish with
+            // the same portable 0644 mode used by ConfigManifestEnvelopeFile.
+            if (!is_file($stored)
+                && (!chmod($tmp, 0o644) || !rename($tmp, $stored))
+            ) {
                 throw new \RuntimeException('Could not persist upload.');
             }
         } finally {
