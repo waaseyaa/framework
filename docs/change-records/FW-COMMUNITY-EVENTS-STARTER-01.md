@@ -1,9 +1,9 @@
 # FW-COMMUNITY-EVENTS-STARTER-01 — packaged governed starter
 
-Status: partial implementation checkpoint; local packaged-consumer generation,
-governance, workflow acceptance, and Event Organizer/Venue reference-existence
-discrimination are owned by the community-events packaged-form check. Tip
-qualification binds the candidate that last passed that check.
+Status: source implementation accepted on `main` at
+`3f729416dc3683f11c3ee5515ba75f840fec0922`. The complete packaged-consumer
+qualification remains retained exact-candidate evidence; published-package and
+Studio lock adoption are tracked separately by `waaseyaa/studio#3`.
 Anchor mirror: waaseyaa/framework#2981.
 Parent: `623679303266812231d09469628b036a43dd3ccc`.
 
@@ -127,15 +127,47 @@ substrate; Phase 7 shows it on the community-events generated types when
 validation is active. No defect requiring a generator or #2989 code change was
 observed under that composition.
 
-## Remaining #2981 acceptance
+## Final source acceptance
 
-This checkpoint does not publish a package or close Studio consumer readiness.
-Still required:
+The governed integration landed in three independently checked pull requests:
 
-- independent review and the repository's governed current-base qualification
-  (absorb behind-2 on main via merge, not rebase of the preserved starter);
-- consumer adoption evidence, release notes, and separately authorized package
-  publication;
-- Studio catalog / browser apply / preview wiring (Studio #16 / #4 / #19) —
-  developable against local Framework cohorts; Packagist qualification remains
-  a later delivery check.
+- #3033, squash merge
+  `b0b70d924a68ebbc361e04bb8fd7e6a9064807d3`, landed the versioned starter,
+  provenance contract, compiler coverage, and packaged reference-existence
+  discriminator;
+- #3038, squash merge
+  `3359c10fbd40f703bdfcc5a73b9552647e2b7027`, landed generated status and
+  canonical CFG-03 workflow configuration with durable allowed and denied
+  transition behavior;
+- #3039, squash merge
+  `b7ba0880fe66a6e0e254db72ff662ba5502f6a87`, landed fresh-consumer activation
+  and the complete install, preview, approval, apply, replay, workflow, role,
+  and relationship harness.
+
+The pull-request heads and exact merge commits passed their required hosted
+checks. Hosted `packaged-form` runs the small skeleton suite; it is not cited as
+the complete Community Events qualification. The complete qualification is
+retained local exact-candidate evidence: the sealed eight-phase run at
+`4ef89f7d7110407b168de2d6a2c28a72556cb451` recorded 45 generated-runtime
+tests and 135 assertions plus reference validation, activation, and
+generated-role provisioning (retained log SHA-256
+`a04aab726f57275325c9d4f9517d71bc7f7f88bab55ead2068bbddf3dcfb15a8`). The
+starter, README, contract tests, packaged harness, and
+reference probe blobs from that accepted candidate are unchanged on current
+`main`. Later renderer changes affect the noexec invocation and PHPUnit-cache
+isolation boundaries rather than the Community Events domain contract.
+
+This evidence satisfies all seven #2981 source-implementation criteria:
+versioned domain schema, explicit bounded roles and workflow, reuse of the
+canonical compiler stack, runtime transition and relationship behavior,
+sealed consumer install and apply/replay, stable installed-source provenance,
+and consumer-adoption/release-note preparation.
+
+## Separately governed consumer delivery
+
+Closing Framework #2981 does not publish a package, release Studio, or establish
+published-consumer readiness. A governed Framework release, Packagist exposure,
+and Studio lock/install qualification remain separately authorized work under
+`waaseyaa/studio#3`. Studio browser and application integration retain their own
+acceptance issues. Local Studio development may continue against an exact,
+verified source cohort without waiting for publication.
