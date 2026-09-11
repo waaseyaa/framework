@@ -1,10 +1,12 @@
 # FW-3064-PRODUCTION-INSTALL-GENESIS-01 — Restricted production install without live CFG-02 authority
 
-Status: implemented (repair candidate)
+Status: implemented (harness reliability repair candidate)
 
 Issue: #3064 (regression of #2428 / PR #2431; blocks waaseyaa/studio#36)
 
 Parent: `494deddf6081f7c8551f00e25c8ef56123d3b71f` (`origin/main`)
+
+Runtime candidate: `06d45e45cd7d77249de3bf17042a1ab36cc5e8d1`
 
 Lease: `c8a14ab966e1bddf8d0f72cc9bafce67` (root/cursor-auto)
 
@@ -31,6 +33,11 @@ Physical reproduction (Studio #36) used an exact Framework cohort, fresh
 ext4-backed volume, and `APP_ENV=production`. `APP_ENV=local` is not an
 acceptable workaround (#2428).
 
+Independent review of `06d45e45` accepted the runtime fix and exact-head
+archived-consumer semantics, but rejected the packaged harness because
+Composer/CLI/probe children had no bounded deadline and EXIT cleanup did not
+reap a stalled process group before tree removal.
+
 ## Decision
 
 Narrow the discovery/runtime boundary:
@@ -44,6 +51,14 @@ Narrow the discovery/runtime boundary:
   mutation storage wrap, and access-path enforcement from #2426/#2428).
 - Genesis CAS, deterministic replay, audit marker, competing-generation
   refusal, and package layers are unchanged.
+
+Packaged harness reliability (follow-up to independent review of `06d45e45`):
+
+- Shared `tests/PackagedForm/lib/run-bounded.sh` imposes explicit deadlines,
+  TERM then KILL (`timeout --kill-after=5s`), deterministic status-124
+  diagnostics, and EXIT reaping before `rm -rf`.
+- Exact-head `bin/git archive --format=tar "$candidate"` semantics are preserved.
+- Production code is unchanged by the harness repair.
 
 Rejected alternatives:
 

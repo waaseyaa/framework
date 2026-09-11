@@ -13,13 +13,29 @@
 #   3. APP_ENV=production install:init  → exactly one genuine genesis
 #   4. repeated install:init            → deterministic replay / idempotence
 #   5. ordinary production boot/read succeeds
+#
+# Every Composer / CLI / probe child runs under an explicit deadline with
+# TERM→KILL escalation and EXIT reaping so cleanup cannot hang on a live child
+# (docs/local-testing-policy.md).
 
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tests/PackagedForm/lib/run-bounded.sh
+source "$root/tests/PackagedForm/lib/run-bounded.sh"
+
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-production-install-genesis.XXXXXX")"
 source_root="$work/source"
 consumer="$work/consumer"
+BOUNDED_LOG_DIR="$work"
+
+# Explicit per-child deadlines (seconds).
+DEADLINE_COMPOSER=600
+DEADLINE_DB_INIT=180
+DEADLINE_INSTALL=180
+DEADLINE_PREFLIGHT=120
+DEADLINE_PROBE=60
+DEADLINE_HELPER=30
 
 composer_bin="${COMPOSER_BIN:-}"
 if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
@@ -30,9 +46,11 @@ if [[ -z "$composer_bin" ]]; then
 fi
 
 cleanup() {
-    # Cleanup is best-effort and must never change this script's exit
-    # status; report a leak on stderr instead of letting a failed rm
-    # corrupt the proof under test (#2870).
+    # Reap any still-owned bounded child/process group BEFORE removing the
+    # tree so `rm -rf` cannot hang on a live descendant. Cleanup is then
+    # best-effort and must never change this script's exit status; report a
+    # leak on stderr instead of letting a failed rm corrupt the proof (#2870).
+    reap_bounded_owned_child
     rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
 }
 trap cleanup EXIT
@@ -40,14 +58,16 @@ trap cleanup EXIT
 candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
 
 mkdir -p "$source_root" "$consumer"
-"$root/bin/git" -C "$root" archive --format=tar HEAD \
+# Exact-head archived consumer: path repos resolve into this private archive,
+# never the live worktree checkout.
+"$root/bin/git" -C "$root" archive --format=tar "$candidate" \
     | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
 
 cp -R "$source_root/skeleton/." "$consumer/"
 rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
 mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
 
-php -r '
+if ! run_bounded rewrite-composer "$DEADLINE_HELPER" php -r '
     $path = $argv[1];
     $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
     $composer["repositories"] = [
@@ -57,73 +77,96 @@ php -r '
     $composer["require"]["waaseyaa/framework"] = "*";
     unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
-' "$consumer/composer.json" "$source_root"
+' "$consumer/composer.json" "$source_root"; then
+    cat "$BOUNDED_LOG_DIR/rewrite-composer.out" >&2
+    exit 1
+fi
 
 app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
 db_path="$consumer/storage/production-install.sqlite"
 printf 'APP_ENV=production\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
     "$app_secret" "$db_path" "$consumer" > "$consumer/.env"
 
-if ! "$composer_bin" install --working-dir="$consumer" \
-        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
-    tail -100 "$work/composer.out" >&2
+if ! run_bounded composer-install "$DEADLINE_COMPOSER" \
+        "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts; then
+    tail -100 "$BOUNDED_LOG_DIR/composer-install.out" >&2
     exit 1
 fi
 
 cp "$source_root/tests/ProductionInstallGenesis/probe.php" "$consumer/probe.php"
 
 # Studio #36 step 1: migrations only under production.
-if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa db:init --no-sync-schema ) \
-        >"$work/db-init.out" 2>&1; then
-    cat "$work/db-init.out" >&2
+if ! run_bounded db-init "$DEADLINE_DB_INIT" \
+        bash -c 'cd "$1" && env APP_ENV=production php vendor/bin/waaseyaa db:init --no-sync-schema' \
+        _ "$consumer"; then
+    cat "$BOUNDED_LOG_DIR/db-init.out" >&2
     echo 'APP_ENV=production db:init --no-sync-schema failed on a fresh consumer.' >&2
     exit 1
 fi
-grep -Fq 'Database ready.' "$work/db-init.out"
+grep -Fq 'Database ready.' "$BOUNDED_LOG_DIR/db-init.out"
 
 # Ordinary production boot must still refuse before genesis.
-if ( cd "$consumer" && env APP_ENV=production php probe.php refuse ) >"$work/refuse.out" 2>&1; then
-    cat "$work/refuse.out" >&2
+refuse_status=0
+run_bounded refuse "$DEADLINE_PROBE" \
+    bash -c 'cd "$1" && env APP_ENV=production php probe.php refuse' \
+    _ "$consumer" || refuse_status=$?
+if [[ "$refuse_status" -eq 0 ]]; then
+    cat "$BOUNDED_LOG_DIR/refuse.out" >&2
     echo 'Ordinary production boot must refuse before install:init creates genesis.' >&2
     exit 1
 fi
-grep -Fq 'Active configuration generation is unavailable' "$work/refuse.out"
-grep -Fq 'production-install ordinary boot refused before genesis' "$work/refuse.out"
+if [[ "$refuse_status" -eq 124 ]]; then
+    echo 'Ordinary production boot refusal probe exceeded its bounded deadline.' >&2
+    exit 1
+fi
+grep -Fq 'Active configuration generation is unavailable' "$BOUNDED_LOG_DIR/refuse.out"
+grep -Fq 'production-install ordinary boot refused before genesis' "$BOUNDED_LOG_DIR/refuse.out"
 
 # Studio #36 step 2: governed install under production (the #3064 regression).
-if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa install:init ) \
-        >"$work/install.out" 2>&1; then
-    cat "$work/install.out" >&2
+if ! run_bounded install-init "$DEADLINE_INSTALL" \
+        bash -c 'cd "$1" && env APP_ENV=production php vendor/bin/waaseyaa install:init' \
+        _ "$consumer"; then
+    cat "$BOUNDED_LOG_DIR/install-init.out" >&2
     echo 'APP_ENV=production install:init failed after db:init --no-sync-schema.' >&2
     exit 1
 fi
-grep -Fq 'Activated generation' "$work/install.out"
-grep -Fq 'Installation is complete.' "$work/install.out"
+grep -Fq 'Activated generation' "$BOUNDED_LOG_DIR/install-init.out"
+grep -Fq 'Installation is complete.' "$BOUNDED_LOG_DIR/install-init.out"
 
-genesis_count="$(php -r '
+if ! run_bounded genesis-count "$DEADLINE_HELPER" php -r '
     $db = new PDO("sqlite:" . $argv[1]);
     $count = (int) $db->query("SELECT COUNT(*) FROM waaseyaa_config_activation_v2 WHERE is_genesis = 1")->fetchColumn();
     echo $count;
-' "$db_path")"
+' "$db_path"; then
+    cat "$BOUNDED_LOG_DIR/genesis-count.out" >&2
+    exit 1
+fi
+genesis_count="$(tr -d '[:space:]' < "$BOUNDED_LOG_DIR/genesis-count.out")"
 if [[ "$genesis_count" != "1" ]]; then
     echo "Expected exactly one genuine genesis activation, got ${genesis_count}." >&2
     exit 1
 fi
 
 # Idempotent second run: replay, no competing generation.
-if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa install:init ) \
-        >"$work/install-retry.out" 2>&1; then
-    cat "$work/install-retry.out" >&2
+if ! run_bounded install-retry "$DEADLINE_INSTALL" \
+        bash -c 'cd "$1" && env APP_ENV=production php vendor/bin/waaseyaa install:init' \
+        _ "$consumer"; then
+    cat "$BOUNDED_LOG_DIR/install-retry.out" >&2
     echo 'A second production install:init must succeed idempotently.' >&2
     exit 1
 fi
-grep -Fq 'Configuration already initialized' "$work/install-retry.out"
+grep -Fq 'Configuration already initialized' "$BOUNDED_LOG_DIR/install-retry.out"
 
-genesis_count_retry="$(php -r '
+if ! run_bounded genesis-count-retry "$DEADLINE_HELPER" php -r '
     $db = new PDO("sqlite:" . $argv[1]);
     $count = (int) $db->query("SELECT COUNT(*) FROM waaseyaa_config_activation_v2 WHERE is_genesis = 1")->fetchColumn();
     echo $count;
-' "$db_path")"
+' "$db_path"; then
+    cat "$BOUNDED_LOG_DIR/genesis-count-retry.out" >&2
+    exit 1
+fi
+genesis_count_retry="$(tr -d '[:space:]' < "$BOUNDED_LOG_DIR/genesis-count-retry.out")"
 if [[ "$genesis_count_retry" != "1" ]]; then
     echo "Second install:init minted a competing genesis (count=${genesis_count_retry})." >&2
     exit 1
@@ -132,20 +175,23 @@ fi
 # Ordinary production boot requires the reviewed field-access inventory after
 # schema exists. This is outside #3064's genesis circularity, but without it the
 # post-install production boot proof cannot reach the active generation.
-if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json ) \
-        >"$work/preflight.out" 2>&1; then
-    cat "$work/preflight.out" >&2
+if ! run_bounded field-access-preflight "$DEADLINE_PREFLIGHT" \
+        bash -c 'cd "$1" && env APP_ENV=production php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json' \
+        _ "$consumer"; then
+    cat "$BOUNDED_LOG_DIR/field-access-preflight.out" >&2
     echo 'field-access:preflight --write-artifact failed after production install:init.' >&2
     exit 1
 fi
 
-if ! ( cd "$consumer" && env APP_ENV=production php probe.php boot ) >"$work/boot.out" 2>&1; then
-    cat "$work/boot.out" >&2
+if ! run_bounded boot "$DEADLINE_PROBE" \
+        bash -c 'cd "$1" && env APP_ENV=production php probe.php boot' \
+        _ "$consumer"; then
+    cat "$BOUNDED_LOG_DIR/boot.out" >&2
     echo 'Ordinary production boot/read failed after install:init.' >&2
     exit 1
 fi
-grep -Fq 'production-install ordinary boot OK' "$work/boot.out"
-grep -Fq 'production-install active generation OK' "$work/boot.out"
+grep -Fq 'production-install ordinary boot OK' "$BOUNDED_LOG_DIR/boot.out"
+grep -Fq 'production-install active generation OK' "$BOUNDED_LOG_DIR/boot.out"
 
 printf 'Production install genesis proof passed.\n'
 printf 'Candidate: %s\n' "$candidate"
