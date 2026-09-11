@@ -171,6 +171,10 @@ final class ProductionInstallGenesisGateTest extends TestCase
     #[Test]
     public function bounded_helper_escalates_term_ignoring_timeout_child_to_kill(): void
     {
+        if (!function_exists('pcntl_signal') || !defined('SIGTERM')) {
+            self::markTestSkipped('TERM-ignore escalation fixture requires ext-pcntl (no Perl dependency).');
+        }
+
         $suffix = bin2hex(random_bytes(8));
         $work = sys_get_temp_dir() . '/waaseyaa_bounded_kill_' . $suffix;
         $pidFile = sys_get_temp_dir() . '/waaseyaa_bounded_kill_pid_' . $suffix;
@@ -182,6 +186,7 @@ final class ProductionInstallGenesisGateTest extends TestCase
             root="$1"
             work="$2"
             pid_file="$3"
+            php_bin="$4"
             # shellcheck source=tests/PackagedForm/lib/run-bounded.sh
             source "$root/tests/PackagedForm/lib/run-bounded.sh"
             BOUNDED_LOG_DIR="$work"
@@ -193,19 +198,24 @@ final class ProductionInstallGenesisGateTest extends TestCase
             }
             trap cleanup EXIT
             # Ignore TERM so timeout must escalate to KILL (--kill-after=5s).
-            # Use perl: exec'd sleep would drop a shell trap, and a process-group
-            # TERM would still kill an ordinary sleep child.
-            run_bounded ignore-term 1 perl -e '
-              open my $fh, ">", $ARGV[0] or exit 2;
-              print {$fh} "$$\n";
-              close $fh;
-              $SIG{TERM} = "IGNORE";
-              sleep 60;
+            # Use PHP_BINARY + pcntl: a shell trap is dropped by exec, and an
+            # ordinary sleep still dies when timeout signals the process group.
+            run_bounded ignore-term 1 "$php_bin" -r '
+              if (!function_exists("pcntl_signal") || !defined("SIGTERM")) {
+                fwrite(STDERR, "pcntl required for TERM-ignore fixture\n");
+                exit(2);
+              }
+              if (function_exists("pcntl_async_signals")) {
+                pcntl_async_signals(true);
+              }
+              pcntl_signal(SIGTERM, SIG_IGN);
+              file_put_contents($argv[1], (string) getmypid() . "\n");
+              sleep(60);
             ' "$pid_file"
             SH;
 
         $process = new Process(
-            ['bash', '-c', $script, 'bounded-kill', $this->repoRoot, $work, $pidFile],
+            ['bash', '-c', $script, 'bounded-kill', $this->repoRoot, $work, $pidFile, PHP_BINARY],
             null,
             null,
             null,
