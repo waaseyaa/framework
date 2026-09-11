@@ -44,8 +44,10 @@ final class TestQualityInventoryTest extends TestCase
         // #2664's finite project:init child-process lifecycle fixtures. The
         // twelfth is #3046's fixed 60s disposable child used to prove the
         // packaged runner enforces its own 30s timeout beneath an independent
-        // 35s outer bound. None is a retry loop (see bin/test-quality-inventory).
-        self::assertCount(12, array_merge(
+        // 35s outer bound. The thirteenth is #3064's ProductionInstallGenesis
+        // bounded-helper fixtures (TERM→KILL php -r loop + exact-PID custody
+        // usleep). None is a retry loop (see bin/test-quality-inventory).
+        self::assertCount(13, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));
