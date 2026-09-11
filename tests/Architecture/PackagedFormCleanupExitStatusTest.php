@@ -57,6 +57,7 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
         'check-community-events-starter',
         'check-custom-field-admission',
         'check-fresh-install-boot',
+        'check-production-install-genesis',
         'check-s1-configuration-archives',
         'check-s1-configuration-core-only',
         'check-s1-schema-authority-artifact',

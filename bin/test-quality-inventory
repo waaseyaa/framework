@@ -190,6 +190,11 @@ foreach ($phpTestFiles as $path) {
             // it is a fixed subprocess-lifecycle proof, never an assertion
             // retry loop.
             'tests/Architecture/SubprocessHarnessContractTest.php' => 'subprocess_polling',
+            // #3064: sleep(1)/usleep() appear in disposable php -r TERM→KILL
+            // children and brief exact-PID custody probes after TERM. Bounded
+            // subprocess-lifecycle proofs for run_bounded, never assertion
+            // retry loops.
+            'tests/Architecture/ProductionInstallGenesisGateTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;

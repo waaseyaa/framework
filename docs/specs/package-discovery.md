@@ -617,7 +617,13 @@ Package discovery determines which service providers are installed; capability
 composition determines whether that exact provider graph is safe to boot. After
 all discovered providers register and before any provider boots,
 `CapabilityRegistry` collects `ProvidesCapabilitiesInterface` declarations and
-validates every `RequiresCapabilitiesInterface` requirement.
+validates every `RequiresCapabilitiesInterface` requirement on ordinary runtime
+boot. Restricted definition discovery (`restrictedDiscoveryOnly` /
+`bootForSchemaSync` for `install:init`, `schema:sync`, and `migrate*`) skips
+that live validation (#3064) so production installation can reach schema
+preparation and CFG-02 genesis without resolving authority-dependent capability
+publication. Ordinary production boot still validates and still refuses when no
+active generation exists.
 
 A declaration contains a stable capability ID, positive version, and authority
 fingerprint. A requirement contains the accepted version range. Missing or

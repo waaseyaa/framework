@@ -2029,7 +2029,11 @@ without a verified bundle plus a CAS token, and import callers assemble their
 baseline by reading the active store. `ConfigurationGenesisActivatorInterface`
 closes that loop and is deliberately kept off `ConfigurationActivatorInterface`,
 so ordinary activation consumers cannot reach it. It is reachable in practice
-only from the restricted `install:init` lifecycle.
+only from the restricted `install:init` lifecycle. That lifecycle's definition
+discovery must not publish live `configuration.authority.v1` capabilities
+(#3064): capability publication outside explicit development calls
+`requireActiveGenerationId()`, which is the state `install:init` creates.
+Ordinary production boot keeps that refusal.
 
 Genesis produces exactly one thing: the canonical empty generation, whose id is
 derived from the authority alone. `ConfigurationActivationRequest::genesis()`

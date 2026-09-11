@@ -72,6 +72,13 @@ final class ProviderRegistry
          * @var (\Closure(): \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface)|null
          */
         ?\Closure $healthCheckerAccessor = null,
+        /**
+         * Ordinary runtime boot validates the live capability graph after
+         * register(). Restricted definition discovery (#3064 / install:init,
+         * schema:sync, migrate*) must reach schema preparation and genesis
+         * without resolving authority-dependent capability publication.
+         */
+        bool $validateCapabilities = true,
     ): array {
         $this->providers = [];
 
@@ -118,7 +125,9 @@ final class ProviderRegistry
             $provider->register();
         }
 
-        new CapabilityRegistry()->validate($this->providers);
+        if ($validateCapabilities) {
+            new CapabilityRegistry()->validate($this->providers);
+        }
 
         foreach ($this->providers as $provider) {
             foreach ($provider->getEntityTypeRegistrations() as $registration) {

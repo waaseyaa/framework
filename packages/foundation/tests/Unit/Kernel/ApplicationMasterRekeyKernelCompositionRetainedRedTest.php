@@ -19,6 +19,8 @@ use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyAdapterInterface;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiredCapabilityUnavailableException;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
@@ -94,6 +96,34 @@ final class ApplicationMasterRekeyKernelCompositionRetainedRedTest extends TestC
     }
 
     #[Test]
+    public function restricted_discovery_skips_live_capability_publication(): void
+    {
+        // #3064: install:init / schema:sync must reach definition discovery under
+        // APP_ENV=production without resolving authority-dependent capabilities.
+        KernelLiveCapabilityProvider::$declarationsInvoked = 0;
+        KernelLiveCapabilityProvider::$registered = false;
+        $kernel = $this->kernelWithProviders([KernelLiveCapabilityProvider::class]);
+
+        $kernel->publicRestrictedBoot();
+
+        self::assertSame(0, KernelLiveCapabilityProvider::$declarationsInvoked);
+        self::assertTrue(KernelLiveCapabilityProvider::$registered);
+    }
+
+    #[Test]
+    public function ordinary_boot_still_publishes_live_capabilities(): void
+    {
+        KernelLiveCapabilityProvider::$declarationsInvoked = 0;
+        KernelLiveCapabilityProvider::$registered = false;
+        $kernel = $this->kernelWithProviders([KernelLiveCapabilityProvider::class]);
+
+        $this->expectException(RequiredCapabilityUnavailableException::class);
+        $this->expectExceptionMessage('live authority-dependent capability publication is unavailable');
+
+        $kernel->publicBoot();
+    }
+
+    #[Test]
     public function a_later_boot_failure_exposes_no_successfully_composed_partial_graph(): void
     {
         $kernel = $this->kernelWithProviders([KernelRekeyContributionProvider::class], failAfterProviderBoot: true);
@@ -146,6 +176,28 @@ final class ApplicationMasterRekeyKernelCompositionRetainedRedTest extends TestC
                 }
             }
         };
+    }
+}
+
+/** @internal #3064: refuses like production configuration.authority publication. */
+final class KernelLiveCapabilityProvider extends ServiceProvider implements ProvidesCapabilitiesInterface
+{
+    public static int $declarationsInvoked = 0;
+
+    public static bool $registered = false;
+
+    public function register(): void
+    {
+        self::$registered = true;
+    }
+
+    public function capabilityDeclarations(): iterable
+    {
+        self::$declarationsInvoked++;
+
+        throw new RequiredCapabilityUnavailableException(
+            'live authority-dependent capability publication is unavailable',
+        );
     }
 }
 

@@ -516,6 +516,10 @@ abstract class AbstractKernel
             // cli's HealthReportHandler — can only resolve it through this
             // bus. Lazy: it is first read at command dispatch, after boot.
             healthCheckerAccessor: fn(): \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface => $this->healthChecker(),
+            // #3064: restricted definition discovery must not publish live
+            // authority-dependent capabilities before install:init can create
+            // genesis. Ordinary boot keeps validateCapabilities true.
+            validateCapabilities: !$this->restrictedDiscoveryOnly,
         );
     }
 
@@ -1192,9 +1196,11 @@ abstract class AbstractKernel
      * Definition-only bootstrap for the explicit schema transition commands.
      *
      * Entity definitions and migration providers are discovered, but provider
-     * boot hooks, repositories, policies, schedulers, queries, and HTTP runtime
-     * are not activated. This lets schema:sync repair a missing runtime schema
-     * without reintroducing lazy DDL during ordinary kernel boot.
+     * boot hooks, repositories, policies, schedulers, queries, HTTP runtime,
+     * and live capability validation are not activated (#3064). This lets
+     * schema:sync and install:init repair or create runtime schema and CFG-02
+     * genesis without reintroducing lazy DDL during ordinary kernel boot or
+     * requiring the active generation installation is about to create.
      *
      * @internal
      */

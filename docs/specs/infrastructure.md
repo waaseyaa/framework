@@ -293,7 +293,12 @@ ordinary `bootForCli()`. A small, explicit installation set — `schema:sync`,
 `install:init` — takes `bootForSchemaSync()`, which sets
 `restrictedDiscoveryOnly` and therefore skips
 `bootProviders()`, `discoverAccessPolicies()`, the field-read runtime, schedule
-entries, and `finalizeBoot()`.
+entries, and `finalizeBoot()`. Restricted definition discovery also skips
+`CapabilityRegistry` validation (#3064): live capability publication for
+`configuration.authority.v1` calls `requireActiveGenerationId()`, and
+`install:init` is the lifecycle that creates that generation. Ordinary
+production boot still validates capabilities and still refuses when no
+generation is active. `APP_ENV=local` is not production installation authority.
 
 That restriction is what makes an installation phase possible at all (#2428).
 Access-policy discovery resolves configuration, so a command that had to create
