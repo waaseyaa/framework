@@ -21,6 +21,12 @@ use Symfony\Component\Process\Process;
  * Re-review of f0794db required descendant custody: after an early-exiting
  * parent, surviving process-group members must still be reaped, and PGID
  * adoption must not race through unverified `ps`/`setsid` startup.
+ *
+ * Re-review of b0c2e6d rejected live post-spawn /proc PGID adoption: a fast
+ * /bin/true leader exits before observation (status 126), and delaying the
+ * observer lets an early parent exit, clears custody, and leaks its sleep
+ * descendant. Custody must be recorded from the monitor-mode leader PID
+ * immediately (PGID == PID), refusing only caller-group equivalence.
  */
 #[CoversNothing]
 final class ProductionInstallGenesisGateTest extends TestCase
@@ -103,7 +109,8 @@ final class ProductionInstallGenesisGateTest extends TestCase
 
         self::assertStringContainsString('timeout --signal=TERM --kill-after=5s', $helperSource);
         self::assertStringContainsString('set -m', $helperSource);
-        self::assertStringContainsString('refused to adopt process group', $helperSource);
+        self::assertStringContainsString('BOUNDED_OWNED_PGID="$BOUNDED_OWNED_PID"', $helperSource);
+        self::assertStringContainsString('refused caller-group equivalence', $helperSource);
         self::assertStringContainsString('Bounded deadline exceeded for', $helperSource);
         self::assertStringContainsString('kill -TERM -- "-$pgid"', $helperSource);
         self::assertStringContainsString('kill -KILL -- "-$pgid"', $helperSource);
@@ -111,6 +118,135 @@ final class ProductionInstallGenesisGateTest extends TestCase
         self::assertStringContainsString('DEADLINE_COMPOSER=', $harnessSource);
         self::assertStringContainsString('DEADLINE_INSTALL=', $harnessSource);
         self::assertStringNotContainsString('ps -o pgid=', $helperSource);
+        self::assertDoesNotMatchRegularExpression(
+            '/BOUNDED_OWNED_PID=\$!\s*\n(?:.*\n){0,40}?_bounded_read_pgrp "\$BOUNDED_OWNED_PID"/',
+            $helperSource,
+            'Must not wait on live /proc observation of the child before recording PGID custody.',
+        );
+    }
+
+    #[Test]
+    public function bounded_helper_accepts_repeated_fast_true_without_status_126(): void
+    {
+        $suffix = bin2hex(random_bytes(8));
+        $work = sys_get_temp_dir() . '/waaseyaa_bounded_fast_' . $suffix;
+        self::assertTrue(mkdir($work, 0o755, true));
+
+        $script = <<<'SH'
+            #!/usr/bin/env bash
+            set -euo pipefail
+            root="$1"
+            work="$2"
+            # shellcheck source=tests/PackagedForm/lib/run-bounded.sh
+            source "$root/tests/PackagedForm/lib/run-bounded.sh"
+            BOUNDED_LOG_DIR="$work"
+            cleanup() {
+                reap_bounded_owned_child
+                rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+            }
+            trap cleanup EXIT
+            fails=0
+            for i in $(seq 1 20); do
+                set +e
+                run_bounded "fast-${i}" 5 /bin/true
+                st=$?
+                set -e
+                if [[ "$st" -eq 126 ]]; then
+                    fails=$((fails + 1))
+                elif [[ "$st" -ne 0 ]]; then
+                    echo "unexpected status ${st} on fast-${i}" >&2
+                    exit "$st"
+                fi
+            done
+            if [[ "$fails" -ne 0 ]]; then
+                echo "fast /bin/true produced ${fails}/20 status-126 refusals" >&2
+                exit 1
+            fi
+            SH;
+
+        $process = new Process(
+            ['bash', '-c', $script, 'bounded-fast', $this->repoRoot, $work],
+            null,
+            null,
+            null,
+            60.0,
+        );
+        $exit = $process->run();
+
+        self::assertSame(
+            0,
+            $exit,
+            "20× run_bounded fast /bin/true must never refuse with status 126.\n"
+            . $process->getOutput() . "\n" . $process->getErrorOutput(),
+        );
+        self::assertFileDoesNotExist($work);
+    }
+
+    #[Test]
+    public function bounded_helper_reaps_descendant_after_delayed_observer_early_parent_exit(): void
+    {
+        $suffix = bin2hex(random_bytes(8));
+        $work = sys_get_temp_dir() . '/waaseyaa_bounded_delay_' . $suffix;
+        $pidFile = sys_get_temp_dir() . '/waaseyaa_bounded_delay_pid_' . $suffix;
+        self::assertTrue(mkdir($work, 0o755, true));
+
+        $script = <<<'SH'
+            #!/usr/bin/env bash
+            set -euo pipefail
+            root="$1"
+            work="$2"
+            pid_file="$3"
+            # shellcheck source=tests/PackagedForm/lib/run-bounded.sh
+            source "$root/tests/PackagedForm/lib/run-bounded.sh"
+            BOUNDED_LOG_DIR="$work"
+            # Independent-review discriminator: delaying after spawn used to
+            # miss /proc adoption, return 126, clear custody, and leak sleep.
+            BOUNDED_TEST_POST_SPAWN_DELAY_MS=150
+            cleanup() {
+                reap_bounded_owned_child
+                if [[ -f "$pid_file" ]]; then
+                    desc="$(cat "$pid_file" 2>/dev/null || true)"
+                    if [[ "$desc" =~ ^[1-9][0-9]*$ ]]; then
+                        kill -TERM "$desc" 2>/dev/null || true
+                        kill -KILL "$desc" 2>/dev/null || true
+                    fi
+                fi
+                rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+            }
+            trap cleanup EXIT
+            run_bounded delayed 5 bash -c 'sleep 20 & printf "%s\n" "$!" >"$1"; exit 0' _ "$pid_file"
+            SH;
+
+        $process = new Process(
+            ['bash', '-c', $script, 'bounded-delay', $this->repoRoot, $work, $pidFile],
+            null,
+            null,
+            null,
+            20.0,
+        );
+        $exit = $process->run();
+
+        $descendantPid = 0;
+        if (is_file($pidFile)) {
+            $descendantPid = (int) trim((string) file_get_contents($pidFile));
+        }
+
+        self::assertSame(
+            0,
+            $exit,
+            "Delayed post-spawn observer must not refuse (126) or abandon custody.\n"
+            . $process->getOutput() . "\n" . $process->getErrorOutput(),
+        );
+        self::assertStringNotContainsString('status-126', $process->getErrorOutput());
+        self::assertStringNotContainsString('refused caller-group equivalence', $process->getErrorOutput());
+        self::assertFileDoesNotExist($work);
+        self::assertFileExists($pidFile);
+        @unlink($pidFile);
+        self::assertGreaterThan(1, $descendantPid);
+        self::assertFalse(
+            $this->pidIsAlive($descendantPid),
+            "Descendant pid {$descendantPid} must not leak after delayed-observer early parent exit.",
+        );
     }
 
     #[Test]
@@ -134,6 +270,13 @@ final class ProductionInstallGenesisGateTest extends TestCase
                 # Cleanup is best-effort and must never change this script's
                 # exit status; report a leak on stderr instead (#2870).
                 reap_bounded_owned_child
+                if [[ -f "$pid_file" ]]; then
+                    desc="$(cat "$pid_file" 2>/dev/null || true)"
+                    if [[ "$desc" =~ ^[1-9][0-9]*$ ]]; then
+                        kill -TERM "$desc" 2>/dev/null || true
+                        kill -KILL "$desc" 2>/dev/null || true
+                    fi
+                fi
                 rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
             }
             trap cleanup EXIT
@@ -178,6 +321,7 @@ final class ProductionInstallGenesisGateTest extends TestCase
         $suffix = bin2hex(random_bytes(8));
         $work = sys_get_temp_dir() . '/waaseyaa_bounded_kill_' . $suffix;
         $pidFile = sys_get_temp_dir() . '/waaseyaa_bounded_kill_pid_' . $suffix;
+        $markerFile = sys_get_temp_dir() . '/waaseyaa_bounded_kill_term_' . $suffix;
         self::assertTrue(mkdir($work, 0o755, true));
 
         $script = <<<'SH'
@@ -186,7 +330,8 @@ final class ProductionInstallGenesisGateTest extends TestCase
             root="$1"
             work="$2"
             pid_file="$3"
-            php_bin="$4"
+            marker_file="$4"
+            php_bin="$5"
             # shellcheck source=tests/PackagedForm/lib/run-bounded.sh
             source "$root/tests/PackagedForm/lib/run-bounded.sh"
             BOUNDED_LOG_DIR="$work"
@@ -197,9 +342,8 @@ final class ProductionInstallGenesisGateTest extends TestCase
                 rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
             }
             trap cleanup EXIT
-            # Ignore TERM so timeout must escalate to KILL (--kill-after=5s).
-            # Use PHP_BINARY + pcntl: a shell trap is dropped by exec, and an
-            # ordinary sleep still dies when timeout signals the process group.
+            # First TERM writes a marker then installs SIG_IGN so timeout must
+            # escalate to KILL. Use PHP_BINARY + pcntl (no Perl).
             run_bounded ignore-term 1 "$php_bin" -r '
               if (!function_exists("pcntl_signal") || !defined("SIGTERM")) {
                 fwrite(STDERR, "pcntl required for TERM-ignore fixture\n");
@@ -208,14 +352,18 @@ final class ProductionInstallGenesisGateTest extends TestCase
               if (function_exists("pcntl_async_signals")) {
                 pcntl_async_signals(true);
               }
-              pcntl_signal(SIGTERM, SIG_IGN);
+              $marker = $argv[2];
+              pcntl_signal(SIGTERM, static function () use ($marker): void {
+                file_put_contents($marker, "TERM\n");
+                pcntl_signal(SIGTERM, SIG_IGN);
+              });
               file_put_contents($argv[1], (string) getmypid() . "\n");
               sleep(60);
-            ' "$pid_file"
+            ' "$pid_file" "$marker_file"
             SH;
 
         $process = new Process(
-            ['bash', '-c', $script, 'bounded-kill', $this->repoRoot, $work, $pidFile, PHP_BINARY],
+            ['bash', '-c', $script, 'bounded-kill', $this->repoRoot, $work, $pidFile, $markerFile, PHP_BINARY],
             null,
             null,
             null,
@@ -235,8 +383,10 @@ final class ProductionInstallGenesisGateTest extends TestCase
             'Bounded deadline exceeded for ignore-term after 1s (sent TERM, then KILL).',
             $process->getErrorOutput(),
         );
-        self::assertGreaterThanOrEqual(5.0, $elapsed, 'KILL fallback is --kill-after=5s after the 1s deadline.');
-        self::assertLessThan(20.0, $elapsed);
+        self::assertFileExists($markerFile, 'Child must record that SIGTERM arrived before KILL escalation.');
+        self::assertSame("TERM\n", (string) file_get_contents($markerFile));
+        @unlink($markerFile);
+        self::assertLessThan(20.0, $elapsed, 'Escalation must finish within a broad upper bound.');
         self::assertFileDoesNotExist($work);
         self::assertFileExists($pidFile);
         $childPid = (int) trim((string) file_get_contents($pidFile));

@@ -53,15 +53,17 @@ Narrow the discovery/runtime boundary:
   refusal, and package layers are unchanged.
 
 Packaged harness reliability (follow-up to independent review of `06d45e45`,
-custody repair after `f0794db`):
+custody repair after `f0794db`, PGID startup race repair after `b0c2e6d`):
 
 - Shared `tests/PackagedForm/lib/run-bounded.sh` imposes explicit deadlines,
   TERM then KILL (`timeout --kill-after=5s`), deterministic status-124
   diagnostics, and EXIT reaping before `rm -rf`.
 - Process-group custody uses bash monitor mode so the leader PGID equals its
-  PID deterministically; adoption refuses the caller's group. Surviving
-  descendants are reaped after every leader exit, including exit 0, and
-  custody clears only once the owned group is gone.
+  PID and is recorded immediately at spawn (no live post-spawn `/proc`
+  adoption). Adoption refuses caller-group equivalence and never clears
+  custody merely because the leader PID disappeared. Surviving descendants
+  are reaped after every leader exit, including exit 0, and custody clears
+  only once the owned group is gone.
 - Exact-head `bin/git archive --format=tar "$candidate"` semantics are preserved.
 - Production code is unchanged by the harness repair.
 

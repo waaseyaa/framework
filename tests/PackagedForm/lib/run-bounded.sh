@@ -2,7 +2,8 @@
 #
 # Requires: coreutils `timeout`. Optional: util-linux tools are not required;
 # process-group isolation uses bash monitor mode so the background leader's
-# PID is its PGID deterministically (no post-spawn `ps` adoption race).
+# PID is its PGID deterministically — recorded immediately at spawn (no live
+# post-spawn /proc adoption race).
 #
 # Caller must set BOUNDED_LOG_DIR to a writable directory for per-label logs.
 #
@@ -16,6 +17,8 @@
 # - Timeout exit is deterministic: status 124 and a stderr diagnostic naming
 #   the label and deadline.
 # - Custody never adopts the caller's process group.
+# - Custody is never cleared merely because the leader PID disappeared before
+#   a later observer could read /proc; the owned PGID is known at spawn.
 
 BOUNDED_OWNED_PGID=''
 BOUNDED_OWNED_PID=''
@@ -37,6 +40,21 @@ _bounded_read_pgrp() {
     [[ -n "$pid" && -r "/proc/${pid}/stat" ]] || return 1
     # proc(5): field 5 is pgrp.
     awk '{print $5}' "/proc/${pid}/stat" 2>/dev/null
+}
+
+_bounded_restore_shell_opts() {
+    local had_monitor="${1:-0}"
+    local had_errexit="${2:-0}"
+    if [[ "$had_monitor" -eq 0 ]]; then
+        set +m
+    else
+        set -m
+    fi
+    if [[ "$had_errexit" -eq 1 ]]; then
+        set -e
+    else
+        set +e
+    fi
 }
 
 reap_bounded_owned_child() {
@@ -110,36 +128,32 @@ run_bounded() {
 
     local caller_pgid
     caller_pgid="$(_bounded_read_pgrp "$$" || true)"
-    local monitor_was_on=0
-    [[ $- == *m* ]] && monitor_was_on=1
+    local had_monitor=0
+    local had_errexit=0
+    [[ $- == *m* ]] && had_monitor=1
+    [[ $- == *e* ]] && had_errexit=1
 
     # Monitor mode makes the background job a new process-group leader whose
-    # PGID equals its PID — known before any descendant can start.
+    # PGID equals its PID — known immediately from $!, before the payload can
+    # exit or spawn descendants that need reaping. Disable notify (+b) so
+    # completed-job chatter does not pollute harness stderr.
     set -m
+    set +b
     set +e
     timeout --signal=TERM --kill-after=5s "${seconds}s" "$@" >"$out" 2>&1 &
     BOUNDED_OWNED_PID=$!
 
-    local adopted=0
-    local child_pgid=''
-    local _i
-    for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-        child_pgid="$(_bounded_read_pgrp "$BOUNDED_OWNED_PID" || true)"
-        if [[ "$child_pgid" =~ ^[1-9][0-9]*$ \
-            && "$child_pgid" == "$BOUNDED_OWNED_PID" \
-            && "$child_pgid" != "$caller_pgid" ]]; then
-            BOUNDED_OWNED_PGID="$child_pgid"
-            adopted=1
-            break
-        fi
-        if ! _bounded_pid_alive "$BOUNDED_OWNED_PID"; then
-            break
-        fi
-        sleep 0.05
-    done
+    if [[ ! "$BOUNDED_OWNED_PID" =~ ^[1-9][0-9]*$ ]]; then
+        echo "run_bounded: refused caller-group equivalence for ${label} (missing leader pid; caller_pgid=${caller_pgid:-unknown})." >&2
+        BOUNDED_OWNED_PID=''
+        BOUNDED_OWNED_PGID=''
+        _bounded_restore_shell_opts "$had_monitor" "$had_errexit"
+        return 126
+    fi
 
-    if [[ "$adopted" -ne 1 ]]; then
-        echo "run_bounded: refused to adopt process group for ${label} (caller_pgid=${caller_pgid:-unknown} child=${BOUNDED_OWNED_PID})." >&2
+    # Never signal the caller's process group.
+    if [[ -n "$caller_pgid" && "$BOUNDED_OWNED_PID" == "$caller_pgid" ]]; then
+        echo "run_bounded: refused caller-group equivalence for ${label} (caller_pgid=${caller_pgid} child=${BOUNDED_OWNED_PID})." >&2
         if _bounded_pid_alive "$BOUNDED_OWNED_PID"; then
             kill -TERM "$BOUNDED_OWNED_PID" 2>/dev/null || true
             sleep 0.2
@@ -148,18 +162,25 @@ run_bounded() {
         fi
         BOUNDED_OWNED_PID=''
         BOUNDED_OWNED_PGID=''
-        [[ "$monitor_was_on" -eq 0 ]] && set +m
-        set -e
+        _bounded_restore_shell_opts "$had_monitor" "$had_errexit"
         return 126
+    fi
+
+    BOUNDED_OWNED_PGID="$BOUNDED_OWNED_PID"
+
+    # Test-only injector: delay after custody is established (proves post-spawn
+    # /proc observation is not required). Production callers leave this unset.
+    if [[ "${BOUNDED_TEST_POST_SPAWN_DELAY_MS:-}" =~ ^[1-9][0-9]*$ ]]; then
+        sleep "$(awk -v ms="$BOUNDED_TEST_POST_SPAWN_DELAY_MS" 'BEGIN { printf "%.3f", ms / 1000 }')"
     fi
 
     wait "$BOUNDED_OWNED_PID"
     local status=$?
     # Leader may have exited 0 after backgrounding a descendant. Hold PGID and
-    # reap the whole owned group before releasing custody.
+    # reap the whole owned group before releasing custody — never abandon the
+    # group merely because the leader PID is already gone.
     reap_bounded_owned_child
-    [[ "$monitor_was_on" -eq 0 ]] && set +m
-    set -e
+    _bounded_restore_shell_opts "$had_monitor" "$had_errexit"
 
     # GNU timeout uses 124 on expiry; 137 is common after SIGKILL.
     if [[ "$status" -eq 124 || "$status" -eq 137 ]]; then
