@@ -26,6 +26,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiredCapabilityUnavailableException;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -307,6 +309,68 @@ final class ProviderRegistryTest extends TestCase
         $registry->boot($providers);
 
         self::assertSame(['ordinary', 'finalizer-boot', 'finalize'], ProviderBootOrderFixture::$events);
+    }
+
+    #[Test]
+    public function ordinary_registration_validates_live_capability_declarations(): void
+    {
+        LiveAuthorityCapabilityProvider::$declarationsInvoked = 0;
+        LiveAuthorityCapabilityProvider::$registered = false;
+
+        $this->expectException(RequiredCapabilityUnavailableException::class);
+        $this->expectExceptionMessage('live authority-dependent capability publication is unavailable');
+
+        new ProviderRegistry(new NullLogger())->discoverAndRegister(
+            manifest: new PackageManifest(providers: [LiveAuthorityCapabilityProvider::class]),
+            projectRoot: sys_get_temp_dir(),
+            config: [],
+            entityTypeManager: new EntityTypeManager(new EventDispatcher()),
+            database: DBALDatabase::createSqlite(':memory:'),
+            dispatcher: new EventDispatcher(),
+        );
+    }
+
+    #[Test]
+    public function definition_only_registration_skips_live_capability_validation(): void
+    {
+        LiveAuthorityCapabilityProvider::$declarationsInvoked = 0;
+        LiveAuthorityCapabilityProvider::$registered = false;
+
+        $providers = new ProviderRegistry(new NullLogger())->discoverAndRegister(
+            manifest: new PackageManifest(providers: [LiveAuthorityCapabilityProvider::class]),
+            projectRoot: sys_get_temp_dir(),
+            config: [],
+            entityTypeManager: new EntityTypeManager(new EventDispatcher()),
+            database: DBALDatabase::createSqlite(':memory:'),
+            dispatcher: new EventDispatcher(),
+            validateCapabilities: false,
+        );
+
+        self::assertCount(1, $providers);
+        self::assertSame(0, LiveAuthorityCapabilityProvider::$declarationsInvoked);
+        self::assertTrue(LiveAuthorityCapabilityProvider::$registered);
+    }
+}
+
+/** @internal #3064: capability publication that refuses like production authority. */
+final class LiveAuthorityCapabilityProvider extends ServiceProvider implements ProvidesCapabilitiesInterface
+{
+    public static int $declarationsInvoked = 0;
+
+    public static bool $registered = false;
+
+    public function register(): void
+    {
+        self::$registered = true;
+    }
+
+    public function capabilityDeclarations(): iterable
+    {
+        self::$declarationsInvoked++;
+
+        throw new RequiredCapabilityUnavailableException(
+            'live authority-dependent capability publication is unavailable',
+        );
     }
 }
 

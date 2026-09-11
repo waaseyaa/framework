@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+
+# Production install genesis proof (#3064).
+#
+# Discriminates the Studio #36 / Framework #3064 regression: under
+# APP_ENV=production, db:init --no-sync-schema succeeds, then install:init must
+# reach CFG-02 genesis without resolving live authority-dependent capabilities.
+# APP_ENV=production only — local is not installation authority (#2428).
+#
+# Sequence under test (exact):
+#   1. APP_ENV=production db:init --no-sync-schema
+#   2. ordinary production boot refuses (no active generation)
+#   3. APP_ENV=production install:init  → exactly one genuine genesis
+#   4. repeated install:init            → deterministic replay / idempotence
+#   5. ordinary production boot/read succeeds
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-production-install-genesis.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (#2870).
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+db_path="$consumer/storage/production-install.sqlite"
+printf 'APP_ENV=production\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$db_path" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
+
+cp "$source_root/tests/ProductionInstallGenesis/probe.php" "$consumer/probe.php"
+
+# Studio #36 step 1: migrations only under production.
+if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa db:init --no-sync-schema ) \
+        >"$work/db-init.out" 2>&1; then
+    cat "$work/db-init.out" >&2
+    echo 'APP_ENV=production db:init --no-sync-schema failed on a fresh consumer.' >&2
+    exit 1
+fi
+grep -Fq 'Database ready.' "$work/db-init.out"
+
+# Ordinary production boot must still refuse before genesis.
+if ( cd "$consumer" && env APP_ENV=production php probe.php refuse ) >"$work/refuse.out" 2>&1; then
+    cat "$work/refuse.out" >&2
+    echo 'Ordinary production boot must refuse before install:init creates genesis.' >&2
+    exit 1
+fi
+grep -Fq 'Active configuration generation is unavailable' "$work/refuse.out"
+grep -Fq 'production-install ordinary boot refused before genesis' "$work/refuse.out"
+
+# Studio #36 step 2: governed install under production (the #3064 regression).
+if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa install:init ) \
+        >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    echo 'APP_ENV=production install:init failed after db:init --no-sync-schema.' >&2
+    exit 1
+fi
+grep -Fq 'Activated generation' "$work/install.out"
+grep -Fq 'Installation is complete.' "$work/install.out"
+
+genesis_count="$(php -r '
+    $db = new PDO("sqlite:" . $argv[1]);
+    $count = (int) $db->query("SELECT COUNT(*) FROM waaseyaa_config_activation_v2 WHERE is_genesis = 1")->fetchColumn();
+    echo $count;
+' "$db_path")"
+if [[ "$genesis_count" != "1" ]]; then
+    echo "Expected exactly one genuine genesis activation, got ${genesis_count}." >&2
+    exit 1
+fi
+
+# Idempotent second run: replay, no competing generation.
+if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa install:init ) \
+        >"$work/install-retry.out" 2>&1; then
+    cat "$work/install-retry.out" >&2
+    echo 'A second production install:init must succeed idempotently.' >&2
+    exit 1
+fi
+grep -Fq 'Configuration already initialized' "$work/install-retry.out"
+
+genesis_count_retry="$(php -r '
+    $db = new PDO("sqlite:" . $argv[1]);
+    $count = (int) $db->query("SELECT COUNT(*) FROM waaseyaa_config_activation_v2 WHERE is_genesis = 1")->fetchColumn();
+    echo $count;
+' "$db_path")"
+if [[ "$genesis_count_retry" != "1" ]]; then
+    echo "Second install:init minted a competing genesis (count=${genesis_count_retry})." >&2
+    exit 1
+fi
+
+# Ordinary production boot requires the reviewed field-access inventory after
+# schema exists. This is outside #3064's genesis circularity, but without it the
+# post-install production boot proof cannot reach the active generation.
+if ! ( cd "$consumer" && env APP_ENV=production php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json ) \
+        >"$work/preflight.out" 2>&1; then
+    cat "$work/preflight.out" >&2
+    echo 'field-access:preflight --write-artifact failed after production install:init.' >&2
+    exit 1
+fi
+
+if ! ( cd "$consumer" && env APP_ENV=production php probe.php boot ) >"$work/boot.out" 2>&1; then
+    cat "$work/boot.out" >&2
+    echo 'Ordinary production boot/read failed after install:init.' >&2
+    exit 1
+fi
+grep -Fq 'production-install ordinary boot OK' "$work/boot.out"
+grep -Fq 'production-install active generation OK' "$work/boot.out"
+
+printf 'Production install genesis proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"

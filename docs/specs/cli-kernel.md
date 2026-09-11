@@ -414,9 +414,13 @@ applying.` SQLite behaviour (the common local/CI case) is unchanged: the
 restricted pre-boot command set alongside `schema:sync` and `migrate*`.
 `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`, so it never
 constructs a runtime consumer that would require the configuration generation it
-is producing, and it exits without entering ordinary runtime boot. It is the
-first command in the lifecycle that opens the database, which is correct: it is
-the command that creates it.
+is producing, and it exits without entering ordinary runtime boot. Restricted
+definition discovery also skips live capability validation (#3064): production
+`configuration.authority.v1` publication calls `requireActiveGenerationId()`,
+and `install:init` is the command that creates that generation. Ordinary
+production boot still refuses when no generation is active; `APP_ENV=local` is
+not installation authority. It is the first command in the lifecycle that opens
+the database, which is correct: it is the command that creates it.
 
 `site:init` left that set in #2644 for the boot-free seam below. Restricted boot
 still calls `bootDatabase()`, so routing the site-contract phase through it

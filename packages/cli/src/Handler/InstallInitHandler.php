@@ -21,8 +21,9 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
  *
  * This command is that missing lifecycle transition. It runs under restricted
  * discovery (see ConsoleKernel::handle()), so it never constructs a runtime
- * consumer that would require the result it is producing, and it exits without
- * entering ordinary runtime boot.
+ * consumer that would require the result it is producing, never publishes live
+ * authority-dependent capabilities (#3064), and exits without entering ordinary
+ * runtime boot.
  *
  * It deliberately does NOT read configuration. Its authority is procedural and
  * bounded: it writes and activates the initial generation, after which the

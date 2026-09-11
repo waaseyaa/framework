@@ -1603,6 +1603,12 @@ jobs:
       - name: Boot a fresh packaged-form install
         run: bash tests/PackagedForm/check-fresh-install-boot
 
+      # #3064: production install genesis must not require the active generation
+      # install:init creates. Uses APP_ENV=production and the exact Studio
+      # sequence db:init --no-sync-schema → install:init (not APP_ENV=local).
+      - name: Prove production install genesis after migrations-only db:init
+        run: bash tests/PackagedForm/check-production-install-genesis
+
       # #2786/#2809: an external package's #[FieldType] must be discovered by
       # the compiled manifest, admitted by the boot-scoped registry, and
       # projected through entity schema, API, and GraphQL in both development
