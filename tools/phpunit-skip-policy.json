@@ -376,6 +376,14 @@
             "rationale": "The #2870 negative controls build a subdirectory whose permissions are stripped so rm -rf genuinely fails; root bypasses that permission check, so the premise would not hold."
         },
         {
+            "path": "tests/Architecture/ProductionInstallGenesisGateTest.php",
+            "reason": "TERM-ignore escalation fixture requires ext-pcntl (no Perl dependency).",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(pcntl_signal) && defined(SIGTERM)",
+            "rationale": "The #3064 TERM→KILL marker proof uses PHP_BINARY + pcntl_signal to record SIGTERM then ignore further TERMs until KILL; hosts without ext-pcntl cannot preserve that discriminator without inventing a Perl (or other) dependency."
+        },
+        {
             "path": "tests/Architecture/SkeletonDockerSecretExclusionTest.php",
             "reason": "Requires a reachable Docker daemon; `docker info` did not answer. ",
             "occurrence": 1,
