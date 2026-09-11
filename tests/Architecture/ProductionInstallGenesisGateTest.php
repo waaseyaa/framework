@@ -17,6 +17,10 @@ use Symfony\Component\Process\Process;
  * Independent review of 06d45e45 also required every Composer/CLI/probe child
  * to carry an explicit bounded deadline with TERM→KILL escalation and EXIT
  * reaping before tree removal (docs/local-testing-policy.md).
+ *
+ * Re-review of f0794db required descendant custody: after an early-exiting
+ * parent, surviving process-group members must still be reaped, and PGID
+ * adoption must not race through unverified `ps`/`setsid` startup.
  */
 #[CoversNothing]
 final class ProductionInstallGenesisGateTest extends TestCase
@@ -98,27 +102,31 @@ final class ProductionInstallGenesisGateTest extends TestCase
         }
 
         self::assertStringContainsString('timeout --signal=TERM --kill-after=5s', $helperSource);
-        self::assertStringContainsString('setsid timeout', $helperSource);
+        self::assertStringContainsString('set -m', $helperSource);
+        self::assertStringContainsString('refused to adopt process group', $helperSource);
         self::assertStringContainsString('Bounded deadline exceeded for', $helperSource);
-        self::assertStringContainsString('kill -TERM', $helperSource);
-        self::assertStringContainsString('kill -KILL', $helperSource);
+        self::assertStringContainsString('kill -TERM -- "-$pgid"', $helperSource);
+        self::assertStringContainsString('kill -KILL -- "-$pgid"', $helperSource);
+        self::assertStringContainsString('surviving descendants', $helperSource);
         self::assertStringContainsString('DEADLINE_COMPOSER=', $harnessSource);
         self::assertStringContainsString('DEADLINE_INSTALL=', $harnessSource);
+        self::assertStringNotContainsString('ps -o pgid=', $helperSource);
     }
 
     #[Test]
-    public function bounded_helper_terminates_a_stalled_child_with_deterministic_diagnostics(): void
+    public function bounded_helper_reaps_descendant_after_early_parent_exit(): void
     {
-        $work = sys_get_temp_dir() . '/waaseyaa_bounded_stall_' . bin2hex(random_bytes(8));
+        $suffix = bin2hex(random_bytes(8));
+        $work = sys_get_temp_dir() . '/waaseyaa_bounded_early_' . $suffix;
+        $pidFile = sys_get_temp_dir() . '/waaseyaa_bounded_early_pid_' . $suffix;
         self::assertTrue(mkdir($work, 0o755, true));
 
-        $marker = $work . '/stall.marker';
         $script = <<<'SH'
             #!/usr/bin/env bash
             set -euo pipefail
             root="$1"
             work="$2"
-            marker="$3"
+            pid_file="$3"
             # shellcheck source=tests/PackagedForm/lib/run-bounded.sh
             source "$root/tests/PackagedForm/lib/run-bounded.sh"
             BOUNDED_LOG_DIR="$work"
@@ -129,17 +137,79 @@ final class ProductionInstallGenesisGateTest extends TestCase
                 rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
             }
             trap cleanup EXIT
-            # Stall far past the one-second deadline; write a marker first so a
-            # hang without timeout is distinguishable from never starting.
-            run_bounded stall 1 bash -c 'printf started >"$1"; exec sleep 60' _ "$marker"
+            # Exact independent-review reproducer: parent backgrounds a long
+            # sleep and exits 0; custody must still reap the descendant.
+            run_bounded early 5 bash -c 'sleep 20 & printf "%s\n" "$!" >"$1"; exit 0' _ "$pid_file"
             SH;
 
         $process = new Process(
-            ['bash', '-c', $script, 'bounded-stall', $this->repoRoot, $work, $marker],
+            ['bash', '-c', $script, 'bounded-early', $this->repoRoot, $work, $pidFile],
             null,
             null,
             null,
-            15.0,
+            20.0,
+        );
+        $exit = $process->run();
+
+        self::assertSame(
+            0,
+            $exit,
+            "Early-parent-exit command must still return success.\n"
+            . $process->getOutput() . "\n" . $process->getErrorOutput(),
+        );
+        self::assertFileDoesNotExist($work, 'Cleanup must remove the disposable work tree after reaping.');
+        self::assertFileExists($pidFile, 'Descendant PID must be recorded outside the removed work tree.');
+        $descendantPid = (int) trim((string) file_get_contents($pidFile));
+        @unlink($pidFile);
+        self::assertGreaterThan(1, $descendantPid);
+        self::assertFalse(
+            $this->pidIsAlive($descendantPid),
+            "Descendant pid {$descendantPid} must not survive successful wrapper return and cleanup.",
+        );
+    }
+
+    #[Test]
+    public function bounded_helper_escalates_term_ignoring_timeout_child_to_kill(): void
+    {
+        $suffix = bin2hex(random_bytes(8));
+        $work = sys_get_temp_dir() . '/waaseyaa_bounded_kill_' . $suffix;
+        $pidFile = sys_get_temp_dir() . '/waaseyaa_bounded_kill_pid_' . $suffix;
+        self::assertTrue(mkdir($work, 0o755, true));
+
+        $script = <<<'SH'
+            #!/usr/bin/env bash
+            set -euo pipefail
+            root="$1"
+            work="$2"
+            pid_file="$3"
+            # shellcheck source=tests/PackagedForm/lib/run-bounded.sh
+            source "$root/tests/PackagedForm/lib/run-bounded.sh"
+            BOUNDED_LOG_DIR="$work"
+            cleanup() {
+                # Cleanup is best-effort and must never change this script's
+                # exit status; report a leak on stderr instead (#2870).
+                reap_bounded_owned_child
+                rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+            }
+            trap cleanup EXIT
+            # Ignore TERM so timeout must escalate to KILL (--kill-after=5s).
+            # Use perl: exec'd sleep would drop a shell trap, and a process-group
+            # TERM would still kill an ordinary sleep child.
+            run_bounded ignore-term 1 perl -e '
+              open my $fh, ">", $ARGV[0] or exit 2;
+              print {$fh} "$$\n";
+              close $fh;
+              $SIG{TERM} = "IGNORE";
+              sleep 60;
+            ' "$pid_file"
+            SH;
+
+        $process = new Process(
+            ['bash', '-c', $script, 'bounded-kill', $this->repoRoot, $work, $pidFile],
+            null,
+            null,
+            null,
+            25.0,
         );
         $started = microtime(true);
         $exit = $process->run();
@@ -148,19 +218,23 @@ final class ProductionInstallGenesisGateTest extends TestCase
         self::assertSame(
             124,
             $exit,
-            "Stalled child must fail with timeout status 124.\n"
+            "TERM-ignoring child must still fail with timeout status 124 after KILL escalation.\n"
             . $process->getOutput() . "\n" . $process->getErrorOutput(),
         );
         self::assertStringContainsString(
-            'Bounded deadline exceeded for stall after 1s (sent TERM, then KILL).',
+            'Bounded deadline exceeded for ignore-term after 1s (sent TERM, then KILL).',
             $process->getErrorOutput(),
         );
-        self::assertGreaterThanOrEqual(0.9, $elapsed);
-        self::assertLessThan(12.0, $elapsed, 'Timeout must complete well under the Process outer bound.');
-        self::assertFileDoesNotExist($work, 'Cleanup must remove the disposable work tree after reaping.');
+        self::assertGreaterThanOrEqual(5.0, $elapsed, 'KILL fallback is --kill-after=5s after the 1s deadline.');
+        self::assertLessThan(20.0, $elapsed);
+        self::assertFileDoesNotExist($work);
+        self::assertFileExists($pidFile);
+        $childPid = (int) trim((string) file_get_contents($pidFile));
+        @unlink($pidFile);
+        self::assertGreaterThan(1, $childPid);
         self::assertFalse(
-            $this->processGroupStillAliveFromMarker($marker),
-            'No stalled sleep child may remain after TERM→KILL and EXIT reaping.',
+            $this->pidIsAlive($childPid),
+            "TERM-ignoring child pid {$childPid} must not remain after KILL escalation and cleanup.",
         );
     }
 
@@ -173,16 +247,13 @@ final class ProductionInstallGenesisGateTest extends TestCase
         self::assertStringContainsString(self::HARNESS, $workflow);
     }
 
-    private function processGroupStillAliveFromMarker(string $marker): bool
+    private function pidIsAlive(int $pid): bool
     {
-        if (!is_file($marker)) {
-            // Timeout may have killed the child before it wrote the marker; that
-            // still means no live stall remains under our owned work tree.
+        if ($pid <= 1) {
             return false;
         }
-
         $probe = new Process(
-            ['bash', '-c', 'pgrep -af "sleep 60" || true'],
+            ['bash', '-c', 'kill -0 "$1" 2>/dev/null', 'pid-alive', (string) $pid],
             null,
             null,
             null,
@@ -190,6 +261,6 @@ final class ProductionInstallGenesisGateTest extends TestCase
         );
         $probe->run();
 
-        return str_contains($probe->getOutput(), 'sleep 60');
+        return $probe->getExitCode() === 0;
     }
 }

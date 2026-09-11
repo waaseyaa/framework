@@ -52,11 +52,16 @@ Narrow the discovery/runtime boundary:
 - Genesis CAS, deterministic replay, audit marker, competing-generation
   refusal, and package layers are unchanged.
 
-Packaged harness reliability (follow-up to independent review of `06d45e45`):
+Packaged harness reliability (follow-up to independent review of `06d45e45`,
+custody repair after `f0794db`):
 
 - Shared `tests/PackagedForm/lib/run-bounded.sh` imposes explicit deadlines,
   TERM then KILL (`timeout --kill-after=5s`), deterministic status-124
   diagnostics, and EXIT reaping before `rm -rf`.
+- Process-group custody uses bash monitor mode so the leader PGID equals its
+  PID deterministically; adoption refuses the caller's group. Surviving
+  descendants are reaped after every leader exit, including exit 0, and
+  custody clears only once the owned group is gone.
 - Exact-head `bin/git archive --format=tar "$candidate"` semantics are preserved.
 - Production code is unchanged by the harness repair.
 
