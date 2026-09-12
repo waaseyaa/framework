@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "identityDigest": "43756d467159e865f2a0ef8090226d0e62c2b03ba64cc39a463235022861ddcf",
+    "identityDigest": "afa562166acb9484e7c526881911f4697920059fc30a74bec62f52321daa2c4b",
     "identityExcludes": [
         "acceptance"
     ],
@@ -11,12 +11,12 @@
         "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
     },
     "source": {
-        "signature": "5aa2dea922aff8600b08dcb5e62e8b4f2677a2e86bdfb020a41039598c0e47e9",
-        "buildIdSignature": "e5ff5a0d74d81f64a3b42b36c7e133df851c108ad036e15509fe1a9876bd5e5f",
-        "buildId": "waaseyaa-e5ff5a0d74d81f64a3b42b36c7e133df"
+        "signature": "29b9809c95ea3e1db96182068f8a39c133c9a59cbabe507e934c349d513a1b4e",
+        "buildIdSignature": "391a7667d82861bb5a54a8b0e31960ff76faf17e91d6a63954684185f57796c4",
+        "buildId": "waaseyaa-391a7667d82861bb5a54a8b0e31960ff"
     },
     "published": {
-        "treeDigest": "b21eea19eabe1ddd6dee88292834a254501b9bf037eca1e21cd6b597ec81dfc1",
+        "treeDigest": "91d75c3d0f86f871276d0b20a9e8e2239e61e8da556738b88232b00d27dc4afc",
         "fileCount": 99,
         "byteCount": 597607
     },
@@ -52,12 +52,12 @@
         "intermediate": {
             "root": "packages/admin/.output",
             "artifactCount": 100,
-            "inventoryDigest": "1aae2a86244a1ffa59050ab1ab6616009079bfa54c3feb4f39257990d1bc1edf"
+            "inventoryDigest": "cd12679ff1b0c4325a92c874cc77a1fa55c2f5a8c7069802ca24e12f0efb80bc"
         },
-        "previousPublishedTreeDigest": "101b2664732007bc0a7684dc526f10288a88528d6fc4284ed812aff7891e5cbb",
+        "previousPublishedTreeDigest": "b21eea19eabe1ddd6dee88292834a254501b9bf037eca1e21cd6b597ec81dfc1",
         "changed": {
             "added": [
-                "_nuxt/builds/meta/waaseyaa-e5ff5a0d74d81f64a3b42b36c7e133df.json"
+                "_nuxt/builds/meta/waaseyaa-391a7667d82861bb5a54a8b0e31960ff.json"
             ],
             "modified": [
                 "200.html",
@@ -81,7 +81,7 @@
                 "workflows/index.html"
             ],
             "removed": [
-                "_nuxt/builds/meta/waaseyaa-871ae4d11ba09f43c13d915ca7bf338e.json"
+                "_nuxt/builds/meta/waaseyaa-e5ff5a0d74d81f64a3b42b36c7e133df.json"
             ]
         },
         "toolchain": {
