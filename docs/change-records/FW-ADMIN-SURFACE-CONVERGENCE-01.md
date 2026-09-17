@@ -284,6 +284,13 @@ Any further substantive repair creates a new immutable candidate and requires
 proportionate evidence refresh. After these repairs, only the repaired areas
 are re-reviewed before one final exact-head qualification.
 
+The first combined qualification attempt found one stale PHP test caller that
+encoded an empty action payload as a JSON list after the object-only malformed
+input fence. The fixture now sends the wire-valid empty JSON object used by the
+production adapter and route tests. The same run reconfirmed that the two
+hermetic symlink fixtures and the POSIX executable-bit assertion cannot execute
+on this Windows host; those are hosted Linux evidence, not candidate passes.
+
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will
 be appended as the work advances.

@@ -94,7 +94,7 @@ final class AdminSurfaceServiceProviderFieldSchemaAuthorityTest extends TestCase
         $request = Request::create(
             '/admin/_surface/node/action/schema',
             'POST',
-            content: json_encode([], JSON_THROW_ON_ERROR),
+            content: json_encode((object) [], JSON_THROW_ON_ERROR),
         );
         $request->attributes->set('_account', new AuthorizationPrincipal(
             42,
