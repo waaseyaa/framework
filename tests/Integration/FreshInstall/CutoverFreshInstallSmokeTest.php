@@ -138,17 +138,6 @@ final class CutoverFreshInstallSmokeTest extends TestCase
         ], str_repeat('0', 64));
         self::assertSame(403, $csrfRefusal['status'], $csrfRefusal['body']);
 
-        $connection = DriverManager::getConnection([
-            'driver' => 'pdo_sqlite',
-            'path' => $this->projectRoot . '/storage/waaseyaa.sqlite',
-        ]);
-        self::assertSame(
-            0,
-            (int) $connection->fetchOne("SELECT COUNT(*) FROM node WHERE json_extract(_data, '$.slug') = 'csrf-refused-page'"),
-            'A mismatched CSRF token must refuse before the authoring action mutates state.',
-        );
-        $connection->close();
-
         $createdIds = [];
         $updatedTokens = [];
         foreach ([
@@ -212,6 +201,11 @@ final class CutoverFreshInstallSmokeTest extends TestCase
             'driver' => 'pdo_sqlite',
             'path' => $this->projectRoot . '/storage/waaseyaa.sqlite',
         ]);
+        self::assertSame(
+            0,
+            (int) $connection->fetchOne("SELECT COUNT(*) FROM node WHERE json_extract(_data, '$.slug') = 'csrf-refused-page'"),
+            'A mismatched CSRF token must refuse before the authoring action mutates state.',
+        );
         self::assertSame(0, (int) $connection->fetchOne("SELECT COUNT(*) FROM node WHERE json_extract(_data, '$.slug') = 'invalid-page'"));
         self::assertSame('Edited page', $connection->fetchOne("SELECT title FROM node WHERE json_extract(_data, '$.slug') = 'synthetic-page'"));
         $connection->close();
