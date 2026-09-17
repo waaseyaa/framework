@@ -1,0 +1,2075 @@
+{
+  "schema_version": 1,
+  "change_record": "FW-CI-CHECK-ROSTER-AUDIT-01",
+  "source": {
+    "repository": "waaseyaa/framework",
+    "pinned_origin_main": "2718edc02f8a47167db1b31b2192690bff773cfd",
+    "inventory_evidence": {
+      "pull_request": 3086,
+      "final_pr_head": "5297875460d47d58a6328380d8702235d6afce2f",
+      "successful_ci_run": 35275141646,
+      "failed_head": "63c46174e08d3c3f50ad576980f6933c2d0b680c",
+      "failed_ci_run": 35271711540
+    },
+    "ruleset": {
+      "id": 15181711,
+      "required_context_count": 22,
+      "required_contexts": [
+        "Frontend build",
+        "Ingestion defaults",
+        "Manifest conformance",
+        "Release publish shape",
+        "Security defaults",
+        "check-dead-code",
+        "ci/core-only-boot",
+        "ci/coverage",
+        "ci/lint",
+        "ci/playwright-smoke",
+        "ci/random-order",
+        "ci/skeleton-create-project",
+        "ci/unit-tests",
+        "ci/verify-gates",
+        "composer-policy",
+        "packaged-form",
+        "ci/package-isolation",
+        "ci/mutation-pilot",
+        "ci/fresh-install-boot",
+        "ci/frankenphp-worker",
+        "ci/skeleton-create-project-windows",
+        "ci/bimaaji-skill-resources"
+      ]
+    }
+  },
+  "inventory": {
+    "observed_check_count": 55,
+    "unconditional_pull_request_floor": 46,
+    "manifest_entry_count": 51,
+    "workflow_count": 5,
+    "model": "Matrix producers are one roster entry with an explicit expansion. The 41 CI jobs expand to 45 visible contexts; changelog discipline makes the unconditional floor 46. Admin, surface parity, and Dependabot add the nine conditional contexts observed on PR #3086."
+  },
+  "cost_classes": {
+    "tiny": "Usually at most 30 seconds of runner time or an expected skip.",
+    "small": "Usually more than 30 seconds and at most 90 seconds.",
+    "medium": "Usually more than 90 seconds and at most 3 minutes.",
+    "large": "Usually more than 3 minutes or on the observed critical path."
+  },
+  "invariants": [
+    {
+      "id": "exact-head-source-artifact",
+      "owner": "release-engineering",
+      "statement": "The exact candidate source archive is reproducible, verified, and bound to its SHA."
+    },
+    {
+      "id": "s1-support-contract",
+      "owner": "framework-architecture",
+      "statement": "The bounded S1 support, SQLite, configuration, and schema contracts remain valid."
+    },
+    {
+      "id": "release-pipeline-fixtures",
+      "owner": "release-engineering",
+      "statement": "Packagist verification fixtures preserve fail-closed publication behavior."
+    },
+    {
+      "id": "deterministic-release-evidence",
+      "owner": "release-engineering",
+      "statement": "Synthetic split inputs produce replayable deterministic release evidence."
+    },
+    {
+      "id": "composer-and-layer-policy",
+      "owner": "framework-architecture",
+      "statement": "Composer manifests, portable paths, root hygiene, and package layers satisfy repository policy."
+    },
+    {
+      "id": "dependency-ownership-audit",
+      "owner": "dependency-maintenance",
+      "statement": "Dependency ownership debt remains visible without claiming blocking authority."
+    },
+    {
+      "id": "spec-change-coupling",
+      "owner": "spec-maintainers",
+      "statement": "Pull-request changes update or explicitly review affected specifications."
+    },
+    {
+      "id": "php-static-quality",
+      "owner": "framework-maintainers",
+      "statement": "PHP syntax, style, provenance, and static analysis remain valid."
+    },
+    {
+      "id": "dead-code-ratchet",
+      "owner": "framework-maintainers",
+      "statement": "The candidate introduces no new dead-code findings beyond the governed baseline."
+    },
+    {
+      "id": "phpunit-complete-inventory",
+      "owner": "test-infrastructure",
+      "statement": "Every configured PHPUnit test is assigned once and every ordinary shard succeeds."
+    },
+    {
+      "id": "phpunit-order-independence",
+      "owner": "test-infrastructure",
+      "statement": "The complete PHPUnit inventory succeeds in replayable randomized order."
+    },
+    {
+      "id": "split-package-isolation",
+      "owner": "package-maintainers",
+      "statement": "The access split package installs and tests without monorepo dev-autoload leakage."
+    },
+    {
+      "id": "php-coverage-ratchets",
+      "owner": "test-infrastructure",
+      "statement": "Merged shard evidence satisfies overall, package, and changed-line PHP coverage thresholds."
+    },
+    {
+      "id": "mutation-pilot",
+      "owner": "test-infrastructure",
+      "statement": "The bounded mutation surface satisfies its established effectiveness floors."
+    },
+    {
+      "id": "skeleton-linux-consumer",
+      "owner": "consumer-compatibility",
+      "statement": "A fresh Linux skeleton consumer installs, boots, and passes its production-image checks."
+    },
+    {
+      "id": "skeleton-windows-consumer",
+      "owner": "consumer-compatibility",
+      "statement": "A fresh Windows skeleton consumer installs and boots on the supported hosted profile."
+    },
+    {
+      "id": "local-operator-windows",
+      "owner": "ai-maintainers",
+      "statement": "The local operator profile works on the supported Windows host boundary."
+    },
+    {
+      "id": "packaged-form-consumer",
+      "owner": "distribution-maintainers",
+      "statement": "The distributable packaged form installs and exercises its declared consumer boundary."
+    },
+    {
+      "id": "site-reference-consumer",
+      "owner": "consumer-compatibility",
+      "statement": "The site reference consumer remains installable and compatible."
+    },
+    {
+      "id": "fresh-install-boot",
+      "owner": "consumer-compatibility",
+      "statement": "A fresh install boots through the current initialization contract."
+    },
+    {
+      "id": "site-recipe-provider-activation",
+      "owner": "framework-generation",
+      "statement": "Generated site recipes activate their declared providers."
+    },
+    {
+      "id": "bimaaji-skill-resources",
+      "owner": "bimaaji-maintainers",
+      "statement": "Published Bimaaji skill resources are complete and consumable."
+    },
+    {
+      "id": "site-init-profile-acceptance",
+      "owner": "framework-generation",
+      "statement": "Supported site initialization profiles satisfy their acceptance contract."
+    },
+    {
+      "id": "cli-health-report",
+      "owner": "cli-maintainers",
+      "statement": "The packaged CLI health report remains executable and truthful."
+    },
+    {
+      "id": "cli-sync-rules",
+      "owner": "cli-maintainers",
+      "statement": "CLI synchronization rules remain packaged and enforceable."
+    },
+    {
+      "id": "cli-io-consumer-contract",
+      "owner": "cli-maintainers",
+      "statement": "The packaged CLI I/O contract remains compatible for consumers."
+    },
+    {
+      "id": "split-artifact-acceptance",
+      "owner": "release-engineering",
+      "statement": "Split artifacts preserve their exact package and corruption-refusal contract."
+    },
+    {
+      "id": "studio-alpha-acceptance",
+      "owner": "studio-integration",
+      "statement": "The published alpha cohort satisfies the bounded Studio consumer contract."
+    },
+    {
+      "id": "core-only-boot",
+      "owner": "distribution-maintainers",
+      "statement": "The core metapackage alone contains the dependencies required to boot."
+    },
+    {
+      "id": "frankenphp-worker-runtime",
+      "owner": "runtime-maintainers",
+      "statement": "The pinned FrankenPHP worker preserves isolation, recovery, streaming, and shutdown behavior."
+    },
+    {
+      "id": "governed-repository-gates",
+      "owner": "framework-architecture",
+      "statement": "Every permanent verify-only repository gate succeeds and emits its governed evidence."
+    },
+    {
+      "id": "browser-smoke",
+      "owner": "admin-spa",
+      "statement": "The supported browser smoke journey succeeds against the PHP and Nuxt surfaces."
+    },
+    {
+      "id": "frontend-build-and-coverage",
+      "owner": "admin-spa",
+      "statement": "The Admin SPA builds and satisfies frontend coverage requirements."
+    },
+    {
+      "id": "default-manifest-conformance",
+      "owner": "project-configuration",
+      "statement": "Default manifests and their JSON Schemas remain structurally valid."
+    },
+    {
+      "id": "ingestion-defaults",
+      "owner": "ingestion-maintainers",
+      "statement": "Ingestion defaults satisfy schema metadata and compatibility rules."
+    },
+    {
+      "id": "release-publish-shape",
+      "owner": "release-engineering",
+      "statement": "Release publication remains exactly-once and forward-only."
+    },
+    {
+      "id": "security-defaults",
+      "owner": "security-maintainers",
+      "statement": "Default configuration contains no secrets and preserves structural security guards."
+    },
+    {
+      "id": "changelog-discipline",
+      "owner": "release-engineering",
+      "statement": "Public-surface changes carry governed release-note or upgrade evidence."
+    },
+    {
+      "id": "admin-contracts",
+      "owner": "admin-spa",
+      "statement": "Admin bootstrap contracts typecheck, build, validate, and pass contract tests."
+    },
+    {
+      "id": "admin-build",
+      "owner": "admin-spa",
+      "statement": "The path-selected Admin SPA build succeeds."
+    },
+    {
+      "id": "admin-browser-integration",
+      "owner": "admin-spa",
+      "statement": "The path-selected Admin SPA passes its Chromium integration journey."
+    },
+    {
+      "id": "admin-adapters",
+      "owner": "admin-spa",
+      "statement": "Admin adapter unit contracts remain valid."
+    },
+    {
+      "id": "admin-release-shape",
+      "owner": "admin-release",
+      "statement": "Tagged Admin artifacts satisfy contract freeze, package, and build checks."
+    },
+    {
+      "id": "public-surface-parity",
+      "owner": "public-api-maintainers",
+      "statement": "Exported public-surface declarations match source and governed deprecations."
+    },
+    {
+      "id": "dependabot-admin-dist-build",
+      "owner": "admin-supply-chain",
+      "statement": "A Dependabot-only read-only job rebuilds Admin distribution bytes without write credentials."
+    },
+    {
+      "id": "dependabot-admin-dist-validation",
+      "owner": "admin-supply-chain",
+      "statement": "Rebuilt Admin distribution bytes are independently confined and verified."
+    },
+    {
+      "id": "dependabot-admin-dist-publication",
+      "owner": "admin-supply-chain",
+      "statement": "Only independently verified Admin distribution bytes can be committed to the Dependabot branch."
+    }
+  ],
+  "checks": [
+    {
+      "stable_id": "ci.immutable-source-artifact",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "immutable-source-artifact"
+      },
+      "visible_context": "Immutable exact-head source artifact",
+      "class": "setup",
+      "invariant": "exact-head-source-artifact",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "release-engineering",
+      "artifacts": {
+        "produces": [
+          "framework-source-${{ inputs.sha || github.sha }}"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bin/build-exact-source-artifact build/exact-source <sha> && bin/verify-exact-source-artifact build/exact-source <sha>"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.support-contract",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "support-contract"
+      },
+      "visible_context": "support/s1-contract",
+      "class": "policy-gate",
+      "invariant": "s1-support-contract",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "framework-architecture",
+      "artifacts": {
+        "produces": [
+          "support-contract-evidence-${{ inputs.sha || github.sha }}"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/check-support-contract --ci --evidence=support-contract-evidence.json"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.release-pipeline-fixtures",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "release-pipeline-fixtures"
+      },
+      "visible_context": "Release pipeline fixtures",
+      "class": "execution",
+      "invariant": "release-pipeline-fixtures",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "release-engineering",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash tests/release/packagist-verification.bats.sh"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.release-evidence",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "release-evidence"
+      },
+      "visible_context": "Deterministic release evidence",
+      "class": "policy-gate",
+      "invariant": "deterministic-release-evidence",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "release-engineering",
+      "artifacts": {
+        "produces": [
+          "release-evidence-dry-run-${{ github.sha }}"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "node tests/Architecture/release-evidence-regression.mjs"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.composer-policy",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "composer-policy"
+      },
+      "visible_context": "composer-policy",
+      "class": "policy-gate",
+      "invariant": "composer-and-layer-policy",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "framework-architecture",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/check-composer-policy && php bin/check-portable-paths && php bin/check-repo-root-hygiene && php bin/check-package-layers"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.composer-deps-audit",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "composer-deps-audit"
+      },
+      "visible_context": "composer-deps-audit (warn-only)",
+      "class": "policy-gate",
+      "invariant": "dependency-ownership-audit",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "dependency-maintenance",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash bin/audit-composer-deps"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.spec-drift",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "spec-drift"
+      },
+      "visible_context": "spec-drift",
+      "class": "policy-gate",
+      "invariant": "spec-change-coupling",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "spec-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash tools/drift-detector.sh <base>"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.lint",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-lint"
+      },
+      "visible_context": "ci/lint",
+      "class": "policy-gate",
+      "invariant": "php-static-quality",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "framework-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "composer validate && composer cs-check && composer phpstan"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.dead-code",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "check-dead-code"
+      },
+      "visible_context": "check-dead-code",
+      "class": "policy-gate",
+      "invariant": "dead-code-ratchet",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "framework-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/check-dead-code"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.prepare-test-plan",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "prepare-test-plan"
+      },
+      "visible_context": "Prepare timing-balanced PHPUnit plan",
+      "class": "setup",
+      "invariant": "phpunit-complete-inventory",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.support-contract",
+        "ci.spec-drift"
+      ],
+      "current_required_status": false,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [
+          "phpunit-shard-plan",
+          "vendor-archive"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Produces run-scoped Actions artifacts after the single authoritative Composer install."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.phpunit-shards",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-test-shards"
+      },
+      "matrix_pattern": {
+        "template": "ci/test-shard-${{ matrix.id }}",
+        "axis": "id",
+        "values": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "observed_contexts": [
+          "ci/test-shard-1",
+          "ci/test-shard-2",
+          "ci/test-shard-3",
+          "ci/test-shard-4"
+        ]
+      },
+      "class": "matrix-shard",
+      "invariant": "phpunit-complete-inventory",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.support-contract",
+        "ci.spec-drift",
+        "ci.prepare-test-plan"
+      ],
+      "current_required_status": false,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [
+          "php-test-shard-${{ matrix.id }}"
+        ],
+        "consumes": [
+          "vendor-archive",
+          "phpunit-shard-plan"
+        ]
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php -d memory_limit=1G vendor/bin/phpunit <planned-paths> --coverage-clover <clover> --log-junit <junit>"
+      },
+      "cost_class": "large",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.unit-tests",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-unit-tests"
+      },
+      "visible_context": "ci/unit-tests",
+      "class": "aggregate",
+      "invariant": "phpunit-complete-inventory",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.phpunit-shards"
+      ],
+      "current_required_status": true,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "GitHub aggregate result over every timing-balanced matrix leg."
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.prepare-random-order-plan",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "prepare-random-order-plan"
+      },
+      "visible_context": "Prepare random-order plan",
+      "class": "setup",
+      "invariant": "phpunit-order-independence",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.support-contract",
+        "ci.spec-drift"
+      ],
+      "current_required_status": false,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [
+          "random-order-plan"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/build-phpunit-shards --shards=2 --timings=tools/phpunit-timings.json --seed=<seed>"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.random-order-shards",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-random-order-shard"
+      },
+      "matrix_pattern": {
+        "template": "ci/random-order-shard-${{ matrix.id }}",
+        "axis": "id",
+        "values": [
+          1,
+          2
+        ],
+        "observed_contexts": [
+          "ci/random-order-shard-1",
+          "ci/random-order-shard-2"
+        ]
+      },
+      "class": "matrix-shard",
+      "invariant": "phpunit-order-independence",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.prepare-random-order-plan",
+        "ci.prepare-test-plan"
+      ],
+      "current_required_status": false,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [],
+        "consumes": [
+          "random-order-plan",
+          "vendor-archive"
+        ]
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/test-random-order --plan=<plan.json> --shard=<id>"
+      },
+      "cost_class": "large",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.random-order",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-random-order"
+      },
+      "visible_context": "ci/random-order",
+      "class": "aggregate",
+      "invariant": "phpunit-order-independence",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.prepare-random-order-plan",
+        "ci.random-order-shards"
+      ],
+      "current_required_status": true,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "GitHub aggregate result over the plan and every random-order matrix leg."
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.package-isolation",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-package-isolation"
+      },
+      "visible_context": "ci/package-isolation",
+      "class": "execution",
+      "invariant": "split-package-isolation",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "package-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash bin/test-isolated-package access"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.coverage",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-coverage"
+      },
+      "visible_context": "ci/coverage",
+      "class": "aggregate",
+      "invariant": "php-coverage-ratchets",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.phpunit-shards"
+      ],
+      "current_required_status": true,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [
+          "php-coverage"
+        ],
+        "consumes": [
+          "php-test-shard-${{ matrix.id }}"
+        ]
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/merge-clover-coverage --output=<clover> <shard-clover-files> && php bin/check-php-coverage-baseline <summary>"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.mutation-pilot",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "mutation-pilot"
+      },
+      "visible_context": "ci/mutation-pilot",
+      "class": "execution",
+      "invariant": "mutation-pilot",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "test-infrastructure",
+      "artifacts": {
+        "produces": [
+          "mutation-pilot"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/test-mutation-pilot"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.skeleton-create-project",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "skeleton-create-project"
+      },
+      "visible_context": "ci/skeleton-create-project",
+      "class": "execution",
+      "invariant": "skeleton-linux-consumer",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "consumer-compatibility",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Requires the hosted Linux consumer, network, Docker/buildx, and production-image boundary."
+      },
+      "cost_class": "large",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.skeleton-create-project-windows",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "skeleton-create-project-windows"
+      },
+      "visible_context": "ci/skeleton-create-project-windows",
+      "class": "execution",
+      "invariant": "skeleton-windows-consumer",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "consumer-compatibility",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Owned by the windows-2025 hosted runner profile."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.local-operator-windows",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "local-operator-windows"
+      },
+      "visible_context": "ci/local-operator-windows",
+      "class": "execution",
+      "invariant": "local-operator-windows",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "ai-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Owned by the windows-2025 hosted runner profile."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.packaged-form",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "packaged-form"
+      },
+      "visible_context": "packaged-form",
+      "class": "execution",
+      "invariant": "packaged-form-consumer",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "distribution-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Builds a disposable PackagedForm consumer with its own dependency graph."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.site-reference-consumer",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "site-reference-consumer"
+      },
+      "visible_context": "site-reference-consumer",
+      "class": "execution",
+      "invariant": "site-reference-consumer",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "consumer-compatibility",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Builds a disposable site-reference consumer with hosted network dependencies."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.fresh-install-boot",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "fresh-install-boot"
+      },
+      "visible_context": "ci/fresh-install-boot",
+      "class": "execution",
+      "invariant": "fresh-install-boot",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "consumer-compatibility",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Builds and boots a disposable fresh-install consumer."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.site-recipe-provider-activation",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "site-recipe-provider-activation"
+      },
+      "visible_context": "ci/site-recipe-provider-activation",
+      "class": "execution",
+      "invariant": "site-recipe-provider-activation",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "framework-generation",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Exercises a disposable packaged consumer installation."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.bimaaji-skill-resources",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "bimaaji-skill-resources"
+      },
+      "visible_context": "ci/bimaaji-skill-resources",
+      "class": "execution",
+      "invariant": "bimaaji-skill-resources",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "bimaaji-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Exercises published package resources in a disposable consumer."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.site-init-profile-acceptance",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "site-init-profile-acceptance"
+      },
+      "visible_context": "ci/site-init-profile-acceptance",
+      "class": "execution",
+      "invariant": "site-init-profile-acceptance",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "framework-generation",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Exercises a disposable initialized site profile."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.cli-health-report",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "cli-health-report"
+      },
+      "visible_context": "ci/cli-health-report",
+      "class": "execution",
+      "invariant": "cli-health-report",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "cli-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Exercises the packaged CLI from a disposable consumer."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.cli-sync-rules",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "cli-sync-rules"
+      },
+      "visible_context": "ci/cli-sync-rules",
+      "class": "execution",
+      "invariant": "cli-sync-rules",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "cli-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Exercises packaged synchronization rules from a disposable consumer."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.cli-io-consumer-contract",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "cli-io-consumer-contract"
+      },
+      "visible_context": "ci/cli-io-consumer-contract",
+      "class": "execution",
+      "invariant": "cli-io-consumer-contract",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "cli-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Exercises the packaged CLI I/O boundary from a disposable consumer."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.split-artifact-acceptance",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "split-artifact-acceptance"
+      },
+      "visible_context": "ci/split-artifact-acceptance",
+      "class": "execution",
+      "invariant": "split-artifact-acceptance",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "release-engineering",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Constructs and corrupts disposable split artifacts under the hosted profile."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.studio-alpha-acceptance",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "studio-alpha-acceptance"
+      },
+      "visible_context": "ci/studio-alpha-acceptance",
+      "class": "execution",
+      "invariant": "studio-alpha-acceptance",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "studio-integration",
+      "artifacts": {
+        "produces": [
+          "studio-alpha-acceptance-diagnostics"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Installs the published Studio alpha consumer cohort with hosted network access."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.core-only-boot",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "core-only-boot"
+      },
+      "visible_context": "ci/core-only-boot",
+      "class": "execution",
+      "invariant": "core-only-boot",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "distribution-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Installs the core-only consumer in a disposable hosted environment."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.frankenphp-worker",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "frankenphp-worker"
+      },
+      "visible_context": "ci/frankenphp-worker",
+      "class": "execution",
+      "invariant": "frankenphp-worker-runtime",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "runtime-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Requires the pinned Linux FrankenPHP binary, worker processes, ports, and hosted isolation boundary."
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.verify-gates",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "verify-gates"
+      },
+      "visible_context": "ci/verify-gates",
+      "class": "policy-gate",
+      "invariant": "governed-repository-gates",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "framework-architecture",
+      "artifacts": {
+        "produces": [
+          "admin-surface-deptrac"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php bin/check-pr-preflight"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.playwright-smoke",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ci-playwright-smoke"
+      },
+      "visible_context": "ci/playwright-smoke",
+      "class": "execution",
+      "invariant": "browser-smoke",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "ci.frontend-build"
+      ],
+      "current_required_status": true,
+      "failure_owner": "admin-spa",
+      "artifacts": {
+        "produces": [
+          "playwright-smoke-results",
+          "server-logs"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "cd packages/admin && npx playwright test --project=chromium --project=firefox"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.frontend-build",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "frontend-build"
+      },
+      "visible_context": "Frontend build",
+      "class": "execution",
+      "invariant": "frontend-build-and-coverage",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "admin-spa",
+      "artifacts": {
+        "produces": [
+          "frontend-build",
+          "frontend-coverage"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "cd packages/admin && npm ci --no-audit --no-fund && npm run build && npm run test:coverage"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.manifest-conformance",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "manifest-conformance"
+      },
+      "visible_context": "Manifest conformance",
+      "class": "policy-gate",
+      "invariant": "default-manifest-conformance",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "project-configuration",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Combines shell manifest checks with a temporary global ajv-cli installation."
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.ingestion-defaults",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "ingestion-defaults"
+      },
+      "visible_context": "Ingestion defaults",
+      "class": "policy-gate",
+      "invariant": "ingestion-defaults",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "ingestion-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash bin/check-ingestion-defaults"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.release-publish-shape",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "release-publish-shape"
+      },
+      "visible_context": "Release publish shape",
+      "class": "policy-gate",
+      "invariant": "release-publish-shape",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "release-engineering",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash bin/check-release-publish-shape"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "ci.security-defaults",
+      "producer": {
+        "workflow": ".github/workflows/ci.yml",
+        "job": "security-defaults"
+      },
+      "visible_context": "Security defaults",
+      "class": "policy-gate",
+      "invariant": "security-defaults",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "workflow_dispatch"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": true,
+      "failure_owner": "security-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash bin/check-no-secrets && php -d memory_limit=1G vendor/bin/phpunit --filter Phase22 --no-coverage"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "changelog.discipline",
+      "producer": {
+        "workflow": ".github/workflows/changelog-discipline.yml",
+        "job": "changelog-discipline"
+      },
+      "visible_context": "Changelog discipline check",
+      "class": "policy-gate",
+      "invariant": "changelog-discipline",
+      "trigger_selector": {
+        "events": [
+          "pull_request"
+        ],
+        "selection": "unconditional",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "release-engineering",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "bash tools/check-changelog-discipline.sh <base>"
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": true
+    },
+    {
+      "stable_id": "admin.contracts",
+      "producer": {
+        "workflow": ".github/workflows/admin.yml",
+        "job": "contracts"
+      },
+      "visible_context": "admin/contracts",
+      "class": "execution",
+      "invariant": "admin-contracts",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "push:develop/*",
+          "push:tag:v*"
+        ],
+        "selection": "paths:packages/admin/**|packages/admin-surface/contract/**|workflow",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "admin-spa",
+      "artifacts": {
+        "produces": [
+          "contracts-dist"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "cd packages/admin && npm ci --no-audit --no-fund && npx nuxi typecheck && npm run check:contract-compatibility && npm run build:contracts && npx vitest run"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "admin.build",
+      "producer": {
+        "workflow": ".github/workflows/admin.yml",
+        "job": "build"
+      },
+      "visible_context": "admin/build",
+      "class": "execution",
+      "invariant": "admin-build",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "push:develop/*",
+          "push:tag:v*"
+        ],
+        "selection": "paths:packages/admin/**|packages/admin-surface/contract/**|workflow",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "admin-spa",
+      "artifacts": {
+        "produces": [
+          "admin-build"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "cd packages/admin && npm ci --no-audit --no-fund && npm run build"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "admin.integration",
+      "producer": {
+        "workflow": ".github/workflows/admin.yml",
+        "job": "integration"
+      },
+      "visible_context": "admin/integration",
+      "class": "execution",
+      "invariant": "admin-browser-integration",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "push:develop/*",
+          "push:tag:v*"
+        ],
+        "selection": "paths:packages/admin/**|packages/admin-surface/contract/**|workflow",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [
+        "admin.build"
+      ],
+      "current_required_status": false,
+      "failure_owner": "admin-spa",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "cd packages/admin && npx playwright test --project=chromium"
+      },
+      "cost_class": "medium",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "admin.adapters",
+      "producer": {
+        "workflow": ".github/workflows/admin.yml",
+        "job": "adapters"
+      },
+      "visible_context": "admin/adapters",
+      "class": "execution",
+      "invariant": "admin-adapters",
+      "trigger_selector": {
+        "events": [
+          "pull_request",
+          "push:main",
+          "push:develop/*",
+          "push:tag:v*"
+        ],
+        "selection": "paths:packages/admin/**|packages/admin-surface/contract/**|workflow",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "admin-spa",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "cd packages/admin && npx vitest run tests/unit/adapters/"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "admin.release",
+      "producer": {
+        "workflow": ".github/workflows/admin.yml",
+        "job": "release"
+      },
+      "visible_context": "admin/release",
+      "class": "publication",
+      "invariant": "admin-release-shape",
+      "trigger_selector": {
+        "events": [
+          "push:tag:v*"
+        ],
+        "selection": "tag-only after path-selected workflow",
+        "pr_3086": "expected-skipped",
+        "details": "PR #3086 selected the workflow by path, but this publication job requires a v* tag."
+      },
+      "dependencies": [
+        "admin.contracts",
+        "admin.adapters",
+        "admin.build",
+        "admin.integration"
+      ],
+      "current_required_status": false,
+      "failure_owner": "admin-release",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Tag-only release-shape job; it is expected to skip on pull requests."
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "surface.parity",
+      "producer": {
+        "workflow": ".github/workflows/surface-parity.yml",
+        "job": "surface-parity"
+      },
+      "visible_context": "Public-surface-map parity check",
+      "class": "policy-gate",
+      "invariant": "public-surface-parity",
+      "trigger_selector": {
+        "events": [
+          "pull_request"
+        ],
+        "selection": "public-surface paths",
+        "pr_3086": "selected",
+        "details": ""
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "public-api-maintainers",
+      "artifacts": {
+        "produces": [],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "command",
+        "value": "php tools/check-surface-parity.php --base=<base>"
+      },
+      "cost_class": "small",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "dependabot.admin-dist-build",
+      "producer": {
+        "workflow": ".github/workflows/dependabot-admin-dist.yml",
+        "job": "build"
+      },
+      "visible_context": "Build admin dist without write credentials",
+      "class": "execution",
+      "invariant": "dependabot-admin-dist-build",
+      "trigger_selector": {
+        "events": [
+          "pull_request_target"
+        ],
+        "selection": "admin lockfiles plus Dependabot actor and same-repository head",
+        "pr_3086": "expected-skipped",
+        "details": "PR #3086 selected the workflow by path, but the actor was not dependabot[bot]."
+      },
+      "dependencies": [],
+      "current_required_status": false,
+      "failure_owner": "admin-supply-chain",
+      "artifacts": {
+        "produces": [
+          "admin-dist"
+        ],
+        "consumes": []
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Security boundary requires a read-only pull_request_target job with no write credentials."
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "dependabot.admin-dist-validate",
+      "producer": {
+        "workflow": ".github/workflows/dependabot-admin-dist.yml",
+        "job": "validate"
+      },
+      "visible_context": "Verify the rebuilt dist from a clean checkout",
+      "class": "execution",
+      "invariant": "dependabot-admin-dist-validation",
+      "trigger_selector": {
+        "events": [
+          "pull_request_target"
+        ],
+        "selection": "after successful Dependabot-only build",
+        "pr_3086": "expected-skipped",
+        "details": "The required build dependency was skipped on PR #3086."
+      },
+      "dependencies": [
+        "dependabot.admin-dist-build"
+      ],
+      "current_required_status": false,
+      "failure_owner": "admin-supply-chain",
+      "artifacts": {
+        "produces": [],
+        "consumes": [
+          "admin-dist"
+        ]
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Independent hosted checkout and artifact-confinement boundary."
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": false
+    },
+    {
+      "stable_id": "dependabot.admin-dist-publish",
+      "producer": {
+        "workflow": ".github/workflows/dependabot-admin-dist.yml",
+        "job": "publish"
+      },
+      "visible_context": "Publish rebuilt admin dist",
+      "class": "publication",
+      "invariant": "dependabot-admin-dist-publication",
+      "trigger_selector": {
+        "events": [
+          "pull_request_target"
+        ],
+        "selection": "after build and validation plus Dependabot actor and same-repository head",
+        "pr_3086": "expected-skipped",
+        "details": "The actor predicate and required dependencies were not satisfied on PR #3086."
+      },
+      "dependencies": [
+        "dependabot.admin-dist-build",
+        "dependabot.admin-dist-validate"
+      ],
+      "current_required_status": false,
+      "failure_owner": "admin-supply-chain",
+      "artifacts": {
+        "produces": [],
+        "consumes": [
+          "admin-dist"
+        ]
+      },
+      "local_equivalent": {
+        "kind": "hosted-only",
+        "reason": "Write-token publication boundary; no local command is equivalent."
+      },
+      "cost_class": "tiny",
+      "unconditional_pr_floor": false
+    }
+  ]
+}
