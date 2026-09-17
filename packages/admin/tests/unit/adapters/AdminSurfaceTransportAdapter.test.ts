@@ -2,6 +2,57 @@ import { describe, expect, it, vi } from 'vitest'
 import { AdminSurfaceTransportAdapter } from '~/adapters/AdminSurfaceTransportAdapter'
 
 describe('AdminSurfaceTransportAdapter', () => {
+  it('forwards the configured CSRF cookie on state-changing surface requests', async () => {
+    document.cookie = `ADMIN-CSRF=${encodeURIComponent('token+with/slash')}; path=/`
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: { type: 'node', id: '7', attributes: {}, mutation_token: null },
+      }),
+    })
+    const adapter = new AdminSurfaceTransportAdapter(
+      '/admin/',
+      fetchFn as typeof fetch,
+      'ADMIN-CSRF',
+    )
+
+    await adapter.create('node', {})
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/admin/_surface/node/action/create',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'X-XSRF-TOKEN': 'token+with/slash' }),
+      }),
+    )
+    document.cookie = 'ADMIN-CSRF=; path=/; max-age=0'
+  })
+
+  it('does not attach the CSRF header to safe surface reads', async () => {
+    document.cookie = 'ADMIN-CSRF=read-token; path=/'
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: { type: 'node', id: '7', attributes: {}, mutation_token: null },
+      }),
+    })
+    const adapter = new AdminSurfaceTransportAdapter(
+      '/admin/',
+      fetchFn as typeof fetch,
+      'ADMIN-CSRF',
+    )
+
+    await adapter.get('node', '7')
+
+    const options = fetchFn.mock.calls[0][1] as RequestInit
+    expect(options.headers).not.toHaveProperty('X-XSRF-TOKEN')
+    document.cookie = 'ADMIN-CSRF=; path=/; max-age=0'
+  })
+
   it('serializes an explicit bundle when requesting a create schema', async () => {
     const schema = {
       $schema: 'https://json-schema.org/draft-07/schema#',

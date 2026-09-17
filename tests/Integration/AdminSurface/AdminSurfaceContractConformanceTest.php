@@ -37,6 +37,10 @@ use Waaseyaa\PageBuilder\Draft\LayoutDraftManager;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftSnapshot;
 use Waaseyaa\PageBuilder\Editor\LayoutEditor;
 use Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface;
+use Waaseyaa\PageBuilder\Preview\RevisionPreviewGrant;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionHistory;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionSnapshot;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurface;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
 use Waaseyaa\PageBuilder\Validation\LayoutValidator;
@@ -272,15 +276,85 @@ final class AdminSurfaceContractConformanceTest extends TestCase
             ]],
         ]);
         $snapshot = new LayoutDraftSnapshot('42', 7, $codec->encode($document));
-        $draftGateway = $this->createStub(LayoutDraftGatewayInterface::class);
-        $draftGateway->method('read')->willReturn($snapshot);
+        $draftGateway = new class ($snapshot) implements LayoutDraftGatewayInterface, PageBuilderRevisionGatewayInterface {
+            /** @var array<int, LayoutDraftSnapshot> */
+            private array $snapshots;
+
+            public function __construct(private LayoutDraftSnapshot $current)
+            {
+                $this->snapshots = [$current->entityRevisionId => $current];
+            }
+
+            public function read(\Waaseyaa\Access\AuthorizationPrincipalInterface $actor, string $entityId): LayoutDraftSnapshot
+            {
+                return $this->current;
+            }
+
+            public function update(
+                \Waaseyaa\Access\AuthorizationPrincipalInterface $actor,
+                string $entityId,
+                string $encodedLayout,
+                int $expectedRevisionId,
+                string $idempotencyKey,
+            ): LayoutDraftSnapshot {
+                $this->current = new LayoutDraftSnapshot($entityId, $expectedRevisionId + 1, $encodedLayout);
+                $this->snapshots[$this->current->entityRevisionId] = $this->current;
+
+                return $this->current;
+            }
+
+            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $actor, string $entityId): array
+            {
+                return [new PageBuilderRevisionSnapshot(
+                    $entityId,
+                    $this->current->entityRevisionId,
+                    $this->current->encodedLayout,
+                    new \DateTimeImmutable('2026-09-17T12:00:00+00:00'),
+                    5,
+                    'Reviewed',
+                    true,
+                    true,
+                )];
+            }
+
+            public function readRevision(
+                \Waaseyaa\Access\AuthorizationPrincipalInterface $actor,
+                string $entityId,
+                int $revisionId,
+            ): PageBuilderRevisionSnapshot {
+                $revision = $this->snapshots[$revisionId] ?? throw new \InvalidArgumentException('Unknown revision.');
+
+                return new PageBuilderRevisionSnapshot($entityId, $revisionId, $revision->encodedLayout);
+            }
+
+            public function restore(
+                \Waaseyaa\Access\AuthorizationPrincipalInterface $actor,
+                string $entityId,
+                int $targetRevisionId,
+                int $expectedCurrentRevisionId,
+                string $idempotencyKey,
+            ): LayoutDraftSnapshot {
+                $target = $this->readRevision($actor, $entityId, $targetRevisionId);
+
+                return $this->update($actor, $entityId, $target->encodedLayout, $expectedCurrentRevisionId, $idempotencyKey);
+            }
+        };
         $validator = new LayoutValidator($definitions);
         $editor = new LayoutEditor($codec, $validator, $definitions);
+        $previewGateway = $this->createStub(RevisionPreviewGatewayInterface::class);
+        $previewGateway->method('issue')->willReturn(new RevisionPreviewGrant(
+            '42',
+            7,
+            2_000_000_000,
+            'signed-preview',
+            '/preview/42?revision=7',
+        ));
         $surface = new PageBuilderSurface(
             'edit pages',
             $definitions,
             new LayoutDraftManager($draftGateway, $codec, $validator, $editor),
-            $this->createStub(RevisionPreviewGatewayInterface::class),
+            $previewGateway,
+            new PageBuilderRevisionHistory($draftGateway, $codec, $validator, $editor),
         );
         $registry = new PageBuilderSurfaceRegistry();
         $registry->register('pages', $surface);
@@ -293,17 +367,83 @@ final class AdminSurfaceContractConformanceTest extends TestCase
         $this->assertConformsToInterface('PageBuilderDefinitionsData', $definitionsEnvelope['data']);
         $this->assertConformsToInterface('PageBuilderDefinitions', $definitionsEnvelope['data']['definitions']);
         $this->assertConformsToInterface('PageBuilderBlockDefinition', $definitionsEnvelope['data']['definitions']['blocks'][0]);
+        $this->assertConformsToInterface('PageBuilderLayoutDefinition', $definitionsEnvelope['data']['definitions']['layouts'][0]);
+        $this->assertConformsToInterface('PageBuilderTemplateDefinition', $definitionsEnvelope['data']['definitions']['templates'][0]);
+        self::assertSame('rich_text', $definitionsEnvelope['data']['definitions']['blocks'][0]['id']);
+        self::assertSame(1, $definitionsEnvelope['data']['definitions']['blocks'][0]['version']);
+        self::assertSame(['main'], $definitionsEnvelope['data']['definitions']['layouts'][0]['regions']);
+        self::assertSame(['one_column'], $definitionsEnvelope['data']['definitions']['templates'][0]['allowed_layouts']);
 
         $draftEnvelope = $host->handleDraft(new PageBuilderSurfaceRequest($actor, ''), 'pages', '42');
         self::assertTrue($draftEnvelope['ok'], json_encode($draftEnvelope['error'] ?? null));
         $this->assertConformsToInterface('PageBuilderSurfaceResult', $draftEnvelope);
-        $this->assertConformsToInterface('PageBuilderDraft', $draftEnvelope['data']);
-        $this->assertConformsToInterface('PageBuilderDocument', $draftEnvelope['data']['document']);
+        $this->assertPageBuilderDraftConforms($draftEnvelope['data']);
+
+        $previewEnvelope = $host->handlePreview(new PageBuilderSurfaceRequest(
+            $actor,
+            json_encode(['expected_entity_revision_id' => 7], JSON_THROW_ON_ERROR),
+        ), 'pages', '42');
+        $this->assertConformsToInterface('PageBuilderSurfaceResult', $previewEnvelope);
+        $this->assertConformsToInterface('PageBuilderPreview', $previewEnvelope['data']);
+        self::assertSame([
+            'entity_id' => '42',
+            'revision_id' => 7,
+            'expires_at' => 2_000_000_000,
+            'signature' => 'signed-preview',
+            'preview_url' => '/preview/42?revision=7',
+        ], $previewEnvelope['data']);
+
+        $historyEnvelope = $host->handleHistory(new PageBuilderSurfaceRequest($actor, ''), 'pages', '42');
+        $this->assertConformsToInterface('PageBuilderSurfaceResult', $historyEnvelope);
+        $this->assertConformsToInterface('PageBuilderHistoryData', $historyEnvelope['data']);
+        $this->assertConformsToInterface('PageBuilderRevision', $historyEnvelope['data']['revisions'][0]);
+        self::assertSame(7, $historyEnvelope['data']['revisions'][0]['revision_id']);
+        self::assertSame('2026-09-17T12:00:00+00:00', $historyEnvelope['data']['revisions'][0]['created_at']);
+        self::assertSame(5, $historyEnvelope['data']['revisions'][0]['author_id']);
+        self::assertIsString($historyEnvelope['data']['revisions'][0]['document_fingerprint']);
+        self::assertSame(1, $historyEnvelope['data']['revisions'][0]['block_count']);
+
+        $revisionEnvelope = $host->handleRevision(new PageBuilderSurfaceRequest($actor, ''), 'pages', '42', '7');
+        $this->assertConformsToInterface('PageBuilderSurfaceResult', $revisionEnvelope);
+        $this->assertPageBuilderDraftConforms($revisionEnvelope['data']);
+
+        $restoreEnvelope = $host->handleRestore(new PageBuilderSurfaceRequest(
+            $actor,
+            json_encode([
+                'target_revision_id' => 7,
+                'expected_current_revision_id' => 7,
+                'idempotency_key' => 'restore-reviewed-7',
+            ], JSON_THROW_ON_ERROR),
+        ), 'pages', '42');
+        $this->assertConformsToInterface('PageBuilderSurfaceResult', $restoreEnvelope);
+        $this->assertPageBuilderDraftConforms($restoreEnvelope['data']);
+        self::assertSame(8, $restoreEnvelope['data']['entity_revision_id']);
 
         $denied = $host->handleDraft(new PageBuilderSurfaceRequest($deniedActor, ''), 'pages', '42');
         $this->assertConformsToInterface('PageBuilderSurfaceResult', $denied);
         $this->assertConformsToInterface('PageBuilderSurfaceError', $denied['error']);
         self::assertSame(403, $denied['error']['status']);
+    }
+
+    /** @param array<string, mixed> $draft */
+    private function assertPageBuilderDraftConforms(array $draft): void
+    {
+        $this->assertConformsToInterface('PageBuilderDraft', $draft);
+        $this->assertConformsToInterface('PageBuilderDocument', $draft['document']);
+        $this->assertConformsToInterface('PageBuilderSection', $draft['document']['sections'][0]);
+        $block = $draft['document']['sections'][0]['regions']['main'][0];
+        $this->assertConformsToInterface('PageBuilderBlock', $block);
+
+        self::assertIsString($draft['entity_id']);
+        self::assertIsInt($draft['entity_revision_id']);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $draft['document_fingerprint']);
+        self::assertSame('waaseyaa.layout', $draft['document']['schema']);
+        self::assertIsInt($draft['document']['version']);
+        self::assertSame(['id' => 'standard', 'version' => 1], $draft['document']['template']);
+        self::assertSame(['id' => 'one_column', 'version' => 1], $draft['document']['sections'][0]['layout']);
+        self::assertSame('rich_text', $block['type']);
+        self::assertIsInt($block['version']);
+        self::assertIsArray($block['config']);
     }
 
     private function revisionEntity(int $revisionId, bool $current, bool $latest): EntityInterface

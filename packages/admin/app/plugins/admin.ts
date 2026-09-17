@@ -12,6 +12,7 @@ import { normalizeAppBaseURL } from '../runtime/normalizeAppBaseURL'
 import { adminSurfaceFetchUrl } from '../runtime/adminSurfaceRoutes'
 import { normalizeSurfaceUi } from '../runtime/normalizeSurfaceUi'
 import { classifyEmbedFailure, postEmbedBootstrapFailure, type EmbedFailure } from '../runtime/embedLifecycle'
+import { resolveCsrfCookieName } from '../utils/csrfCookie'
 
 export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRuntime | null } }> => {
   const config = useRuntimeConfig()
@@ -121,7 +122,10 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   const authConfig: AdminAuthConfig = { strategy: 'redirect', loginUrl: '/login' }
 
   const auth = new SessionAuthAdapter(account, tenant, authConfig, surfaceSession.features)
-  const transport = new AdminSurfaceTransportAdapter(normalizedAppBase)
+  const csrfCookieName = resolveCsrfCookieName(
+    (config.public as { csrfCookieName?: string }).csrfCookieName,
+  )
+  const transport = new AdminSurfaceTransportAdapter(normalizedAppBase, undefined, csrfCookieName)
 
   const runtime: AdminRuntime = {
     auth,

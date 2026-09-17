@@ -257,19 +257,29 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
             'The fallback must require direct evidence from the installed filesystem.',
         );
         self::assertStringContainsString(
-            "archive_digest((string) \$member['archive'], caseFoldPaths: true)",
+            'casefolded_archive_matches_install($member, $installedPath)',
             $engine,
-            'The sealed archive and installed tree must use the same normalized roster.',
+            'The fallback must compare through the sealed-evidence helper.',
         );
         self::assertStringContainsString(
-            'tree_digest($installedPath, caseFoldPaths: true)',
+            "hash_equals(\$member['archive_sha256'], \$actualArchiveSha256)",
             $engine,
+            'The normalized fallback must remain anchored to the sealed archive hash.',
         );
         self::assertStringContainsString(
             'Refusing a case-folded digest collision between %s and %s.',
             $engine,
             'Case-only archive collisions must remain a hard failure.',
         );
+        self::assertStringContainsString('digest_self_test($scratch);', $engine);
+        foreach ([
+            'rejected collision-free case-only path variance',
+            'accepted changed installed content',
+            'accepted a case-folded archive collision',
+            'accepted a post-seal archive mutation',
+        ] as $discriminator) {
+            self::assertStringContainsString($discriminator, $engine);
+        }
     }
 
     /**

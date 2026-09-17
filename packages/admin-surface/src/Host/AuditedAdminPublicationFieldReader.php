@@ -15,7 +15,7 @@ use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityValues;
 
-/** Audited publication metadata read after admin row-view authorization. @api */
+/** Audited publication metadata read after admin row-view authorization. */
 final readonly class AuditedAdminPublicationFieldReader implements BatchAdminPublicationFieldReaderInterface
 {
     public const string ISSUER = 'admin-surface.publication-list';

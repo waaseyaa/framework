@@ -110,7 +110,7 @@ configuration, preflight, or CI implementation change.
 | --- | --- | --- |
 | Dirty Candidate A, base `a682a17e0` | Initial `php vendor/bin/phpunit tests/Architecture/AdminSurfaceDeptracGateTest.php --no-coverage` | Expected red: 4 tests failed because the locked Deptrac binary was absent |
 | Dirty Candidate A | Candidate-local Composer install with PHP 8.5 `fileinfo` and `zip` enabled | Installed exact `deptrac/deptrac` 4.7.2 and six required new packages; unrelated dependency advances from the first broad solver run were reverted through Composer constraints |
-| Dirty Candidate A | Lock comparison with `HEAD:composer.lock` | Seven new package versions, zero existing version changes, zero existing path-reference changes |
+| Dirty Candidate A | Lock comparison with `HEAD:composer.lock` | Seven new development packages; `symfony/dependency-injection`, `symfony/polyfill-deepclone`, and `symfony/var-exporter` move from runtime to development lock sections because no production package requires them; three local path-package metadata records refresh; zero existing version changes and zero existing path-reference changes |
 | Dirty Candidate A | `composer check-admin-surface-deptrac` | Pass: 0 violations, 0 skipped, 0 uncovered, 427 allowed, 0 warnings, 0 errors |
 | Dirty Candidate A | Deptrac `debug:unassigned` and three `debug:layer` calls | Pass: no unassigned tokens; 24 Boundary contract, 4 Application adapters, 2 Delivery and composition |
 | Dirty Candidate A | `php vendor/bin/phpunit tests/Architecture/AdminSurfaceDeptracGateTest.php --no-coverage` | Pass: 5 tests, 27 assertions, including allowed, forbidden, uncovered, production, and Mermaid controls |

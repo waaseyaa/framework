@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "identityDigest": "9d4318b98e6b9a1f1b8a69906d40089ef45e8f23de15e5c6f0d18a44ec75108e",
+    "identityDigest": "ce0b5382a4371174a062c02fef2bc4ba02aceefeb541f34e29fc143a4aa7a593",
     "identityExcludes": [
         "acceptance"
     ],
@@ -11,14 +11,14 @@
         "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
     },
     "source": {
-        "signature": "840a7bf1cabebd831d0c8b5e290bdb13fd17a8c43df22c32d1d90fd978c06ca5",
-        "buildIdSignature": "eb333700133d9cec4a0d6b8cf3e746748a52c49919aa5d70facc9eb1216b9ec5",
-        "buildId": "waaseyaa-eb333700133d9cec4a0d6b8cf3e74674"
+        "signature": "417c1cdba730ae27231ad9dd91ae5a451e1b724c1ecbaa1e9b81ade3f8dceac4",
+        "buildIdSignature": "a9292ec61e7604c5033607eb7e81f1cb26d24aa35a905132b7115c3f967b9f1c",
+        "buildId": "waaseyaa-a9292ec61e7604c5033607eb7e81f1cb"
     },
     "published": {
-        "treeDigest": "5c4d2cfc3616df8a78688fcb9ab90f5e52543d4681e0ce8c0c92361264d7fae4",
+        "treeDigest": "3d9fb284d3b09f3358d320833f632ca0623290e8f3a35d873b8ab09b6d5a6dab",
         "fileCount": 99,
-        "byteCount": 597710
+        "byteCount": 597982
     },
     "markers": {
         "version": 1,
@@ -52,13 +52,51 @@
         "intermediate": {
             "root": "packages/admin/.output",
             "artifactCount": 100,
-            "inventoryDigest": "b809e2eedca329020c688c04c278ae366eae6f1402a7e83fa65db1c16c51ed7b"
+            "inventoryDigest": "e007dbcc8170d74b00f4d73b079bb3d14859984c90818e430370e453b8b48c87"
         },
         "previousPublishedTreeDigest": "5c4d2cfc3616df8a78688fcb9ab90f5e52543d4681e0ce8c0c92361264d7fae4",
         "changed": {
-            "added": [],
-            "modified": [],
-            "removed": []
+            "added": [
+                "_nuxt/11aTIpaG.js",
+                "_nuxt/Bv2p7zIT.js",
+                "_nuxt/CNUcMbSg.js",
+                "_nuxt/Ck6ofRwE.js",
+                "_nuxt/D-jLPKgo.js",
+                "_nuxt/LevlytXj.js",
+                "_nuxt/aMzqO-nQ.js",
+                "_nuxt/builds/meta/waaseyaa-a9292ec61e7604c5033607eb7e81f1cb.json"
+            ],
+            "modified": [
+                "200.html",
+                "404.html",
+                "_nuxt/builds/latest.json",
+                "classification/policies/index.html",
+                "forgot-password/index.html",
+                "index.html",
+                "login/index.html",
+                "mcp/approvals/index.html",
+                "mcp/server-config/index.html",
+                "mcp/tools/index.html",
+                "mercure/monitor/index.html",
+                "notifications/index.html",
+                "oidc/clients/index.html",
+                "queue/index.html",
+                "register/index.html",
+                "reset-password/index.html",
+                "scheduler/index.html",
+                "verify-email/index.html",
+                "workflows/index.html"
+            ],
+            "removed": [
+                "_nuxt/Br7aC3AK.js",
+                "_nuxt/Bz6_cD-R.js",
+                "_nuxt/Ctsv1UQa.js",
+                "_nuxt/D2qGgw8M.js",
+                "_nuxt/DCBCWeYa.js",
+                "_nuxt/KHC7sVHK.js",
+                "_nuxt/SesJSa_4.js",
+                "_nuxt/builds/meta/waaseyaa-eb333700133d9cec4a0d6b8cf3e74674.json"
+            ]
         },
         "toolchain": {
             "nodePin": "24",

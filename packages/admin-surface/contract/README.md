@@ -9,6 +9,7 @@ If three documents claim to define the admin payload shape, exactly one of them 
 | Artifact | Authority |
 |----------|-----------|
 | **`packages/admin-surface/contract/{types,schema,revisions,pageBuilder}.ts`** | **Authoritative.** Defines every Framework-owned core and page-builder request/response shape that crosses the host-to-SPA boundary. Consumer-defined custom actions retain their own extension contracts. `types.ts` owns bootstrap, catalog, entity, result/error, list, and CRUD; the other modules own their named protocols and are re-exported through `types.ts` and `index.ts`. |
+| `AdminSurfaceContract.ts` / `ADMIN_SURFACE_VERSION` | **Deprecated legacy exports.** Retained for source compatibility only; they are not a payload authority or negotiated protocol version. No production consumer was found. Completion or removal is tracked in #3084. |
 | `packages/admin-surface/src/Host/*.php` | Implementation. Backend emitters (`AdminSurfaceSessionData::toArray()`, `CatalogBuilder::build()`) must conform to the TypeScript contract above. |
 | `packages/admin/app/contracts/*.ts` | SPA-local mirror. The admin SPA builds its own contracts under `app/contracts/` for `tsc --rootDir app` to produce clean declarations; these are mirrors of the canonical types, not authoritative redefinitions. They must stay structurally compatible. |
 | `docs/specs/admin-spa.md` | Subsystem spec. Describes the SPA runtime, components, routes, and behaviour. **Does not define payload shape.** It references type names from this package and assumes their definitions. |
@@ -17,7 +18,7 @@ If three documents claim to define the admin payload shape, exactly one of them 
 
 Three cross-boundary gates guard the contract:
 
-- `tests/Integration/AdminSurface/AdminSurfaceContractConformanceTest.php` — currently parses the core `types.ts` interfaces and checks session/account/tenant/catalog payloads structurally. Entity, result/error, list/action, schema, revision, and page-builder PHP conformance is expanded in the next bounded work package; the TypeScript mirror gate already covers their consumer-side types.
+- `tests/Integration/AdminSurface/AdminSurfaceContractConformanceTest.php` — discovers the concern-separated canonical modules and checks producer-emitted session, catalog, result/error/advisory, entity/list, schema, revision, and page-builder definitions/draft/preview/history/revision/restore payloads. It rejects undeclared emitted keys and omitted required keys, traverses nested page-builder shapes, and pins representative runtime value types.
 - `tests/Integration/AdminSurface/AdminSurfaceRouteWiringIntegrationTest.php` — exercises the production composition of `AdminSurfaceServiceProvider` + `WaaseyaaRouter` + `GenericAdminSurfaceHost` and asserts the published route names and paths match `AdminSurfaceRoutePaths`.
 - `cd packages/admin && npm run check:contract-compatibility` — compiles exact type-equality assertions across the canonical contract and every SPA-local mirror. It fails on missing keys, extra keys, incompatible value types, or optionality drift. The dedicated config uses the shared `packages/` root only for this no-emit check; `build:contracts` retains its clean `rootDir: app` declaration boundary.
 

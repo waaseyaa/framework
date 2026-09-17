@@ -106,7 +106,8 @@ wire protocol:
 - `npm run check:contract-compatibility` uses exact TypeScript equality to
   prevent the SPA-local declaration-build mirrors from drifting silently.
 - `AdminSurfaceContract.ts` and `ADMIN_SURFACE_VERSION` have no observed runtime
-  consumer and need an explicit keep, internalize, or remove disposition.
+  consumer. They remain deprecated source-compatibility exports, are not wire
+  authorities, and have their completion-or-removal lifecycle tracked in #3084.
 
 Protocol keys are preserved exactly. Most payload fields are camelCase, while
 the established concurrency and action protocol intentionally uses
@@ -203,10 +204,11 @@ the model and `composer admin-surface-dependency-view` to refresh the view.
 
 ## Public-interface dispositions
 
-`public-surface.php` remains the editable compatibility authority. The
-convergence candidate must reconcile it with the source annotations and this
-table, adding purpose text where absent and avoiding accidental promotion of
-implementation details.
+`public-surface.php` remains the editable compatibility authority. This
+candidate reconciles its 24 entries with the dispositions below. Concrete
+Framework implementations are declared only when they are supported
+composition surfaces; internal implementations do not gain compatibility
+status from dead-code annotations.
 
 | Symbol or family | Disposition | Lifecycle |
 | --- | --- | --- |
@@ -219,14 +221,19 @@ implementation details.
 | `PageBuilderSurfaceHostInterface` | Public | Supported optional route-composition port |
 | `ListFormatter` | Public | Closed, additive formatter vocabulary |
 | `SurfaceFilterOperator` | Public | Closed, additive query vocabulary |
-| `AdminDestinationPaths`, `AdminSurfaceRoutePaths` | Public | Supported URL/path authorities; add to the declaration map |
-| `CatalogBuilder`, `EntityDefinition`, `FieldDefinition`, `ActionDefinition` | Public | Supported catalog construction API returned through the custom-host base; reconcile annotations and declarations as one family |
-| `AdminSurfaceSessionData`, `AdminSurfaceResultData`, `SurfaceQuery` | Public crossing values | Supported parameter and return types of the custom-host base; add to the declaration map |
-| `ListMetadata`, `SurfaceQueryPolicy` | Public | Supported declaration and enforcement pair; add to the declaration map |
-| `AdminRevisionPreviewGrantData`, `AdminSurfaceUiPayload` | Public crossing values | Supported values returned or constructed through public seams; add to the declaration map |
-| `PageBuilderSurfaceRequest` | Public crossing value | Supported parameter of the public page-builder host port; add to the declaration map |
-| `GenericPageBuilderSurfaceHost` | Public Framework implementation | Supported default for generated/app composition; add to the declaration map |
+| `AdminDestinationPaths`, `AdminSurfaceRoutePaths` | Public | Supported URL/path authorities |
+| `CatalogBuilder`, `EntityDefinition`, `FieldDefinition`, `ActionDefinition` | Public | Supported catalog construction API returned through the custom-host base |
+| `AdminSurfaceSessionData`, `AdminSurfaceResultData`, `SurfaceQuery` | Public crossing values | Supported parameter and return types of the custom-host base |
+| `ListMetadata`, `SurfaceQueryPolicy` | Public | Supported declaration and enforcement pair |
+| `AdminRevisionPreviewGrantData`, `AdminSurfaceUiPayload` | Public crossing values | Supported values returned or constructed through public seams |
+| `PageBuilderSurfaceRequest` | Public crossing value | Supported parameter of the public page-builder host port |
+| `GenericPageBuilderSurfaceHost` | Public Framework implementation | Supported default for generated/app composition |
 | `AdminSurfaceServiceProvider`, `AdminSpaFallback`, `GenericAdminSurfaceHost`, `AuditedAdminPublicationFieldReader`, `SurfaceQueryParser`, `SurfaceFieldName` | Internal | Framework implementation or composition detail; no direct compatibility promise beyond public routes and ports |
+
+The legacy TypeScript aggregate `AdminSurfaceContract` and marker
+`ADMIN_SURFACE_VERSION` are deprecated compatibility exports. They have no
+observed runtime consumer and do not define payload authority; #3084 owns their
+completion or removal.
 
 ## Split-package contract
 
@@ -253,5 +260,6 @@ and browser coverage when behavior visible to an operator changes. Required
 hooks and hosted checks remain mandatory.
 
 Large extraction of `GenericAdminSurfaceHost` or
-`AdminSurfaceServiceProvider`, generated-owner admission from issue #3073, and
-required identifier validation from issue #3023 remain independently scoped.
+`AdminSurfaceServiceProvider` remains in #3082 and #3083 respectively.
+Generated-owner admission from issue #3073 and required identifier validation
+from issue #3023 remain independently scoped.

@@ -37,6 +37,7 @@ declare(strict_types=1);
  *   php split-artifact-acceptance.php seal <repo> <artifacts-dir> <manifest> <version>
  *   php split-artifact-acceptance.php assert <surface> <manifest> <consumer> [<nodev-consumer>]
  *   php split-artifact-acceptance.php self-test <manifest> <consumer> <nodev-consumer> <scratch>
+ *   php split-artifact-acceptance.php digest-self-test <scratch>
  *   php split-artifact-acceptance.php surfaces
  */
 
@@ -223,6 +224,90 @@ function filesystem_paths_are_case_insensitive(string $directory): bool
     $caseProbe = $directory . '/COMPOSER.JSON';
 
     return is_file($canonical) && is_file($caseProbe);
+}
+
+/**
+ * @param array{archive: string, archive_sha256: string} $member
+ */
+function casefolded_archive_matches_install(array $member, string $installedPath): bool
+{
+    $archive = $member['archive'];
+    $actualArchiveSha256 = hash_file('sha256', $archive);
+    if (!is_string($actualArchiveSha256)
+        || !hash_equals($member['archive_sha256'], $actualArchiveSha256)
+    ) {
+        fail(sprintf(
+            'Artifact archive %s no longer matches its sealed SHA-256.',
+            $archive,
+        ));
+    }
+
+    return archive_digest($archive, caseFoldPaths: true)
+        === tree_digest($installedPath, caseFoldPaths: true);
+}
+
+function digest_self_test(string $scratch): void
+{
+    $root = rtrim($scratch, '/\\') . '/digest-self-test-' . uniqid('', true);
+    $installed = $root . '/installed';
+    mkdir($installed . '/tests/Fixtures', 0o777, true);
+    file_put_contents($installed . '/tests/Fixtures/greeting.txt', "tansi\n");
+
+    $archive = $root . '/case-only.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($archive, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        fail('Digest self-test could not create its case-only archive.');
+    }
+    $zip->addFromString('tests/fixtures/greeting.txt', "tansi\n");
+    $zip->close();
+    $member = ['archive' => $archive, 'archive_sha256' => (string) hash_file('sha256', $archive)];
+
+    if (!casefolded_archive_matches_install($member, $installed)) {
+        fail('Digest self-test rejected collision-free case-only path variance.');
+    }
+
+    file_put_contents($installed . '/tests/Fixtures/greeting.txt', "changed\n");
+    if (casefolded_archive_matches_install($member, $installed)) {
+        fail('Digest self-test accepted changed installed content.');
+    }
+    file_put_contents($installed . '/tests/Fixtures/greeting.txt', "tansi\n");
+
+    $collisionArchive = $root . '/case-collision.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($collisionArchive, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        fail('Digest self-test could not create its collision archive.');
+    }
+    $zip->addFromString('Foo.txt', 'one');
+    $zip->addFromString('foo.txt', 'two');
+    $zip->close();
+    try {
+        casefolded_archive_matches_install([
+            'archive' => $collisionArchive,
+            'archive_sha256' => (string) hash_file('sha256', $collisionArchive),
+        ], $installed);
+        fail('Digest self-test accepted a case-folded archive collision.');
+    } catch (AcceptanceFailure $failure) {
+        if (!str_contains($failure->getMessage(), 'case-folded digest collision')) {
+            throw $failure;
+        }
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($archive) !== true) {
+        fail('Digest self-test could not reopen its sealed archive.');
+    }
+    $zip->setArchiveComment('post-seal mutation');
+    $zip->close();
+    try {
+        casefolded_archive_matches_install($member, $installed);
+        fail('Digest self-test accepted a post-seal archive mutation.');
+    } catch (AcceptanceFailure $failure) {
+        if (!str_contains($failure->getMessage(), 'sealed SHA-256')) {
+            throw $failure;
+        }
+    }
+
+    fwrite(STDOUT, "Case-insensitive digest controls PASS.\n");
 }
 
 /**
@@ -797,9 +882,7 @@ function assert_exported_files(array $seal, Installation $installation, array $o
             // first. Retry only on a proven case-insensitive filesystem, and
             // fail closed if either roster has a case-fold collision.
             if (filesystem_paths_are_case_insensitive($installedPath)) {
-                $archive = archive_digest((string) $member['archive'], caseFoldPaths: true);
-                $installed = tree_digest($installedPath, caseFoldPaths: true);
-                if ($archive === $installed) {
+                if (casefolded_archive_matches_install($member, $installedPath)) {
                     continue;
                 }
             }
@@ -989,6 +1072,8 @@ function assert_no_dev_exclusion(array $seal, Installation $installation): void
  */
 function self_test(array $seal, Installation $dev, Installation $noDev, string $scratch): void
 {
+    digest_self_test($scratch);
+
     if (!is_dir($scratch)) {
         mkdir($scratch, 0o777, true);
     }
@@ -1334,6 +1419,11 @@ function main(array $argv): int
                     Installation::of($argv[4]),
                     $argv[5],
                 );
+
+                return 0;
+
+            case 'digest-self-test':
+                digest_self_test($argv[2]);
 
                 return 0;
 

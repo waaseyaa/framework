@@ -15,6 +15,12 @@ import {
   type AdminSurfaceRouteName,
   type AdminSurfaceRouteParams,
 } from '../runtime/adminSurfaceRoutes'
+import {
+  DEFAULT_CSRF_COOKIE_NAME,
+  readDocumentCsrfCookieToken,
+} from '../utils/csrfCookie'
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /**
  * Transport adapter for admin surface JSON endpoints.
@@ -37,6 +43,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     /** Same normalization as the admin plugin (`normalizeAppBaseURL(app.baseURL)`). */
     private readonly normalizedAppBase: string,
     private readonly fetchFn: typeof fetch = (...args) => fetch(...args),
+    private readonly csrfCookieName: string = DEFAULT_CSRF_COOKIE_NAME,
   ) {}
 
   private surfaceUrl(
@@ -225,6 +232,11 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       ...(init.headers as Record<string, string> ?? {}),
+    }
+    const method = String(init.method ?? 'GET').toUpperCase()
+    if (!SAFE_METHODS.has(method) && !headers['X-XSRF-TOKEN']) {
+      const token = readDocumentCsrfCookieToken(this.csrfCookieName)
+      if (token) headers['X-XSRF-TOKEN'] = token
     }
     const response = await this.fetchFn(url, { ...init, headers, credentials: 'include' })
     if (response.status === 204) return undefined as unknown as T
