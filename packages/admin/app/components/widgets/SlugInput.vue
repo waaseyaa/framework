@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SchemaProperty } from '~/composables/useSchema'
+import type { AdminSurfaceGenerateSlugData, AdminSurfaceGenerateSlugRequest } from '~/contracts/adminSurface'
 import { useEntity } from '~/composables/useEntity'
 import { schemaFormContextKey } from '~/components/schema/schemaFormContext'
 
@@ -34,7 +35,8 @@ watch(
     if (context.isEditMode.value || props.disabled || manuallyEdited.value || !value) return
     const request = ++generation
     try {
-      const result = await runAction(context.entityType, 'generate-slug', { value: String(value) }) as { slug?: unknown }
+      const payload: AdminSurfaceGenerateSlugRequest = { value: String(value) }
+      const result = await runAction(context.entityType, 'generate-slug', payload) as AdminSurfaceGenerateSlugData
       if (request === generation && typeof result.slug === 'string' && !manuallyEdited.value) {
         emit('update:modelValue', result.slug)
       }

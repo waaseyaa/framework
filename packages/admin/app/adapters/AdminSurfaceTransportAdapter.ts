@@ -1,10 +1,14 @@
 import type { TransportAdapter, ListQuery, ListResult, EntityResource, SchemaScope } from '../contracts/transport'
 import { TransportError } from '../contracts/transport'
-import type { EntitySchema } from '../contracts/schema'
+import type { AdminSurfaceSchemaRequest, EntitySchema } from '../contracts/schema'
 import type {
+  AdminSurfaceCreateRequest,
+  AdminSurfaceDeleteData,
+  AdminSurfaceDeleteRequest,
   AdminSurfaceEntity as SurfaceEntity,
   AdminSurfaceListResult as SurfaceListResult,
   AdminSurfaceResult as SurfaceResult,
+  AdminSurfaceUpdateRequest,
 } from '../contracts/adminSurface'
 import {
   adminSurfaceFetchUrl,
@@ -83,17 +87,18 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     attributes: Record<string, any>,
     saveAdvisoryAcknowledgements: string[] = [],
   ): Promise<EntityResource> {
+    const body: AdminSurfaceCreateRequest = {
+      attributes,
+      ...(saveAdvisoryAcknowledgements.length > 0
+        ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
+        : {}),
+    }
     const entity = await this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.action', { type, action: 'create' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          attributes,
-          ...(saveAdvisoryAcknowledgements.length > 0
-            ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
-            : {}),
-        }),
+        body: JSON.stringify(body),
       },
     )
     return this.normalizeEntity(entity, type)
@@ -107,19 +112,20 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   ): Promise<EntityResource> {
     const mutationToken = this.mutationTokens.get(this.mutationTokenKey(type, id))
     if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before saving it.')
+    const body: AdminSurfaceUpdateRequest = {
+      id,
+      attributes,
+      mutation_token: mutationToken,
+      ...(saveAdvisoryAcknowledgements.length > 0
+        ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
+        : {}),
+    }
     const entity = await this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.action', { type, action: 'update' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          attributes,
-          mutation_token: mutationToken,
-          ...(saveAdvisoryAcknowledgements.length > 0
-            ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
-            : {}),
-        }),
+        body: JSON.stringify(body),
       },
     )
     return this.normalizeEntity(entity, type, [id])
@@ -128,12 +134,13 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   async remove(type: string, id: string): Promise<void> {
     const mutationToken = this.mutationTokens.get(this.mutationTokenKey(type, id))
     if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before deleting it.')
-    await this.request(
+    const body: AdminSurfaceDeleteRequest = { id, mutation_token: mutationToken }
+    await this.request<AdminSurfaceDeleteData>(
       this.surfaceUrl('admin_surface.action', { type, action: 'delete' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, mutation_token: mutationToken }),
+        body: JSON.stringify(body),
       },
     )
   }
@@ -142,7 +149,8 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     // An entity id scopes an existing record to its bundle. An explicit bundle
     // scopes a create form after the user chooses from the base schema's bundle
     // enum. The host owns validation for both hints.
-    const body = JSON.stringify(scope ?? {})
+    const schemaRequest: AdminSurfaceSchemaRequest = scope ?? {}
+    const body = JSON.stringify(schemaRequest)
     return this.request<EntitySchema>(
       this.surfaceUrl('admin_surface.action', { type, action: 'schema' }),
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
@@ -166,8 +174,12 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     return result.data
   }
 
-  async runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown> {
-    const body = { ...(payload ?? {}) }
+  async runAction<Payload extends object = Record<string, unknown>>(
+    type: string,
+    action: string,
+    payload?: Payload,
+  ): Promise<unknown> {
+    const body: Record<string, unknown> = { ...(payload ?? {}) }
     if (action === 'restore-revision') {
       const id = typeof body.id === 'string' ? body.id : ''
       const mutationToken = this.mutationTokens.get(this.mutationTokenKey(type, id))
@@ -259,13 +271,15 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     surfaceType: string = entity.type,
     requestedAliases: readonly string[] = [],
   ): EntityResource {
-    if (entity.mutation_token) {
-      const canonicalKey = `${surfaceType}:${entity.id}`
-      this.canonicalMutationTokenKeys.set(canonicalKey, canonicalKey)
-      for (const id of new Set(requestedAliases)) {
-        if (id !== '') this.canonicalMutationTokenKeys.set(`${surfaceType}:${id}`, canonicalKey)
-      }
+    const canonicalKey = `${surfaceType}:${entity.id}`
+    this.canonicalMutationTokenKeys.set(canonicalKey, canonicalKey)
+    for (const id of new Set(requestedAliases)) {
+      if (id !== '') this.canonicalMutationTokenKeys.set(`${surfaceType}:${id}`, canonicalKey)
+    }
+    if (entity.mutation_token !== null) {
       this.mutationTokens.set(canonicalKey, entity.mutation_token)
+    } else {
+      this.mutationTokens.delete(canonicalKey)
     }
     return {
       type: entity.type,

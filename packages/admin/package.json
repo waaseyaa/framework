@@ -12,6 +12,7 @@
         "dev:wsl": "nuxt dev --host 0.0.0.0",
         "build": "nuxt build",
         "build:contracts": "tsc -p tsconfig.contracts.json",
+        "check:contract-compatibility": "tsc -p tsconfig.contract-compatibility.json",
         "generate": "nuxt generate",
         "preview": "nuxt preview",
         "postinstall": "nuxt prepare",

@@ -13,9 +13,7 @@ export interface AdminSession {
   features?: Record<string, boolean>
 }
 
-export type AdminAccount = AdminSurfaceAccount & {
-  emailVerified?: boolean
-}
+export type AdminAccount = AdminSurfaceAccount
 
 export type AdminTenant = AdminSurfaceTenant & {
   scopingStrategy: 'server' | 'header'

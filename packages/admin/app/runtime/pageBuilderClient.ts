@@ -1,9 +1,12 @@
 import type {
   PageBuilderCommand,
-  PageBuilderDefinitions,
+  PageBuilderCommandRequest,
+  PageBuilderDefinitionsData,
   PageBuilderDraft,
+  PageBuilderHistoryData,
   PageBuilderPreview,
-  PageBuilderRevision,
+  PageBuilderPreviewRequest,
+  PageBuilderRestoreRequest,
   PageBuilderSurfaceResult,
 } from '../contracts/pageBuilder'
 import { adminSurfaceFetchUrl } from './adminSurfaceRoutes'
@@ -32,7 +35,7 @@ export class PageBuilderClient {
     private readonly fetch: PageBuilderFetch,
   ) {}
 
-  definitions(surface: string): Promise<PageBuilderSurfaceResult<{ definitions: PageBuilderDefinitions }>> {
+  definitions(surface: string): Promise<PageBuilderSurfaceResult<PageBuilderDefinitionsData>> {
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.definitions', { surface }), {
       ...RESOLVE_REFUSAL_BODY,
     })
@@ -61,30 +64,32 @@ export class PageBuilderClient {
     idempotencyKey: string,
     saveAdvisoryAcknowledgements: string[] = [],
   ): Promise<PageBuilderSurfaceResult<PageBuilderDraft>> {
+    const body: PageBuilderCommandRequest = {
+      expected_entity_revision_id: draft.entity_revision_id,
+      expected_document_fingerprint: draft.document_fingerprint,
+      idempotency_key: idempotencyKey,
+      command,
+      ...(saveAdvisoryAcknowledgements.length > 0
+        ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
+        : {}),
+    }
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.command', { surface, id }), {
       ...RESOLVE_REFUSAL_BODY,
       method: 'POST',
-      body: {
-        expected_entity_revision_id: draft.entity_revision_id,
-        expected_document_fingerprint: draft.document_fingerprint,
-        idempotency_key: idempotencyKey,
-        command,
-        ...(saveAdvisoryAcknowledgements.length > 0
-          ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
-          : {}),
-      },
+      body,
     })
   }
 
   preview(surface: string, id: string, revisionId: number): Promise<PageBuilderSurfaceResult<PageBuilderPreview>> {
+    const body: PageBuilderPreviewRequest = { expected_entity_revision_id: revisionId }
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.preview', { surface, id }), {
       ...RESOLVE_REFUSAL_BODY,
       method: 'POST',
-      body: { expected_entity_revision_id: revisionId },
+      body,
     })
   }
 
-  history(surface: string, id: string): Promise<PageBuilderSurfaceResult<{ revisions: PageBuilderRevision[] }>> {
+  history(surface: string, id: string): Promise<PageBuilderSurfaceResult<PageBuilderHistoryData>> {
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.history', { surface, id }), {
       ...RESOLVE_REFUSAL_BODY,
       cache: 'no-store',
@@ -100,14 +105,15 @@ export class PageBuilderClient {
   }
 
   restore(surface: string, id: string, targetRevisionId: number, expectedCurrentRevisionId: number, idempotencyKey: string): Promise<PageBuilderSurfaceResult<PageBuilderDraft>> {
+    const body: PageBuilderRestoreRequest = {
+      target_revision_id: targetRevisionId,
+      expected_current_revision_id: expectedCurrentRevisionId,
+      idempotency_key: idempotencyKey,
+    }
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.restore', { surface, id }), {
       ...RESOLVE_REFUSAL_BODY,
       method: 'POST',
-      body: {
-        target_revision_id: targetRevisionId,
-        expected_current_revision_id: expectedCurrentRevisionId,
-        idempotency_key: idempotencyKey,
-      },
+      body,
     })
   }
 }

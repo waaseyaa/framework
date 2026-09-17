@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.contracts.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "rootDir": ".."
+  },
+  "include": [
+    "contract-compatibility.ts",
+    "app/contracts/**/*.ts",
+    "../admin-surface/contract/**/*.ts"
+  ]
+}

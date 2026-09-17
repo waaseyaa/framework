@@ -32,7 +32,7 @@ export interface AdminSurfaceSession {
   account: AdminSurfaceAccount
   tenant: AdminSurfaceTenant
   policies: string[]
-  features?: Record<string, boolean>
+  features: Record<string, boolean>
   /**
    * Server-authoritative per-principal permission projection.
    *
@@ -47,14 +47,14 @@ export interface AdminSurfaceSession {
    * from `account.roles`. Server middleware remains the enforcement boundary;
    * this is a UI affordance signal only.
    */
-  capabilities?: Record<string, boolean>
+  capabilities: Record<string, boolean>
   ui?: AdminSurfaceUiCustomization
 }
 
 export interface AdminSurfaceAccount {
   id: string
   name: string
-  email?: string
+  email: string | null
   /**
    * Email-verification state.
    *
@@ -62,11 +62,10 @@ export interface AdminSurfaceAccount {
    * `account.emailVerified`) and consumed by the SPA runtime
    * (`auth.global` middleware and `VerificationBanner.vue`).
    *
-   * Optional: hosts that do not implement email verification may omit it,
-   * in which case the SPA treats the account as unverified for gating
-   * purposes (see `runtimeConfig.public.requireVerifiedEmail`).
+   * Null when the host does not provide an email-verification decision. The
+   * SPA treats null as unverified when verification gating is enabled.
    */
-  emailVerified?: boolean
+  emailVerified: boolean | null
   roles: string[]
 }
 
@@ -145,6 +144,14 @@ export interface AdminSurfaceEntity {
   type: string
   id: string
   attributes: Record<string, unknown>
+  /**
+   * Opaque validator for a later fenced update, delete, or restore.
+   *
+   * A non-null value is emitted when the caller can mutate the entity; null is
+   * emitted otherwise. The SPA must echo the exact non-null value as
+   * `mutation_token`; it must not derive or inspect it.
+   */
+  mutation_token: string | null
   capabilities?: {
     view?: boolean
     edit?: boolean
@@ -203,3 +210,53 @@ export interface AdminSurfaceListResult {
   offset: number
   limit: number
 }
+
+// ── Core mutation requests ───────────────────────────────────────
+
+export interface AdminSurfaceCreateRequest {
+  attributes: Record<string, unknown>
+  save_advisory_acknowledgements?: string[]
+}
+
+export interface AdminSurfaceUpdateRequest extends AdminSurfaceCreateRequest {
+  id: string
+  mutation_token: string
+}
+
+export interface AdminSurfaceDeleteRequest {
+  id: string
+  mutation_token: string
+}
+
+export interface AdminSurfaceDeleteData {
+  deleted: true
+}
+
+export interface AdminSurfaceGenerateSlugRequest {
+  value: string
+}
+
+export interface AdminSurfaceGenerateSlugData {
+  slug: string
+}
+
+export type {
+  AdminSurfaceEntitySchema,
+  AdminSurfaceFormSection,
+  AdminSurfaceSchemaProperty,
+  AdminSurfaceSchemaRequest,
+} from './schema'
+
+export type {
+  AdminSurfaceHistoryData,
+  AdminSurfaceHistoryRequest,
+  AdminSurfaceRestoreRevisionData,
+  AdminSurfaceRestoreRevisionRequest,
+  AdminSurfaceRevisionData,
+  AdminSurfaceRevisionEntity,
+  AdminSurfaceRevisionEntry,
+  AdminSurfaceRevisionPreviewData,
+  AdminSurfaceRevisionRequest,
+} from './revisions'
+
+export type * from './pageBuilder'

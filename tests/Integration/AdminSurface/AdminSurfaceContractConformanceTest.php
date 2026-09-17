@@ -95,14 +95,15 @@ final class AdminSurfaceContractConformanceTest extends TestCase
         self::assertContains('account', array_keys($session));
         self::assertContains('tenant', array_keys($session));
         self::assertContains('policies', array_keys($session));
-        self::assertTrue($session['features']);   // optional
-        self::assertTrue($session['ui']);         // optional
-        self::assertFalse($session['account']);   // required
+        self::assertFalse($session['features']);      // required
+        self::assertFalse($session['capabilities']);  // required
+        self::assertTrue($session['ui']);             // optional
+        self::assertFalse($session['account']);       // required
 
         $account = $this->loadInterface('AdminSurfaceAccount');
-        self::assertFalse($account['id']);            // required
-        self::assertTrue($account['email']);          // optional
-        self::assertTrue($account['emailVerified']);  // optional
+        self::assertFalse($account['id']);             // required
+        self::assertFalse($account['email']);          // required, nullable
+        self::assertFalse($account['emailVerified']);  // required, nullable
 
         $entry = $this->loadInterface('AdminSurfaceCatalogEntry');
         self::assertTrue($entry['description']);  // optional

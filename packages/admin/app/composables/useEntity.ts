@@ -50,7 +50,11 @@ export function useEntity() {
     return transport.search(type, field, query, limit, operator, sort)
   }
 
-  async function runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown> {
+  async function runAction<Payload extends object = Record<string, unknown>>(
+    type: string,
+    action: string,
+    payload?: Payload,
+  ): Promise<unknown> {
     return transport.runAction(type, action, payload)
   }
 

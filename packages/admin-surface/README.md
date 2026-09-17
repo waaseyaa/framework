@@ -11,7 +11,8 @@ behavior, or application-specific preview signing.
 
 This charter is the package-level authority for ownership, composition seams,
 internal dependency direction, and split-package contents. The wire-shape
-authority is `contract/types.ts`; `contract/README.md` describes how that
+authority is the concern-separated module set under `contract/`, re-exported
+through `contract/index.ts`; `contract/README.md` describes how that
 authority is maintained.
 
 ## Responsibilities and non-responsibilities
@@ -84,26 +85,26 @@ page-builder views. It is a URL generator, not an access-decision API.
 
 ## Wire contract and consumers
 
-The convergence target is one package-owned TypeScript contract:
+The convergence target is one package-owned, concern-separated TypeScript contract:
 
 | Concern | Canonical owner | PHP producer | SPA consumer |
 | --- | --- | --- | --- |
-| Result and error envelope | `contract/types.ts` | `AdminSurfaceResultData` and all hosts | transport adapters, page-builder client, error normalization |
-| Session, account, tenant, policies, features, capabilities, UI | `contract/types.ts` | `AdminSurfaceSessionData`, `AdminSurfaceUiPayload`, generic/custom hosts | `plugins/admin.ts`, auth and UI normalization |
-| Catalog, fields, actions, capabilities | `contract/types.ts` | `CatalogBuilder` and catalog value objects | admin plugin, schema forms, capability-driven navigation |
-| Entity and mutation token | `contract/types.ts` | `GenericAdminSurfaceHost` | `AdminSurfaceTransportAdapter` and editor flows |
-| List query and result | `contract/types.ts` | query parser/policy and generic host | transport adapter and entity listings |
-| Page-builder definitions, draft, commands, preview, history, revision, restore | Must move under package contract authority | `GenericPageBuilderSurfaceHost` | `app/contracts/pageBuilder.ts`, client, composable, workspace |
+| Result/error, session, catalog, entity, mutation token, list, CRUD | `contract/types.ts` | core DTOs/builders and `GenericAdminSurfaceHost` | bootstrap and transport adapters |
+| JSON Schema request and response | `contract/schema.ts` | `SchemaController`/`SchemaPresenter` through the generic host | schema composables, forms, and listings |
+| Entity history, revision, preview, and restore | `contract/revisions.ts` | generic host and preview authority | revision recovery workspace |
+| Page-builder definitions, draft, commands, preview, history, revision, restore | `contract/pageBuilder.ts` | `GenericPageBuilderSurfaceHost` | mechanically checked `app/contracts/pageBuilder.ts`, client, composable, workspace |
 
-The current tree has known contract drift that the convergence change must
-correct rather than legitimize:
+The convergence slice resolves the known contract drift without changing the
+wire protocol:
 
-- PHP emits `AdminSurfaceEntity.mutation_token`, and the SPA depends on it for
-  optimistic concurrency, but the canonical `contract/types.ts` omits it.
-- SPA-local mirrors disagree with the canonical types on session UI,
-  `emailVerified`, and capability optionality.
-- page-builder crossing payloads exist only in the SPA-local
-  `app/contracts/pageBuilder.ts` rather than the package contract.
+- `AdminSurfaceEntity.mutation_token` is canonical, required, and nullable,
+  matching the PHP emitter's always-present key and the SPA's fenced writes.
+- session fields match the PHP emitter's actual required/nullability behavior,
+  and catalog capability optionality is exact.
+- core CRUD, schema, revision, and page-builder crossing payloads are owned by
+  the corresponding concern modules and re-exported through one entrypoint.
+- `npm run check:contract-compatibility` uses exact TypeScript equality to
+  prevent the SPA-local declaration-build mirrors from drifting silently.
 - `AdminSurfaceContract.ts` and `ADMIN_SURFACE_VERSION` have no observed runtime
   consumer and need an explicit keep, internalize, or remove disposition.
 

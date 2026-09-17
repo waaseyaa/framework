@@ -256,6 +256,25 @@ describe('AdminSurfaceTransportAdapter', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 
+  it('forgets a cached validator when a newer entity response carries a null mutation token', async () => {
+    const responses = [
+      { type: 'node', id: '7', attributes: {}, mutation_token: 'emt1.observed' },
+      { type: 'node', id: '7', attributes: {}, mutation_token: null },
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: responses.shift() }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '7')
+    await adapter.get('node', '7')
+
+    await expect(adapter.remove('node', '7')).rejects.toMatchObject({ status: 428 })
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+  })
+
   it('scopes a handed-over successor to its own entity', async () => {
     const fetchFn = vi.fn().mockImplementation(async () => ({
       ok: true,

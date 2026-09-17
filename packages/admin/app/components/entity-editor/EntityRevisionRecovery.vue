@@ -1,25 +1,25 @@
 <script setup lang="ts">
 import type { EntityResource } from '~/contracts/transport'
+import type {
+  AdminSurfaceHistoryData,
+  AdminSurfaceHistoryRequest,
+  AdminSurfaceRestoreRevisionRequest,
+  AdminSurfaceRevisionData,
+  AdminSurfaceRevisionEntry,
+  AdminSurfaceRevisionPreviewData,
+  AdminSurfaceRevisionRequest,
+} from '~/contracts/revisions'
 import { useAdmin } from '~/composables/useAdmin'
 import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
-
-interface RevisionEntry {
-  revisionId: number | string | null
-  createdAt: string | null
-  author: number | null
-  log: string | null
-  isCurrent: boolean
-  isLatest: boolean
-}
 
 const props = defineProps<{ entityType: string; entityId: string; compact?: boolean }>()
 const { t } = useLanguage()
 const { hasCapability } = useAdmin()
 const { get, runAction } = useEntity()
-const revisions = ref<RevisionEntry[]>([])
+const revisions = ref<AdminSurfaceRevisionEntry[]>([])
 const current = ref<EntityResource | null>(null)
-const selected = ref<{ revisionId: number; entity: EntityResource } | null>(null)
+const selected = ref<AdminSurfaceRevisionData | null>(null)
 const loading = ref(true)
 const available = ref(false)
 const busy = ref(false)
@@ -57,7 +57,7 @@ function display(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
-function isRevisionEntry(value: unknown): value is RevisionEntry {
+function isRevisionEntry(value: unknown): value is AdminSurfaceRevisionEntry {
   return typeof value === 'object' && value !== null && 'revisionId' in value
 }
 
@@ -66,9 +66,10 @@ async function load() {
   error.value = ''
   selected.value = null
   try {
+    const historyRequest: AdminSurfaceHistoryRequest = { id: props.entityId }
     const [entity, history] = await Promise.all([
       get(props.entityType, props.entityId),
-      runAction(props.entityType, 'history', { id: props.entityId }) as Promise<{ revisions?: unknown }>,
+      runAction(props.entityType, 'history', historyRequest) as Promise<AdminSurfaceHistoryData>,
     ])
     current.value = entity
     revisions.value = Array.isArray(history?.revisions) ? history.revisions.filter(isRevisionEntry) : []
@@ -81,15 +82,16 @@ async function load() {
   }
 }
 
-async function compare(entry: RevisionEntry) {
+async function compare(entry: AdminSurfaceRevisionEntry) {
   if (typeof entry.revisionId !== 'number' || busy.value) return
   busy.value = true
   error.value = ''
   try {
-    selected.value = await runAction(props.entityType, 'revision', {
+    const request: AdminSurfaceRevisionRequest = {
       id: props.entityId,
       revision_id: entry.revisionId,
-    }) as { revisionId: number; entity: EntityResource }
+    }
+    selected.value = await runAction(props.entityType, 'revision', request) as AdminSurfaceRevisionData
   } catch (cause) {
     error.value = detail(cause)
   } finally {
@@ -103,11 +105,12 @@ async function restore() {
   confirmRestore.value = false
   error.value = ''
   try {
-    await runAction(props.entityType, 'restore-revision', {
+    const request: Omit<AdminSurfaceRestoreRevisionRequest, 'mutation_token'> = {
       id: props.entityId,
       revision_id: selected.value.revisionId,
       expected_latest_revision_id: latestRevisionId.value,
-    })
+    }
+    await runAction(props.entityType, 'restore-revision', request)
     restored.value = t('history_restored', { revision: String(selected.value.revisionId) })
     await load()
   } catch (cause) {
@@ -122,10 +125,11 @@ async function preview() {
   busy.value = true
   error.value = ''
   try {
-    const grant = await runAction(props.entityType, 'revision-preview', {
+    const request: AdminSurfaceRevisionRequest = {
       id: props.entityId,
       revision_id: selected.value.revisionId,
-    }) as { revisionId?: unknown; previewUrl?: unknown }
+    }
+    const grant = await runAction(props.entityType, 'revision-preview', request) as AdminSurfaceRevisionPreviewData
     if (grant.revisionId !== selected.value.revisionId || typeof grant.previewUrl !== 'string'
       || grant.previewUrl.startsWith('//')
       || (!grant.previewUrl.startsWith('/') && !grant.previewUrl.startsWith('https://'))) {
