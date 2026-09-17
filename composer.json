@@ -382,6 +382,7 @@
         "waaseyaa/workflows": "self.version"
     },
     "require-dev": {
+        "deptrac/deptrac": "4.7.2",
         "friendsofphp/php-cs-fixer": "^3.50",
         "infection/infection": "^0.34",
         "nesbot/carbon": "^3.0",
@@ -496,6 +497,9 @@
         "check-no-secrets": "bash bin/check-no-secrets",
         "check-governed-secret-access": "php bin/check-governed-secret-access",
         "check-runtime-policy-custody": "php bin/check-runtime-policy-custody",
+        "check-admin-surface-deptrac": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered",
+        "report-admin-surface-deptrac": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered --formatter=json",
+        "admin-surface-dependency-view": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered --formatter=mermaidjs --output=packages/admin-surface/dependency-graph.mmd",
         "check-package-layers": "php bin/check-package-layers",
         "check-symfony-imports": "php bin/check-symfony-imports",
         "test:inventory": "php bin/test-quality-inventory --format=json",
@@ -566,6 +570,7 @@
             "@check-delivery-agent-projection",
             "@check-composer-policy",
             "@check-package-layers",
+            "@check-admin-surface-deptrac",
             "@check-package-layers-pl008-self-test",
             "@check-distribution-extensions",
             "@check-local-operator-tool-profile",
@@ -589,6 +594,9 @@
         "check-package-layers-pl008-self-test": "php bin/check-package-layers-pl008-self-test"
     },
     "scripts-descriptions": {
+        "check-admin-surface-deptrac": "Deptrac 4 authority for the internal waaseyaa/admin-surface architecture. Fails on forbidden and uncovered dependencies; the repository-wide check-package-layers gate remains active during #3075 migration.",
+        "report-admin-surface-deptrac": "Emit deterministic JSON results for the scoped admin-surface Deptrac analysis.",
+        "admin-surface-dependency-view": "Regenerate packages/admin-surface/dependency-graph.mmd with Deptrac's Mermaid formatter.",
         "check-admin-coercion-patterns": "Prevent regression of the useAdminConfig() migration (mission M-F). Fails when raw string-compare coercion patterns (=== '1', === '0') appear in packages/admin/app/**/*.{ts,vue} outside of configCoercion.ts, test files, or lines marked with // allow-coercion: <reason>.",
         "check-admin-coercion-self-test": "Meta-test for the admin coercion gate (audit D-5). Runs bin/check-admin-coercion-patterns --self-test: plants a synthetic violator and asserts the scanner exits non-zero, proving the gate is not a silent no-op. Wired into verify and the ci/verify-gates job so the self-test actually runs in CI.",
         "check-dead-code": "Fail-on-new dead-code gate (Phase 4 of the dead-code cleanup audit). Runs phpstan-dead-code.neon with shipmonk's detector; pre-existing baseline entries are suppressed, only NEW findings fail. See docs/audits/2026-05-17-dead-code-baseline-audit.md and bin/check-dead-code header for how to handle a new finding.",

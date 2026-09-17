@@ -89,6 +89,9 @@ admin-login-smoke-*.png
 node-compile-cache/
 .superpowers/
 
+# Deptrac runtime cache (the maintained architecture output is committed separately).
+/.deptrac.cache
+
 # Agent command directories (machine-specific, auto-managed by agent CLIs)
 # Note: do not ignore .claude/ root — this repo tracks .claude/settings.json and rules.
 .claude/skills/

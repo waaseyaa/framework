@@ -161,6 +161,10 @@ classify every production PHP token, report uncovered dependencies as failures,
 and generate the maintained dependency view. This charter describes the
 intended model; the scoped Deptrac work makes it executable.
 
+The executable authority is `deptrac.yaml`; `dependency-graph.mmd` is its
+generated evidence view. Run `composer check-admin-surface-deptrac` to enforce
+the model and `composer admin-surface-dependency-view` to refresh the view.
+
 ### Complete production-token classification
 
 | Layer | Production PHP token | Role |
@@ -188,7 +192,7 @@ intended model; the scoped Deptrac work makes it executable.
 | Boundary contract | `Query/SurfaceFilterOperator.php` | Closed filter-operator vocabulary |
 | Boundary contract | `Query/SurfaceQuery.php` | Parsed list query value |
 | Boundary contract | `Query/SurfaceQueryParser.php` | HTTP query boundary parser |
-| Application adapters | `Host/AbstractAdminSurfaceHost.php` | Host operation and request orchestration base |
+| Boundary contract | `Host/AbstractAdminSurfaceHost.php` | Public host operation and request orchestration base |
 | Application adapters | `Host/AuditedAdminPublicationFieldReader.php` | Audited publication projection adapter |
 | Application adapters | `Host/GenericAdminSurfaceHost.php` | Generic entity CRUD, list, action, and revision adapter |
 | Application adapters | `List/SurfaceQueryPolicy.php` | Server-side enforcement of list declarations |
@@ -228,7 +232,8 @@ implementation details.
 The repository split workflow publishes `packages/admin-surface` to the
 `waaseyaa/admin-surface` repository. The split must contain, at minimum:
 
-- `composer.json`, `src/`, `public-surface.php`, and package tests;
+- `composer.json`, `src/`, `public-surface.php`, package tests,
+  `deptrac.yaml`, and the generated `dependency-graph.mmd` view;
 - the authoritative `contract/` TypeScript sources and documentation;
 - the built `dist/` tree plus `dist.manifest.json`, `dist.markers.json`, and
   `dist.signature`;

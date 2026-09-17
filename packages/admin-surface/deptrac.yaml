@@ -1,0 +1,121 @@
+deptrac:
+  paths:
+    - src
+  exclude_files: ~
+  layers:
+    - name: Boundary contract
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\AdminSurface\\(?:Action\\SurfaceActionHandlerInterface|AdminDestinationPaths|AdminSurfaceRoutePaths|Catalog\\(?:ActionDefinition|CatalogBuilder|EntityDefinition|FieldDefinition)|Host\\(?:AbstractAdminSurfaceHost|AdminPublicationFieldReaderInterface|AdminRevisionPreviewAuthorityInterface|AdminRevisionPreviewGrantData|AdminSurfaceHostFactoryInterface|AdminSurfaceResultData|AdminSurfaceSessionData|AdminSurfaceUiPayload|BatchAdminPublicationFieldReaderInterface)|List\\(?:ListFormatter|ListMetadata)|PageBuilder\\(?:PageBuilderSurfaceHostInterface|PageBuilderSurfaceRequest)|Query\\(?:SurfaceFieldName|SurfaceFilterOperator|SurfaceQuery|SurfaceQueryParser))$'
+    - name: Application adapters
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\AdminSurface\\(?:Host\\(?:AuditedAdminPublicationFieldReader|GenericAdminSurfaceHost)|List\\SurfaceQueryPolicy|PageBuilder\\GenericPageBuilderSurfaceHost)$'
+    - name: Delivery and composition
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\AdminSurface\\(?:AdminSpaFallback|AdminSurfaceServiceProvider)$'
+    - name: External Access
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Access\\'
+    - name: External API
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Api\\'
+    - name: External Audit
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Audit\\'
+    - name: External Entity
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Entity\\'
+    - name: External Field
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Field\\'
+    - name: External Foundation
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Foundation\\'
+    - name: External Page Builder
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\PageBuilder\\'
+    - name: External Routing
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Routing\\'
+    - name: External User
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\User\\'
+    - name: External Workflows
+      collectors:
+        - type: classLike
+          value: '^Waaseyaa\\Workflows\\'
+    - name: External Symfony HTTP
+      collectors:
+        - type: classLike
+          value: '^Symfony\\Component\\HttpFoundation\\'
+  ruleset:
+    Boundary contract:
+      - External Access
+      - External API
+      - External Entity
+      - External Symfony HTTP
+    Application adapters:
+      - Boundary contract
+      - External Access
+      - External API
+      - External Audit
+      - External Entity
+      - External Foundation
+      - External Page Builder
+      - External Symfony HTTP
+      - External Workflows
+    Delivery and composition:
+      - Boundary contract
+      - Application adapters
+      - External Access
+      - External API
+      - External Audit
+      - External Entity
+      - External Field
+      - External Foundation
+      - External Routing
+      - External Symfony HTTP
+      - External User
+      - External Workflows
+    External Access: ~
+    External API: ~
+    External Audit: ~
+    External Entity: ~
+    External Field: ~
+    External Foundation: ~
+    External Page Builder: ~
+    External Routing: ~
+    External User: ~
+    External Workflows: ~
+    External Symfony HTTP: ~
+  formatters:
+    mermaidjs:
+      direction: TD
+      groups:
+        Admin Surface:
+          - Boundary contract
+          - Application adapters
+          - Delivery and composition
+        External authorities:
+          - External Access
+          - External API
+          - External Audit
+          - External Entity
+          - External Field
+          - External Foundation
+          - External Page Builder
+          - External Routing
+          - External User
+          - External Workflows
+          - External Symfony HTTP

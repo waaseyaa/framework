@@ -1,6 +1,7 @@
 # FW-ADMIN-SURFACE-CONVERGENCE-01 — admin-surface package convergence
 
-- Parent: `d1e63f9de2d1300c366cf18b0f1eecd369379c1e`
+- Initial parent: `d1e63f9de2d1300c366cf18b0f1eecd369379c1e`
+- Current base: `a682a17e03d3ecee565798a87551210a9be90174`
 - Forge mirror: `waaseyaa/framework#3074`
 - Related: `waaseyaa/framework#3075` (Deptrac adoption),
   `waaseyaa/framework#3073` (generated-owner admission), and
@@ -74,7 +75,7 @@ not treated as cleanup authority over any worktree.
 | --- | --- | --- |
 | WP0 | Isolated worktree, local dependencies, and durable records | Complete |
 | WP1 | Package charter, inventory, public dispositions, and dependency design | Complete |
-| WP2 | Scoped Deptrac authority and Mermaid dependency view | Paused before start |
+| WP2 | Scoped Deptrac authority and Mermaid dependency view | Complete locally; hosted evidence pending |
 | WP3 | Canonical contract and mechanical SPA compatibility | Paused before start |
 | WP4 | Conformance, refusal, route, distribution, and browser evidence | Paused before start |
 | WP5 | Independent review, governed PR, exact-head checks, merge, and issue reconciliation | Paused before start |
@@ -111,6 +112,32 @@ not treated as cleanup authority over any worktree.
   mutation routes, does not call the router's CSRF gate. This is recorded for
   authorization/refusal review and is not changed without discriminating
   evidence in the bounded candidate.
+
+## Finding ledger
+
+| ID | Area and observed evidence | Consequence | Disposition and owner | Acceptance evidence | Issue |
+| --- | --- | --- | --- | --- | --- |
+| AS-ARCH-001 | `AdminSurfaceHostFactoryInterface` returns `AbstractAdminSurfaceHost`; the initial charter placed the two in Boundary and Application respectively | The public factory contract depended outward and the first Deptrac run failed | Repaired in Framework by classifying the public extension base as Boundary contract; no exception | Clean Deptrac run plus forbidden-edge fixture | #3074 / #3075 |
+| AS-CONTRACT-001 | PHP emits and the SPA consumes `AdminSurfaceEntity.mutation_token`, absent from canonical `contract/types.ts` | Canonical contract does not describe required optimistic-concurrency behavior | Repair in canonical contract convergence | PHP emitter, TypeScript assignability, and adapter regression coverage | #3074 |
+| AS-CONTRACT-002 | Page-builder wire shapes are owned only by SPA-local `app/contracts/pageBuilder.ts` | Split package does not own every crossing payload | Move authority into package contract and mechanically derive or check the mirror | TypeScript compatibility and PHP conformance | #3074 |
+| AS-PUBLIC-001 | Nine declaration-map entries versus 19 source files carrying `@api` | Compatibility promises are incomplete or ambiguous | Reconcile public declarations and annotations, with lifecycle rationale | Public-surface validators and consumer evidence | #3074 |
+| AS-SEC-001 | `admin_surface.action` is authentication-gated but lacks the page-builder mutation routes' CSRF gate | Mutation refusal behavior needs independent review before any change | Review and repair only with a discriminating route-level test; otherwise file a bounded residual | Authorization, CSRF, malformed-body, and refusal tests | #3074 |
+| AS-COHESION-001 | `GenericAdminSurfaceHost` and `AdminSurfaceServiceProvider` concentrate multiple coordination roles | Large extraction would exceed the first review candidate | Retain for this slice and create bounded residual cleanup issues with concrete seams | Issue links and no unreviewed extraction in candidate | #3074 |
+
+## WP2 evidence
+
+- Exact Deptrac 4.7.2 is locked as a root development dependency, installed
+  only inside the owned worktree.
+- `packages/admin-surface/deptrac.yaml` is shipped with the split subtree and
+  classifies all 30 production tokens plus referenced external authorities.
+- Deptrac reports 0 violations, 0 skipped, 0 uncovered, 427 allowed, and no
+  unassigned tokens. Layer membership is 24 Boundary contract, 4 Application
+  adapters, and 2 Delivery and composition.
+- Five Architecture controls prove the production graph and Mermaid view are
+  current, an allowed inward edge passes, a forbidden outward edge fails, and
+  an unclassified dependency fails.
+- Composer, preflight, and hosted CI wiring retain `check-package-layers` and
+  add the scoped Deptrac gate. CI also emits an exact-head JSON report artifact.
 
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will

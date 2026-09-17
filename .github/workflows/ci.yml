@@ -2201,6 +2201,7 @@ jobs:
           run_gate check-phpunit-paths
           run_gate check-phpunit-skip-policy
           run_gate check-s1-configuration-authority
+          run_gate check-admin-surface-deptrac
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
           run_gate check-distribution-exclusion
@@ -2217,6 +2218,21 @@ jobs:
           run_gate check-openapi
           run_gate check-delivery-agent-projection
           exit "$fail"
+
+      - name: Emit machine-readable Admin Surface dependency report
+        if: always()
+        run: |
+          mkdir -p build/architecture
+          composer report-admin-surface-deptrac > build/architecture/admin-surface-deptrac.json
+
+      - name: Upload Admin Surface dependency report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: admin-surface-deptrac
+          path: build/architecture/admin-surface-deptrac.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Verify append-only delivery agent events
         env:
