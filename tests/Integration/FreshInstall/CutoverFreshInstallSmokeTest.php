@@ -332,12 +332,12 @@ final class CutoverFreshInstallSmokeTest extends TestCase
     {
         $context = stream_context_create(['http' => [
             'method' => 'GET',
-            'header' => 'Accept: application/json',
+            'header' => 'Accept: text/html',
             'ignore_errors' => true,
             'timeout' => 20,
         ]]);
         $body = file_get_contents(
-            "http://127.0.0.1:{$this->serverPort}/admin/_surface/session",
+            "http://127.0.0.1:{$this->serverPort}/admin/",
             false,
             $context,
         );
@@ -355,9 +355,15 @@ final class CutoverFreshInstallSmokeTest extends TestCase
             }
         }
 
-        self::assertArrayHasKey('XSRF-TOKEN', $cookies, 'The authenticated Admin session must mint a CSRF cookie.');
+        self::assertSame(
+            1,
+            preg_match('/csrfCookieName\s*:\s*"([^"]+)"/', $body, $csrfConfig),
+            'The Admin bootstrap must publish the runtime CSRF cookie name.',
+        );
+        $csrfCookieName = $csrfConfig[1];
+        self::assertArrayHasKey($csrfCookieName, $cookies, 'The Admin bootstrap must mint its configured CSRF cookie.');
         self::assertGreaterThan(1, count($cookies), 'The authoring journey must retain both session and CSRF cookies.');
-        $this->adminCsrfToken = rawurldecode($cookies['XSRF-TOKEN']);
+        $this->adminCsrfToken = rawurldecode($cookies[$csrfCookieName]);
         $this->adminCookieHeader = implode('; ', array_map(
             static fn(string $name, string $value): string => $name . '=' . $value,
             array_keys($cookies),
