@@ -41,8 +41,12 @@ maintainer.
 - Inspect the working tree before editing. Preserve user and concurrent-agent
   changes. Use a separate worktree when the active checkout is dirty or serves
   another work unit.
-- Run repository Git commands through `bin/git`. Never use `git stash`; commit
-  recoverable work to a temporary branch instead.
+- Select the repository Git entrypoint for the host. On supported POSIX hosts,
+  use the repository `bin/git` adapter. On native Windows, where `bin/git` is a
+  POSIX-only Bash entrypoint, use the Windows Git executable required by a
+  higher-authority user or harness instruction. Record the exact executable
+  when host selection matters. Never use `git stash`; commit recoverable work
+  to a temporary branch instead.
 - Use temporary directories for experiments, generated scratch projects,
   archive extraction, and commands with incidental writes.
 - When a harness relocates the agent workspace root (Cursor
@@ -51,9 +55,11 @@ maintainer.
   name fails that fetch. Preferred sequence: create the worktree on an
   already-remote tip (`origin/main` or another published branch), relocate the
   agent root if needed, then create the feature branch inside the worktree.
-  Alternative: create the feature branch first, `bin/git push -u origin HEAD` so
-  the remote branch exists, then relocate. Until the branch is on `origin`,
-  keep editing via absolute paths in the worktree rather than relocating.
+  Alternative: create the feature branch first, then push it with the selected
+  Git entrypoint (`bin/git push -u origin HEAD` on a supported POSIX host, or
+  the authorized Windows Git executable on native Windows) so the remote branch
+  exists. Until the branch is on `origin`, keep editing via absolute paths in
+  the worktree rather than relocating.
   Install worktree `vendor/` (or otherwise satisfy local gates) before the
   first push if pre-push preflight requires it.
 
@@ -61,6 +67,11 @@ maintainer.
 
 - Anchor substantive work to a stable, repository-portable change record.
   Forge issue and PR numbers may mirror that identity but are not the authority.
+- When the user has authorized an end-to-end delivery boundary, design and
+  planning are checkpoints inside that scope. Continue through each already-
+  authorized stage, including implementation, review, pull request,
+  qualification, and landing, unless a material unresolved decision, blocker,
+  or authority boundary requires user input.
 - Work design-first and test-first: record the expected contract, capture a
   failing regression test, implement the smallest coherent change, then prove
   it green.
@@ -82,6 +93,10 @@ maintainer.
   `spec-reviewed: docs/specs/<name>.md - <reason>`.
 - Respect package layers and existing boundary checkers. Any exemption belongs
   in the explicit allowlist with a concise rationale and a boundary test.
+- An independent review requirement does not authorize parallel implementation
+  or multi-agent delivery. Select a review method that remains within the
+  user's authorized scope and preserves an independent perspective on the
+  immutable candidate.
 
 ## Evidence and canonical state
 
