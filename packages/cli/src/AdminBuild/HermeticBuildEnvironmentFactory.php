@@ -29,7 +29,7 @@ final class HermeticBuildEnvironmentFactory
     ): AdminBuildEnvironment {
         $workspace = $this->validatedDirectory($workspace, 'workspace-invalid');
         $dependencyCache = $this->validatedDirectory($dependencyCache, 'dependency-cache-invalid');
-        $path = $this->validatedPath($parent['PATH'] ?? '', $platform);
+        $path = $this->validatedPath($this->parentPath($parent, $platform), $platform);
         ['node' => $node, 'npm' => $npm] = $this->resolveToolchainOn($parent, $path, $platform);
 
         $variables = [
@@ -71,7 +71,13 @@ final class HermeticBuildEnvironmentFactory
             if (!preg_match('/^\.[A-Z0-9]+(?:;\.[A-Z0-9]+)*$/D', $pathext)) {
                 throw new AdminBuildPolicyException('windows-pathext-invalid');
             }
-            $systemRoot = $this->validatedDirectory($parent['SystemRoot'] ?? '', 'windows-system-root-invalid');
+            // PHP's getenv() preserves the host's key casing. Native Windows
+            // commonly exposes SYSTEMROOT even though tests and some shells
+            // provide SystemRoot.
+            $systemRoot = $this->validatedDirectory(
+                $parent['SystemRoot'] ?? $parent['SYSTEMROOT'] ?? '',
+                'windows-system-root-invalid',
+            );
             $comspec = $this->validatedExecutable($parent['COMSPEC'] ?? '', 'windows-comspec-invalid');
             $profile = $this->createDirectory($workspace . '/profile');
             $appData = $this->createDirectory($profile . '/AppData/Roaming');
@@ -115,9 +121,19 @@ final class HermeticBuildEnvironmentFactory
     {
         return $this->resolveToolchainOn(
             $parent,
-            $this->validatedPath($parent['PATH'] ?? '', $platform),
+            $this->validatedPath($this->parentPath($parent, $platform), $platform),
             $platform,
         );
+    }
+
+    /** @param array<string, string> $parent */
+    private function parentPath(array $parent, AdminBuildPlatform $platform): string
+    {
+        if ($platform === AdminBuildPlatform::Windows && ($parent['WAASEYAA_ADMIN_BUILD_PATH'] ?? '') !== '') {
+            return $parent['WAASEYAA_ADMIN_BUILD_PATH'];
+        }
+
+        return $parent['PATH'] ?? '';
     }
 
     /**

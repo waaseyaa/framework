@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "identityDigest": "43756d467159e865f2a0ef8090226d0e62c2b03ba64cc39a463235022861ddcf",
+    "identityDigest": "9d4318b98e6b9a1f1b8a69906d40089ef45e8f23de15e5c6f0d18a44ec75108e",
     "identityExcludes": [
         "acceptance"
     ],
@@ -11,14 +11,14 @@
         "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
     },
     "source": {
-        "signature": "5aa2dea922aff8600b08dcb5e62e8b4f2677a2e86bdfb020a41039598c0e47e9",
-        "buildIdSignature": "e5ff5a0d74d81f64a3b42b36c7e133df851c108ad036e15509fe1a9876bd5e5f",
-        "buildId": "waaseyaa-e5ff5a0d74d81f64a3b42b36c7e133df"
+        "signature": "840a7bf1cabebd831d0c8b5e290bdb13fd17a8c43df22c32d1d90fd978c06ca5",
+        "buildIdSignature": "eb333700133d9cec4a0d6b8cf3e746748a52c49919aa5d70facc9eb1216b9ec5",
+        "buildId": "waaseyaa-eb333700133d9cec4a0d6b8cf3e74674"
     },
     "published": {
-        "treeDigest": "b21eea19eabe1ddd6dee88292834a254501b9bf037eca1e21cd6b597ec81dfc1",
+        "treeDigest": "5c4d2cfc3616df8a78688fcb9ab90f5e52543d4681e0ce8c0c92361264d7fae4",
         "fileCount": 99,
-        "byteCount": 597607
+        "byteCount": 597710
     },
     "markers": {
         "version": 1,
@@ -52,42 +52,18 @@
         "intermediate": {
             "root": "packages/admin/.output",
             "artifactCount": 100,
-            "inventoryDigest": "1aae2a86244a1ffa59050ab1ab6616009079bfa54c3feb4f39257990d1bc1edf"
+            "inventoryDigest": "b809e2eedca329020c688c04c278ae366eae6f1402a7e83fa65db1c16c51ed7b"
         },
-        "previousPublishedTreeDigest": "101b2664732007bc0a7684dc526f10288a88528d6fc4284ed812aff7891e5cbb",
+        "previousPublishedTreeDigest": "5c4d2cfc3616df8a78688fcb9ab90f5e52543d4681e0ce8c0c92361264d7fae4",
         "changed": {
-            "added": [
-                "_nuxt/builds/meta/waaseyaa-e5ff5a0d74d81f64a3b42b36c7e133df.json"
-            ],
-            "modified": [
-                "200.html",
-                "404.html",
-                "_nuxt/builds/latest.json",
-                "classification/policies/index.html",
-                "forgot-password/index.html",
-                "index.html",
-                "login/index.html",
-                "mcp/approvals/index.html",
-                "mcp/server-config/index.html",
-                "mcp/tools/index.html",
-                "mercure/monitor/index.html",
-                "notifications/index.html",
-                "oidc/clients/index.html",
-                "queue/index.html",
-                "register/index.html",
-                "reset-password/index.html",
-                "scheduler/index.html",
-                "verify-email/index.html",
-                "workflows/index.html"
-            ],
-            "removed": [
-                "_nuxt/builds/meta/waaseyaa-871ae4d11ba09f43c13d915ca7bf338e.json"
-            ]
+            "added": [],
+            "modified": [],
+            "removed": []
         },
         "toolchain": {
             "nodePin": "24",
-            "nodeRuntime": "v24.20.0",
-            "npmRuntime": "11.19.0"
+            "nodeRuntime": "v24.13.1",
+            "npmRuntime": "11.8.0"
         }
     }
 }

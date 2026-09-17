@@ -86,7 +86,7 @@ not treated as cleanup authority over any worktree.
 | WP1 | Package charter, inventory, public dispositions, and dependency design | Complete |
 | WP2 | Scoped Deptrac authority and Mermaid dependency view | Complete locally; hosted evidence pending |
 | WP3 | Canonical contract and mechanical SPA compatibility | Complete locally; hosted evidence pending |
-| WP4 | Conformance, refusal, route, distribution, and browser evidence | Behavioral conformance complete locally; distribution evidence pending |
+| WP4 | Conformance, refusal, route, distribution, and browser evidence | Distribution rebuilt and verified; clean exact-head split acceptance pending |
 | WP5 | Independent review, governed PR, exact-head checks, merge, and issue reconciliation | Paused before start |
 
 ## Evidence ledger
@@ -135,6 +135,7 @@ not treated as cleanup authority over any worktree.
 | AS-COHESION-001 | `GenericAdminSurfaceHost` and `AdminSurfaceServiceProvider` concentrate multiple coordination roles | Large extraction would exceed the first review candidate | Retain for this slice and create bounded residual cleanup issues with concrete seams | Issue links and no unreviewed extraction in candidate | #3074 |
 | AS-LIFECYCLE-001 | `GenericAdminSurfaceHost::handleCreate()` names `node` and initializes `created`/`changed`; the documented `TimestampFieldConvention` has no observed production storage caller | An interface adapter currently carries entity lifecycle compatibility behavior because no proven canonical creation-time authority is wired | Framework entity lifecycle/storage and `waaseyaa/node` own the replacement contract; preserve current behavior here and resolve only in the bounded residual | Cross-path Node creation tests, server-owned `changed`, removal of the exact-type host branch, and package-layer/public-surface checks | #3078 |
 | AS-AFFORDANCE-001 | `GenericAdminSurfaceHost::MUTABLE_CONFIG_ROW_TYPES` names only `taxonomy_vocabulary` and controls catalog mutability, mutation-token projection, and action refusal | A generic adapter contains a type-specific lifecycle affordance that could become an implicit policy registry | `waaseyaa/taxonomy` owns vocabulary lifecycle, a lower-layer declaration owns generic CRUD support, and Admin Surface only projects/refuses; preserve the exception in this candidate | Unchanged authorized/refused vocabulary behavior, undeclared config types remain read-only, removal of the hard-coded type, and focused layer/public checks | #3079 |
+| AS-DIST-001 | The canonical Admin rebuild could not pass its own guard under native Windows PHP: the guard redirected to `/dev/null`, Git Bash exposed a POSIX PATH to a Windows policy, and `getenv()` returned uppercase `SYSTEMROOT` | The task-mandated Git-for-Windows rebuild path stopped before the hermetic build, leaving the committed distribution stale | Repaired in the canonical build tooling without weakening its guard: Git diagnostics remain visible, an existing-directory native PATH projection is supplied to Windows PHP, both `SystemRoot` casings are accepted, and the sanitized child still receives only validated values | Red-first guard/build refusals; 8 workspace-guard tests, 2 Windows environment tests / 14 assertions, two byte-identical builds, freshness and manifest verification | #3074 |
 
 ## WP2 evidence
 
@@ -214,9 +215,18 @@ not treated as cleanup authority over any worktree.
 - Deptrac remains authoritative after the refusal repair: 0 violations,
   0 skipped, 0 uncovered, 429 allowed. The generated Mermaid view was refreshed
   and its five architecture controls pass with 27 assertions.
-- The committed Admin distribution is intentionally not rebuilt in this
-  behavioral checkpoint. Distribution freshness, manifest verification, and
-  clean exact-HEAD split acceptance remain the next WP4 evidence slice.
+- The canonical two-pass hermetic operation rebuilt and accepted the Admin
+  distribution with Node 24.13.1 and npm 11.8.0. Both independently generated
+  snapshots normalized to the same 99-file, 597,710-byte tree digest
+  `5c4d2cfc3616df8a78688fcb9ab90f5e52543d4681e0ce8c0c92361264d7fae4`.
+  Source signature `840a7bf1cabebd831d0c8b5e290bdb13fd17a8c43df22c32d1d90fd978c06ca5`
+  and the acceptance manifest verify locally.
+- Distribution, guard, acceptance, and toolchain coverage passes 87 tests /
+  613 assertions. The two Windows environment discriminators pass with 14
+  assertions. Linux-oriented synthetic pipeline tests that require creating
+  symlinks cannot execute on this Windows host and remain owned by hosted CI.
+- Clean exact-HEAD split-artifact acceptance remains pending until the rebuilt
+  distribution and its build-tool portability repair are committed together.
 
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will

@@ -64,7 +64,10 @@ function guardWorkspace(string $root): int
 {
     $porcelain = [];
     $exitCode = 0;
-    exec(sprintf('git -C %s status --porcelain 2>/dev/null', escapeshellarg($root)), $porcelain, $exitCode);
+    // Let Git write a diagnostic on failure instead of redirecting to
+    // `/dev/null`: native Windows PHP runs exec() through cmd.exe, where that
+    // POSIX device path fails with "Access is denied" before Git can run.
+    exec(sprintf('git -C %s status --porcelain', escapeshellarg($root)), $porcelain, $exitCode);
     if ($exitCode !== 0) {
         fwrite(STDERR, "ERROR: could not read the Git worktree state for the Admin boundary guard.\n");
 

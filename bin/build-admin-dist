@@ -31,6 +31,19 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Native Windows PHP expects a semicolon-delimited Windows PATH, while Git
+# Bash exposes a colon-delimited POSIX projection. Preserve the shell PATH for
+# bash utilities and provide the hermetic PHP policy an explicit native view.
+if [[ -z "${WAASEYAA_ADMIN_BUILD_PATH:-}" ]] && command -v cygpath >/dev/null 2>&1; then
+  native_path_source=""
+  IFS=':' read -r -a path_entries <<< "$PATH"
+  for path_entry in "${path_entries[@]}"; do
+    [[ -d "$path_entry" ]] || continue
+    native_path_source="${native_path_source:+${native_path_source}:}${path_entry}"
+  done
+  export WAASEYAA_ADMIN_BUILD_PATH="$(cygpath -wp "$native_path_source")"
+fi
+
 echo "==> Guarding the Admin source and generated-output boundary"
 php "$ROOT/bin/admin-dist-acceptance" guard
 
