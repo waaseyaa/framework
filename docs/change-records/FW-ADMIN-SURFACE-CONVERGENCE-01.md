@@ -73,7 +73,7 @@ not treated as cleanup authority over any worktree.
 | Work package | Scope | Status |
 | --- | --- | --- |
 | WP0 | Isolated worktree, local dependencies, and durable records | Complete |
-| WP1 | Package charter, inventory, public dispositions, and dependency design | Paused before start |
+| WP1 | Package charter, inventory, public dispositions, and dependency design | Complete |
 | WP2 | Scoped Deptrac authority and Mermaid dependency view | Paused before start |
 | WP3 | Canonical contract and mechanical SPA compatibility | Paused before start |
 | WP4 | Conformance, refusal, route, distribution, and browser evidence | Paused before start |
@@ -84,10 +84,34 @@ not treated as cleanup authority over any worktree.
 | Candidate | Evidence | Result |
 | --- | --- | --- |
 | Parent `d1e63f9de2d1300c366cf18b0f1eecd369379c1e` | Refreshed `origin/main`; local `main` matched; worktree created from that exact object | Pass |
-| Uncommitted WP0 | `composer install --no-interaction --prefer-dist` using the locked dependencies with the installed `fileinfo` and `zip` extensions enabled for the process | Pass, 200 installs |
-| Uncommitted WP0 | `npm ci` in `packages/admin` | Pass, 827 packages, 0 reported vulnerabilities; one transitive engine warning under Node 24.13.1 |
+| WP0 checkpoint | `composer install --no-interaction --prefer-dist` using the locked dependencies with the installed `fileinfo` and `zip` extensions enabled for the process | Pass, 200 installs |
+| WP0 checkpoint | `npm ci` in `packages/admin` | Pass, 827 packages, 0 reported vulnerabilities; one transitive engine warning under Node 24.13.1 |
+| WP1 charter checkpoint | `packages/admin-surface/README.md` charter inventory | 30 of 30 production PHP files classified; 13 HTTP routes, composition and optional seams, canonical and drifted wire consumers, public dispositions, and split contents recorded |
+| WP1 charter checkpoint | Inventory cross-check against `src/**/*.php`, provider `addRoute()` calls, `public-surface.php`, source `@api` annotations, split workflow, and packaged-form acceptance | Pass: 30 files, 0 missing classifications, 13 routes, 9 declared public entries, 19 files carrying `@api`; split target and artifact acceptance located |
+
+## WP1 findings carried into later work
+
+- The intended internal model is Boundary contract, Application adapters, and
+  Delivery and composition, with dependencies directed toward Boundary
+  contract. Deptrac must make this classification exhaustive in WP2.
+- PHP emits and the SPA consumes `AdminSurfaceEntity.mutation_token`, but the
+  canonical `contract/types.ts` does not declare it.
+- Page-builder crossing types are currently authoritative only in the SPA-local
+  `packages/admin/app/contracts/pageBuilder.ts`; they must move under the
+  package contract authority without changing the route behavior.
+- SPA-local types also drift on session UI, `emailVerified`, and capability
+  optionality. `AdminSurfaceContract.ts` and `ADMIN_SURFACE_VERSION` have no
+  observed runtime consumer.
+- The declaration map contains nine public entries, while source `@api`
+  annotations expose additional path authorities, catalog/list APIs, crossing
+  values, and the generic page-builder implementation. The charter assigns a
+  disposition to each family; the governed declaration file remains to be
+  reconciled in its implementation work package.
+- `admin_surface.action` is authentication-gated but, unlike the page-builder
+  mutation routes, does not call the router's CSRF gate. This is recorded for
+  authorization/refusal review and is not changed without discriminating
+  evidence in the bounded candidate.
 
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will
 be appended as the work advances.
-
