@@ -48,6 +48,15 @@ has a discriminating regression test and fits this review boundary.
 - Issue #3073 retains generated-application owner admission and authorization
   contract changes.
 - Issue #3023 retains required entity identifier validation consistency.
+- Issue #3078 owns the Node creation-timestamp lifecycle authority. The
+  Admin Surface compatibility branch remains unchanged in this candidate.
+- Issue #3079 owns the declaration of config-entity generic mutability outside
+  the generic host. The reviewed `taxonomy_vocabulary` exception remains
+  unchanged in this candidate.
+- Feature-owned authentication, workflow, MCP, queue, scheduler, notification,
+  media, OIDC, and similar APIs remain outside `admin-surface`. Distributing
+  their SPA consumers does not transfer their domain or HTTP ownership to this
+  package.
 - Repository-wide Deptrac parity, PL001–PL010 retirement, and reduction or
   removal of `bin/check-package-layers` remain in issue #3075.
 - Large extraction of `GenericAdminSurfaceHost` or
@@ -123,6 +132,8 @@ not treated as cleanup authority over any worktree.
 | AS-PUBLIC-001 | Nine declaration-map entries versus 19 source files carrying `@api` | Compatibility promises are incomplete or ambiguous | Reconcile public declarations and annotations, with lifecycle rationale | Public-surface validators and consumer evidence | #3074 |
 | AS-SEC-001 | `admin_surface.action` is authentication-gated but lacks the page-builder mutation routes' CSRF gate | Mutation refusal behavior needs independent review before any change | Review and repair only with a discriminating route-level test; otherwise file a bounded residual | Authorization, CSRF, malformed-body, and refusal tests | #3074 |
 | AS-COHESION-001 | `GenericAdminSurfaceHost` and `AdminSurfaceServiceProvider` concentrate multiple coordination roles | Large extraction would exceed the first review candidate | Retain for this slice and create bounded residual cleanup issues with concrete seams | Issue links and no unreviewed extraction in candidate | #3074 |
+| AS-LIFECYCLE-001 | `GenericAdminSurfaceHost::handleCreate()` names `node` and initializes `created`/`changed`; the documented `TimestampFieldConvention` has no observed production storage caller | An interface adapter currently carries entity lifecycle compatibility behavior because no proven canonical creation-time authority is wired | Framework entity lifecycle/storage and `waaseyaa/node` own the replacement contract; preserve current behavior here and resolve only in the bounded residual | Cross-path Node creation tests, server-owned `changed`, removal of the exact-type host branch, and package-layer/public-surface checks | #3078 |
+| AS-AFFORDANCE-001 | `GenericAdminSurfaceHost::MUTABLE_CONFIG_ROW_TYPES` names only `taxonomy_vocabulary` and controls catalog mutability, mutation-token projection, and action refusal | A generic adapter contains a type-specific lifecycle affordance that could become an implicit policy registry | `waaseyaa/taxonomy` owns vocabulary lifecycle, a lower-layer declaration owns generic CRUD support, and Admin Surface only projects/refuses; preserve the exception in this candidate | Unchanged authorized/refused vocabulary behavior, undeclared config types remain read-only, removal of the hard-coded type, and focused layer/public checks | #3079 |
 
 ## WP2 evidence
 
