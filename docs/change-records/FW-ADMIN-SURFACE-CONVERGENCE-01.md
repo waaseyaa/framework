@@ -294,3 +294,30 @@ on this Windows host; those are hosted Linux evidence, not candidate passes.
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will
 be appended as the work advances.
+
+## Bounded hosted-CI repair
+
+Hosted run `35271711540` against candidate `63c46174e08d3c3f50ad576980f6933c2d0b680c`
+exposed five root failures. The repair remains inside this change record's
+accepted scope:
+
+- the fresh-install authoring journey now establishes an authenticated session,
+  retains its session and CSRF cookies, and sends the matching XSRF header;
+  a mismatched-token request is also proven unable to persist its probe entity;
+- the governed S1 artifact generator refreshed the dependency-byte authority
+  against the intentional Composer lock change;
+- the SPA advisory contract discovers the one typed
+  `PageBuilderCommandRequest` body and fails closed on ambiguous, incomplete,
+  duplicated, or unbalanced parsing;
+- Deptrac controls consume its stable JSON report for allowed, forbidden, and
+  uncovered counts instead of terminal-rendered summary text; and
+- the synthetic Windows-native launcher fixture applies the same executable
+  modes as its neighboring Windows fixture without changing production
+  executable validation.
+
+Focused local evidence covers the SPA contract suite, all five Deptrac controls,
+the affected Windows-native launcher method, canonical Deptrac checks, PHP
+syntax, and changed-file formatting. The fresh-install journey and the other
+symlink-dependent controls remain hosted-Linux evidence. No Admin source input
+changed, so the committed distribution was not rebuilt. The broader CI roster
+audit remains exclusively owned by #3087.

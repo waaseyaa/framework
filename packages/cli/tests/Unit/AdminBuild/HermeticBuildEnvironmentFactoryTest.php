@@ -169,6 +169,9 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
         file_put_contents($npmCli, 'synthetic');
         file_put_contents($node, 'synthetic');
         file_put_contents($comspec, 'synthetic');
+        chmod($npm, 0700);
+        chmod($node, 0700);
+        chmod($comspec, 0700);
 
         $environment = new HermeticBuildEnvironmentFactory()->build(
             parent: [

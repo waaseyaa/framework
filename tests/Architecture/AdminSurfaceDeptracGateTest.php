@@ -46,10 +46,11 @@ final class AdminSurfaceDeptracGateTest extends TestCase
     #[Test]
     public function production_architecture_is_clean_and_has_no_uncovered_dependencies(): void
     {
-        [$exit, $output] = $this->runDeptrac($this->config);
+        [$exit, $report, $output] = $this->runDeptrac($this->config);
 
         self::assertSame(0, $exit, $output);
-        self::assertMatchesRegularExpression('/Uncovered\s+0/', $output);
+        self::assertSame(0, $report['Violations'] ?? null, $output);
+        self::assertSame(0, $report['Uncovered'] ?? null, $output);
 
         [$debugExit, $debugOutput] = $this->runDeptracCommand($this->config, ['debug:unassigned']);
         self::assertSame(0, $debugExit, $debugOutput);
@@ -95,10 +96,12 @@ final class AdminSurfaceDeptracGateTest extends TestCase
                 PHP,
         ]);
 
-        [$exit, $output] = $this->runDeptrac($config);
+        [$exit, $report, $output] = $this->runDeptrac($config);
 
         self::assertSame(0, $exit, $output);
-        self::assertMatchesRegularExpression('/Allowed\s+[1-9][0-9]*/', $output);
+        self::assertGreaterThan(0, $report['Allowed'] ?? 0, $output);
+        self::assertSame(0, $report['Violations'] ?? null, $output);
+        self::assertSame(0, $report['Uncovered'] ?? null, $output);
     }
 
     #[Test]
@@ -120,9 +123,10 @@ final class AdminSurfaceDeptracGateTest extends TestCase
                 PHP,
         ]);
 
-        [$exit, $output] = $this->runDeptrac($config);
+        [$exit, $report, $output] = $this->runDeptrac($config);
 
         self::assertSame(1, $exit, $output);
+        self::assertGreaterThan(0, $report['Violations'] ?? 0, $output);
         self::assertStringContainsString('Boundary contract', $output);
         self::assertStringContainsString('Application adapters', $output);
     }
@@ -147,11 +151,11 @@ final class AdminSurfaceDeptracGateTest extends TestCase
                 PHP,
         ]);
 
-        [$exit, $output] = $this->runDeptrac($config);
+        [$exit, $report, $output] = $this->runDeptrac($config);
 
         self::assertSame(1, $exit, $output);
         self::assertStringContainsString('UnknownDependency', $output);
-        self::assertMatchesRegularExpression('/Uncovered\s+[1-9][0-9]*/', $output);
+        self::assertGreaterThan(0, $report['Uncovered'] ?? 0, $output);
     }
 
     /**
@@ -182,14 +186,25 @@ final class AdminSurfaceDeptracGateTest extends TestCase
         return $path;
     }
 
-    /** @return array{int, string} */
+    /** @return array{int, array<string, int>, string} */
     private function runDeptrac(string $config): array
     {
-        return $this->runDeptracCommand($config, [
+        [$exit, $output] = $this->runDeptracCommand($config, [
             '--no-progress',
             '--fail-on-uncovered',
             '--report-uncovered',
+            '--formatter=json',
         ]);
+
+        try {
+            $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            self::fail('Deptrac did not return its stable JSON report: ' . $exception->getMessage() . "\n" . $output);
+        }
+        self::assertIsArray($decoded);
+        self::assertIsArray($decoded['Report'] ?? null, 'Deptrac JSON must contain its result summary.');
+
+        return [$exit, $decoded['Report'], $output];
     }
 
     /**
