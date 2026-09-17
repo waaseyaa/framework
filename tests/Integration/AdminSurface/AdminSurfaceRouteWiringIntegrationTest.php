@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
@@ -28,8 +29,10 @@ use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\Middleware\CsrfMiddleware;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Workflow;
 
@@ -160,6 +163,62 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         self::assertSame(['GET'], $routes->get('admin_surface.list')?->getMethods());
         self::assertSame(['GET'], $routes->get('admin_surface.get')?->getMethods());
         self::assertSame(['POST'], $routes->get('admin_surface.action')?->getMethods());
+    }
+
+    #[Test]
+    public function actionJsonRequiresACsrfTokenBeforeControllerDispatch(): void
+    {
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $_SESSION = [];
+
+        $route = $this->router->getRouteCollection()->get('admin_surface.action');
+        self::assertNotNull($route);
+        self::assertTrue($route->getOption('_csrf'));
+
+        $calls = (object) ['dispatches' => 0];
+        $next = new class ($calls) implements HttpHandlerInterface {
+            public function __construct(private readonly object $calls) {}
+
+            public function handle(Request $request): Response
+            {
+                ++$this->calls->dispatches;
+
+                return new Response('', 204);
+            }
+        };
+        $middleware = new CsrfMiddleware();
+
+        try {
+            $token = bin2hex(random_bytes(32));
+            $_SESSION['_csrf_token'] = $token;
+
+            $missing = Request::create(
+                '/admin/_surface/article/action/create',
+                'POST',
+                content: '{"attributes":{"title":"Draft"}}',
+            );
+            $missing->headers->set('Content-Type', 'application/json');
+            $missing->attributes->set('_route_object', $route);
+
+            self::assertSame(403, $middleware->process($missing, $next)->getStatusCode());
+            self::assertSame(0, $calls->dispatches, 'A missing CSRF token must refuse before the action host runs.');
+
+            $valid = Request::create(
+                '/admin/_surface/article/action/create',
+                'POST',
+                content: '{"attributes":{"title":"Draft"}}',
+            );
+            $valid->headers->set('Content-Type', 'application/json');
+            $valid->headers->set('X-XSRF-TOKEN', rawurlencode($token));
+            $valid->attributes->set('_route_object', $route);
+
+            self::assertSame(204, $middleware->process($valid, $next)->getStatusCode());
+            self::assertSame(1, $calls->dispatches, 'A matching XSRF token must reach the action host.');
+        } finally {
+            $_SESSION = [];
+        }
     }
 
     #[Test]

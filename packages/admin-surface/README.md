@@ -63,7 +63,7 @@ must be checked mechanically against it.
 | `admin_surface.catalog` | `GET /admin/_surface/catalog` | Authentication required | `handleCatalog`; compact `application/json`; valid refusal status promoted |
 | `admin_surface.list` | `GET /admin/_surface/{type}` | Authentication required | `handleList`; compact `application/json`; valid refusal status promoted |
 | `admin_surface.get` | `GET /admin/_surface/{type}/{id}` | Authentication required | `handleGet`; compact `application/json`; valid refusal status promoted |
-| `admin_surface.action` | `POST /admin/_surface/{type}/action/{action}` | Authentication required | `handleAction`; compact `application/json`; valid refusal status promoted |
+| `admin_surface.action` | `POST /admin/_surface/{type}/action/{action}` | Authentication and CSRF required | `handleAction`; JSON object body; compact `application/json`; valid refusal status promoted |
 | `admin_surface.page_builder.definitions` | `GET /admin/_surface/page-builder/{surface}/definitions` | Authentication required | Optional page-builder host; dispatcher JSON response; valid refusal status promoted |
 | `admin_surface.page_builder.draft` | `GET /admin/_surface/page-builder/{surface}/{id}` | Authentication required | Optional page-builder host; dispatcher JSON response; valid refusal status promoted |
 | `admin_surface.page_builder.command` | `POST /admin/_surface/page-builder/{surface}/{id}/commands` | Authentication and CSRF required | Optional page-builder host; dispatcher JSON response; valid refusal status promoted |

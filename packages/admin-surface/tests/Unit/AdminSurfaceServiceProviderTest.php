@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -156,6 +157,21 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $this->assertContains('admin_surface.list', $routeNames);
         $this->assertContains('admin_surface.get', $routeNames);
         $this->assertContains('admin_surface.action', $routeNames);
+    }
+
+    #[Test]
+    public function registerRoutesRequiresCsrfForTheActionEndpoint(): void
+    {
+        $router = new WaaseyaaRouter();
+
+        AdminSurfaceServiceProvider::registerRoutes($router, $this->host);
+
+        $routes = $router->getRouteCollection();
+        self::assertTrue($routes->get('admin_surface.action')?->getOption('_csrf'));
+        self::assertNotTrue($routes->get('admin_surface.session')?->getOption('_csrf'));
+        self::assertNotTrue($routes->get('admin_surface.catalog')?->getOption('_csrf'));
+        self::assertNotTrue($routes->get('admin_surface.list')?->getOption('_csrf'));
+        self::assertNotTrue($routes->get('admin_surface.get')?->getOption('_csrf'));
     }
 
     #[Test]
@@ -599,6 +615,69 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         }
     }
 
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function staticAssetMimeTypes(): iterable
+    {
+        yield 'javascript' => ['js', 'application/javascript'];
+        yield 'stylesheet' => ['css', 'text/css'];
+        yield 'json' => ['json', 'application/json'];
+        yield 'html' => ['html', 'text/html; charset=UTF-8'];
+        yield 'svg' => ['svg', 'image/svg+xml'];
+        yield 'png' => ['png', 'image/png'];
+        yield 'font' => ['woff2', 'font/woff2'];
+        yield 'source map' => ['map', 'application/json'];
+        yield 'unknown' => ['asset', 'application/octet-stream'];
+    }
+
+    #[Test]
+    #[DataProvider('staticAssetMimeTypes')]
+    public function serveStaticFilePreservesBytesAndDeclaresTheExpectedMimeType(
+        string $extension,
+        string $expectedContentType,
+    ): void {
+        $path = sys_get_temp_dir() . '/waaseyaa_admin_asset_' . uniqid('', true) . '.' . $extension;
+        $content = "admin-asset-\0-{$extension}";
+        file_put_contents($path, $content);
+
+        try {
+            $response = AdminSurfaceServiceProvider::serveStaticFile($path);
+
+            self::assertSame(200, $response->getStatusCode());
+            self::assertSame($expectedContentType, $response->headers->get('Content-Type'));
+            self::assertSame($content, $response->getContent());
+        } finally {
+            unlink($path);
+        }
+    }
+
+    #[Test]
+    public function adminSpaRoutePrefersAnApplicationStaticAssetOverItsIndexFallback(): void
+    {
+        $tempDir = sys_get_temp_dir() . '/waaseyaa_test_spa_asset_' . uniqid('', true);
+        mkdir($tempDir . '/public/admin', 0o777, true);
+        file_put_contents($tempDir . '/public/admin/app.js', 'application-override');
+        file_put_contents($tempDir . '/public/admin/index.html', '<html>Index fallback</html>');
+
+        try {
+            $router = $this->routesWithHostFactory(null, $tempDir);
+            $controller = $router->getRouteCollection()->get('admin_spa')?->getDefault('_controller');
+            self::assertIsCallable($controller);
+
+            $response = $controller(null, 'app.js');
+
+            self::assertSame('application/javascript', $response->headers->get('Content-Type'));
+            self::assertSame('application-override', $response->getContent());
+        } finally {
+            unlink($tempDir . '/public/admin/app.js');
+            unlink($tempDir . '/public/admin/index.html');
+            rmdir($tempDir . '/public/admin');
+            rmdir($tempDir . '/public');
+            rmdir($tempDir);
+        }
+    }
+
     #[Test]
     public function defaultCapabilityAllowlistExposesExactlyTheMcpApprovalPermissionsWhenMcpIsInstalled(): void
     {
@@ -945,10 +1024,13 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     /**
      * Run the real `routes()` entry point with an optional application host factory bound.
      */
-    private function routesWithHostFactory(?AdminSurfaceHostFactoryInterface $factory): WaaseyaaRouter
+    private function routesWithHostFactory(
+        ?AdminSurfaceHostFactoryInterface $factory,
+        ?string $projectRoot = null,
+    ): WaaseyaaRouter
     {
         $provider = new AdminSurfaceServiceProvider();
-        $provider->setKernelContext(projectRoot: sys_get_temp_dir(), config: [], manifestFormatters: []);
+        $provider->setKernelContext(projectRoot: $projectRoot ?? sys_get_temp_dir(), config: [], manifestFormatters: []);
         $provider->setKernelServices(new class ($factory) implements KernelServicesInterface {
             public function __construct(private readonly ?AdminSurfaceHostFactoryInterface $factory) {}
 

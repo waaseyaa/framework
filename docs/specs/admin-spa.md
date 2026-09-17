@@ -818,9 +818,19 @@ default `GenericAdminSurfaceHost` by binding an
 `AdminSurfaceHostFactoryInterface` in its service provider's `register()`.
 `AdminSurfaceServiceProvider::routes()` resolves that factory and registers the
 canonical `admin_surface.*` routes against the host it returns — same paths,
-methods, and authentication requirements, through the framework's own
-`promoteRefusalStatus()`, registered **exactly once**. An install that binds no
+methods, authentication requirements, and action-route CSRF requirement,
+through the framework's own refusal-status promotion, registered **exactly
+once**. An install that binds no
 factory keeps the generic host, unchanged.
+
+`admin_surface.action` accepts an empty body or a JSON object. Syntactically
+malformed JSON is refused by the kernel's sanitized JSON refusal before the
+controller runs; a valid non-object JSON value is refused by the host as the
+compact Admin Surface envelope. Both are HTTP 400 and neither reaches the
+application action. Because the route is a cookie-authenticated JSON mutation
+boundary, it explicitly opts into CSRF validation; the Admin transport's
+same-origin mutation requests already send the configured `X-XSRF-TOKEN`
+header.
 
 It is a *factory*, not the host itself, because `routes()` runs after every
 provider has registered (`BuiltinRouteRegistrar`), so a host built there may

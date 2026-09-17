@@ -86,7 +86,7 @@ not treated as cleanup authority over any worktree.
 | WP1 | Package charter, inventory, public dispositions, and dependency design | Complete |
 | WP2 | Scoped Deptrac authority and Mermaid dependency view | Complete locally; hosted evidence pending |
 | WP3 | Canonical contract and mechanical SPA compatibility | Complete locally; hosted evidence pending |
-| WP4 | Conformance, refusal, route, distribution, and browser evidence | Paused before start |
+| WP4 | Conformance, refusal, route, distribution, and browser evidence | Behavioral conformance complete locally; distribution evidence pending |
 | WP5 | Independent review, governed PR, exact-head checks, merge, and issue reconciliation | Paused before start |
 
 ## Evidence ledger
@@ -128,9 +128,10 @@ not treated as cleanup authority over any worktree.
 | --- | --- | --- | --- | --- | --- |
 | AS-ARCH-001 | `AdminSurfaceHostFactoryInterface` returns `AbstractAdminSurfaceHost`; the initial charter placed the two in Boundary and Application respectively | The public factory contract depended outward and the first Deptrac run failed | Repaired in Framework by classifying the public extension base as Boundary contract; no exception | Clean Deptrac run plus forbidden-edge fixture | #3074 / #3075 |
 | AS-CONTRACT-001 | PHP emits and the SPA consumes `AdminSurfaceEntity.mutation_token`, absent from canonical `contract/types.ts` | Canonical contract did not describe required optimistic-concurrency behavior | Repaired: canonical and SPA types now declare the always-present nullable field, request types require a non-null token for fenced mutations, and a newer null response clears cached authority | Exact TypeScript compatibility, PHP emitter inventory, and 19 adapter regression tests | #3074 |
-| AS-CONTRACT-002 | Page-builder wire shapes were owned only by SPA-local `app/contracts/pageBuilder.ts` | Split package did not own every crossing payload | Repaired: canonical contract owns definitions, drafts, commands, preview, history, restore, error, result, and request shapes; SPA mirrors remain only for clean declaration emission | Exact TypeScript compatibility plus 8 page-builder client regressions; PHP conformance expansion remains WP4 | #3074 |
+| AS-CONTRACT-002 | Page-builder wire shapes were owned only by SPA-local `app/contracts/pageBuilder.ts` | Split package did not own every crossing payload | Repaired: canonical contract owns definitions, drafts, commands, preview, history, restore, error, result, and request shapes; SPA mirrors remain only for clean declaration emission | Exact TypeScript compatibility, 8 page-builder client regressions, and producer-derived definitions/draft/refusal conformance | #3074 |
+| AS-CONTRACT-003 | The PHP schema producer emits top-level `additionalProperties: false`, absent from canonical and SPA schema types | A producer-owned JSON Schema constraint crossed the boundary without being declared | Repaired: both schema contracts declare the optional legacy-compatible literal `false`; producer-derived conformance rejects future undeclared fields | PHP conformance 9 tests / 152 assertions plus exact TypeScript compatibility and Nuxt typecheck | #3074 |
 | AS-PUBLIC-001 | Nine declaration-map entries versus 19 source files carrying `@api` | Compatibility promises are incomplete or ambiguous | Reconcile public declarations and annotations, with lifecycle rationale | Public-surface validators and consumer evidence | #3074 |
-| AS-SEC-001 | `admin_surface.action` is authentication-gated but lacks the page-builder mutation routes' CSRF gate | Mutation refusal behavior needs independent review before any change | Review and repair only with a discriminating route-level test; otherwise file a bounded residual | Authorization, CSRF, malformed-body, and refusal tests | #3074 |
+| AS-SEC-001 | `admin_surface.action` was authentication-gated but lacked the page-builder mutation routes' CSRF gate; malformed or non-object JSON could escape the host boundary | Cookie-authenticated JSON mutations bypassed CSRF validation, while invalid action bodies could throw or type-fail instead of returning the Admin refusal contract | Repaired in Framework: require CSRF on the action route and refuse invalid/non-object JSON before invoking the action; no admission or domain authorization rule changed | Red-first route-option and invalid-body tests; real `CsrfMiddleware` missing-token refusal and matching-token pass-through; registered-route HTTP 400 promotion | #3074 |
 | AS-COHESION-001 | `GenericAdminSurfaceHost` and `AdminSurfaceServiceProvider` concentrate multiple coordination roles | Large extraction would exceed the first review candidate | Retain for this slice and create bounded residual cleanup issues with concrete seams | Issue links and no unreviewed extraction in candidate | #3074 |
 | AS-LIFECYCLE-001 | `GenericAdminSurfaceHost::handleCreate()` names `node` and initializes `created`/`changed`; the documented `TimestampFieldConvention` has no observed production storage caller | An interface adapter currently carries entity lifecycle compatibility behavior because no proven canonical creation-time authority is wired | Framework entity lifecycle/storage and `waaseyaa/node` own the replacement contract; preserve current behavior here and resolve only in the bounded residual | Cross-path Node creation tests, server-owned `changed`, removal of the exact-type host branch, and package-layer/public-surface checks | #3078 |
 | AS-AFFORDANCE-001 | `GenericAdminSurfaceHost::MUTABLE_CONFIG_ROW_TYPES` names only `taxonomy_vocabulary` and controls catalog mutability, mutation-token projection, and action refusal | A generic adapter contains a type-specific lifecycle affordance that could become an implicit policy registry | `waaseyaa/taxonomy` owns vocabulary lifecycle, a lower-layer declaration owns generic CRUD support, and Admin Surface only projects/refuses; preserve the exception in this candidate | Unchanged authorized/refused vocabulary behavior, undeclared config types remain read-only, removal of the hard-coded type, and focused layer/public checks | #3079 |
@@ -181,6 +182,41 @@ not treated as cleanup authority over any worktree.
 - Local verification: compatibility check, declaration build, Nuxt typecheck,
   and lint pass; focused transport, page-builder client, and entity-revision
   coverage passes 4 files / 38 tests.
+
+## WP4 behavioral evidence
+
+- Red-first route and host tests reproduced two refusal defects before repair:
+  the cookie-authenticated core action route did not require CSRF, and malformed
+  or non-object JSON could escape the host boundary before dispatch. The route
+  now requires CSRF, the host accepts only an empty body or a JSON object, and
+  invalid input is refused without invoking the action.
+- Route composition and HTTP-refusal coverage passes 148 tests / 1,307
+  assertions. The real `CsrfMiddleware` discriminator proves a missing token is
+  rejected with 403 and a matching header/cookie pair reaches the action.
+- Authorization, field-oracle, mutation-fence, advisory, allowlist, pagination,
+  and page-builder refusal coverage passes 83 tests / 373 assertions.
+- Producer-derived PHP-to-TypeScript conformance now reads every canonical
+  contract module and covers non-empty session UI, nested catalog values,
+  result/error/advisory allowlisting, entity/list output including
+  `mutation_token`, schema output, revision history, and page-builder
+  definitions/draft/refusal payloads. It passes 9 tests / 152 assertions.
+- Browser route fixtures use canonical contract types and include required
+  `emailVerified`, principal `capabilities`, entity `mutation_token`, and
+  catalog `revisions` fields. Nuxt typecheck and exact contract compatibility
+  pass. Focused Vitest passes 3 files / 31 tests.
+- Focused Chromium behavior passes 12 authentication, entity-form,
+  schema-deduplication, and page-builder advisory tests; the directly changed
+  target-size and lifecycle fixtures pass another 5 tests.
+- Static delivery now has a content-byte and MIME matrix for JavaScript, CSS,
+  JSON, HTML, SVG, PNG, WOFF2, source maps, and unknown extensions, plus a
+  route-level application-asset precedence discriminator. The provider suite
+  passes 46 tests / 176 assertions.
+- Deptrac remains authoritative after the refusal repair: 0 violations,
+  0 skipped, 0 uncovered, 429 allowed. The generated Mermaid view was refreshed
+  and its five architecture controls pass with 27 assertions.
+- The committed Admin distribution is intentionally not rebuilt in this
+  behavioral checkpoint. Distribution freshness, manifest verification, and
+  clean exact-HEAD split acceptance remain the next WP4 evidence slice.
 
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will

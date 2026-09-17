@@ -1,6 +1,7 @@
 // packages/admin/e2e/type-lifecycle.spec.ts
 import { test, expect } from '@playwright/test'
 import { mockAdminBootstrapRoutes, mockSchemaRoute, mockEntityListRoute } from './fixtures/routes'
+import type { AdminSurfaceCatalogEntry } from '~/contracts/adminSurface'
 
 test.describe('Content type lifecycle', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,9 +13,9 @@ test.describe('Content type lifecycle', () => {
     // The surface catalog route registered here takes precedence over the
     // one from mockAdminBootstrapRoutes (Playwright runs handlers in LIFO order).
     const lifecycleCatalog = [
-      { id: 'note', label: 'Note', group: 'content', fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true } },
-      { id: 'node', label: 'Content', group: 'content', disabled: true, fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true } },
-    ]
+      { id: 'note', label: 'Note', group: 'content', fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true, revisions: true } },
+      { id: 'node', label: 'Content', group: 'content', disabled: true, fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true, revisions: true } },
+    ] satisfies AdminSurfaceCatalogEntry[]
 
     await page.route('**/_surface/catalog', (route) =>
       route.fulfill({

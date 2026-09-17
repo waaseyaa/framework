@@ -126,6 +126,19 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         ];
     }
 
+    /** @return array<string, array{0: string}> */
+    public static function invalidActionBodies(): array
+    {
+        return [
+            'malformed JSON' => ['{invalid'],
+            'list' => ['[]'],
+            'null' => ['null'],
+            'string' => ['"value"'],
+            'integer' => ['42'],
+            'boolean' => ['true'],
+        ];
+    }
+
     #[Test]
     #[DataProvider('allFiveRoutes')]
     public function unauthenticatedRefusalPromotesTo401OnEveryRoute(
@@ -182,6 +195,30 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         );
 
         self::assertSame($status, $response->getStatusCode());
+    }
+
+    #[Test]
+    #[DataProvider('invalidActionBodies')]
+    public function invalidActionBodiesProduceAStructuredHttp400(string $content): void
+    {
+        $response = $this->dispatch(
+            $this->host(session: $this->session()),
+            'admin_surface.action',
+            ['type' => 'article', 'action' => 'create'],
+            'POST',
+            $content,
+        );
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
+        self::assertSame([
+            'ok' => false,
+            'error' => [
+                'status' => 400,
+                'title' => 'Invalid request',
+                'detail' => 'The action request body must be a JSON object.',
+            ],
+        ], $this->decode($response));
     }
 
     #[Test]
@@ -262,6 +299,7 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         string $routeName,
         array $routeParams = [],
         string $method = 'GET',
+        string $content = '',
     ): Response {
         $router = new WaaseyaaRouter(new RequestContext('', $method));
         AdminSurfaceServiceProvider::registerRoutes($router, $host);
@@ -269,7 +307,7 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         $route = $router->getRouteCollection()->get($routeName);
         self::assertNotNull($route, sprintf('Route %s must be registered', $routeName));
 
-        $request = Request::create('/', $method);
+        $request = Request::create('/', $method, content: $content);
         $request->attributes->set('_controller', $route->getDefault('_controller'));
         foreach ($routeParams as $name => $value) {
             $request->attributes->set($name, $value);

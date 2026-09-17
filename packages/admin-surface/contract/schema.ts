@@ -54,5 +54,7 @@ export interface AdminSurfaceEntitySchema {
   'x-list'?: unknown
   'x-form-sections'?: AdminSurfaceFormSection[]
   properties: Record<string, AdminSurfaceSchemaProperty>
+  /** The canonical PHP presenter emits false; optional preserves legacy schema fixtures. */
+  additionalProperties?: false
   required?: string[]
 }

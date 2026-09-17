@@ -69,5 +69,7 @@ export interface EntitySchema {
   /** Optional presentation-only grouping for task-oriented authoring forms. */
   'x-form-sections'?: FormSection[]
   properties: Record<string, SchemaProperty>
+  /** The canonical PHP presenter emits false; optional preserves legacy schema sources. */
+  additionalProperties?: false
   required?: string[]
 }

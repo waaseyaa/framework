@@ -149,8 +149,28 @@ abstract class AbstractAdminSurfaceHost
         }
 
         $content = $request->getContent();
-        $payload = $content !== '' ? json_decode($content, true, 512, JSON_THROW_ON_ERROR) : [];
+        if ($content === '') {
+            $payload = [];
+        } else {
+            try {
+                $payload = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                return AdminSurfaceResultData::error(
+                    400,
+                    'Invalid request',
+                    'The action request body must be a JSON object.',
+                )->toArray();
+            }
 
-        return $this->action($type, $action, $payload ?? [])->toArray();
+            if (!is_array($payload) || !str_starts_with(ltrim($content), '{')) {
+                return AdminSurfaceResultData::error(
+                    400,
+                    'Invalid request',
+                    'The action request body must be a JSON object.',
+                )->toArray();
+            }
+        }
+
+        return $this->action($type, $action, $payload)->toArray();
     }
 }
