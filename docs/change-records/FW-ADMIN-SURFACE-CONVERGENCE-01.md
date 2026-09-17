@@ -126,6 +126,7 @@ not treated as cleanup authority over any worktree.
 
 ## WP2 evidence
 
+- Implementation checkpoint: `1a53726c2`.
 - Exact Deptrac 4.7.2 is locked as a root development dependency, installed
   only inside the owned worktree.
 - `packages/admin-surface/deptrac.yaml` is shipped with the split subtree and

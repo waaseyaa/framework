@@ -121,7 +121,8 @@ configuration, preflight, or CI implementation change.
 | Dirty Candidate A | Full `PreflightParityTest.php` attempt on native Windows | Seven tests passed; the pre-existing synthetic shell test failed because Windows resolves `true`/`false` differently. No product or gate assertion failed, and no scope expansion was made. |
 | Dirty Candidate A | PHP CS Fixer dry run for the new Architecture test; `composer validate --strict --no-check-publish`; `git diff --check` | Pass |
 | Dirty Candidate A | Runtime reflection path check | Admin Surface provider resolves from this owned worktree; Deptrac resolves from this worktree's `vendor` |
+| Implementation checkpoint `1a53726c2` | Scoped Deptrac authority, controls, generated view, lock, preflight roster, and hosted JSON-report wiring committed together | Pass; clean worktree after commit |
 
-The exact checkpoint SHA, hosted report artifact, independent review, runtime,
-and cache measurements will be added when Candidate A is committed and
-published. No `skip_violations` entry or architecture exception was added.
+The exact published PR head, hosted report artifact, independent review, and
+hosted runtime/cache measurements remain pending. No `skip_violations` entry or
+architecture exception was added.
