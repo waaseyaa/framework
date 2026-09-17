@@ -29,6 +29,10 @@ export type PageBuilderDefinitions = {
   templates: PageBuilderTemplateDefinition[]
 }
 
+export type PageBuilderDefinitionsData = {
+  definitions: PageBuilderDefinitions
+}
+
 export type PageBuilderBlock = {
   id: string
   type: string
@@ -75,6 +79,10 @@ export type PageBuilderRevision = {
   block_count: number
 }
 
+export type PageBuilderHistoryData = {
+  revisions: PageBuilderRevision[]
+}
+
 export type PageBuilderCommand =
   | { type: 'add_block', section_id: string, region_id: string, position: number, block: PageBuilderBlock }
   | { type: 'duplicate_block', source_block_id: string, duplicate_block_id: string }
@@ -86,6 +94,24 @@ export type PageBuilderCommand =
   | { type: 'move_section', section_id: string, position: number }
   | { type: 'remove_section', section_id: string }
   | { type: 'change_section_layout', section_id: string, layout_id: string, layout_version: number }
+
+export type PageBuilderCommandRequest = {
+  expected_entity_revision_id: number
+  expected_document_fingerprint: string
+  idempotency_key: string
+  command: PageBuilderCommand
+  save_advisory_acknowledgements?: string[]
+}
+
+export type PageBuilderPreviewRequest = {
+  expected_entity_revision_id: number
+}
+
+export type PageBuilderRestoreRequest = {
+  target_revision_id: number
+  expected_current_revision_id: number
+  idempotency_key: string
+}
 
 /**
  * The Admin Surface error envelope as the page-builder transport carries it.

@@ -23,6 +23,8 @@ final class CutoverFreshInstallSmokeTest extends TestCase
     private string $projectRoot;
     private ?Process $server = null;
     private int $serverPort = 0;
+    private string $adminCookieHeader = '';
+    private string $adminCsrfToken = '';
 
     protected function setUp(): void
     {
@@ -124,6 +126,17 @@ final class CutoverFreshInstallSmokeTest extends TestCase
         self::assertSame(0, $import->getExitCode(), $import->getErrorOutput() . $import->getOutput());
 
         $this->startServer();
+        $this->establishAdminSession();
+
+        $csrfRefusal = $this->adminAction('create', [
+            'attributes' => [
+                'title' => 'CSRF refusal probe',
+                'slug' => 'csrf-refused-page',
+                'type' => 'page',
+                'body' => '<p>Must not persist.</p>',
+            ],
+        ], str_repeat('0', 64));
+        self::assertSame(403, $csrfRefusal['status'], $csrfRefusal['body']);
 
         $createdIds = [];
         $updatedTokens = [];
@@ -188,6 +201,11 @@ final class CutoverFreshInstallSmokeTest extends TestCase
             'driver' => 'pdo_sqlite',
             'path' => $this->projectRoot . '/storage/waaseyaa.sqlite',
         ]);
+        self::assertSame(
+            0,
+            (int) $connection->fetchOne("SELECT COUNT(*) FROM node WHERE json_extract(_data, '$.slug') = 'csrf-refused-page'"),
+            'A mismatched CSRF token must refuse before the authoring action mutates state.',
+        );
         self::assertSame(0, (int) $connection->fetchOne("SELECT COUNT(*) FROM node WHERE json_extract(_data, '$.slug') = 'invalid-page'"));
         self::assertSame('Edited page', $connection->fetchOne("SELECT title FROM node WHERE json_extract(_data, '$.slug') = 'synthetic-page'"));
         $connection->close();
@@ -277,11 +295,17 @@ final class CutoverFreshInstallSmokeTest extends TestCase
      * @param array<string, mixed> $payload
      * @return array{status: int, body: string, json: array<string, mixed>}
      */
-    private function adminAction(string $action, array $payload): array
+    private function adminAction(string $action, array $payload, ?string $csrfToken = null): array
     {
+        $csrfToken ??= $this->adminCsrfToken;
         $context = stream_context_create(['http' => [
             'method' => 'POST',
-            'header' => "Content-Type: application/json\r\nAccept: application/json",
+            'header' => implode("\r\n", [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Cookie: ' . $this->adminCookieHeader,
+                'X-XSRF-TOKEN: ' . rawurlencode($csrfToken),
+            ]),
             'content' => json_encode($payload, JSON_THROW_ON_ERROR),
             'ignore_errors' => true,
             'timeout' => 20,
@@ -302,6 +326,49 @@ final class CutoverFreshInstallSmokeTest extends TestCase
             'body' => $body,
             'json' => is_array($json) ? $json : [],
         ];
+    }
+
+    private function establishAdminSession(): void
+    {
+        $context = stream_context_create(['http' => [
+            'method' => 'GET',
+            'header' => 'Accept: text/html',
+            'ignore_errors' => true,
+            'timeout' => 20,
+        ]]);
+        $body = file_get_contents(
+            "http://127.0.0.1:{$this->serverPort}/admin/",
+            false,
+            $context,
+        );
+        self::assertIsString($body);
+
+        $headers = function_exists('http_get_last_response_headers') ? http_get_last_response_headers() : ($http_response_header ?? []);
+        $statusLine = $headers[0] ?? '';
+        preg_match('/\s(\d{3})\s/', $statusLine, $matches);
+        self::assertSame(200, isset($matches[1]) ? (int) $matches[1] : 0, $body);
+
+        $cookies = [];
+        foreach ($headers as $header) {
+            if (preg_match('/^Set-Cookie:\s*([^=;\s]+)=([^;]*)/i', $header, $cookie) === 1) {
+                $cookies[$cookie[1]] = $cookie[2];
+            }
+        }
+
+        self::assertSame(
+            1,
+            preg_match('/csrfCookieName\s*:\s*"([^"]+)"/', $body, $csrfConfig),
+            'The Admin bootstrap must publish the runtime CSRF cookie name.',
+        );
+        $csrfCookieName = $csrfConfig[1];
+        self::assertArrayHasKey($csrfCookieName, $cookies, 'The Admin bootstrap must mint its configured CSRF cookie.');
+        self::assertGreaterThan(1, count($cookies), 'The authoring journey must retain both session and CSRF cookies.');
+        $this->adminCsrfToken = rawurldecode($cookies[$csrfCookieName]);
+        $this->adminCookieHeader = implode('; ', array_map(
+            static fn(string $name, string $value): string => $name . '=' . $value,
+            array_keys($cookies),
+            array_values($cookies),
+        ));
     }
 
     private function writeAutoloadWrapper(): void

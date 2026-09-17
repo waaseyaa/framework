@@ -8,19 +8,21 @@ If three documents claim to define the admin payload shape, exactly one of them 
 
 | Artifact | Authority |
 |----------|-----------|
-| **`packages/admin-surface/contract/types.ts`** | **Authoritative.** Defines every type that crosses the host-to-SPA boundary: `AdminSurfaceSession`, `AdminSurfaceAccount`, `AdminSurfaceTenant`, `AdminSurfaceCatalog`, `AdminSurfaceCatalogEntry`, `AdminSurfaceField`, `AdminSurfaceAction`, `AdminSurfaceCapabilities`, `AdminSurfaceEntity`, `AdminSurfaceResult`, `AdminSurfaceError`, `AdminSurfaceListQuery`, `AdminSurfaceListResult`, optional per-resource action booleans, plus optional UI customization (`AdminSurfaceUiCustomization`, `AdminSurfaceHeaderLink`, `AdminSurfaceSidebarItem`, closed `navigationMode`). |
+| **`packages/admin-surface/contract/{types,schema,revisions,pageBuilder}.ts`** | **Authoritative.** Defines every Framework-owned core and page-builder request/response shape that crosses the host-to-SPA boundary. Consumer-defined custom actions retain their own extension contracts. `types.ts` owns bootstrap, catalog, entity, result/error, list, and CRUD; the other modules own their named protocols and are re-exported through `types.ts` and `index.ts`. |
+| `AdminSurfaceContract.ts` / `ADMIN_SURFACE_VERSION` | **Deprecated legacy exports.** Retained for source compatibility only; they are not a payload authority or negotiated protocol version. No production consumer was found. Completion or removal is tracked in #3084. |
 | `packages/admin-surface/src/Host/*.php` | Implementation. Backend emitters (`AdminSurfaceSessionData::toArray()`, `CatalogBuilder::build()`) must conform to the TypeScript contract above. |
 | `packages/admin/app/contracts/*.ts` | SPA-local mirror. The admin SPA builds its own contracts under `app/contracts/` for `tsc --rootDir app` to produce clean declarations; these are mirrors of the canonical types, not authoritative redefinitions. They must stay structurally compatible. |
 | `docs/specs/admin-spa.md` | Subsystem spec. Describes the SPA runtime, components, routes, and behaviour. **Does not define payload shape.** It references type names from this package and assumes their definitions. |
 
 ## Conformance
 
-Two cross-boundary tests guard the contract:
+Three cross-boundary gates guard the contract:
 
-- `tests/Integration/AdminSurface/AdminSurfaceContractConformanceTest.php` — parses the TypeScript interfaces in this package and asserts that backend-emitted PHP payloads conform structurally (no missing required fields, no unknown fields).
+- `tests/Integration/AdminSurface/AdminSurfaceContractConformanceTest.php` — discovers the concern-separated canonical modules and checks producer-emitted session, catalog, result/error/advisory, entity/list, schema, revision, and page-builder definitions/draft/preview/history/revision/restore payloads. It rejects undeclared emitted keys and omitted required keys, traverses nested page-builder shapes, and pins representative runtime value types.
 - `tests/Integration/AdminSurface/AdminSurfaceRouteWiringIntegrationTest.php` — exercises the production composition of `AdminSurfaceServiceProvider` + `WaaseyaaRouter` + `GenericAdminSurfaceHost` and asserts the published route names and paths match `AdminSurfaceRoutePaths`.
+- `cd packages/admin && npm run check:contract-compatibility` — compiles exact type-equality assertions across the canonical contract and every SPA-local mirror. It fails on missing keys, extra keys, incompatible value types, or optionality drift. The dedicated config uses the shared `packages/` root only for this no-emit check; `build:contracts` retains its clean `rootDir: app` declaration boundary.
 
-Drift on either side breaks both tests. That is the point.
+Drift on either side breaks the applicable gate. That is the point.
 
 ## Optional list metadata
 
@@ -34,10 +36,10 @@ SPA behavior, including `x-list-display`.
 
 ## Adding a contract field
 
-1. Edit `types.ts` with TSDoc explaining provenance (which PHP class emits the field, which SPA call site reads it) and optional/required semantics.
+1. Edit the owning canonical module with TSDoc explaining provenance (which PHP class emits the field, which SPA call site reads it) and optional/required semantics.
 2. Update the matching PHP emitter (typically `AdminSurfaceSessionData` or a `CatalogBuilder` definition).
 3. Add a regression assertion to the relevant package-local test (e.g. `CatalogBuilderTest`).
-4. The cross-boundary integration tests will pick up the new field automatically.
+4. Update the SPA-local mirror and its exact assertion in `contract-compatibility.ts`; the mechanical compatibility gate must pass.
 5. If `docs/specs/admin-spa.md` references the field, update it to use the same name and casing.
 
 ## Accepting a released Admin bundle (installation contract)
@@ -94,4 +96,4 @@ blocking CI by `bin/admin-dist-acceptance verify`. See
 
 ## Naming convention
 
-Payload keys are **camelCase** in both the TypeScript contract and the PHP emit (`emailVerified`, `requireVerifiedEmail`, `description`). Do not introduce snake_case variants. The audit (#851) flagged exactly this kind of split — a third vocabulary in the spec contradicting the contract — and the fix is to keep this package as the single source and align everything else to it.
+Payload keys retain the established wire spelling declared by the canonical modules. Core session and catalog fields use camelCase (`emailVerified`, `labelField`); mutation fencing and page-builder payloads intentionally use snake_case (`mutation_token`, `entity_revision_id`, `document_fingerprint`). Consumers must preserve those exact protocol keys rather than introduce aliases in another casing.

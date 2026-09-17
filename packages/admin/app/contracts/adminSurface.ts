@@ -1,19 +1,23 @@
+import type { AdminSurfaceUiCustomization } from './surface-ui'
+
 export interface AdminSurfaceSession {
   account: AdminSurfaceAccount
   tenant: AdminSurfaceTenant
   policies: string[]
-  features?: Record<string, boolean>
+  features: Record<string, boolean>
   /**
    * Server-authoritative per-principal permission projection (host-allowlisted;
    * see packages/admin-surface/contract/types.ts). Consume via useAdmin().can().
    */
-  capabilities?: Record<string, boolean>
+  capabilities: Record<string, boolean>
+  ui?: AdminSurfaceUiCustomization
 }
 
 export interface AdminSurfaceAccount {
   id: string
   name: string
-  email?: string
+  email: string | null
+  emailVerified: boolean | null
   roles: string[]
 }
 
@@ -35,11 +39,13 @@ export interface AdminSurfaceCatalogEntry {
   fields: AdminSurfaceField[]
   actions: AdminSurfaceAction[]
   capabilities: AdminSurfaceCapabilities
-  reference?: {
-    labelField: string
-    search: { field: string; operator: 'STARTS_WITH' | 'CONTAINS' } | null
-    sort: { field: string; direction: 'ASC' } | null
-  }
+  reference?: AdminSurfaceReferenceMetadata
+}
+
+export interface AdminSurfaceReferenceMetadata {
+  labelField: string
+  search: { field: string; operator: 'STARTS_WITH' | 'CONTAINS' } | null
+  sort: { field: string; direction: 'ASC' } | null
 }
 
 export interface AdminSurfaceCapabilities {
@@ -53,11 +59,9 @@ export interface AdminSurfaceCapabilities {
    * Whether this type keeps revision history. A type that does not has no
    * history surface at all: the endpoint answers 404 rather than an empty list,
    * so the affordance must be withheld rather than offered and then refused.
-   * Optional here, though this framework's host always emits it, so a
-   * consumer-built catalog that predates the capability reads as "no history"
-   * rather than failing to parse.
+   * The Framework host always emits this field.
    */
-  revisions?: boolean
+  revisions: boolean
 }
 
 export interface AdminSurfaceField {
@@ -84,7 +88,7 @@ export interface AdminSurfaceEntity {
   type: string
   id: string
   attributes: Record<string, unknown>
-  mutation_token?: string
+  mutation_token: string | null
   capabilities?: {
     view?: boolean
     edit?: boolean
@@ -131,4 +135,31 @@ export interface AdminSurfaceListResult {
   total: number
   offset: number
   limit: number
+}
+
+export interface AdminSurfaceCreateRequest {
+  attributes: Record<string, unknown>
+  save_advisory_acknowledgements?: string[]
+}
+
+export interface AdminSurfaceUpdateRequest extends AdminSurfaceCreateRequest {
+  id: string
+  mutation_token: string
+}
+
+export interface AdminSurfaceDeleteRequest {
+  id: string
+  mutation_token: string
+}
+
+export interface AdminSurfaceDeleteData {
+  deleted: true
+}
+
+export interface AdminSurfaceGenerateSlugRequest {
+  value: string
+}
+
+export interface AdminSurfaceGenerateSlugData {
+  slug: string
 }

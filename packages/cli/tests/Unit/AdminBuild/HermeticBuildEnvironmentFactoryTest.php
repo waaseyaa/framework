@@ -110,7 +110,7 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             parent: [
                 'PATH' => $bin,
                 'PATHEXT' => '.COM;.EXE;.BAT;.CMD',
-                'SystemRoot' => $systemRoot,
+                'SYSTEMROOT' => $systemRoot,
                 'COMSPEC' => $comspec,
                 'USERPROFILE' => 'C:\\Users\\real-user',
                 'APPDATA' => 'C:\\Users\\real-user\\AppData\\Roaming',
@@ -151,6 +151,45 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             self::assertStringStartsWith(realpath($this->tempRoot), realpath($environment->variables[$name]));
         }
         self::assertSame(realpath($comspec), $environment->variables['COMSPEC']);
+    }
+
+    #[Test]
+    public function windows_can_use_an_explicit_native_path_when_the_parent_shell_projects_posix_paths(): void
+    {
+        $bin = $this->directory('windows-native-bin');
+        $systemRoot = $this->directory('NativeWindows');
+        $system32 = $systemRoot . '/System32';
+        mkdir($system32, 0700, true);
+        $npm = $bin . '/npm.CMD';
+        $npmCli = $bin . '/node_modules/npm/bin/npm-cli.js';
+        $node = $bin . '/node.EXE';
+        $comspec = $system32 . '/cmd.exe';
+        file_put_contents($npm, "@exit /b 0\r\n");
+        mkdir(dirname($npmCli), 0700, true);
+        file_put_contents($npmCli, 'synthetic');
+        file_put_contents($node, 'synthetic');
+        file_put_contents($comspec, 'synthetic');
+        chmod($npm, 0700);
+        chmod($node, 0700);
+        chmod($comspec, 0700);
+
+        $environment = new HermeticBuildEnvironmentFactory()->build(
+            parent: [
+                'PATH' => '/mingw64/bin:/usr/bin',
+                'WAASEYAA_ADMIN_BUILD_PATH' => $bin,
+                'PATHEXT' => '.COM;.EXE;.BAT;.CMD',
+                'SystemRoot' => $systemRoot,
+                'COMSPEC' => $comspec,
+            ],
+            workspace: $this->directory('windows-native-workspace'),
+            platform: AdminBuildPlatform::Windows,
+            dependencyCache: $this->directory('windows-native-cache'),
+        );
+
+        self::assertSame(realpath($bin), $environment->variables['PATH']);
+        self::assertSame(realpath($node), $environment->nodeExecutable);
+        self::assertSame(realpath($npmCli), $environment->npmExecutable);
+        self::assertArrayNotHasKey('WAASEYAA_ADMIN_BUILD_PATH', $environment->variables);
     }
 
     #[Test]

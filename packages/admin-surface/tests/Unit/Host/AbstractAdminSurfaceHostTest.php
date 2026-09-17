@@ -62,6 +62,10 @@ final class AbstractAdminSurfaceHostTest extends TestCase
 
             public function action(string $type, string $action, array $payload = []): AdminSurfaceResultData
             {
+                if ($this->calls !== null && property_exists($this->calls, 'action')) {
+                    ++$this->calls->action;
+                }
+
                 return AdminSurfaceResultData::success(['action' => $action]);
             }
         };
@@ -269,7 +273,7 @@ final class AbstractAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
-    public function handleActionThrowsOnInvalidJson(): void
+    public function handleActionReturnsStructuredBadRequestForInvalidJson(): void
     {
         $session = new AdminSurfaceSessionData(
             accountId: '1',
@@ -277,11 +281,40 @@ final class AbstractAdminSurfaceHostTest extends TestCase
             roles: [],
             policies: [],
         );
-        $host = $this->createHost(session: $session);
+        $calls = (object) ['action' => 0];
+        $host = $this->createHost(session: $session, calls: $calls);
         $request = Request::create('/admin/surface/node/action/publish', 'POST', content: '{invalid');
 
-        $this->expectException(\JsonException::class);
+        $result = $host->handleAction($request, 'node', 'publish');
 
-        $host->handleAction($request, 'node', 'publish');
+        self::assertFalse($result['ok']);
+        self::assertSame(400, $result['error']['status']);
+        self::assertSame('Invalid request', $result['error']['title']);
+        self::assertSame('The action request body must be a JSON object.', $result['error']['detail']);
+        self::assertSame(0, $calls->action, 'Malformed JSON must be refused before the action handler runs.');
+    }
+
+    #[Test]
+    public function handleActionRefusesJsonValuesThatAreNotObjects(): void
+    {
+        $session = new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: ['admin'],
+            policies: [],
+        );
+        $calls = (object) ['action' => 0];
+        $host = $this->createHost(session: $session, calls: $calls);
+
+        foreach (['[]', 'null', '"value"', '42', 'true'] as $content) {
+            $request = Request::create('/admin/surface/node/action/publish', 'POST', content: $content);
+            $result = $host->handleAction($request, 'node', 'publish');
+
+            self::assertFalse($result['ok'], $content);
+            self::assertSame(400, $result['error']['status'], $content);
+            self::assertSame('The action request body must be a JSON object.', $result['error']['detail'], $content);
+        }
+
+        self::assertSame(0, $calls->action, 'Non-object JSON must be refused before the action handler runs.');
     }
 }

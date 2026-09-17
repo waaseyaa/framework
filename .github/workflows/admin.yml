@@ -6,10 +6,12 @@ on:
     tags: ['v*']
     paths:
       - 'packages/admin/**'
+      - 'packages/admin-surface/contract/**'
       - '.github/workflows/admin.yml'
   pull_request:
     paths:
       - 'packages/admin/**'
+      - 'packages/admin-surface/contract/**'
       - '.github/workflows/admin.yml'
 
 concurrency:
@@ -38,6 +40,9 @@ jobs:
 
       - name: TypeScript typecheck
         run: npx nuxi typecheck
+
+      - name: Verify canonical Admin Surface contract compatibility
+        run: npm run check:contract-compatibility
 
       - name: Build contracts
         run: npm run build:contracts

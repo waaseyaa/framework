@@ -16,7 +16,7 @@ export interface TransportAdapter {
     operator?: 'STARTS_WITH' | 'CONTAINS',
     sort?: { field: string; direction: 'ASC' } | null,
   ): Promise<EntityResource[]>
-  runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown>
+  runAction<Payload extends object = Record<string, unknown>>(type: string, action: string, payload?: Payload): Promise<unknown>
 }
 
 export interface SchemaScope {

@@ -3,16 +3,23 @@ import type { Page } from '@playwright/test'
 import { entityTypes } from '../../tests/fixtures/entityTypes'
 import { userSchema, noteSchema } from '../../tests/fixtures/schemas'
 import type { EntitySchema } from '~/composables/useSchema'
+import type {
+  AdminSurfaceCatalog,
+  AdminSurfaceEntity,
+  AdminSurfaceResult,
+  AdminSurfaceSession,
+} from '../../app/contracts/adminSurface'
 
 const DEV_ADMIN_ID = String(Number.MAX_SAFE_INTEGER)
 
 export async function mockAdminBootstrapRoutes(page: Page, features: Record<string, boolean> = {}) {
   const session = {
-    account: { id: DEV_ADMIN_ID, name: 'dev-admin', email: '', roles: ['admin'] },
+    account: { id: DEV_ADMIN_ID, name: 'dev-admin', email: '', emailVerified: true, roles: ['admin'] },
     tenant: { id: 'default', name: 'Waaseyaa' },
     policies: [],
     features,
-  }
+    capabilities: {},
+  } satisfies AdminSurfaceSession
   const catalog = entityTypes.map((entry) => ({
     id: entry.id,
     label: entry.label,
@@ -21,17 +28,17 @@ export async function mockAdminBootstrapRoutes(page: Page, features: Record<stri
     fields: [],
     actions: [],
     capabilities: entry.capabilities,
-  }))
+  })) satisfies AdminSurfaceCatalog['entities']
 
   await page.route('**/_surface/session', (route) =>
     route.fulfill({
-      json: { ok: true, data: session },
+      json: { ok: true, data: session } satisfies AdminSurfaceResult<AdminSurfaceSession>,
     }),
   )
 
   await page.route('**/_surface/catalog', (route) =>
     route.fulfill({
-      json: { ok: true, data: { entities: catalog } },
+      json: { ok: true, data: { entities: catalog } } satisfies AdminSurfaceResult<AdminSurfaceCatalog>,
     }),
   )
 
@@ -101,10 +108,17 @@ export async function mockEntityListRoute(page: Page, entityType = 'user') {
 }
 
 export async function mockEntityCreateRoute(page: Page, entityType = 'user') {
+  const created = {
+    type: entityType,
+    id: '99',
+    attributes: {},
+    mutation_token: null,
+  } satisfies AdminSurfaceEntity
+
   // Surface transport: POST /_surface/{type}/action/create
   await page.route(`**/_surface/${entityType}/action/create`, (route) =>
     route.fulfill({
-      json: { ok: true, data: { type: entityType, id: '99', attributes: {} } },
+      json: { ok: true, data: created } satisfies AdminSurfaceResult<AdminSurfaceEntity>,
     }),
   )
   // Legacy JSON API fallback

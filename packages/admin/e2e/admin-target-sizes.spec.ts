@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import type { EntitySchema } from '~/composables/useSchema'
+import type { AdminSurfaceCatalog, AdminSurfaceEntity, AdminSurfaceSession } from '~/contracts/adminSurface'
 import { mockAdminBootstrapRoutes, mockSchemaRoute } from './fixtures/routes'
 
 const viewports = [360, 768, 1024, 1440]
@@ -42,12 +43,13 @@ async function mockTargetApp(page: Page) {
     json: {
       ok: true,
       data: {
-        account: { id: '1', name: 'admin', email: '', roles: ['admin'] },
+        account: { id: '1', name: 'admin', email: '', emailVerified: true, roles: ['admin'] },
         tenant: { id: 'default', name: 'Waaseyaa' },
         policies: [],
         features: {},
+        capabilities: {},
         ui: { navigationMode: 'catalog-only', headerLinks: [], sidebarItems: [] },
-      },
+      } satisfies AdminSurfaceSession,
     },
   }))
   await page.route('**/_surface/catalog', route => route.fulfill({
@@ -60,25 +62,25 @@ async function mockTargetApp(page: Page) {
           group: 'content',
           fields: [],
           actions: [],
-          capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+          capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true, revisions: false },
           reference: {
             labelField: 'title',
             search: { field: 'title', operator: 'STARTS_WITH' },
             sort: { field: 'title', direction: 'ASC' },
           },
         }],
-      },
+      } satisfies AdminSurfaceCatalog,
     },
   }))
   await mockSchemaRoute(page, 'user', targetSchema)
   await page.route('**/_surface/user/1', route => route.fulfill({
-    json: { ok: true, data: { type: 'user', id: '1', attributes: { title: 'Example record' } } },
+    json: { ok: true, data: { type: 'user', id: '1', attributes: { title: 'Example record' }, mutation_token: 'edit-token-1' } satisfies AdminSurfaceEntity },
   }))
   await page.route(/\/_surface\/user(?:\?.*)?$/, route => route.fulfill({
     json: {
       ok: true,
       data: {
-        entities: [{ type: 'user', id: '2', attributes: { title: 'Related example' } }],
+        entities: [{ type: 'user', id: '2', attributes: { title: 'Related example' }, mutation_token: null } satisfies AdminSurfaceEntity],
         total: 1,
         offset: 0,
         limit: 10,

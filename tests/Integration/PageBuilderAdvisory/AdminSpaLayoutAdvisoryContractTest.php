@@ -191,20 +191,99 @@ final class AdminSpaLayoutAdvisoryContractTest extends TestCase
     private function spaCommandBodyKeys(): array
     {
         $source = $this->spaSource('packages/admin/app/runtime/pageBuilderClient.ts');
-        $start = strpos($source, 'admin_surface.page_builder.command');
-        self::assertNotFalse($start, 'The SPA client no longer names the command route.');
-        $body = substr($source, $start, 700);
+        $marker = 'const body: PageBuilderCommandRequest = {';
+        self::assertSame(1, substr_count($source, $marker), 'The SPA must declare one typed command request body.');
+        $start = strpos($source, $marker);
+        self::assertNotFalse($start);
+        $bodyStart = $start + strlen($marker);
+        $sentinel = "\n    }\n    return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.command'";
+        $bodyEnd = strpos($source, $sentinel, $bodyStart);
+        self::assertNotFalse(
+            $bodyEnd,
+            'The typed command body must close immediately before the command-route request.',
+        );
 
-        preg_match_all('/^\s{8}([a-z_]+)[:,]/m', $body, $matches);
-        $keys = array_values(array_unique($matches[1]));
-        preg_match('/\{ (save_advisory_acknowledgements): /', $body, $receiptKey);
-        if ($receiptKey !== []) {
-            $keys[] = $receiptKey[1];
+        $entries = $this->splitTypescriptTopLevelEntries(substr($source, $bodyStart, $bodyEnd - $bodyStart));
+        self::assertCount(5, $entries, 'The PageBuilderCommandRequest parser must account for every top-level entry.');
+
+        $keys = [];
+        $spreadEntries = 0;
+        foreach ($entries as $entry) {
+            if (str_starts_with($entry, '...')) {
+                ++$spreadEntries;
+                self::assertSame(
+                    1,
+                    preg_match('/^\.\.\.\(saveAdvisoryAcknowledgements\.length > 0\s*\? \{ (save_advisory_acknowledgements): saveAdvisoryAcknowledgements \}\s*: \{\}\)$/s', $entry, $optionalKey),
+                    'The optional PageBuilderCommandRequest spread must stay deterministic and parseable.',
+                );
+                $keys[] = $optionalKey[1];
+                continue;
+            }
+
+            self::assertSame(
+                1,
+                preg_match('/^([a-z_]+)(?:\s*:|$)/s', $entry, $key),
+                'Every PageBuilderCommandRequest entry must expose a parseable top-level key.',
+            );
+            $keys[] = $key[1];
         }
-        $keys = array_values(array_unique($keys));
+        self::assertSame(1, $spreadEntries, 'The optional acknowledgement key must have one conditional spread.');
+        self::assertSame($keys, array_values(array_unique($keys)), 'The typed request body must not repeat a key.');
         sort($keys);
 
         return $keys;
+    }
+
+    /** @return list<string> */
+    private function splitTypescriptTopLevelEntries(string $body): array
+    {
+        $entries = [];
+        $entryStart = 0;
+        $depth = ['{' => 0, '[' => 0, '(' => 0];
+        $closing = ['}' => '{', ']' => '[', ')' => '('];
+        $quote = null;
+        $escaped = false;
+        $length = strlen($body);
+
+        for ($index = 0; $index < $length; ++$index) {
+            $character = $body[$index];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($character === '\\') {
+                    $escaped = true;
+                } elseif ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if (in_array($character, ["'", '"', '`'], true)) {
+                $quote = $character;
+                continue;
+            }
+            if (isset($depth[$character])) {
+                ++$depth[$character];
+                continue;
+            }
+            if (isset($closing[$character])) {
+                $opener = $closing[$character];
+                self::assertGreaterThan(0, $depth[$opener], 'Unbalanced typed request body delimiters.');
+                --$depth[$opener];
+                continue;
+            }
+            if ($character === ',' && array_sum($depth) === 0) {
+                $entry = trim(substr($body, $entryStart, $index - $entryStart));
+                self::assertNotSame('', $entry, 'The typed request body must not contain an empty entry.');
+                $entries[] = $entry;
+                $entryStart = $index + 1;
+            }
+        }
+
+        self::assertNull($quote, 'The typed request body contains an unterminated string.');
+        self::assertSame(0, array_sum($depth), 'The typed request body contains unbalanced delimiters.');
+        self::assertSame('', trim(substr($body, $entryStart)), 'The typed request body must end with a trailing comma.');
+
+        return $entries;
     }
 
     /** @return list<string> */

@@ -37,6 +37,7 @@ declare(strict_types=1);
  *   php split-artifact-acceptance.php seal <repo> <artifacts-dir> <manifest> <version>
  *   php split-artifact-acceptance.php assert <surface> <manifest> <consumer> [<nodev-consumer>]
  *   php split-artifact-acceptance.php self-test <manifest> <consumer> <nodev-consumer> <scratch>
+ *   php split-artifact-acceptance.php digest-self-test <scratch>
  *   php split-artifact-acceptance.php surfaces
  */
 
@@ -110,13 +111,14 @@ function fail(string $message): never
  *
  * @return array{digest: string, files: int, bytes: int}
  */
-function tree_digest(string $directory): array
+function tree_digest(string $directory, bool $caseFoldPaths = false): array
 {
     if (!is_dir($directory)) {
         fail("Cannot digest a missing directory: {$directory}");
     }
 
     $rows = [];
+    $paths = [];
     $bytes = 0;
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
@@ -133,9 +135,10 @@ function tree_digest(string $directory): array
         }
         $relative = substr($entry->getPathname(), strlen($directory) + 1);
         $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+        $digestPath = digest_path($relative, $caseFoldPaths, $paths);
         $size = (int) $entry->getSize();
         $bytes += $size;
-        $rows[] = $relative . "\0" . $size . "\0" . hash_file('sha256', $entry->getPathname());
+        $rows[] = $digestPath . "\0" . $size . "\0" . hash_file('sha256', $entry->getPathname());
     }
 
     sort($rows, SORT_STRING);
@@ -155,7 +158,7 @@ function tree_digest(string $directory): array
  *
  * @return array{digest: string, files: int, bytes: int}
  */
-function archive_digest(string $archive): array
+function archive_digest(string $archive, bool $caseFoldPaths = false): array
 {
     $zip = new ZipArchive();
     if ($zip->open($archive) !== true) {
@@ -163,6 +166,7 @@ function archive_digest(string $archive): array
     }
 
     $rows = [];
+    $paths = [];
     $bytes = 0;
     for ($index = 0; $index < $zip->numFiles; $index++) {
         $stat = $zip->statIndex($index);
@@ -173,12 +177,13 @@ function archive_digest(string $archive): array
         if (str_ends_with($name, '/')) {
             continue;
         }
+        $digestPath = digest_path($name, $caseFoldPaths, $paths);
         $contents = $zip->getFromIndex($index);
         if ($contents === false) {
             fail("Unreadable entry {$name} in {$archive}");
         }
         $bytes += strlen($contents);
-        $rows[] = $name . "\0" . strlen($contents) . "\0" . hash('sha256', $contents);
+        $rows[] = $digestPath . "\0" . strlen($contents) . "\0" . hash('sha256', $contents);
     }
     $zip->close();
 
@@ -189,6 +194,120 @@ function archive_digest(string $archive): array
         'files' => count($rows),
         'bytes' => $bytes,
     ];
+}
+
+/**
+ * Normalize paths only for the explicit case-insensitive-filesystem fallback.
+ * A collision remains a hard failure so `Foo` and `foo` can never be treated
+ * as one exported file.
+ *
+ * @param array<string, string> $seen normalized path => original path
+ */
+function digest_path(string $path, bool $caseFold, array &$seen): string
+{
+    $normalized = $caseFold ? strtolower($path) : $path;
+    if (isset($seen[$normalized]) && $seen[$normalized] !== $path) {
+        fail(sprintf(
+            'Refusing a case-folded digest collision between %s and %s.',
+            $seen[$normalized],
+            $path,
+        ));
+    }
+    $seen[$normalized] = $path;
+
+    return $normalized;
+}
+
+function filesystem_paths_are_case_insensitive(string $directory): bool
+{
+    $canonical = $directory . '/composer.json';
+    $caseProbe = $directory . '/COMPOSER.JSON';
+
+    return is_file($canonical) && is_file($caseProbe);
+}
+
+/**
+ * @param array{archive: string, archive_sha256: string} $member
+ */
+function casefolded_archive_matches_install(array $member, string $installedPath): bool
+{
+    $archive = $member['archive'];
+    $actualArchiveSha256 = hash_file('sha256', $archive);
+    if (!is_string($actualArchiveSha256)
+        || !hash_equals($member['archive_sha256'], $actualArchiveSha256)
+    ) {
+        fail(sprintf(
+            'Artifact archive %s no longer matches its sealed SHA-256.',
+            $archive,
+        ));
+    }
+
+    return archive_digest($archive, caseFoldPaths: true)
+        === tree_digest($installedPath, caseFoldPaths: true);
+}
+
+function digest_self_test(string $scratch): void
+{
+    $root = rtrim($scratch, '/\\') . '/digest-self-test-' . uniqid('', true);
+    $installed = $root . '/installed';
+    mkdir($installed . '/tests/Fixtures', 0o777, true);
+    file_put_contents($installed . '/tests/Fixtures/greeting.txt', "tansi\n");
+
+    $archive = $root . '/case-only.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($archive, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        fail('Digest self-test could not create its case-only archive.');
+    }
+    $zip->addFromString('tests/fixtures/greeting.txt', "tansi\n");
+    $zip->close();
+    $member = ['archive' => $archive, 'archive_sha256' => (string) hash_file('sha256', $archive)];
+
+    if (!casefolded_archive_matches_install($member, $installed)) {
+        fail('Digest self-test rejected collision-free case-only path variance.');
+    }
+
+    file_put_contents($installed . '/tests/Fixtures/greeting.txt', "changed\n");
+    if (casefolded_archive_matches_install($member, $installed)) {
+        fail('Digest self-test accepted changed installed content.');
+    }
+    file_put_contents($installed . '/tests/Fixtures/greeting.txt', "tansi\n");
+
+    $collisionArchive = $root . '/case-collision.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($collisionArchive, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        fail('Digest self-test could not create its collision archive.');
+    }
+    $zip->addFromString('Foo.txt', 'one');
+    $zip->addFromString('foo.txt', 'two');
+    $zip->close();
+    try {
+        casefolded_archive_matches_install([
+            'archive' => $collisionArchive,
+            'archive_sha256' => (string) hash_file('sha256', $collisionArchive),
+        ], $installed);
+        fail('Digest self-test accepted a case-folded archive collision.');
+    } catch (AcceptanceFailure $failure) {
+        if (!str_contains($failure->getMessage(), 'case-folded digest collision')) {
+            throw $failure;
+        }
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($archive) !== true) {
+        fail('Digest self-test could not reopen its sealed archive.');
+    }
+    $zip->setArchiveComment('post-seal mutation');
+    $zip->close();
+    try {
+        casefolded_archive_matches_install($member, $installed);
+        fail('Digest self-test accepted a post-seal archive mutation.');
+    } catch (AcceptanceFailure $failure) {
+        if (!str_contains($failure->getMessage(), 'sealed SHA-256')) {
+            throw $failure;
+        }
+    }
+
+    fwrite(STDOUT, "Case-insensitive digest controls PASS.\n");
 }
 
 /**
@@ -756,6 +875,18 @@ function assert_exported_files(array $seal, Installation $installation, array $o
 
         $actual = tree_digest($installedPath);
         if ($actual['digest'] !== (string) $member['tree_digest']) {
+            // Windows extraction preserves every byte but may retain the case
+            // of an already-created parent directory. For example, an archive
+            // entry under `tests/fixtures` can be enumerated as
+            // `tests/Fixtures` after another entry created that directory
+            // first. Retry only on a proven case-insensitive filesystem, and
+            // fail closed if either roster has a case-fold collision.
+            if (filesystem_paths_are_case_insensitive($installedPath)) {
+                if (casefolded_archive_matches_install($member, $installedPath)) {
+                    continue;
+                }
+            }
+
             fail(sprintf(
                 "Installed %s does not carry the exported bytes.\n  archive: %s (%d files, %d bytes)\n  installed: %s (%d files, %d bytes)",
                 $name,
@@ -941,6 +1072,8 @@ function assert_no_dev_exclusion(array $seal, Installation $installation): void
  */
 function self_test(array $seal, Installation $dev, Installation $noDev, string $scratch): void
 {
+    digest_self_test($scratch);
+
     if (!is_dir($scratch)) {
         mkdir($scratch, 0o777, true);
     }
@@ -1286,6 +1419,11 @@ function main(array $argv): int
                     Installation::of($argv[4]),
                     $argv[5],
                 );
+
+                return 0;
+
+            case 'digest-self-test':
+                digest_self_test($argv[2]);
 
                 return 0;
 

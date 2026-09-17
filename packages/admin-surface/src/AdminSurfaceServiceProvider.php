@@ -387,6 +387,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $router->addRoute('admin_surface.action', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_ACTION)
             ->methods('POST')
             ->requireAuthentication()
+            ->requireCsrf()
             ->controller(fn($request, $type, $action) => self::surfaceResponse($host->handleAction($request, $type, $action)))
             ->build());
     }

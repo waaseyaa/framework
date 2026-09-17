@@ -35,6 +35,14 @@
             "enforced_by": "workflow:ci.yml#php bin/check-package-layers"
         },
         {
+            "id": "check-admin-surface-deptrac",
+            "alias": "check-admin-surface-deptrac",
+            "run": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered",
+            "repair": "restore the chartered admin-surface dependency direction, classify the new production token, or document a narrow reviewed exception with an owner and removal condition",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-admin-surface-deptrac"
+        },
+        {
             "id": "check-symfony-imports",
             "alias": "check-symfony-imports",
             "run": "php bin/check-symfony-imports",
