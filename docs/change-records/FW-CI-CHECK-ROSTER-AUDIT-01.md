@@ -1,4 +1,4 @@
-# FW-CI-CHECK-ROSTER-AUDIT-01: CI check roster audit
+# FW-CI-CHECK-ROSTER-AUDIT-01: governed CI policy contract
 
 Status: review candidate
 
@@ -6,20 +6,24 @@ GitHub mirror: waaseyaa/framework#3087
 
 Pinned baseline: `2718edc02f8a47167db1b31b2192690bff773cfd`
 
-## Intent
+## Intent and boundary
 
-Establish a reviewable, source-controlled inventory of the checks visible on a
-representative Framework pull request before any workflow, cadence, or branch
-protection decision is made. The initial roster records producer identity,
-classification, invariant ownership, trigger selection, dependency lineage,
-current required status, failure ownership, artifacts, local equivalence, and
-cost class.
+`tools/ci-check-roster.json` is a compact, hand-authored statement of intended
+governance policy. It is not a manual copy of the expanded workflow graph.
+Task 1 defines and self-validates the policy vocabulary, attestation subjects,
+aggregate-lineage rules, artifact contract, and current required projection.
 
-The roster is evidence for the design and measurement phase. It does not
-authorize a workflow edit, required-check migration, branch-rule change, or
-cadence reduction.
+Generated workflow inventory is reserved for Task 2. Offline comparison of that
+inventory with this policy is reserved for Task 3. Consequently, neither this
+record nor its focused architecture test claims that every workflow job, trigger,
+matrix expansion, dependency, or artifact in workflow YAML has been inventoried
+or conforms to policy.
 
-## Frozen evidence
+This slice changes no workflow, ruleset, branch rule, product code, release, or
+deployment behavior. Aggregate producers described by the policy are contracts
+only and are not implemented here.
+
+## Frozen observations
 
 - `origin/main`: `2718edc02f8a47167db1b31b2192690bff773cfd`
 - Representative pull request: `#3086`
@@ -27,71 +31,102 @@ cadence reduction.
 - Successful CI run: `35275141646`
 - Failed evidence head: `63c46174e08d3c3f50ad576980f6933c2d0b680c`
 - Failed CI run: `35271711540`
-- Ruleset: `15181711`, frozen with 22 required contexts
+- Live ruleset: `15181711`, strict, with 22 required contexts
+- GitHub Actions App integration ID: `15368`
 
-The final PR snapshot exposed 55 checks across five workflows. The
-unconditional pull-request floor is 46 checks: the 41 jobs in `ci.yml` expand
-to 45 visible contexts because the ordinary PHPUnit and random-order jobs are
-matrices, and changelog discipline contributes the forty-sixth context.
+The required projection preserves the live ruleset binding, not merely its
+visible names. Twenty-one contexts are bound to GitHub Actions App `15368`.
+`ci/mutation-pilot` is intentionally name-only and has a null integration ID.
+These observations are frozen inputs to later live audit and migration work;
+they do not authorize a ruleset change.
 
-The remaining nine contexts are conditional:
+The earlier 55-check PR snapshot and 51-entry hand inventory remain historical
+evidence only. They are not represented as a complete policy inventory because
+conditional operational producers, including `Enable native auto-merge`, can
+appear outside that snapshot.
 
-- four Admin execution checks selected by the PR's Admin paths;
-- one Admin tag-publication check that was expected to skip on a pull request;
-- one public-surface parity check selected by changed public-surface paths;
-- three Dependabot Admin distribution checks selected by lockfile paths but
-  expected to skip because the actor was not Dependabot and their dependency
-  chain could not proceed.
+## Policy model
 
-## Decisions
+Producer policy uses independent dimensions instead of overloading a single
+class:
 
-1. `tools/ci-check-roster.json` schema version 1 is the initial portable
-   inventory. Matrix producers occupy one roster entry and carry the exact
-   template, axis, values, and observed expanded contexts.
-2. Every check maps to an invariant with a named owner. A visible check name is
-   not itself an invariant and multiple checks may intentionally share one.
-3. Dependencies use stable roster IDs rather than GitHub job names. This makes
-   derivative aggregates and expected dependency skips explicit.
-4. `current_required_status` mirrors the frozen ruleset only. It does not
-   recommend that a context remain required or become optional.
-5. `unconditional_pr_floor` distinguishes checks emitted on every ordinary
-   pull request from path-, actor-, dependency-, or tag-selected checks.
-6. Local equivalence is either a concrete command or an explicit hosted-only
-   reason. A hosted-only record is not represented as locally passing.
-7. Cost classes are coarse observations for audit planning. Runtime
-   measurements remain bound to their source runs and are not policy.
+- role: policy, setup, execution, aggregate, advisory, publication, or
+  orchestration;
+- expansion: singleton or matrix;
+- selection: one or more unconditional, path, actor, or event predicates;
+- disposition: required, diagnostic, expected-skip, or publication-only;
+- authority: merge, release, operational, or informational;
+- cadence: pull request, merge group, main, scheduled, release, manual, or
+  event-driven.
 
-## Failure lineage captured by the failed run
+Stable producer and invariant IDs are references inside the policy. They are not
+assertions about current GitHub job IDs or check-name derivation. The model
+includes `enable-native-auto-merge` as event- and actor-selected operational
+orchestration so a later generator can represent conditional producers without
+silently dropping them.
 
-At failed head `63c46174e08d3c3f50ad576980f6933c2d0b680c`, five execution jobs failed:
-three ordinary PHPUnit shards and two random-order shards. The required
-`ci/unit-tests`, `ci/coverage`, and `ci/random-order` contexts then failed as
-derivative aggregates. This roster records those dependency edges so later
-reporting can distinguish root execution failures from derivative red statuses.
+## Attestation subjects
 
-This is overlap evidence for that run, not proof that random-order execution
-has no unique defect-detection value.
+Evidence is bound to six distinct coordinates:
 
-## Validation
+1. pull-request head SHA;
+2. merge-ref SHA;
+3. merge-group combined SHA;
+4. main SHA;
+5. run attempt;
+6. artifact source SHA.
 
-`tests/Architecture/CiCheckRosterManifestTest.php` validates the checked-in
-manifest and contains discriminating negative fixtures. It rejects:
+Subject substitution is forbidden. Evidence for a PR head cannot silently
+satisfy a merge-ref or merge-group subject, and an artifact is not accepted for
+a consumer unless its source SHA matches the consumer's declared subject.
 
-- duplicate stable check IDs;
-- unknown check classes;
-- malformed matrix patterns or expansions;
-- invariants without a named owner.
+## Aggregate lineage contract
 
-It also binds the inventory to the pinned workflow producer jobs, verifies the
-55 visible contexts, the 46-check unconditional floor, the 22 required-status
-mapping, dependency references, and the frozen evidence identities.
+Future stable aggregates must be owned within one workflow policy, use
+`if: always()` semantics, and explicitly require successful prerequisite
+results. Failure, cancellation, and missing prerequisites fail closed. A skipped
+prerequisite also fails unless the policy supplies a not-applicable decision
+bound to subject type, subject SHA, run attempt, producer ID, and reason. A
+not-applicable decision cannot be reused for a different subject.
 
-## Scope boundary and next work
+Task 1 records lineage for PHP behavior, PHP coverage, and random-order policy.
+It does not implement those aggregates. Ordinary PHP shard coverage uses the
+bounded artifact family `php-test-shard-1` through `php-test-shard-4`, expressed
+by `php-test-shard-*`; it does not rely on an undefined matrix expression.
 
-This slice changes documentation and audit data only. It does not change
-workflows, branch rules, job names, contexts, triggers, cadence, permissions,
-artifacts, or runtime behavior.
+Random-order execution remains on every pull request throughout measurement.
+Any cadence decision waits until Task 8.
 
-Later work under the same change record may measure unique detection, runner
-minutes, critical path, reruns, and failure ownership, then propose a reviewed
-roster and migration. No such migration is part of this candidate.
+## Focused validation
+
+`tests/Architecture/CiCheckRosterManifestTest.php` parses the checked-in policy
+and validates only Task 1 guarantees:
+
+- schema shape and exact controlled vocabularies;
+- stable, unique IDs and valid internal references;
+- exact and non-substitutable attestation subjects;
+- aggregate lineage, terminal-state, and SHA-bound not-applicable rules;
+- the bounded shard artifact contract;
+- the unique 22-context required projection and its integration bindings;
+- the conditional auto-merge policy shape;
+- the deferred Task 2 and Task 3 boundaries and residual task order.
+
+Discriminating negative fixtures cover invalid enums, duplicate IDs, broken
+references, subject substitution, duplicate contexts, incorrect integration
+bindings, cross-workflow lineage, permissive cancellation, an unbounded artifact
+expression, and premature inventory completion. The test deliberately does not
+read workflow YAML or infer job-to-context identity, triggers, matrices, needs,
+or artifact behavior.
+
+## Ordered residual work
+
+0. Evidence freeze and external benchmark: complete.
+1. Governance contract and schema repair: this candidate.
+2. Inventory generator.
+3. Offline conformance verifier.
+4. Measurement baseline under #2869.
+5. Stable aggregate shadowing.
+6. Ruleset projection and live audit.
+7. Ruleset migration.
+8. Cadence optimization.
+9. Final reconciliation.
