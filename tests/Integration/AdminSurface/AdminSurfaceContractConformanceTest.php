@@ -172,7 +172,9 @@ final class AdminSurfaceContractConformanceTest extends TestCase
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturn(true);
         $manager->method('getDefinition')->willReturn(new EntityType(
-            id: 'article', label: 'Article', class: TestEntity::class,
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
             _fieldDefinitions: ['title' => ['type' => 'string', 'label' => 'Title']],
         ));
@@ -194,20 +196,22 @@ final class AdminSurfaceContractConformanceTest extends TestCase
 
         // The fail-closed empty-list path still proves the producer's complete
         // pagination envelope without requiring a second authorization fixture.
-        $listEnvelope = (new GenericAdminSurfaceHost($manager))->list('article')->toArray();
+        $listEnvelope = new GenericAdminSurfaceHost($manager)->list('article')->toArray();
         $this->assertConformsToInterface('AdminSurfaceResult', $listEnvelope);
         $this->assertConformsToInterface('AdminSurfaceListResult', $listEnvelope['data']);
 
         $schemaManager = $this->createStub(EntityTypeManagerInterface::class);
         $schemaManager->method('hasDefinition')->willReturn(true);
         $schemaManager->method('getDefinition')->willReturn(EntityTypeFactory::create(
-            id: 'article', class: TestEntity::class,
+            id: 'article',
+            class: TestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
-            label: 'Article', fieldDefinitions: ['title' => ['type' => 'string', 'label' => 'Title']],
+            label: 'Article',
+            fieldDefinitions: ['title' => ['type' => 'string', 'label' => 'Title']],
         ));
         $schemaManager->method('getDefinitions')->willReturn([]);
         $schemaManager->method('resolveFieldDefinitions')->willReturn([]);
-        $schemaEnvelope = (new GenericAdminSurfaceHost($schemaManager))->action('article', 'schema')->toArray();
+        $schemaEnvelope = new GenericAdminSurfaceHost($schemaManager)->action('article', 'schema')->toArray();
         $this->assertConformsToInterface('AdminSurfaceResult', $schemaEnvelope);
         $this->assertConformsToInterface('AdminSurfaceEntitySchema', $schemaEnvelope['data']);
         $this->assertConformsToInterface('AdminSurfaceSchemaProperty', $schemaEnvelope['data']['properties']['title']);
@@ -232,7 +236,9 @@ final class AdminSurfaceContractConformanceTest extends TestCase
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturn(true);
         $manager->method('getDefinition')->willReturn(new EntityType(
-            id: 'article', label: 'Article', class: TestEntity::class,
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
         ));
         $manager->method('getRepository')->willReturn($repository);
