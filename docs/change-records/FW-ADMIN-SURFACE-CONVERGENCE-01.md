@@ -136,6 +136,7 @@ not treated as cleanup authority over any worktree.
 | AS-LIFECYCLE-001 | `GenericAdminSurfaceHost::handleCreate()` names `node` and initializes `created`/`changed`; the documented `TimestampFieldConvention` has no observed production storage caller | An interface adapter currently carries entity lifecycle compatibility behavior because no proven canonical creation-time authority is wired | Framework entity lifecycle/storage and `waaseyaa/node` own the replacement contract; preserve current behavior here and resolve only in the bounded residual | Cross-path Node creation tests, server-owned `changed`, removal of the exact-type host branch, and package-layer/public-surface checks | #3078 |
 | AS-AFFORDANCE-001 | `GenericAdminSurfaceHost::MUTABLE_CONFIG_ROW_TYPES` names only `taxonomy_vocabulary` and controls catalog mutability, mutation-token projection, and action refusal | A generic adapter contains a type-specific lifecycle affordance that could become an implicit policy registry | `waaseyaa/taxonomy` owns vocabulary lifecycle, a lower-layer declaration owns generic CRUD support, and Admin Surface only projects/refuses; preserve the exception in this candidate | Unchanged authorized/refused vocabulary behavior, undeclared config types remain read-only, removal of the hard-coded type, and focused layer/public checks | #3079 |
 | AS-DIST-001 | The canonical Admin rebuild could not pass its own guard under native Windows PHP: the guard redirected to `/dev/null`, Git Bash exposed a POSIX PATH to a Windows policy, and `getenv()` returned uppercase `SYSTEMROOT` | The task-mandated Git-for-Windows rebuild path stopped before the hermetic build, leaving the committed distribution stale | Repaired in the canonical build tooling without weakening its guard: Git diagnostics remain visible, an existing-directory native PATH projection is supplied to Windows PHP, both `SystemRoot` casings are accepted, and the sanitized child still receives only validated values | Red-first guard/build refusals; 8 workspace-guard tests, 2 Windows environment tests / 14 assertions, two byte-identical builds, freshness and manifest verification | #3074 |
+| AS-DIST-002 | Exact exported-file digests disagreed after clean artifact installation on Windows despite identical file count and bytes. Complete path-sorted manifests retained 30 mismatches: 15 case-only path pairs with identical per-file sizes and SHA-256 values, zero case-fold collisions, and zero case-folded differences | The aggregate validator treated Windows extraction's preservation of an already-created parent directory's casing as content drift, blocking a sound artifact | Repaired without weakening content integrity: exact comparison remains authoritative, with a retry only after proving the installed filesystem is case-insensitive; both rosters are then case-folded while file counts, byte counts, and SHA-256 remain covered, and any case-fold collision fails closed | Retained 8,832-row archive and installed manifests plus all mismatches; repaired validator passes against the retained archive/install without rebuild; focused gate pins the filesystem proof, symmetric normalization, and collision refusal; clean exact-head split rerun required | #3074 |
 
 ## WP2 evidence
 
@@ -225,8 +226,18 @@ not treated as cleanup authority over any worktree.
   613 assertions. The two Windows environment discriminators pass with 14
   assertions. Linux-oriented synthetic pipeline tests that require creating
   symlinks cannot execute on this Windows host and remain owned by hosted CI.
-- Clean exact-HEAD split-artifact acceptance remains pending until the rebuilt
-  distribution and its build-tool portability repair are committed together.
+- The first clean split installation exposed AS-DIST-002 after installation
+  itself and surface composition passed. Retained path-sorted manifests cover
+  all 8,832 archive and installed files. Their 30 raw mismatches are exactly 15
+  case-only pairs; every paired byte count and SHA-256 matches, there are no
+  case-fold collisions, and the complete normalized manifests have zero
+  differences. The collision-safe validator repair passes against that same
+  retained archive and installation without rebuilding either one. A clean
+  exact-head split rerun remains required for the repaired candidate.
+- `HermeticAdminBuildPipelineTest::exact_lock_install_and_generate_use_one_minimal_environment_then_scan_outputs`
+  and `HermeticAdminBuildPipelineTest::an_explicit_public_registry_authorization_retries_only_an_offline_cache_miss`
+  were not locally executed because their symlink fixtures are unavailable on
+  this Windows host. Hosted Linux CI owns their evidence.
 
 Review candidates, test commands, elapsed time, hosted run identities,
 independent findings, repairs, accepted-main identity, and residual issues will

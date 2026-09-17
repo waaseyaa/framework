@@ -246,6 +246,32 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         );
     }
 
+    #[Test]
+    public function exported_file_digest_fallback_is_case_insensitive_only_and_collision_safe(): void
+    {
+        $engine = $this->read(self::ENGINE);
+
+        self::assertStringContainsString(
+            'filesystem_paths_are_case_insensitive($installedPath)',
+            $engine,
+            'The fallback must require direct evidence from the installed filesystem.',
+        );
+        self::assertStringContainsString(
+            "archive_digest((string) \$member['archive'], caseFoldPaths: true)",
+            $engine,
+            'The sealed archive and installed tree must use the same normalized roster.',
+        );
+        self::assertStringContainsString(
+            'tree_digest($installedPath, caseFoldPaths: true)',
+            $engine,
+        );
+        self::assertStringContainsString(
+            'Refusing a case-folded digest collision between %s and %s.',
+            $engine,
+            'Case-only archive collisions must remain a hard failure.',
+        );
+    }
+
     /**
      * #2543's manifests are a PINNED FIXTURE. The gate consumes them through
      * the documented consumer procedure; it must never regenerate them, or it

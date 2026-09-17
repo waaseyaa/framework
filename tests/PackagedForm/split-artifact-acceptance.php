@@ -110,13 +110,14 @@ function fail(string $message): never
  *
  * @return array{digest: string, files: int, bytes: int}
  */
-function tree_digest(string $directory): array
+function tree_digest(string $directory, bool $caseFoldPaths = false): array
 {
     if (!is_dir($directory)) {
         fail("Cannot digest a missing directory: {$directory}");
     }
 
     $rows = [];
+    $paths = [];
     $bytes = 0;
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
@@ -133,9 +134,10 @@ function tree_digest(string $directory): array
         }
         $relative = substr($entry->getPathname(), strlen($directory) + 1);
         $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+        $digestPath = digest_path($relative, $caseFoldPaths, $paths);
         $size = (int) $entry->getSize();
         $bytes += $size;
-        $rows[] = $relative . "\0" . $size . "\0" . hash_file('sha256', $entry->getPathname());
+        $rows[] = $digestPath . "\0" . $size . "\0" . hash_file('sha256', $entry->getPathname());
     }
 
     sort($rows, SORT_STRING);
@@ -155,7 +157,7 @@ function tree_digest(string $directory): array
  *
  * @return array{digest: string, files: int, bytes: int}
  */
-function archive_digest(string $archive): array
+function archive_digest(string $archive, bool $caseFoldPaths = false): array
 {
     $zip = new ZipArchive();
     if ($zip->open($archive) !== true) {
@@ -163,6 +165,7 @@ function archive_digest(string $archive): array
     }
 
     $rows = [];
+    $paths = [];
     $bytes = 0;
     for ($index = 0; $index < $zip->numFiles; $index++) {
         $stat = $zip->statIndex($index);
@@ -173,12 +176,13 @@ function archive_digest(string $archive): array
         if (str_ends_with($name, '/')) {
             continue;
         }
+        $digestPath = digest_path($name, $caseFoldPaths, $paths);
         $contents = $zip->getFromIndex($index);
         if ($contents === false) {
             fail("Unreadable entry {$name} in {$archive}");
         }
         $bytes += strlen($contents);
-        $rows[] = $name . "\0" . strlen($contents) . "\0" . hash('sha256', $contents);
+        $rows[] = $digestPath . "\0" . strlen($contents) . "\0" . hash('sha256', $contents);
     }
     $zip->close();
 
@@ -189,6 +193,36 @@ function archive_digest(string $archive): array
         'files' => count($rows),
         'bytes' => $bytes,
     ];
+}
+
+/**
+ * Normalize paths only for the explicit case-insensitive-filesystem fallback.
+ * A collision remains a hard failure so `Foo` and `foo` can never be treated
+ * as one exported file.
+ *
+ * @param array<string, string> $seen normalized path => original path
+ */
+function digest_path(string $path, bool $caseFold, array &$seen): string
+{
+    $normalized = $caseFold ? strtolower($path) : $path;
+    if (isset($seen[$normalized]) && $seen[$normalized] !== $path) {
+        fail(sprintf(
+            'Refusing a case-folded digest collision between %s and %s.',
+            $seen[$normalized],
+            $path,
+        ));
+    }
+    $seen[$normalized] = $path;
+
+    return $normalized;
+}
+
+function filesystem_paths_are_case_insensitive(string $directory): bool
+{
+    $canonical = $directory . '/composer.json';
+    $caseProbe = $directory . '/COMPOSER.JSON';
+
+    return is_file($canonical) && is_file($caseProbe);
 }
 
 /**
@@ -756,6 +790,20 @@ function assert_exported_files(array $seal, Installation $installation, array $o
 
         $actual = tree_digest($installedPath);
         if ($actual['digest'] !== (string) $member['tree_digest']) {
+            // Windows extraction preserves every byte but may retain the case
+            // of an already-created parent directory. For example, an archive
+            // entry under `tests/fixtures` can be enumerated as
+            // `tests/Fixtures` after another entry created that directory
+            // first. Retry only on a proven case-insensitive filesystem, and
+            // fail closed if either roster has a case-fold collision.
+            if (filesystem_paths_are_case_insensitive($installedPath)) {
+                $archive = archive_digest((string) $member['archive'], caseFoldPaths: true);
+                $installed = tree_digest($installedPath, caseFoldPaths: true);
+                if ($archive === $installed) {
+                    continue;
+                }
+            }
+
             fail(sprintf(
                 "Installed %s does not carry the exported bytes.\n  archive: %s (%d files, %d bytes)\n  installed: %s (%d files, %d bytes)",
                 $name,
