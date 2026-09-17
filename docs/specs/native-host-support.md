@@ -142,6 +142,12 @@ evidence.
 | Host-specific release helper (1 Node entry) | `generate-release-evidence` | Release automation, not a native consumer entrypoint; no cross-host claim is made. |
 | Host-specific Windows proof helper (1 PowerShell entry) | `check-bimaaji-junction-containment.ps1` | Executed on `windows-2025` to prove junction containment. It is not portable to Linux and is not a general consumer command. |
 
+The `bin/git` classification above is also an operating boundary. The canonical
+agent contract requires the repository adapter on supported POSIX hosts and an
+explicitly selected Windows Git executable on native Windows. Both paths retain
+the repository-wide prohibition on `git stash`; choosing native Windows Git
+does not make any other POSIX-only `bin/` entrypoint portable.
+
 The four omissions found during review—`check-landing-base`,
 `check-skeleton-docker-secret-exclusion`, `check-vendor-fresh`, and
 `worktree-coordinator`—are included in the 57-entry row.
