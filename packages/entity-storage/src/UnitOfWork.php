@@ -8,6 +8,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\TransactionCompletionInterface;
+use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -32,12 +33,29 @@ final class UnitOfWork
 
     private readonly LoggerInterface $logger;
 
+    /**
+     * Correlates a post-commit {@see TransactionCompletionException} to the
+     * current outer {@see self::transaction()} invocation (not the UnitOfWork
+     * object lifetime). Rotated at each outer entry; nested calls keep it.
+     */
+    private string $commitmentToken = '';
+
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly EventDispatcherInterface $eventDispatcher,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Opaque token stamped onto {@see TransactionCompletionException} when the
+     * current outer {@see self::transaction()} committed and completion work
+     * then failed. Empty before the first outer transaction starts.
+     */
+    public function commitmentToken(): string
+    {
+        return $this->commitmentToken;
     }
 
     /**
@@ -50,13 +68,23 @@ final class UnitOfWork
      * @param \Closure(): T $callback The work to execute.
      * @return T The callback's return value.
      * @throws \Throwable Re-throws any exception from the callback after rollback.
+     * @throws TransactionCompletionException When this outer transaction's durable
+     *         mutation committed but post-commit completion work failed. The
+     *         exception's {@see TransactionCompletionException::committedByUnitToken()}
+     *         matches {@see self::commitmentToken()} for that same outer call.
      */
     public function transaction(\Closure $callback): mixed
     {
         if ($this->inTransaction) {
-            // Nested call: just run the callback without extra transaction wrapping.
+            // Nested call: just run the callback without extra transaction wrapping
+            // and without rotating the outer commitment token.
             return $callback();
         }
+
+        // One token per outer transaction() so a retained completion exception
+        // from an earlier reuse of this UnitOfWork cannot match a later call.
+        $this->commitmentToken = bin2hex(random_bytes(16));
+        $outerCommitmentToken = $this->commitmentToken;
 
         $transaction = $this->database->transaction();
         if (!$transaction instanceof TransactionCompletionInterface) {
@@ -77,6 +105,15 @@ final class UnitOfWork
         } catch (\Throwable $e) {
             $transaction->rollBack();
             $this->reset();
+
+            // A nested repository may have committed on another connection and
+            // raised EntityMutationCommittedSideEffectsFailedException. That
+            // proves *its* mutation committed, not this unit's. Unwrap so the
+            // outer caller's catch contract stays the bare completion type and
+            // cannot be mistaken for this unit's post-commit outcome.
+            if ($e instanceof EntityMutationCommittedSideEffectsFailedException) {
+                throw $e->completionFailure();
+            }
 
             throw $e;
         }
@@ -116,7 +153,17 @@ final class UnitOfWork
         } catch (TransactionCompletionException $failure) {
             // The database is committed. Never report a fictional rollback or
             // attempt to roll back a transaction that has already completed.
-            throw $failure;
+            // Preserve the public TransactionCompletionException catch contract
+            // and stamp this outer transaction's token so EntityRepository can
+            // translate only *this* mutation's post-commit failure.
+            // Completion callbacks may re-enter transaction() after reset(),
+            // rotating the live token; restore this call's token so
+            // commitmentToken() still matches the escaping stamped exception.
+            $this->commitmentToken = $outerCommitmentToken;
+            throw new TransactionCompletionException(
+                $failure->failures(),
+                committedByUnitToken: $outerCommitmentToken,
+            );
         } catch (\Throwable $failure) {
             $transaction->rollBack();
             throw $failure;

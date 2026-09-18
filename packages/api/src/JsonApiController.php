@@ -26,6 +26,7 @@ use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuardResult;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\BundleUniqueKeyConflictException;
+use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
 use Waaseyaa\EntityStorage\SaveContext;
@@ -56,6 +57,16 @@ final class JsonApiController
      * oracle in the code member.
      */
     public const string CONCEALED_NOT_FOUND_CODE = 'ENTITY_NOT_FOUND';
+
+    /**
+     * Stable machine code when the repository mutation committed but post-commit
+     * completion work failed (#2999 JSON:API slice). Emitted only for
+     * {@see \Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException},
+     * not for a bare pre-commit {@see \Waaseyaa\Database\Exception\TransactionCompletionException}.
+     * The response must not expose callback messages, classes, traces, or
+     * submitted payloads.
+     */
+    public const string COMMITTED_SIDE_EFFECTS_FAILED_CODE = 'COMMITTED_SIDE_EFFECTS_FAILED';
 
     /**
      * Credential keys that must never be queryable, even when stored as a raw `_data` key
@@ -930,6 +941,12 @@ final class JsonApiController
             // WP2 rework (review finding #8): WorkflowStateGuard denies from
             // PRE_SAVE inside save() — never let it surface as an uncaught 500.
             return $this->errorDocument($this->workflowTransitionDeniedError($e));
+        } catch (EntityMutationCommittedSideEffectsFailedException) {
+            return $this->committedSideEffectsFailedDocument(
+                $entityTypeId,
+                (string) $entity->id(),
+                'create',
+            );
         }
 
         [$resource, $servedRepresentation] = $this->mutationEcho($entity, $editingRepresentation);
@@ -1195,6 +1212,12 @@ final class JsonApiController
                 // WP2 rework (review finding #8): same PRE_SAVE guard denial
                 // as create() and the expectation-stated PATCH path below.
                 return $this->errorDocument($this->workflowTransitionDeniedError($e));
+            } catch (EntityMutationCommittedSideEffectsFailedException) {
+                return $this->committedSideEffectsFailedDocument(
+                    $entityTypeId,
+                    (string) $target->id(),
+                    'update',
+                );
             }
         }
 
@@ -1314,6 +1337,12 @@ final class JsonApiController
             // WP2 rework (review finding #8): same PRE_SAVE guard denial as
             // create() and the plain PATCH path above.
             return $this->errorDocument($this->workflowTransitionDeniedError($e));
+        } catch (EntityMutationCommittedSideEffectsFailedException) {
+            return $this->committedSideEffectsFailedDocument(
+                $entityTypeId,
+                (string) $entity->id(),
+                'update',
+            );
         } catch (\LogicException $e) {
             // The storage rejection matrix is the invariant backstop: a stated
             // expectation the pipeline cannot honor is a 4xx caller error,
@@ -1504,6 +1533,12 @@ final class JsonApiController
             $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
         } catch (EntityMutationConflictException) {
             return $this->mutationConflictDocument();
+        } catch (EntityMutationCommittedSideEffectsFailedException) {
+            return $this->committedSideEffectsFailedDocument(
+                $entityTypeId,
+                (string) $entity->id(),
+                'delete',
+            );
         }
 
         return JsonApiDocument::empty(meta: ['deleted' => true], statusCode: 204);
@@ -1663,6 +1698,35 @@ final class JsonApiController
     private function errorDocument(JsonApiError $error): JsonApiDocument
     {
         return JsonApiDocument::fromErrors([$error], statusCode: (int) $error->status);
+    }
+
+    /**
+     * Sanitized JSON:API envelope when the repository mutation committed but
+     * post-commit completion work failed (#2999). Driven by
+     * {@see EntityMutationCommittedSideEffectsFailedException} only. Does not
+     * expose callback messages, exception classes, stack traces, or submitted
+     * payloads.
+     *
+     * @param 'create'|'update'|'delete' $operation
+     */
+    private function committedSideEffectsFailedDocument(
+        string $entityTypeId,
+        string $entityId,
+        string $operation,
+    ): JsonApiDocument {
+        return $this->errorDocument(new JsonApiError(
+            status: '500',
+            title: 'Committed mutation side effects failed',
+            detail: 'The mutation was committed but required post-commit work failed. '
+                . 'Do not retry the same request; reconcile downstream side effects separately.',
+            code: self::COMMITTED_SIDE_EFFECTS_FAILED_CODE,
+            meta: [
+                'committed' => true,
+                'operation' => $operation,
+                'resource_type' => $entityTypeId,
+                'resource_id' => $entityId,
+            ],
+        ));
     }
 
     /**
