@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\PermissionListHandler;
 use Waaseyaa\CLI\Handler\UserAssignRoleHandler;
 use Waaseyaa\CLI\Handler\UserCreateHandler;
+use Waaseyaa\CLI\Handler\UserProvisionRegisteredHandler;
 use Waaseyaa\CLI\Handler\UserRoleHandler;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -100,6 +101,12 @@ final class UserPermissionServiceProvider extends ServiceProvider implements Pro
                 ),
             ],
             handler: [UserAssignRoleHandler::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'user:provision-registered',
+            description: 'Provision or verify one account and registered role from a private stdin document',
+            handler: [UserProvisionRegisteredHandler::class, 'execute'],
         );
 
         yield new HandlerCommand(

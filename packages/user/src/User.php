@@ -8,6 +8,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\Attribute\StorageUniqueKey;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
@@ -27,6 +28,8 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  */
 #[ContentEntityType(id: 'user', label: 'User', description: 'Manage user accounts, roles, and authentication', api: true)]
 #[ContentEntityKeys(id: 'uid', uuid: 'uuid', label: 'name')]
+#[StorageUniqueKey('user_identity_name_key_unique', ['identity_name_key'])]
+#[StorageUniqueKey('user_identity_mail_key_unique', ['identity_mail_key'])]
 final class User extends ContentEntityBase implements AccountInterface, HydratableFromStorageInterface
 {
     /**
@@ -76,6 +79,17 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     #[Field(type: 'email', label: 'Email address', description: 'The email address of the user.', settings: ['weight' => 5], read: FieldReadLevel::Internal)]
     public ?string $mail = null;
 
+    // Safe provisioning supplies these canonical bindings. Direct User
+    // construction and explicit name/mail mutation keep them synchronized,
+    // while sealed repository construction can leave them null for legacy
+    // compatibility. A cross-path backfill/creation migration remains an
+    // operator concern rather than an implicit schema-sync mutation.
+    #[Field(required: false, label: 'Canonical login identity key', settings: ['internal' => true], read: FieldReadLevel::Internal)]
+    public ?string $identity_name_key = null;
+
+    #[Field(required: false, label: 'Canonical mail identity key', settings: ['internal' => true], read: FieldReadLevel::Internal)]
+    public ?string $identity_mail_key = null;
+
     // required: false (#1655): consumers never supply this at creation (the PHP
     // property default is not consulted by get()/validate()), and legacy rows
     // may hold NULL — a derived NotNull rejected the framework's own
@@ -116,6 +130,12 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
         array $entityKeys = [],
         array $fieldDefinitions = [],
     ) {
+        // Direct constructors cannot forge a divergent identity binding. The
+        // repository's sealed initializer deliberately bypasses constructors;
+        // its trusted safe-provisioning caller supplies the same canonical keys.
+        $values['identity_name_key'] = self::canonicalIdentityKey($values['name'] ?? null);
+        $values['identity_mail_key'] = self::canonicalIdentityKey($values['mail'] ?? null);
+
         // Ensure sensible defaults.
         $hasUid = isset($values['uid']);
 
@@ -135,6 +155,27 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
         }
     }
 
+    public function set(string $name, mixed $value): static
+    {
+        if ($name === 'identity_name_key' || $name === 'identity_mail_key') {
+            throw new \InvalidArgumentException('User identity keys are derived from name and mail.');
+        }
+        parent::set($name, $value);
+        if ($name === 'name') {
+            parent::set('identity_name_key', self::canonicalIdentityKey($value));
+        } elseif ($name === 'mail') {
+            parent::set('identity_mail_key', self::canonicalIdentityKey($value));
+        }
+
+        return $this;
+    }
+
+    /** Canonical storage key used by the safe provisioning boundary. */
+    public static function canonicalIdentityKey(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? strtolower($value) : null;
+    }
+
     /**
      * @param array<string, mixed> $values
      */
@@ -145,12 +186,28 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
 
     public static function fromStorage(array $values, HydrationContext $context): static
     {
-        return new self(
+        $user = new self(
             values: $values,
             entityTypeId: $context->entityTypeId,
             entityKeys: $context->entityKeys,
             fieldDefinitions: [],
         );
+        // Existing rows are authoritative history. In particular, preserve
+        // nullable identity bindings until an explicit audited backfill owns
+        // their migration; hydrating and saving an unrelated field must not
+        // silently claim a canonical identity namespace.
+        foreach (['identity_name_key', 'identity_mail_key'] as $field) {
+            if (array_key_exists($field, $values)) {
+                $user->setHydratedIdentityKey($field, $values[$field]);
+            }
+        }
+
+        return $user;
+    }
+
+    private function setHydratedIdentityKey(string $field, mixed $value): void
+    {
+        parent::set($field, $value);
     }
 
     protected function duplicateInstance(array $values): static

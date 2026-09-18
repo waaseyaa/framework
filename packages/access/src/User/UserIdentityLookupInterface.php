@@ -14,5 +14,8 @@ interface UserIdentityLookupInterface
 
     public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface;
 
+    /** Whether any account, including an inactive one, owns this login name. */
+    public function loginExists(EntityRepositoryInterface $repository, string $login): bool;
+
     public function mailExists(EntityRepositoryInterface $repository, string $mail): bool;
 }

@@ -80,7 +80,17 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
         }
     }
 
+    public function loginExists(EntityRepositoryInterface $repository, string $login): bool
+    {
+        return $this->identityExists($repository, 'name', $login);
+    }
+
     public function mailExists(EntityRepositoryInterface $repository, string $mail): bool
+    {
+        return $this->identityExists($repository, 'mail', $mail);
+    }
+
+    private function identityExists(EntityRepositoryInterface $repository, string $field, string $value): bool
     {
         $boundary = $this->capabilities->openBoundary(bin2hex(random_bytes(16)));
         $capability = $this->capabilities->issueQueryRead('user.identity-lookup', new CapabilityIssueContext(
@@ -97,15 +107,15 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
             $request = QueryFieldReadRequest::fromShape(
                 entityTypeId: 'user',
                 bundles: ['user'],
-                fields: ['mail'],
+                fields: [$field],
                 operations: [QueryFieldOperation::Predicate, QueryFieldOperation::Exists],
-                normalizedShape: ['predicates' => [['mail', 'CASE_INSENSITIVE_EQUALS', '?']], 'range' => [0, 1]],
+                normalizedShape: ['predicates' => [[$field, 'CASE_INSENSITIVE_EQUALS', '?']], 'range' => [0, 1]],
             );
             $reservation = $this->reader->reserve($capability, $boundary, $request);
             try {
                 $ids = $repository->getQuery()
                     ->accessCheck(false)
-                    ->condition('mail', $mail, 'CASE_INSENSITIVE_EQUALS')
+                    ->condition($field, $value, 'CASE_INSENSITIVE_EQUALS')
                     ->range(0, 1)
                     ->execute();
             } catch (\Throwable $exception) {

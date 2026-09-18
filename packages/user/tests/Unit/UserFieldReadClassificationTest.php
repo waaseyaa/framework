@@ -21,6 +21,8 @@ final class UserFieldReadClassificationTest extends TestCase
             'uuid' => FieldReadLevel::Public,
             'name' => FieldReadLevel::Protected,
             'mail' => FieldReadLevel::Internal,
+            'identity_name_key' => FieldReadLevel::Internal,
+            'identity_mail_key' => FieldReadLevel::Internal,
             'pass' => FieldReadLevel::Internal,
             // #2544: a credential imported from another system, pending one-time
             // upgrade. It is a password equivalent while it exists, so it

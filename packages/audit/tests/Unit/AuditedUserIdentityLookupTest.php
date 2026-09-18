@@ -158,6 +158,27 @@ final class AuditedUserIdentityLookupTest extends TestCase
         self::assertTrue($lookup->mailExists($repository, 'member@example.test'));
     }
 
+    public function test_login_existence_includes_inactive_case_variants_without_returning_account_data(): void
+    {
+        $registry = $this->identityRegistry();
+        $conditions = [];
+        $ranges = [];
+        $query = $this->recordingQuery($conditions, $ranges);
+        $query->expects(self::once())->method('execute')->willReturn([7]);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->expects(self::never())->method('find');
+
+        $lookup = new AuditedUserIdentityLookup(
+            new AuditedQueryFieldRead($registry, $this->silentLedger()),
+            $registry,
+        );
+
+        self::assertTrue($lookup->loginExists($repository, 'MEMBER'));
+        self::assertSame([['name', 'MEMBER', 'CASE_INSENSITIVE_EQUALS']], $conditions);
+        self::assertSame([[0, 1]], $ranges);
+    }
+
     public function test_login_prefers_an_exact_legacy_mail_match_before_canonical_fallback(): void
     {
         $registry = new InMemoryCapabilityRegistry();

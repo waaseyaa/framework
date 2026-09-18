@@ -10,5 +10,7 @@ return [
     'entries' => [
         ['fqcn' => 'Waaseyaa\\User\\Authentication\\AuthenticationEligibilityInterface', 'disposition' => 'public', 'ref' => '#2757'],
         ['fqcn' => 'Waaseyaa\\User\\Authentication\\AuthenticationStage', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\User\\RegisteredRoleAssignment', 'disposition' => 'public', 'purpose' => 'Canonical registered-role membership and flattened permission union'],
+        ['fqcn' => 'Waaseyaa\\User\\RegisteredRoleAssignmentService', 'disposition' => 'public', 'purpose' => 'Shared registered-role replacement/removal and permission-union authority', 'ref' => '#3046'],
     ],
 ];

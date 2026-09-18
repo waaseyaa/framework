@@ -19,6 +19,7 @@ use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Role;
 use Waaseyaa\User\RoleRepository;
+use Waaseyaa\User\RegisteredRoleAssignmentService;
 
 #[CoversClass(UserAssignRoleHandler::class)]
 #[CoversClass(RoleRepository::class)]
@@ -172,7 +173,12 @@ final class UserAssignRoleHandlerTest extends TestCase
             public function get(string $id): mixed
             {
                 if ($id === UserAssignRoleHandler::class) {
-                    return new UserAssignRoleHandler($this->registry, $this->manager, new UserInternalFieldReaderFixture());
+                    return new UserAssignRoleHandler(
+                        $this->registry,
+                        $this->manager,
+                        new UserInternalFieldReaderFixture(),
+                        new RegisteredRoleAssignmentService($this->registry),
+                    );
                 }
 
                 throw new \RuntimeException(sprintf('Container::get(%s) called unexpectedly', $id));
