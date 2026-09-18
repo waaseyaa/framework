@@ -123,7 +123,7 @@ final class CiCheckRosterManifestTest extends TestCase
         self::assertCount(22, $projection['contexts']);
         self::assertCount(21, array_filter(
             $projection['contexts'],
-            static fn (array $item): bool => $item['binding']['mode'] === 'github-app'
+            static fn(array $item): bool => $item['binding']['mode'] === 'github-app'
                 && $item['binding']['integration_id'] === 15368,
         ));
         self::assertSame([1, 2], $this->producer($this->manifest, 'random-order-shards')['matrix']['values']);
@@ -135,7 +135,7 @@ final class CiCheckRosterManifestTest extends TestCase
     public function validator_rejects_discriminating_contract_violations(string $case, string $expectedError): void
     {
         $mutated = $this->manifest;
-        $producerIndex = fn (string $id): int => $this->producerIndex($mutated, $id);
+        $producerIndex = fn(string $id): int => $this->producerIndex($mutated, $id);
 
         match ($case) {
             'unknown-role' => $mutated['policy']['producers'][0]['role'] = 'mystery',
