@@ -870,6 +870,36 @@ supersedes the sweep's estimates). None is acted on here.
   Owner: the next slice that touches CRC030 — add a fourth clause and a roster
   fixture.
 
+### Filed as GitHub issues (2026-09-18)
+
+The items above that stand on their own, and the ones the hygiene sweep
+flagged as "clean before adding hosted CI machinery", were mirrored as
+issues after Task 3. The ledger remains the portable authority; the issues
+are the forge adapter.
+
+- waaseyaa/framework#3090 — `timeout-minutes` on every job, release pipeline first.
+- waaseyaa/framework#3091 — consolidate the four-way Packagist submit/verify
+  duplication; settle `packagist-update.yml`'s prose-vs-trigger contradiction.
+- waaseyaa/framework#3092 — explicit least-privilege `permissions:` in the nine
+  default-token workflows; narrow `admin-dist.yml` / `auto-merge.yml`; review
+  the `sync-skeleton.yml` force-push.
+- waaseyaa/framework#3093 — pin floating `ubuntu-latest` runners; reconcile
+  action version comments.
+- waaseyaa/framework#3094 — name the ten unnamed jobs; resolve the duplicate
+  `Publish GitHub Release` context; one `ci.yml` naming convention — before
+  ruleset migration (Tasks 6–7).
+- waaseyaa/framework#3095 — an owning spec for CI structure and its routing
+  in `CLAUDE.md` and `tools/drift-detector.sh`.
+- waaseyaa/framework#3096 — host-aware preflight gates on Windows (the five
+  POSIX-only gates that block pre-push on this host).
+
+Not filed, by design: items owned by a numbered #3087 task (object-matrix
+naming → Task 6; publish-on-`always()` shapes and the two gates that cannot
+fail → Task 3/5 disposition; `merge_group` → the recorded design decision),
+the fixture-only generator paths, the third-party publishing-action note,
+the retention-policy note, and the empty-`selectors` verifier gap, which
+stays with the next CRC030 change.
+
 ## Ordered residual work
 
 0. Evidence freeze and external benchmark: complete.
