@@ -330,17 +330,194 @@ rule, product code, release, or deployment behaviour changed.
 binding it to this generated artifact is Task 3's work together with the
 offline conformance comparison.
 
+## Task 3a: policy repair from inventory evidence
+
+Binding the accepted Task 1 policy to the Task 2 inventory was attempted first
+as part of Task 3. The binding derivation — every entry forced by an inventory
+fact, nothing guessed — showed that three policy claims could not be bound at
+all. Because `tools/ci-check-roster.json` is an accepted artifact, the repair is
+recorded here as its own slice rather than folded into the verifier, and the
+verifier is written against the repaired policy afterwards.
+
+Derivation rule for every binding below: a required context binds to the unique
+inventory job that lists it as a visible context; a producer binds to the unique
+job in its bound workflow that a structural discriminator the policy itself
+supplies forces — literal matrix values, the artifact contract's
+producer/consumer roles, an aggregate's prerequisite edge, or being the
+workflow's only job. Policy `role` is deliberately **not** compared with the
+inventory's `structural_role`: the inventory's own derivation rules describe
+that label as a structural heuristic that "is not the policy role vocabulary"
+and that "deliberately collides" (`ci-test-shards` is structurally `setup` and
+`execution` in policy; `split.yml#assemble-release-evidence` is structurally
+`setup` and `publication` in policy).
+
+### S1 — `ci-environment-setup` mapped to no job
+
+*Evidence.* `ci.yml` has no CI-environment-setup job. 39 of its 41 jobs run
+their own `actions/checkout` and 31 their own `shivammathur/setup-php`;
+environment setup is a per-job step pattern, not a job. The only singleton jobs
+the inventory labels `setup` are `prepare-test-plan` (uploads
+`phpunit-shard-plan` and `vendor-archive`; needed by `ci-test-shards` and
+`ci-random-order-shard`) and `prepare-random-order-plan` (uploads
+`random-order-plan`; needed by `ci-random-order-shard` and `ci-random-order`).
+Neither is an environment setup, and nothing in the inventory forces one over
+the other.
+
+*Decision.* The producer is removed. Two producers modelled on the real jobs
+replace it — `phpunit-shard-plan` and `random-order-plan` — both `setup`,
+singleton, unconditional, `diagnostic`/`informational`, cadence
+`[pull-request, main]`, invariant `php-behavior-coverage`, with the same
+pr-head/main + run-attempt profiles as the shard producers plus
+`artifact_subject: artifact-source-sha`, because each uploads an artifact a
+later job consumes.
+
+### S2 — `source-integrity-policy` mapped to no unique job
+
+*Evidence.* Applying every discriminator the policy supplies (workflow
+`primary-ci` → `ci.yml`, singleton, not an aggregate, `disposition: required`
+⇒ its visible context must be one of the 22) left 19 candidate jobs; narrowing
+by the producer's own `source-repository-policy` invariant still left five
+(`Manifest conformance`, `check-dead-code`, `ci/lint`, `ci/verify-gates`,
+`composer-policy`).
+
+*Decision.* Keep the producer id and bind it to `ci.yml#verify-gates`. That job
+is the codified source/repository policy gate: it runs the 22 permanent
+verify-only boundary gates through their `composer check-*` aliases — the set
+`composer verify` enforces and the set the local pre-push `bin/check-pr-preflight`
+roster mirrors — plus the append-only delivery-agent event check. Cadence,
+disposition, authority and invariant are unchanged.
+
+Its pull-request profile keeps `merge-ref-sha`. `ci.yml#verify-gates` checks out
+`ref: ${{ inputs.sha || github.sha }}`, and on a `pull_request` event
+`github.sha` is the merge-ref SHA, so the declared subject matches what the job
+attests. That last step rests on documented GitHub `pull_request` semantics and
+on reading the checkout step in `ci.yml`, not on an inventory field — the
+inventory does not record step `with:` values.
+
+### S3 — `release-publish-evidence` declared a cadence no workflow can produce
+
+*Evidence.* No workflow in the repository declares a `release` trigger event.
+The complete trigger-event census over all 22 files is `issue_comment` (1),
+`pull_request` (5), `pull_request_target` (1), `push` (7), `schedule` (2),
+`workflow_dispatch` (14), `workflow_run` (2). The former selector
+`release-or-manual-dispatch` is not a GitHub event name and cannot be matched
+against any trigger selector.
+
+*Decision.* `release` cadence is defined as a `v*` tag push. `split.yml`
+(`push: tags: ['v*']`) is the release-publication workflow, and
+`split.yml#assemble-release-evidence` is the bound producer: it runs
+`bin/generate-release-evidence`, uploads `waaseyaa-release-evidence`, and is
+needed by `publish-github-release`. The selector becomes
+`any_of [event push:tags, event workflow_dispatch]`.
+
+`release` keeps `main-sha` in `cadence_sha_subjects`: a release tag is cut from
+main by `release-cut.yml`, so the attested SHA is a main SHA by construction.
+The rationale is recorded in the new
+`attestation_subject_contract.cadence_semantics` block rather than inside
+`cadence_sha_subjects`, which stays byte-identical.
+
+`split.yml` is tag-push only and cannot serve the `manual` cadence, so the
+producer carries a `recovery_producer` record naming `github-release.yml#release`
+— the `workflow_dispatch` workflow that republishes the same
+`waaseyaa-release-evidence` artifact. The offline verifier must consult that
+record when it checks `manual` against triggers; binding a producer to two jobs
+is otherwise outside the current producer shape.
+
+### Sub-findings
+
+- **Matrix axis.** Both matrix producers declared `axis: "shard"`; `ci.yml`
+  declares `id` (`ci-test-shards` axes `{"id":[1,2,3,4]}`,
+  `ci-random-order-shard` axes `{"id":[1,2]}`). Widths and values were already
+  correct. The axis is now `id` in both.
+- **Random-order lineage.** `ci.yml#ci-random-order` result-checks both
+  `ci-random-order-shard` and `prepare-random-order-plan`. The lineage entry now
+  carries `random-order-plan` as a second prerequisite requiring `success`.
+- **Shard-plan lineage.** Verified and deliberately not added: `ci-unit-tests`
+  and `ci-coverage` both have `needs: [ci-test-shards]` and
+  `result_checked_prerequisites: [ci-test-shards]` only, so no aggregate
+  result-checks `prepare-test-plan`. `phpunit-shard-plan` is therefore a
+  prerequisite of nothing in the lineage contract.
+- **Artifact contracts are unchanged**, and the reason is recorded in the new
+  `policy.artifact_contract_scope` field. The contract shape is one producer,
+  one consumer, one bounded family; `prepare-test-plan` uploads two families
+  (`phpunit-shard-plan` and `vendor-archive`) and `vendor-archive` has two
+  consumer jobs (`ci-test-shards`, `ci-random-order-shard`). Modelling the plan
+  and vendor flows needs a wider shape, so they are left unmodelled rather than
+  half-modelled, and the offline verifier reports them as coverage notices.
+
+### The `bindings` block
+
+A new top-level `bindings` object names its source
+(`tools/ci-workflow-inventory.json`), its derivation rule, the three
+`workflow_policies` (`primary-ci` → `ci.yml`, `release-publication` →
+`split.yml`, `auto-merge-control` → `auto-merge.yml`), all eleven producers, and
+all 22 required contexts. Every required context resolves to exactly one `ci.yml`
+job with a `literal` derivation; no required context is missing, duplicated or
+unresolved, and `ci.yml` declares a `pull_request` trigger.
+
+### Scope pointers
+
+`scope.task` is 3. `scope.generated_workflow_inventory` now reads
+`{status: generated, task: 2, path, generator}`;
+`scope.offline_workflow_conformance` reads `{status: in-progress, task: 3}` —
+it becomes `implemented` only when the verifier exists. `residual_tasks` orders
+0–2 are `complete` and order 3 is `current`.
+
+### What the focused test proves
+
+`tests/Architecture/CiCheckRosterManifestTest.php` keeps every Task 1
+assertion and adds the Task 3a ones: the new scope pointers and residual
+statuses, the governed producer roster in order, the `id` matrix axis on both
+matrix producers, the two-prerequisite random-order lineage, the tag-push
+release selector and its recovery producer, and the shape of the `bindings`
+block. The binding check reads `tools/ci-workflow-inventory.json` and goes past
+mere existence: every bound workflow file and job key must exist in it; every
+producer and every required context must be bound; a producer's bound workflow
+must agree with its workflow policy's; a required context's inventory owners
+must be exactly the one job it binds, so binding it to another real job — in
+the same workflow or a different one — fails; a producer's declared expansion
+must be the bound job's; and a matrix producer's axis and values must be an
+axis the bound job literally declares, which is what makes the axis assertion
+inventory-derived rather than a literal in the test. The release producer's
+`recovery_producer` job reference is checked the same way. It still reads no
+workflow YAML and makes no conformance claim beyond those binding identities.
+Fourteen negative fixtures were added and one retired (`premature-inventory`):
+a drifted inventory pointer, a changed producer roster, the old `shard` axis, a
+one-prerequisite random-order lineage, the old release selector, an unbound
+producer, a renamed producer job, a renamed required-context job, a context
+bound to another real job in the same workflow, a context bound to a real job
+in another workflow, a matrix producer bound to a singleton job, a producer
+bound outside its workflow policy, a workflow policy bound to a missing file,
+and a reverted residual status. Two existing fixtures were re-aimed from the
+removed `ci-environment-setup` onto `phpunit-shard-plan`, and four index-based
+mutations were converted to id lookups so a future reorder cannot silently
+un-aim them. The provider grew from 27 to 40 cases (28 → 41 tests, 36 → 58
+assertions).
+
+No workflow, ruleset, branch rule, product code, release, or deployment
+behaviour changed. `tools/ci-workflow-inventory.json` and
+`bin/generate-ci-workflow-inventory` are untouched, and
+`php bin/generate-ci-workflow-inventory --check` still exits 0.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on
 here; each names its evidence and a suggested owner.
 
-- `tools/ci-check-roster.json:237` (`residual_tasks[1].status`) still reads
-  `current` while this record now reads `complete`, and
-  `tools/ci-check-roster.json:8` (`scope.generated_workflow_inventory`) still
-  reads `deferred` with `task: 2`. The machine-readable manifest and this prose
-  therefore disagree in-tree until the pointer is bound; the manifest is frozen
-  for Task 2, so the disagreement is deliberate and bounded. Owner: Task 3.
+- ~~`tools/ci-check-roster.json` `residual_tasks[1].status` still reads
+  `current` while this record reads `complete`, and
+  `scope.generated_workflow_inventory` still reads `deferred` with `task: 2`.~~
+  **Resolved by Task 3a.** The pointers now read `generated` (with the tracked
+  path and generator) and `in-progress`/task 3, and residual orders 0–2 read
+  `complete` with order 3 `current`. Manifest and prose agree in-tree.
+- `Publish GitHub Release` is the visible context of **two** jobs —
+  `github-release.yml#release` and `split.yml#publish-github-release` — so two
+  workflows would produce check runs under one name. It is not a required
+  context, and neither workflow has an internal `duplicate_contexts` entry
+  (the collision is cross-workflow, which is why the inventory counts 160
+  visible contexts over 159 distinct names). Whichever run reports last wins in
+  any name-keyed projection. Owner: Task 6, then Task 7, before ruleset
+  migration — the same place the ten unnamed jobs are already listed.
 - `.github/workflows/split.yml` `publish-github-release` (job at line 488,
   `if: ${{ always() }}` at line 491) is a release-publishing job that starts
   regardless of prerequisite results; its first step fails closed on any
@@ -368,14 +545,17 @@ here; each names its evidence and a suggested owner.
   `packages/workflows/` (the PHP package) and nothing under `.github/workflows/`.
   Neither routes `tools/ci-*` or `bin/generate-ci-workflow-inventory`.
   Suggested: a new issue for a CI-structure spec and its routing entries.
-- `composer cs-check` fails on `tests/Architecture/CiCheckRosterManifestTest.php`
+- ~~`composer cs-check` fails on `tests/Architecture/CiCheckRosterManifestTest.php`
   at the two arrow functions on lines 126 and 138: PHP-CS-Fixer 3.95.1's
   `@PER-CS2.0` wants `fn(` and the file writes `fn (`. It is the only linted
   file the fixer rewrites; every other `fn (` in the repository sits inside a
   generated-code string or a non-PHP script, and the linted trees are otherwise
   uniform at 1178 `fn(`. This predates the inventory slice, is not caused by
-  it, and will fail `ci/lint` until fixed. Repair: `composer cs-fix`. Owner:
-  the Task 1 candidate.
+  it, and will fail `ci/lint` until fixed. Repair: `composer cs-fix`.~~
+  **Resolved** in commit `9d37bb238`, "style(tests): apply PER-CS closure
+  spacing to the roster manifest test" — a style-only orchestrator commit, not
+  the Task 1 candidate. The file now carries zero `fn (` and the fixer dry-run
+  is clean.
 - `tools/preflight-gates.json` carries no inventory-drift gate. Drift is caught
   today only by this candidate's architecture test (which CI runs inside
   `ci/unit-tests`). A roster entry would also give
@@ -478,8 +658,10 @@ supersedes the sweep's estimates). None is acted on here.
 
 0. Evidence freeze and external benchmark: complete.
 1. Governance contract and schema repair: complete.
-2. Inventory generator: this candidate.
-3. Offline conformance verifier.
+2. Inventory generator: complete.
+3. Offline conformance verifier: this candidate. Task 3a (policy repair from
+   inventory evidence) lands first as its own reviewed slice; the verifier is
+   written against the repaired policy afterwards.
 4. Measurement baseline under #2869.
 5. Stable aggregate shadowing.
 6. Ruleset projection and live audit.

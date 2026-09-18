@@ -39,6 +39,25 @@ final class CiCheckRosterManifestTest extends TestCase
         'artifact-source-sha' => ['artifact_source_sha', 'git-sha'],
     ];
 
+    /**
+     * The governed producer set, in manifest order. Task 3a replaced the
+     * unbindable `ci-environment-setup` with the two plan jobs `ci.yml`
+     * actually runs; see the change record's "Task 3a" section.
+     */
+    private const PRODUCERS = [
+        'source-integrity-policy',
+        'phpunit-shard-plan',
+        'random-order-plan',
+        'php-test-shards',
+        'php-behavior-aggregate',
+        'php-coverage-aggregate',
+        'random-order-shards',
+        'random-order-aggregate',
+        'mutation-pilot',
+        'release-publish-evidence',
+        'enable-native-auto-merge',
+    ];
+
     private const INVARIANTS = [
         'source-repository-policy',
         'php-behavior-coverage',
@@ -101,6 +120,14 @@ final class CiCheckRosterManifestTest extends TestCase
     /** @var array<string, mixed> */
     private array $manifest;
 
+    /**
+     * The generated workflow inventory (Task 2), read so the binding block can
+     * be cross-checked offline. The test never reads workflow YAML.
+     *
+     * @var array<string, mixed>
+     */
+    private array $inventory;
+
     protected function setUp(): void
     {
         $this->manifest = json_decode(
@@ -108,15 +135,34 @@ final class CiCheckRosterManifestTest extends TestCase
             true,
             flags: JSON_THROW_ON_ERROR,
         );
+        $this->inventory = json_decode(
+            (string) file_get_contents(dirname(__DIR__, 2) . '/tools/ci-workflow-inventory.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
     }
 
     #[Test]
-    public function manifest_defines_a_self_consistent_task_one_policy_contract(): void
+    public function manifest_defines_a_self_consistent_bound_policy_contract(): void
     {
         self::assertSame([], $this->validate($this->manifest));
         self::assertSame(3, $this->manifest['schema_version']);
-        self::assertSame('deferred', $this->manifest['scope']['generated_workflow_inventory']['status']);
-        self::assertSame('deferred', $this->manifest['scope']['offline_workflow_conformance']['status']);
+        self::assertSame(3, $this->manifest['scope']['task']);
+        self::assertSame(
+            ['status' => 'generated', 'task' => 2, 'path' => 'tools/ci-workflow-inventory.json', 'generator' => 'bin/generate-ci-workflow-inventory'],
+            $this->manifest['scope']['generated_workflow_inventory'],
+        );
+        self::assertSame(['status' => 'in-progress', 'task' => 3], $this->manifest['scope']['offline_workflow_conformance']);
+        self::assertSame(self::PRODUCERS, array_column($this->manifest['policy']['producers'], 'id'));
+        self::assertSame('id', $this->producer($this->manifest, 'php-test-shards')['matrix']['axis']);
+        self::assertSame('id', $this->producer($this->manifest, 'random-order-shards')['matrix']['axis']);
+
+        $bindings = $this->manifest['bindings'];
+        self::assertSame('tools/ci-workflow-inventory.json', $bindings['source']);
+        self::assertSame(['workflow' => 'ci.yml', 'job' => 'verify-gates'], $bindings['producers']['source-integrity-policy']);
+        self::assertSame(['workflow' => 'split.yml', 'job' => 'assemble-release-evidence'], $bindings['producers']['release-publish-evidence']);
+        self::assertSame('split.yml', $bindings['workflow_policies']['release-publication']);
+        self::assertCount(22, $bindings['required_contexts']);
 
         $projection = $this->manifest['policy']['required_projection'];
         self::assertTrue($projection['strict']);
@@ -144,9 +190,9 @@ final class CiCheckRosterManifestTest extends TestCase
             'unknown-invariant' => $mutated['policy']['producers'][0]['invariant'] = 'missing',
             'invalid-selector' => $mutated['policy']['producers'][0]['selection']['composition'] = 'one_of',
             'missing-profile' => $mutated['policy']['producers'][$producerIndex('mutation-pilot')]['subject_profiles'] = [],
-            'subject-leakage' => $mutated['policy']['producers'][1]['subject_profiles'][0]['sha_subject'] = 'main-sha',
+            'subject-leakage' => $mutated['policy']['producers'][$producerIndex('phpunit-shard-plan')]['subject_profiles'][0]['sha_subject'] = 'main-sha',
             'flat-subjects' => $mutated['policy']['producers'][0]['attestation_subjects'] = ['pr-head-sha'],
-            'duplicate-profile-cadence' => $mutated['policy']['producers'][1]['subject_profiles'][1]['cadences'] = ['pull-request'],
+            'duplicate-profile-cadence' => $mutated['policy']['producers'][$producerIndex('phpunit-shard-plan')]['subject_profiles'][1]['cadences'] = ['pull-request'],
             'unmapped-context' => $mutated['policy']['required_projection']['contexts'][0]['invariant'] = null,
             'unknown-context-invariant' => $mutated['policy']['required_projection']['contexts'][0]['invariant'] = 'unknown',
             'duplicate-context' => $mutated['policy']['required_projection']['contexts'][1]['context'] = 'Frontend build',
@@ -166,11 +212,32 @@ final class CiCheckRosterManifestTest extends TestCase
             'mutation-cadence' => $mutated['policy']['producers'][$producerIndex('mutation-pilot')]['cadence'] = ['pull-request', 'scheduled'],
             'active-merge-group' => $mutated['policy']['producers'][0]['cadence'][] = 'merge-group',
             'aggregate-cancellation' => $mutated['policy']['aggregate_lineage_contract']['terminal_result_policy']['cancelled'] = 'pass',
-            'cross-workflow-lineage' => $mutated['policy']['producers'][2]['workflow_policy_id'] = 'other-workflow',
+            'cross-workflow-lineage' => $mutated['policy']['producers'][$producerIndex('php-test-shards')]['workflow_policy_id'] = 'other-workflow',
             'aggregate-result' => $mutated['policy']['aggregate_lineage_contract']['aggregates'][0]['prerequisites'][0]['required_result'] = 'completed',
             'artifact-pattern' => $mutated['policy']['artifact_contracts'][0]['producer_pattern'] = 'php-test-shard-${{ matrix.shard }}',
-            'artifact-subject' => $mutated['policy']['producers'][2]['subject_profiles'][0]['artifact_subject'] = 'pr-head-sha',
-            'premature-inventory' => $mutated['scope']['generated_workflow_inventory']['status'] = 'complete',
+            'artifact-subject' => $mutated['policy']['producers'][$producerIndex('php-test-shards')]['subject_profiles'][0]['artifact_subject'] = 'pr-head-sha',
+            'unbound-inventory-pointer' => $mutated['scope']['generated_workflow_inventory']['path'] = 'tools/somewhere-else.json',
+            'producer-roster' => $mutated['policy']['producers'][$producerIndex('phpunit-shard-plan')]['id'] = 'ci-environment-setup',
+            'matrix-axis' => $mutated['policy']['producers'][$producerIndex('php-test-shards')]['matrix']['axis'] = 'shard',
+            'random-order-lineage' => $mutated['policy']['aggregate_lineage_contract']['aggregates'][2]['prerequisites'] = [
+                ['producer_id' => 'random-order-shards', 'required_result' => 'success'],
+            ],
+            'release-selector' => $mutated['policy']['producers'][$producerIndex('release-publish-evidence')]['selection'] = [
+                'composition' => 'all_of',
+                'selectors' => [['type' => 'event', 'event' => 'release-or-manual-dispatch']],
+            ],
+            'unbound-producer' => $mutated['bindings']['producers'] = array_diff_key(
+                $mutated['bindings']['producers'],
+                ['mutation-pilot' => null],
+            ),
+            'binding-missing-job' => $mutated['bindings']['producers']['php-test-shards']['job'] = 'renamed-shards',
+            'binding-missing-context-job' => $mutated['bindings']['required_contexts']['ci/lint']['job'] = 'renamed-lint',
+            'binding-wrong-context-job' => $mutated['bindings']['required_contexts']['ci/lint']['job'] = 'frontend-build',
+            'binding-wrong-workflow-real-job' => $mutated['bindings']['required_contexts']['ci/lint'] = ['workflow' => 'split.yml', 'job' => 'split'],
+            'binding-expansion-mismatch' => $mutated['bindings']['producers']['php-test-shards']['job'] = 'ci-lint',
+            'binding-workflow-drift' => $mutated['bindings']['producers']['php-test-shards'] = ['workflow' => 'split.yml', 'job' => 'split'],
+            'binding-missing-workflow' => $mutated['bindings']['workflow_policies']['primary-ci'] = 'not-a-workflow.yml',
+            'residual-status' => $mutated['residual_tasks'][2]['status'] = 'pending',
             default => self::fail(sprintf('Unknown fixture %s.', $case)),
         };
 
@@ -186,9 +253,9 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'producer invariant reference' => ['unknown-invariant', 'source-integrity-policy references unknown invariant missing'];
         yield 'selector composition' => ['invalid-selector', 'source-integrity-policy has invalid selector composition one_of'];
         yield 'missing subject profile' => ['missing-profile', 'mutation-pilot subject profiles must cover every active cadence exactly once'];
-        yield 'subject leakage' => ['subject-leakage', 'ci-environment-setup profile pull-request-head leaks main-sha into pull-request'];
+        yield 'subject leakage' => ['subject-leakage', 'phpunit-shard-plan profile pull-request-head-artifact leaks main-sha into pull-request'];
         yield 'flat conjunctive subjects' => ['flat-subjects', 'source-integrity-policy must use profiles instead of flat attestation subjects'];
-        yield 'alternative profiles' => ['duplicate-profile-cadence', 'ci-environment-setup subject profiles must cover every active cadence exactly once'];
+        yield 'alternative profiles' => ['duplicate-profile-cadence', 'phpunit-shard-plan subject profiles must cover every active cadence exactly once'];
         yield 'unmapped required context' => ['unmapped-context', 'Frontend build must reference an owned invariant decision'];
         yield 'unknown required context invariant' => ['unknown-context-invariant', 'Frontend build must reference an owned invariant decision'];
         yield 'projection uniqueness' => ['duplicate-context', 'required projection contexts must be unique'];
@@ -206,7 +273,20 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'explicit prerequisite result' => ['aggregate-result', 'php-behavior-aggregate prerequisite php-test-shards must explicitly require success'];
         yield 'bounded artifacts' => ['artifact-pattern', 'php shard coverage must use the bounded php-test-shard-* contract'];
         yield 'artifact subject matching' => ['artifact-subject', 'php shard coverage producer and consumer profiles must bind artifact-source-sha'];
-        yield 'task boundary' => ['premature-inventory', 'generated workflow inventory must remain deferred to task 2'];
+        yield 'inventory pointer' => ['unbound-inventory-pointer', 'generated workflow inventory pointer must name the tracked inventory path'];
+        yield 'producer roster' => ['producer-roster', 'policy must define the governed producer roster in order'];
+        yield 'matrix axis' => ['matrix-axis', 'producer php-test-shards declares matrix axis shard with values [1,2,3,4], which ci.yml#ci-test-shards does not declare'];
+        yield 'random-order lineage' => ['random-order-lineage', 'random-order-aggregate lineage prerequisites must be exactly [random-order-shards, random-order-plan]'];
+        yield 'release selector' => ['release-selector', 'release publication selection must be the tag-push or manual-dispatch predicate'];
+        yield 'unbound producer' => ['unbound-producer', 'producer mutation-pilot has no inventory binding'];
+        yield 'renamed producer job' => ['binding-missing-job', 'producer php-test-shards binds ci.yml#renamed-shards, which the inventory does not contain'];
+        yield 'renamed context job' => ['binding-missing-context-job', 'required context ci/lint binds ci.yml#renamed-lint, which the inventory does not contain'];
+        yield 'context bound to the wrong job' => ['binding-wrong-context-job', 'required context ci/lint binds ci.yml#frontend-build, but the inventory shows that context on [ci.yml#ci-lint]'];
+        yield 'context bound across workflows' => ['binding-wrong-workflow-real-job', 'required context ci/lint binds split.yml#split, but the inventory shows that context on [ci.yml#ci-lint]'];
+        yield 'producer expansion mismatch' => ['binding-expansion-mismatch', 'producer php-test-shards declares expansion matrix but ci.yml#ci-lint is singleton'];
+        yield 'binding workflow drift' => ['binding-workflow-drift', 'producer php-test-shards binds split.yml but its workflow policy primary-ci binds ci.yml'];
+        yield 'missing bound workflow' => ['binding-missing-workflow', 'workflow policy primary-ci binds not-a-workflow.yml, which the inventory does not contain'];
+        yield 'residual status' => ['residual-status', 'residual tasks must record 0-2 complete and 3 current'];
     }
 
     /** @param array<string, mixed> $manifest
@@ -223,13 +303,19 @@ final class CiCheckRosterManifestTest extends TestCase
                 $errors[] = sprintf('%s vocabulary is invalid', $field);
             }
         }
-        if (($manifest['scope']['generated_workflow_inventory']['status'] ?? null) !== 'deferred'
-            || ($manifest['scope']['generated_workflow_inventory']['task'] ?? null) !== 2) {
-            $errors[] = 'generated workflow inventory must remain deferred to task 2';
+        $inventoryPointer = $manifest['scope']['generated_workflow_inventory'] ?? [];
+        if (($inventoryPointer['status'] ?? null) !== 'generated'
+            || ($inventoryPointer['task'] ?? null) !== 2
+            || ($inventoryPointer['path'] ?? null) !== 'tools/ci-workflow-inventory.json'
+            || ($inventoryPointer['generator'] ?? null) !== 'bin/generate-ci-workflow-inventory') {
+            $errors[] = 'generated workflow inventory pointer must name the tracked inventory path';
         }
-        if (($manifest['scope']['offline_workflow_conformance']['status'] ?? null) !== 'deferred'
+        if (($manifest['scope']['offline_workflow_conformance']['status'] ?? null) !== 'in-progress'
             || ($manifest['scope']['offline_workflow_conformance']['task'] ?? null) !== 3) {
-            $errors[] = 'offline workflow conformance must remain deferred to task 3';
+            $errors[] = 'offline workflow conformance must be the current task 3 slice';
+        }
+        if (($manifest['scope']['task'] ?? null) !== 3) {
+            $errors[] = 'manifest scope must record task 3';
         }
 
         $this->validateSubjectContract($manifest, $errors);
@@ -239,6 +325,7 @@ final class CiCheckRosterManifestTest extends TestCase
         $this->validateAggregateContract($manifest, $errors);
         $this->validateArtifactContract($manifest, $errors);
         $this->validateRequiredProjection($manifest, $invariantIds, $errors);
+        $this->validateBindings($manifest, $errors);
         $this->validateResidualTasks($manifest, $errors);
 
         return array_values(array_unique($errors));
@@ -275,6 +362,9 @@ final class CiCheckRosterManifestTest extends TestCase
     private function validateInvariants(array $manifest, array &$errors): array
     {
         $invariants = $manifest['policy']['invariants'] ?? [];
+        if (array_column($manifest['policy']['producers'] ?? [], 'id') !== self::PRODUCERS) {
+            $errors[] = 'policy must define the governed producer roster in order';
+        }
         $ids = array_column($invariants, 'id');
         if ($ids !== self::INVARIANTS) {
             $errors[] = 'policy must define the eight governed invariant decisions';
@@ -453,6 +543,29 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($autoMerge['disposition'] ?? null) === 'expected-skip') {
             $errors[] = 'native auto-merge must permit successful operational execution';
         }
+
+        // Task 3a: both shard matrices carry the axis key the bound job
+        // declares, which validateProducerExpansionBinding() checks against the
+        // inventory rather than against a literal in this file.
+
+        // Task 3a: `release` cadence is a v* tag push (split.yml); the manual
+        // cadence is served by the recorded recovery producer.
+        $release = $this->producer($manifest, 'release-publish-evidence');
+        $expectedRelease = [
+            'composition' => 'any_of',
+            'selectors' => [
+                ['type' => 'event', 'event' => 'push:tags'],
+                ['type' => 'event', 'event' => 'workflow_dispatch'],
+            ],
+        ];
+        if (($release['selection'] ?? null) !== $expectedRelease) {
+            $errors[] = 'release publication selection must be the tag-push or manual-dispatch predicate';
+        }
+        if (($release['recovery_producer']['workflow'] ?? null) !== 'github-release.yml'
+            || ($release['recovery_producer']['job'] ?? null) !== 'release'
+            || ($release['recovery_producer']['cadence'] ?? null) !== 'manual') {
+            $errors[] = 'release publication must name github-release.yml#release as its manual recovery producer';
+        }
     }
 
     /** @param array<string, mixed> $manifest
@@ -481,7 +594,19 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($notApplicable['reusable_across_subjects'] ?? null) !== false) {
             $errors[] = 'not-applicable decisions must be SHA and run-attempt bound';
         }
+        // Task 3a: ci.yml#ci-random-order result-checks both ci-random-order-shard
+        // and prepare-random-order-plan, so the policy lineage carries both.
+        $expectedPrerequisites = [
+            'php-behavior-aggregate' => ['php-test-shards'],
+            'php-coverage-aggregate' => ['php-test-shards'],
+            'random-order-aggregate' => ['random-order-shards', 'random-order-plan'],
+        ];
         foreach ($contract['aggregates'] ?? [] as $aggregate) {
+            $ownerId = $aggregate['producer_id'] ?? '?';
+            $expected = $expectedPrerequisites[$ownerId] ?? null;
+            if ($expected !== null && array_column($aggregate['prerequisites'] ?? [], 'producer_id') !== $expected) {
+                $errors[] = sprintf('%s lineage prerequisites must be exactly [%s]', $ownerId, implode(', ', $expected));
+            }
             $owner = $this->producer($manifest, $aggregate['producer_id'] ?? '');
             foreach ($aggregate['prerequisites'] ?? [] as $prerequisitePolicy) {
                 $prerequisiteId = $prerequisitePolicy['producer_id'] ?? '?';
@@ -565,6 +690,179 @@ final class CiCheckRosterManifestTest extends TestCase
         }
     }
 
+    /**
+     * Task 3a: the policy is now bound to the generated workflow inventory.
+     * This is the cheap offline cross-check, and it goes past mere existence:
+     * a required context must be owned by exactly the job it binds, and a
+     * producer's declared expansion (and, for a matrix, its axis and values)
+     * must be what the bound job declares. It reads the inventory, never
+     * workflow YAML.
+     *
+     * @param array<string, mixed> $manifest
+     * @param list<string> $errors
+     */
+    private function validateBindings(array $manifest, array &$errors): void
+    {
+        $bindings = $manifest['bindings'] ?? [];
+        if (($bindings['source'] ?? null) !== 'tools/ci-workflow-inventory.json') {
+            $errors[] = 'bindings must name the generated workflow inventory as their source';
+        }
+
+        /** @var array<string, array<string, array<string, mixed>>> $inventoryJobs */
+        $inventoryJobs = [];
+        /** @var array<string, list<string>> $contextOwners */
+        $contextOwners = [];
+        foreach ($this->inventory['workflows'] ?? [] as $workflow) {
+            foreach ($workflow['jobs'] as $job) {
+                $inventoryJobs[$workflow['file']][$job['key']] = $job;
+                foreach ($job['contexts'] ?? [] as $context) {
+                    if (($context['context'] ?? null) !== null) {
+                        $contextOwners[$context['context']][] = $workflow['file'] . '#' . $job['key'];
+                    }
+                }
+            }
+        }
+        foreach ($contextOwners as $name => $owners) {
+            $contextOwners[$name] = array_values(array_unique($owners));
+        }
+
+        $policies = $bindings['workflow_policies'] ?? [];
+        foreach ($policies as $policyId => $file) {
+            if (!array_key_exists($file, $inventoryJobs)) {
+                $errors[] = sprintf('workflow policy %s binds %s, which the inventory does not contain', $policyId, $file);
+            }
+        }
+
+        /**
+         * Resolves a binding to its inventory job record, recording an error
+         * and returning null when the binding does not name an existing job.
+         *
+         * @return array<string, mixed>|null
+         */
+        $checkJob = function (string $kind, string $key, mixed $binding) use ($inventoryJobs, &$errors): ?array {
+            $file = is_array($binding) ? ($binding['workflow'] ?? null) : null;
+            $job = is_array($binding) ? ($binding['job'] ?? null) : null;
+            if (!is_string($file) || !is_string($job)) {
+                $errors[] = sprintf('%s %s binding must name a workflow and a job', $kind, $key);
+
+                return null;
+            }
+            if (!isset($inventoryJobs[$file][$job])) {
+                $errors[] = sprintf('%s %s binds %s#%s, which the inventory does not contain', $kind, $key, $file, $job);
+
+                return null;
+            }
+
+            return $inventoryJobs[$file][$job];
+        };
+
+        $producerBindings = $bindings['producers'] ?? [];
+        foreach ($manifest['policy']['producers'] ?? [] as $producer) {
+            $id = $producer['id'] ?? '?';
+            if (!array_key_exists($id, $producerBindings)) {
+                $errors[] = sprintf('producer %s has no inventory binding', $id);
+                continue;
+            }
+            $boundJob = $checkJob('producer', $id, $producerBindings[$id]);
+            $policyFile = $policies[$producer['workflow_policy_id'] ?? ''] ?? null;
+            $boundFile = $producerBindings[$id]['workflow'] ?? null;
+            if (is_string($policyFile) && $boundFile !== $policyFile) {
+                $errors[] = sprintf(
+                    'producer %s binds %s but its workflow policy %s binds %s',
+                    $id,
+                    is_string($boundFile) ? $boundFile : '?',
+                    $producer['workflow_policy_id'],
+                    $policyFile,
+                );
+            }
+            if ($boundJob !== null) {
+                $this->validateProducerExpansionBinding($producer, $boundJob, (string) $boundFile, $errors);
+            }
+        }
+        foreach (array_keys($producerBindings) as $boundId) {
+            if (!in_array($boundId, array_column($manifest['policy']['producers'] ?? [], 'id'), true)) {
+                $errors[] = sprintf('binding %s does not name a policy producer', $boundId);
+            }
+        }
+
+        // The release publication producer names a second job — the manual
+        // recovery path — so that reference is inventory-checked too.
+        $recovery = $this->producer($manifest, 'release-publish-evidence')['recovery_producer'] ?? null;
+        if (is_array($recovery)) {
+            $checkJob('recovery producer', 'release-publish-evidence', $recovery);
+        }
+
+        $contextBindings = $bindings['required_contexts'] ?? [];
+        foreach ($manifest['policy']['required_projection']['contexts'] ?? [] as $item) {
+            $name = $item['context'] ?? '?';
+            if (!array_key_exists($name, $contextBindings)) {
+                $errors[] = sprintf('required context %s has no inventory binding', $name);
+                continue;
+            }
+            if ($checkJob('required context', $name, $contextBindings[$name]) === null) {
+                continue;
+            }
+            $bound = $contextBindings[$name]['workflow'] . '#' . $contextBindings[$name]['job'];
+            $owners = $contextOwners[$name] ?? [];
+            if ($owners !== [$bound]) {
+                $errors[] = sprintf(
+                    'required context %s binds %s, but the inventory shows that context on [%s]',
+                    $name,
+                    $bound,
+                    implode(', ', $owners),
+                );
+            }
+        }
+        if (count($contextBindings) !== 22) {
+            $errors[] = 'every required projection context must carry exactly one binding';
+        }
+    }
+
+    /**
+     * A producer's declared expansion must be the bound job's expansion, and a
+     * matrix producer's declared axis and values must be an axis the bound job
+     * literally declares. This is what makes the axis assertion inventory-
+     * derived rather than a hardcoded literal.
+     *
+     * @param array<string, mixed> $producer
+     * @param array<string, mixed> $boundJob
+     * @param list<string> $errors
+     */
+    private function validateProducerExpansionBinding(array $producer, array $boundJob, string $boundFile, array &$errors): void
+    {
+        $id = $producer['id'] ?? '?';
+        $declared = $producer['expansion'] ?? null;
+        $actual = $boundJob['expansion'] ?? null;
+        if ($declared !== $actual) {
+            $errors[] = sprintf(
+                'producer %s declares expansion %s but %s#%s is %s',
+                $id,
+                is_string($declared) ? $declared : '?',
+                $boundFile,
+                $boundJob['key'],
+                is_string($actual) ? $actual : '?',
+            );
+
+            return;
+        }
+        if ($declared !== 'matrix') {
+            return;
+        }
+        $axis = $producer['matrix']['axis'] ?? null;
+        $values = $producer['matrix']['values'] ?? null;
+        $axes = $boundJob['matrix']['axes'] ?? null;
+        if (!is_array($axes) || !is_string($axis) || ($axes[$axis] ?? null) !== $values) {
+            $errors[] = sprintf(
+                'producer %s declares matrix axis %s with values %s, which %s#%s does not declare',
+                $id,
+                is_string($axis) ? $axis : '?',
+                json_encode($values),
+                $boundFile,
+                $boundJob['key'],
+            );
+        }
+    }
+
     /** @param array<string, mixed> $manifest
      *  @param list<string> $errors
      */
@@ -573,6 +871,10 @@ final class CiCheckRosterManifestTest extends TestCase
         $tasks = $manifest['residual_tasks'] ?? [];
         if (array_column($tasks, 'order') !== range(0, 9) || array_column($tasks, 'name') !== self::RESIDUAL_TASKS) {
             $errors[] = 'residual tasks must preserve the governed order';
+        }
+        $expected = ['complete', 'complete', 'complete', 'current'];
+        if (array_slice(array_column($tasks, 'status'), 0, 4) !== $expected) {
+            $errors[] = 'residual tasks must record 0-2 complete and 3 current';
         }
     }
 

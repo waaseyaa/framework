@@ -3,10 +3,10 @@
   "change_record": "FW-CI-CHECK-ROSTER-AUDIT-01",
   "kind": "governed-ci-policy",
   "scope": {
-    "task": 1,
-    "statement": "This manifest defines intended governance policy. It is not an expanded workflow inventory and does not prove workflow conformance.",
-    "generated_workflow_inventory": {"status": "deferred", "task": 2},
-    "offline_workflow_conformance": {"status": "deferred", "task": 3}
+    "task": 3,
+    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. It is not itself an expanded workflow inventory. Offline conformance compares this policy with that inventory only; it does not read workflow YAML and does not prove live ruleset conformance, which remains task 6.",
+    "generated_workflow_inventory": {"status": "generated", "task": 2, "path": "tools/ci-workflow-inventory.json", "generator": "bin/generate-ci-workflow-inventory"},
+    "offline_workflow_conformance": {"status": "in-progress", "task": 3}
   },
   "evidence": {
     "repository": "waaseyaa/framework",
@@ -33,6 +33,10 @@
   "attestation_subject_contract": {
     "substitution_allowed": false,
     "rule": "Each execution selects exactly one cadence-specific subject profile. Evidence from one profile cannot satisfy another.",
+    "cadence_semantics": {
+      "release": "A release is a v* tag push, which is the only trigger of the bound release-publication workflow (split.yml). The tag is cut from main by release-cut.yml, so the attested SHA is a main SHA by construction and release therefore keeps main-sha.",
+      "manual": "workflow_dispatch. For release-publication the manual cadence is served by the recovery producer, not by split.yml."
+    },
     "cadence_sha_subjects": {
       "pull-request": ["pr-head-sha", "merge-ref-sha"],
       "merge-group": ["merge-group-combined-sha"],
@@ -74,18 +78,28 @@
         ]
       },
       {
-        "id": "ci-environment-setup", "workflow_policy_id": "primary-ci", "role": "setup", "expansion": "singleton",
+        "id": "phpunit-shard-plan", "workflow_policy_id": "primary-ci", "role": "setup", "expansion": "singleton",
         "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
         "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
-        "invariant": "source-repository-policy",
+        "invariant": "php-behavior-coverage",
         "subject_profiles": [
-          {"id": "pull-request-head", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"},
-          {"id": "main", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt"}
+          {"id": "pull-request-head-artifact", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "random-order-plan", "workflow_policy_id": "primary-ci", "role": "setup", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head-artifact", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
         ]
       },
       {
         "id": "php-test-shards", "workflow_policy_id": "primary-ci", "role": "execution", "expansion": "matrix",
-        "matrix": {"axis": "shard", "values": [1, 2, 3, 4]},
+        "matrix": {"axis": "id", "values": [1, 2, 3, 4]},
         "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
         "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
         "invariant": "php-behavior-coverage",
@@ -116,7 +130,7 @@
       },
       {
         "id": "random-order-shards", "workflow_policy_id": "primary-ci", "role": "execution", "expansion": "matrix",
-        "matrix": {"axis": "shard", "values": [1, 2]},
+        "matrix": {"axis": "id", "values": [1, 2]},
         "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
         "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
         "invariant": "php-behavior-coverage",
@@ -146,9 +160,19 @@
       },
       {
         "id": "release-publish-evidence", "workflow_policy_id": "release-publication", "role": "publication", "expansion": "singleton",
-        "selection": {"composition": "all_of", "selectors": [{"type": "event", "event": "release-or-manual-dispatch"}]},
+        "selection": {
+          "composition": "any_of",
+          "selectors": [
+            {"type": "event", "event": "push:tags"},
+            {"type": "event", "event": "workflow_dispatch"}
+          ]
+        },
         "disposition": "publication-only", "authority": "release", "cadence": ["release", "manual"],
         "invariant": "release-integrity",
+        "recovery_producer": {
+          "workflow": "github-release.yml", "job": "release", "cadence": "manual",
+          "reason": "The bound release-publication workflow (split.yml) is v* tag-push only, so it cannot serve the manual cadence. GitHub Release (manual) republishes the same waaseyaa-release-evidence artifact by workflow_dispatch and is the recovery path for the manual selector."
+        },
         "subject_profiles": [
           {"id": "release-or-manual", "cadences": ["release", "manual"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
         ]
@@ -186,7 +210,7 @@
       "aggregates": [
         {"producer_id": "php-behavior-aggregate", "prerequisites": [{"producer_id": "php-test-shards", "required_result": "success"}]},
         {"producer_id": "php-coverage-aggregate", "prerequisites": [{"producer_id": "php-test-shards", "required_result": "success"}]},
-        {"producer_id": "random-order-aggregate", "prerequisites": [{"producer_id": "random-order-shards", "required_result": "success"}]}
+        {"producer_id": "random-order-aggregate", "prerequisites": [{"producer_id": "random-order-shards", "required_result": "success"}, {"producer_id": "random-order-plan", "required_result": "success"}]}
       ]
     },
     "artifact_contracts": [
@@ -197,6 +221,11 @@
         "subject": "artifact-source-sha", "require_exact_subject_match": true
       }
     ],
+    "artifact_contract_scope": {
+      "modelled": ["php-shard-coverage"],
+      "unmodelled": ["phpunit-shard-plan", "vendor-archive", "random-order-plan"],
+      "reason": "The contract shape is one producer, one consumer, one bounded family. ci.yml#prepare-test-plan uploads two families (phpunit-shard-plan and vendor-archive) and vendor-archive has two consumer jobs (ci-test-shards and ci-random-order-shard), so the plan and vendor flows cannot be expressed without widening the shape. Widening it is deferred rather than half-modelled; the offline verifier reports the unmodelled flows as coverage notices."
+    },
     "random_order_measurement": {
       "producer_id": "random-order-shards", "active_shards": [1, 2], "cadence": "every-pull-request",
       "change_allowed_before_task": 8,
@@ -232,11 +261,57 @@
       ]
     }
   },
+  "bindings": {
+    "source": "tools/ci-workflow-inventory.json",
+    "derivation": "Every entry is derived from the generated workflow inventory. workflow_policies name an inventory workflow file; producers and required_contexts name an inventory job key inside that workflow. Policy role is deliberately NOT compared with the inventory's structural_role, which the inventory's own derivation rules describe as a structural heuristic that is not the policy role vocabulary.",
+    "workflow_policies": {
+      "primary-ci": "ci.yml",
+      "release-publication": "split.yml",
+      "auto-merge-control": "auto-merge.yml"
+    },
+    "producers": {
+      "source-integrity-policy": {"workflow": "ci.yml", "job": "verify-gates"},
+      "phpunit-shard-plan": {"workflow": "ci.yml", "job": "prepare-test-plan"},
+      "random-order-plan": {"workflow": "ci.yml", "job": "prepare-random-order-plan"},
+      "php-test-shards": {"workflow": "ci.yml", "job": "ci-test-shards"},
+      "php-behavior-aggregate": {"workflow": "ci.yml", "job": "ci-unit-tests"},
+      "php-coverage-aggregate": {"workflow": "ci.yml", "job": "ci-coverage"},
+      "random-order-shards": {"workflow": "ci.yml", "job": "ci-random-order-shard"},
+      "random-order-aggregate": {"workflow": "ci.yml", "job": "ci-random-order"},
+      "mutation-pilot": {"workflow": "ci.yml", "job": "mutation-pilot"},
+      "release-publish-evidence": {"workflow": "split.yml", "job": "assemble-release-evidence"},
+      "enable-native-auto-merge": {"workflow": "auto-merge.yml", "job": "enable-auto-merge"}
+    },
+    "required_contexts": {
+      "Frontend build": {"workflow": "ci.yml", "job": "frontend-build"},
+      "Ingestion defaults": {"workflow": "ci.yml", "job": "ingestion-defaults"},
+      "Manifest conformance": {"workflow": "ci.yml", "job": "manifest-conformance"},
+      "Release publish shape": {"workflow": "ci.yml", "job": "release-publish-shape"},
+      "Security defaults": {"workflow": "ci.yml", "job": "security-defaults"},
+      "check-dead-code": {"workflow": "ci.yml", "job": "check-dead-code"},
+      "ci/core-only-boot": {"workflow": "ci.yml", "job": "core-only-boot"},
+      "ci/coverage": {"workflow": "ci.yml", "job": "ci-coverage"},
+      "ci/lint": {"workflow": "ci.yml", "job": "ci-lint"},
+      "ci/playwright-smoke": {"workflow": "ci.yml", "job": "ci-playwright-smoke"},
+      "ci/random-order": {"workflow": "ci.yml", "job": "ci-random-order"},
+      "ci/skeleton-create-project": {"workflow": "ci.yml", "job": "skeleton-create-project"},
+      "ci/unit-tests": {"workflow": "ci.yml", "job": "ci-unit-tests"},
+      "ci/verify-gates": {"workflow": "ci.yml", "job": "verify-gates"},
+      "composer-policy": {"workflow": "ci.yml", "job": "composer-policy"},
+      "packaged-form": {"workflow": "ci.yml", "job": "packaged-form"},
+      "ci/package-isolation": {"workflow": "ci.yml", "job": "ci-package-isolation"},
+      "ci/mutation-pilot": {"workflow": "ci.yml", "job": "mutation-pilot"},
+      "ci/fresh-install-boot": {"workflow": "ci.yml", "job": "fresh-install-boot"},
+      "ci/frankenphp-worker": {"workflow": "ci.yml", "job": "frankenphp-worker"},
+      "ci/skeleton-create-project-windows": {"workflow": "ci.yml", "job": "skeleton-create-project-windows"},
+      "ci/bimaaji-skill-resources": {"workflow": "ci.yml", "job": "bimaaji-skill-resources"}
+    }
+  },
   "residual_tasks": [
     {"order": 0, "name": "Evidence freeze and external benchmark", "status": "complete"},
-    {"order": 1, "name": "Governance contract and schema repair", "status": "current"},
-    {"order": 2, "name": "Inventory generator", "status": "pending"},
-    {"order": 3, "name": "Offline conformance verifier", "status": "pending"},
+    {"order": 1, "name": "Governance contract and schema repair", "status": "complete"},
+    {"order": 2, "name": "Inventory generator", "status": "complete"},
+    {"order": 3, "name": "Offline conformance verifier", "status": "current"},
     {"order": 4, "name": "Measurement baseline under #2869", "status": "pending"},
     {"order": 5, "name": "Stable aggregate shadowing", "status": "pending"},
     {"order": 6, "name": "Ruleset projection and live audit", "status": "pending"},
