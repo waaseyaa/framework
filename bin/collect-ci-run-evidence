@@ -1,0 +1,207 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Collects the frozen CI measurement cohort from GitHub
+ * (FW-CI-CHECK-ROSTER-AUDIT-01, Task 4; measurement owner #2869).
+ *
+ * This is the ONE live pass. It resolves the hand-frozen cohort spec into a
+ * dataset of runs, attempts, jobs and evidence state, and writes nothing until
+ * the whole collection has succeeded: any non-2xx response, malformed JSON, or
+ * exhausted rate limit aborts before the output file is touched.
+ *
+ * Every read is a GET. The collector never posts, edits, labels, dispatches,
+ * reruns, or cancels anything.
+ *
+ * Usage:
+ *   php bin/collect-ci-run-evidence --cohort=FILE --output=FILE [--root=DIR]
+ *   php bin/collect-ci-run-evidence --cohort=FILE --dry-run
+ *   php bin/collect-ci-run-evidence --cohort=FILE --output=FILE --refetch
+ *
+ *   --cohort=FILE   the frozen cohort spec (tools/ci-measurement/cohort-*.json)
+ *   --output=FILE   where the dataset is written (temp-then-rename)
+ *   --root=DIR      repository root; defaults to this bin/ directory's parent
+ *   --dry-run       print the plan and the API-call estimate; make no calls
+ *   --refetch       re-collect the cohort's committed run-id list instead of
+ *                   walking the listings, for reproducibility checks
+ *
+ * Exit codes: 0 success; 1 collection failure; 2 usage or unreadable input.
+ */
+
+$selfRoot = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+
+require $selfRoot . '/vendor/autoload.php';
+require_once $selfRoot . '/bin/lib/ci-run-evidence.php';
+
+function ccreFail(string $message, int $exit = 1): never
+{
+    fwrite(STDERR, "collect-ci-run-evidence: {$message}\n");
+    exit($exit);
+}
+
+function ccreInfo(string $message): void
+{
+    fwrite(STDERR, "collect-ci-run-evidence: {$message}\n");
+}
+
+$root = $selfRoot;
+$cohortPath = null;
+$outputPath = null;
+$dryRun = false;
+$refetch = false;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--cohort=')) {
+        $cohortPath = substr($argument, strlen('--cohort='));
+        continue;
+    }
+    if (str_starts_with($argument, '--output=')) {
+        $outputPath = substr($argument, strlen('--output='));
+        continue;
+    }
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(str_replace('\\', '/', substr($argument, strlen('--root='))), '/');
+        continue;
+    }
+    if ($argument === '--dry-run') {
+        $dryRun = true;
+        continue;
+    }
+    if ($argument === '--refetch') {
+        $refetch = true;
+        continue;
+    }
+    ccreFail("unknown argument {$argument}; expected --cohort=FILE, --output=FILE, --root=DIR, --dry-run, or --refetch.", 2);
+}
+
+if ($cohortPath === null) {
+    ccreFail('--cohort=FILE is required.', 2);
+}
+if (!$dryRun && $outputPath === null) {
+    ccreFail('--output=FILE is required unless --dry-run is given.', 2);
+}
+
+try {
+    $spec = cre_read_json($cohortPath);
+} catch (CiRunEvidenceFailure $failure) {
+    ccreFail($failure->getMessage(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// --dry-run: the plan and the call estimate, no calls
+// ---------------------------------------------------------------------------
+
+if ($dryRun) {
+    $estimate = 0;
+    $plan = [];
+    foreach ((array) $spec['cohorts'] as $cohortId => $cohort) {
+        $target = (int) $cohort['target_runs'];
+        // Per run: one workflow-file fetch, one jobs page, one artifacts page,
+        // and at most one commit-to-pulls fallback. Plus the run listings.
+        $perRun = 4;
+        $pages = (int) ceil($target / 100) + 1;
+        $cohortCalls = ($target * $perRun) + $pages;
+        $estimate += $cohortCalls;
+        $plan[] = sprintf(
+            '  %-14s workflow=%-12s event=%-14s target=%d runs (>=%d red) — about %d calls',
+            $cohortId,
+            (string) $cohort['workflow'],
+            (string) ($cohort['event'] ?? 'any'),
+            $target,
+            (int) ($cohort['target_failures'] ?? 0),
+            $cohortCalls,
+        );
+    }
+    fwrite(STDOUT, "Plan for cohort spec {$cohortPath}\n");
+    fwrite(STDOUT, 'repository: ' . (string) $spec['repository'] . "\n");
+    fwrite(STDOUT, "cohorts:\n" . implode("\n", $plan) . "\n");
+    fwrite(STDOUT, "reference workflows: " . implode(', ', (array) $spec['fingerprint']['workflows']) . "\n");
+    fwrite(STDOUT, "estimated GitHub API calls: about {$estimate} (core limit 5000/h)\n");
+    fwrite(STDOUT, "no calls were made.\n");
+    exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Live collection
+// ---------------------------------------------------------------------------
+
+$scratch = sys_get_temp_dir() . '/waaseyaa_ci_evidence_' . getmypid();
+if (!is_dir($scratch) && !mkdir($scratch, 0o777, true) && !is_dir($scratch)) {
+    ccreFail("unable to create the scratch directory {$scratch}.");
+}
+
+$refetchIds = null;
+if ($refetch) {
+    $refetchIds = [];
+    foreach ((array) $spec['cohorts'] as $cohort) {
+        foreach ((array) ($cohort['resolved_run_ids'] ?? []) as $runId) {
+            $refetchIds[] = (int) $runId;
+        }
+    }
+    if ($refetchIds === []) {
+        ccreFail('--refetch needs `resolved_run_ids` in every cohort of the spec.', 2);
+    }
+    ccreInfo('refetch mode: re-collecting ' . count($refetchIds) . ' committed run ids.');
+}
+
+// A refetch refreshes a dataset that already exists. Its cohort block carries
+// the original walk's skip accounting, which a replay cannot re-derive, so the
+// previous document is read and handed to the collector rather than discarded.
+$previousCohort = null;
+if ($refetchIds !== null && $outputPath !== null && is_file($outputPath)) {
+    try {
+        $previous = cre_read_json($outputPath);
+        if (($previous['kind'] ?? null) === 'ci-run-evidence-dataset') {
+            $previousCohort = $previous['cohort'] ?? null;
+            if (is_array($previousCohort)) {
+                $previousCohort['collected_at'] = $previous['collector']['collected_at'] ?? null;
+            }
+            ccreInfo('carrying forward the skip accounting recorded in ' . $outputPath . '.');
+        }
+    } catch (CiRunEvidenceFailure $failure) {
+        ccreInfo('could not read the previous dataset (' . $failure->getMessage() . '); '
+            . 'skip accounting will be reported as not available.');
+    }
+}
+
+try {
+    $dataset = cre_collect($spec, cre_gh_runner(), [
+        'repository_root' => $root,
+        'scratch' => $scratch,
+        'collected_at' => gmdate('Y-m-d\TH:i:s\Z'),
+        'refetch' => $refetchIds,
+        'previous_cohort' => $previousCohort,
+    ]);
+} catch (CiRunEvidenceFailure $failure) {
+    ccreFail($failure->getMessage());
+}
+
+foreach ($dataset['cohort']['resolved'] as $cohortId => $summary) {
+    ccreInfo(sprintf(
+        '%s: %d runs (%d red) from %d scanned; floor %s.',
+        $cohortId,
+        $summary['run_count'],
+        $summary['failure_count'],
+        $summary['runs_scanned'],
+        $summary['target_met'] ? 'met' : 'NOT MET',
+    ));
+}
+
+try {
+    cre_write_atomic((string) $outputPath, cre_render_json($dataset));
+} catch (CiRunEvidenceFailure $failure) {
+    ccreFail($failure->getMessage());
+}
+
+ccreInfo(sprintf(
+    'wrote %s (%d runs, %d job records, %d API calls, %d transient retries).',
+    (string) $outputPath,
+    count($dataset['runs']),
+    count($dataset['jobs']),
+    $dataset['collector']['api_calls'],
+    $dataset['collector']['retried_requests'],
+));
+
+exit(0);

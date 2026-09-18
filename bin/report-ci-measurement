@@ -1,0 +1,86 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Renders the CI measurement baseline report from a frozen, classified dataset
+ * (FW-CI-CHECK-ROSTER-AUDIT-01, Task 4; measurement owner #2869).
+ *
+ * The renderer is deterministic by construction: it reads the dataset and
+ * nothing else — no network, no clock, no environment — so two renders of one
+ * dataset are byte-identical, and a reviewer can reproduce the document from
+ * the committed evidence alone.
+ *
+ * Usage:
+ *   php bin/report-ci-measurement --dataset=FILE [--output=FILE]
+ *
+ *   --dataset=FILE  the classified dataset
+ *   --output=FILE   where to write; stdout when omitted
+ *
+ * Exit codes: 0 success; 1 render failure; 2 usage or unreadable input.
+ */
+
+$selfRoot = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+
+require $selfRoot . '/vendor/autoload.php';
+require_once $selfRoot . '/bin/lib/ci-run-evidence.php';
+
+function rcmFail(string $message, int $exit = 1): never
+{
+    fwrite(STDERR, "report-ci-measurement: {$message}\n");
+    exit($exit);
+}
+
+$datasetPath = null;
+$outputPath = null;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--dataset=')) {
+        $datasetPath = substr($argument, strlen('--dataset='));
+        continue;
+    }
+    if (str_starts_with($argument, '--output=')) {
+        $outputPath = substr($argument, strlen('--output='));
+        continue;
+    }
+    rcmFail("unknown argument {$argument}; expected --dataset=FILE or --output=FILE.", 2);
+}
+
+if ($datasetPath === null) {
+    rcmFail('--dataset=FILE is required.', 2);
+}
+
+try {
+    $dataset = cre_read_json($datasetPath);
+} catch (CiRunEvidenceFailure $failure) {
+    rcmFail($failure->getMessage(), 2);
+}
+
+if (($dataset['kind'] ?? null) !== 'ci-run-evidence-dataset') {
+    rcmFail("{$datasetPath} is not a ci-run-evidence dataset.", 2);
+}
+if (!isset($dataset['classifications'])) {
+    rcmFail("{$datasetPath} carries no classifications; run bin/classify-ci-run-evidence first.", 2);
+}
+
+try {
+    $report = cre_render_report($dataset);
+} catch (Throwable $exception) {
+    rcmFail($exception->getMessage());
+}
+
+if ($outputPath === null) {
+    fwrite(STDOUT, $report);
+    exit(0);
+}
+
+try {
+    cre_write_atomic($outputPath, $report);
+} catch (CiRunEvidenceFailure $failure) {
+    rcmFail($failure->getMessage());
+}
+
+fwrite(STDERR, 'report-ci-measurement: wrote ' . $outputPath . ' (' . strlen($report) . " bytes).\n");
+
+exit(0);
