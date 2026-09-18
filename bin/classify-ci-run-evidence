@@ -1,0 +1,165 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Classifies a frozen CI evidence dataset offline
+ * (FW-CI-CHECK-ROSTER-AUDIT-01, Task 4; measurement owner #2869).
+ *
+ * The pass is offline by default: it reads the dataset and the generated
+ * workflow inventory, and adds a `classifications` block — per job a
+ * root / setup / derivative / skip / cancellation / publication / success
+ * label, per run attempt the first-pass outcome, rerun outcome, critical path,
+ * cost proxy and latency.
+ *
+ * There is exactly ONE place this tool touches GitHub, and only when
+ * --with-logs is given: the random-order uniqueness question cannot be
+ * answered from the dataset, because `ci/random-order-shard-N` uploads no
+ * JUnit — its failing-test identity exists only in the job console log — and
+ * the ordinary side lives in the `php-test-shard-*` artifacts. Both are read
+ * with GET only, and both are recorded as `derived` values over an `observed`
+ * fetch record.
+ *
+ * Usage:
+ *   php bin/classify-ci-run-evidence --dataset=FILE [--output=FILE]
+ *                                    [--inventory=FILE] [--with-logs]
+ *
+ *   --dataset=FILE    the collected dataset
+ *   --output=FILE     where to write; defaults to the dataset, in place
+ *   --inventory=FILE  the generated workflow inventory; defaults to
+ *                     <root>/tools/ci-workflow-inventory.json
+ *   --with-logs       additionally fetch job logs and shard artifacts to
+ *                     decide random-order uniqueness
+ *
+ * Exit codes: 0 success; 1 classification failure; 2 usage or unreadable input.
+ */
+
+$selfRoot = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+
+require $selfRoot . '/vendor/autoload.php';
+require_once $selfRoot . '/bin/lib/ci-run-evidence.php';
+
+function ccleFail(string $message, int $exit = 1): never
+{
+    fwrite(STDERR, "classify-ci-run-evidence: {$message}\n");
+    exit($exit);
+}
+
+function ccleInfo(string $message): void
+{
+    fwrite(STDERR, "classify-ci-run-evidence: {$message}\n");
+}
+
+/**
+ * Removes the scratch tree the artifact extraction used. Downloaded zips and
+ * their unpacked JUnit documents are working material, not evidence: what the
+ * dataset keeps is each fetch's id, byte length and SHA-256, so nothing is lost
+ * by not leaving tens of megabytes behind in the system temp directory.
+ */
+function ccleRemoveTree(string $directory): void
+{
+    if (!is_dir($directory)) {
+        return;
+    }
+    foreach (scandir($directory, SCANDIR_SORT_NONE) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $path = $directory . '/' . $entry;
+        is_dir($path) ? ccleRemoveTree($path) : @unlink($path);
+    }
+    @rmdir($directory);
+}
+
+$datasetPath = null;
+$outputPath = null;
+$inventoryPath = $selfRoot . '/tools/ci-workflow-inventory.json';
+$withLogs = false;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--dataset=')) {
+        $datasetPath = substr($argument, strlen('--dataset='));
+        continue;
+    }
+    if (str_starts_with($argument, '--output=')) {
+        $outputPath = substr($argument, strlen('--output='));
+        continue;
+    }
+    if (str_starts_with($argument, '--inventory=')) {
+        $inventoryPath = substr($argument, strlen('--inventory='));
+        continue;
+    }
+    if ($argument === '--with-logs') {
+        $withLogs = true;
+        continue;
+    }
+    ccleFail("unknown argument {$argument}; expected --dataset=FILE, --output=FILE, --inventory=FILE, or --with-logs.", 2);
+}
+
+if ($datasetPath === null) {
+    ccleFail('--dataset=FILE is required.', 2);
+}
+$outputPath ??= $datasetPath;
+
+try {
+    $dataset = cre_read_json($datasetPath);
+    $inventory = cre_read_json($inventoryPath);
+} catch (CiRunEvidenceFailure $failure) {
+    ccleFail($failure->getMessage(), 2);
+}
+
+if (($dataset['kind'] ?? null) !== 'ci-run-evidence-dataset') {
+    ccleFail("{$datasetPath} is not a ci-run-evidence dataset.", 2);
+}
+
+$scratch = sys_get_temp_dir() . '/waaseyaa_ci_classify_' . getmypid();
+if (!is_dir($scratch) && !mkdir($scratch, 0o777, true) && !is_dir($scratch)) {
+    ccleFail("unable to create the scratch directory {$scratch}.");
+}
+
+try {
+    $classified = cre_classify($dataset, $inventory, $withLogs ? cre_gh_runner() : null, [
+        'with_logs' => $withLogs,
+        'scratch' => $scratch,
+        'classified_at' => gmdate('Y-m-d\TH:i:s\Z'),
+    ]);
+} catch (CiRunEvidenceFailure $failure) {
+    ccleRemoveTree($scratch);
+    ccleFail($failure->getMessage());
+}
+
+ccleRemoveTree($scratch);
+
+$counts = [];
+foreach ($classified['classifications']['jobs'] as $record) {
+    $counts[$record['classification']] = ($counts[$record['classification']] ?? 0) + 1;
+}
+ksort($counts, SORT_STRING);
+foreach ($counts as $classification => $count) {
+    ccleInfo(sprintf('%-45s %d', $classification, $count));
+}
+
+$verdicts = [];
+foreach ($classified['classifications']['random_order_uniqueness']['records'] as $record) {
+    $verdicts[$record['verdict']] = ($verdicts[$record['verdict']] ?? 0) + 1;
+}
+ksort($verdicts, SORT_STRING);
+foreach ($verdicts as $verdict => $count) {
+    ccleInfo(sprintf('random-order %-32s %d', $verdict, $count));
+}
+
+try {
+    cre_write_atomic((string) $outputPath, cre_render_json($classified));
+} catch (CiRunEvidenceFailure $failure) {
+    ccleFail($failure->getMessage());
+}
+
+ccleInfo(sprintf(
+    'wrote %s (%d classification API calls, %d transient retries).',
+    (string) $outputPath,
+    $classified['classifications']['classifier']['api_calls'],
+    $classified['classifications']['classifier']['retried_requests'],
+));
+
+exit(0);

@@ -703,6 +703,387 @@ behaviour changed. `tools/ci-workflow-inventory.json` and
 this slice is `scope.offline_workflow_conformance`, now
 `{status: "implemented", task: 3, verifier: "bin/check-ci-roster-conformance"}`.
 
+## Task 4: measurement baseline
+
+Tasks 1-3 produced a policy, a generated inventory, and an offline verifier.
+None of them says what CI actually costs or what it actually catches. Task 4
+adds the evidence layer: a frozen cohort of real runs, collected once,
+classified offline, and reported deterministically, so the cadence decision in
+Task 8 rests on numbers rather than impressions. It recommends nothing.
+
+### Why a structural fingerprint, and not byte identity
+
+The measurement contract on #2869 asks for a *comparable* cohort. The obvious
+reading - runs of a byte-identical `ci.yml` - does not survive contact with the
+repository: over the 80 most recent eligible pull-request runs there are **four
+distinct `ci.yml` blobs**, the largest covering 61 runs and the smallest one.
+Byte identity would admit nine runs, below even the ten-run floor
+`docs/specs/ci-test-selection.md` section 9 already states.
+
+Comparability is therefore **job structure**. For each run the workflow file is
+fetched at that run's own head SHA
+(`GET /contents/.github/workflows/<file>?ref=<sha>`), written into a throwaway
+root holding only that file, composed by the **Task 2 generator**
+(`bin/generate-ci-workflow-inventory --root=<temp>`), and reduced to a SHA-256
+over the canonical JSON of every job's key, expansion, literal matrix
+resolution/axes/expression, sorted `needs`, aggregate gate token, and sorted
+visible contexts. Fingerprints are cached by the file's git blob SHA, so N
+distinct blobs cost N generator runs however large the cohort.
+
+Two consequences are recorded rather than assumed. A reformat, a comment, a
+runner-image bump, a timeout or a step edit leaves a run **in** the cohort; a
+renamed job, a wider matrix, a new dependency edge or an added job takes it
+**out**. And the fingerprint bounds the job *graph* and nothing else - two runs
+sharing a fingerprint may still differ in step content, runner image, test count
+or dependency versions, which the report says plainly.
+
+Reusing the Task 2 generator rather than writing a second workflow parser is
+deliberate: a fingerprint derived from an independent parse would be a claim
+about that parse, not about the graph the inventory and the verifier already
+govern.
+
+### The resolved cohort
+
+Collected 2026-09-18T17:59:59Z in 447 GitHub requests, all GET, with zero
+transient retries; classified at 18:09:06Z in a further 92 requests.
+
+| Cohort | Workflow | Runs | Red | Scanned | Span (run created) |
+|---|---|---|---|---|---|
+| `pull_request` | `ci.yml` | 60 | 24 | 70 | 2026-09-07T23:16:09Z .. 2026-09-18T04:13:24Z |
+| `main_push` | `ci.yml` | 20 | 0 | 20 | 2026-09-07T17:59:15Z .. 2026-09-17T16:50:06Z |
+| `nightly` | `nightly.yml` | 33 | 0 | 33 | 2026-08-17T19:29:26Z .. 2026-09-18T09:27:53Z |
+
+115 run attempt records and 3,642 job records. Ten runs were skipped and each is
+recorded with its reason: five `action_required` (never executed) and five
+cancelled - a superseded-run cancellation is not a defect and is counted as
+none. **Red** counts first-attempt run records whose conclusion is `failure`,
+computed from the collected records rather than from the walk's own tally, so
+the column and the sections below describe one population. The fingerprint-enforced runs span **three distinct `ci.yml` blobs** -
+five across both workflows, counting `nightly.yml`'s two - and all three reduce
+to the one `ci.yml` reference fingerprint. Byte identity against the largest
+blob alone would have kept about three quarters of the enforced cohort and
+discarded the remaining quarter, which is below neither the ten-run floor nor
+the fifteen-red floor on its own; what the structural definition actually buys
+is that the cohort does not shrink every time `ci.yml` is edited, and it is a
+property of this month's edit rate rather than a fixed ratio.
+
+### Two runs GitHub listed no jobs for
+
+Two attempts are *in* the cohort and could not be fully described. Building run
+records from the jobs listing alone made both vanish from `runs[]` and `jobs[]`
+while they stayed in `resolved.run_ids` - a resolved run silently absent from
+its own evidence. They are now recorded from the run object with
+`jobs_listed: 0`, null durations, and an entry in `cohort.incomplete_runs`.
+
+| Run | Attempt | Attempt conclusion | Latest attempt | What GitHub reports |
+|---|---|---|---|---|
+| `34298553407` | 1 | `failure` | 1 | `completed`/`failure` with `total_count: 0` jobs |
+| `34298520824` | 1 | `action_required` | 2 | no jobs for attempt 1; `filter=all` returns only attempt 2's 45 |
+
+Two assumptions died here. A completed run does **not** necessarily have job
+records, and `filter=all` does **not** mean every attempt - it returns what
+GitHub still holds. And an earlier attempt's conclusion cannot be taken from the
+run object, whose `conclusion` describes the **latest** attempt: doing so would
+have labelled `34298520824` attempt 1 a `success`, when
+`GET /actions/runs/{id}/attempts/1` reports `action_required` - it never
+executed, which is precisely why it has no jobs. That conclusion is now read
+from the per-attempt endpoint, so it stays observed rather than inferred.
+
+A red run with no job records still counts as red: it concluded, and its
+conclusion is evidence. It simply has no job that owns the failure, which the
+classification records as `failure_ownership.note: no_jobs_listed`. Its
+durations and cost proxy stay null rather than zero -- summing a cost over no
+jobs would assert the attempt was free, which is not knowable for an attempt
+whose jobs were merely unlisted.
+
+### Headline numbers
+
+Percentiles are nearest-rank, so every figure below is a value that occurred.
+
+| Cohort | n | Queue (median / p95) | Run wall (median / p95) | Cost proxy (median / p95) |
+|---|---|---|---|---|
+| `pull_request` | 60 of 62 | 3 s / 29 s | 525 s / 1,243 s | 3,299 s / 3,524 s |
+| `main_push` | 20 of 20 | 3 s / 3 s | 488 s / 540 s | 3,184 s / 3,419 s |
+| `nightly` | 33 of 33 | 3 s / 4 s | 404 s / 621 s | 401 s / 634 s |
+
+The two pull-request attempts missing from every distribution are the two with
+no job records: no job timestamps exist to derive a duration from, and summing a
+cost over no jobs would assert the attempt was free, which is not knowable. They
+stay null and are counted in the report's `Missing` column rather than entering
+the sample as zeroes.
+
+The cost proxy is summed job-wall seconds weighted by GitHub's published runner
+multipliers. It is **not** billed spend, and no billing figure appears anywhere
+(see "What is observed" below). A pull-request run costs roughly eight times a
+nightly run on that proxy while taking only about 1.3 times the wall clock -
+the difference is parallel breadth, which is exactly why the contract asks for
+the three quantities to be reported separately.
+
+**Critical path length is not an independent number here.** Every job in these
+workflows is created at run start, so a path measured from the first job's
+creation to the terminal job's completion necessarily equals the run wall, and
+the table above would repeat itself. What the path *composition* adds is which
+jobs gate a run: `Prepare timing-balanced PHPUnit plan` sits on 64% of the 113
+attempts, `ci/test-shard-1` and `support/s1-contract` on 50% each, and
+`ci/coverage` is the terminal job of 50%. A width or cadence change can only
+move the wall by moving something in that table.
+
+First-attempt job classifications. These count the **first attempt only**, so
+the 90 job records belonging to second attempts are excluded and the column
+sums to 3,552 of the 3,642 collected records:
+
+| Classification | Count |
+|---|---|
+| `success` | 3,427 |
+| `root_execution_failure` | 60 |
+| `derivative_aggregate_failure` | 55 |
+| `unexpected_skip_or_missing_prerequisite` | 6 |
+| `setup_or_infrastructure_failure` | 4 |
+| `cancellation`, `expected_conditional_skip`, `publication_only`, `unclassified` | 0 each |
+
+Counted from the collected records rather than from the walk's own tally, the
+pull-request cohort's 60 first-attempt runs are 35 green, 24 red and one
+`action_required` attempt that never executed. The 55 derivative aggregate
+failures are deduplicated from their roots and each names the prerequisite that
+caused it, so those 24 red runs are owned by 64 root or setup failures rather
+than by the 125 red checks they produced. The
+root owners are led by `ci/random-order-shard-2` (11), `ci/test-shard-3` (10),
+`ci/random-order-shard-1` (9), `ci/test-shard-1` (9) and `ci/verify-gates` (9).
+`ci/coverage` and `ci/unit-tests` are aggregates that nevertheless owned 4 and 1
+*root* failures respectively - they failed on their own account, not because a
+prerequisite did, which is precisely the distinction the classification exists
+to make.
+
+**Reruns: one**, in 60 pull-request runs. Run `34315787526` was rerun on the
+same head and `Deterministic release evidence` flipped red to green, so it is
+classified a flake. The head-SHA rule is stated and verified rather than
+assumed.
+
+**Random-order uniqueness: 20 failed `ci/random-order-shard-N` jobs, 19
+corroborating, 1 unique first-pass detection, 0 not classifiable**, every one of
+the 20 parsed at `high` confidence and every shard artifact still present. The
+single unique detection is run `34374251430`,
+`ci/random-order-shard-2`, which failed
+`Waaseyaa\SiteContract\Tests\Unit\Generation\SiteVerifyPhpunitCacheIsolationTest::withoutTheCacheDirectoryOverrideTheTreeGenuinelyDiffersAcrossTwoRuns`
+while no ordinary shard on that head failed at all.
+
+That one case matters for what it refutes, not for what it proves. The
+preliminary seven-run sample recorded on #2869 observed that *every* random-order
+failure co-occurred with an ordinary shard failure. Over 60 comparable runs that
+is no longer true: the co-occurrence rate is 19 of 20, not 20 of 20. One
+detection in 60 runs is a rate this baseline reports, not a cadence argument,
+and Task 8 owns what to do about it.
+
+### What is observed, and what is derived
+
+Every dataset field is typed `observed` or `derived` per
+`docs/specs/delivery-telemetry.md`, and the stronger invariant holds: nothing is
+`derived` from a value that was not `observed` in the same dataset.
+
+`observed` is what a GitHub API response said - run id, attempt, head SHA,
+event, workflow, the run timestamps and conclusion; per job the id, name, runner
+labels, created/started/completed instants, conclusion and step inventory.
+`derived` is everything computed here: the fingerprint, the pull request number
+and which endpoint answered it, queue and wall seconds, the job key, the runner
+multiplier, every classification, the critical path, the cost proxy and the
+failing-test identities.
+
+The log and artifact parses are the sharp case. `ci/random-order-shard-N`
+uploads **no JUnit** - it runs PHPUnit with `--no-coverage` and no `--log-junit`
+and uploads nothing - so its failing-test identity exists only in the job
+console log, while the ordinary side lives in the `php-test-shard-*` JUnit
+artifacts. Both are `derived`, and each carries an `observed` fetch record (job
+or artifact id, byte length, SHA-256, fetched-at) so the derivation has a
+substrate inside the dataset: 20 log observations and 72 artifact observations.
+The log parser records its own version, its matched raw lines, and a confidence
+that is `high` only when the parsed identity count equals the failures and
+errors PHPUnit's own summary lines report.
+
+One bias is recorded rather than corrected: the artifacts API does not say which
+attempt produced an artifact, so on a rerun the ordinary set may union both
+attempts. A larger ordinary set can only make a unique verdict harder to reach,
+so the bias is conservative and never inflates `unique_first_pass_detection`.
+
+**Billed runner minutes are structurally unavailable.** On a public repository
+`GET /actions/runs/{id}/timing` reports `duration_ms: 0` per job, and
+organization billing needs an `admin:org` scope this tooling does not hold. As
+the measurement contract directs, summed job-wall seconds weighted by GitHub's
+published per-OS multipliers is recorded and reported as a **cost proxy**,
+labelled at every appearance.
+
+Missing evidence is reported rather than rounded away: 2 of 3,642 job records
+could not be mapped to an inventory job, both because GitHub reports a matrix
+job that is skipped *before it expands* under its unexpanded name
+(`ci/test-shard-${{ matrix.id }}`), which is not a visible context the inventory
+can bound. No job lacked a wall or queue time, no artifact had expired, and no
+job fell outside the classification vocabulary.
+
+### Classification, and what it refuses to conflate
+
+Per job, first match wins, and the precedence plus the bounded infrastructure
+step list travel inside the dataset so a label can be audited without this
+source: `cancellation`, `expected_conditional_skip`,
+`unexpected_skip_or_missing_prerequisite`, `derivative_aggregate_failure`,
+`setup_or_infrastructure_failure`, `root_execution_failure`, `publication_only`,
+`success`, `unclassified`.
+
+Three refusals matter. A **superseded-run cancellation is not a defect**. A
+**derivative red aggregate is deduped from its root** and names it. And
+**`always()` never explains a skip** - the predicate is the inventory's own
+`expected_skip.own_condition`, whose derivation rule already states that
+`always()` is the one condition that cannot skip a job, rather than a second
+opinion computed here.
+
+Two vocabulary terms have **no instance** in this repository and are reported as
+explicit zeros rather than omitted: `ci.yml` declares no skippable job-level
+condition (three of its 41 jobs carry an `if`, and all three are `always()`
+aggregates), and neither `ci.yml` nor `nightly.yml` contains a job the inventory
+labels `publication`. An absent row would be indistinguishable from a term the
+pass forgot to apply.
+
+Per run: first-pass outcome, rerun outcome, critical path, cost proxy and pull
+request latency, kept separate as the contract requires.
+
+### Four things the design did not anticipate
+
+Three of them were found by running the pipeline against real GitHub, not by
+reasoning about it, and each is a correctness fix rather than a workaround.
+
+1. **Cohorts have two shapes.** "Every nightly run" was first expressed as a
+   numeric target larger than the number that exists, which read as an unmet
+   floor and would have put a volatile count into a governance artifact. An
+   `exhaustive` cohort now never stops early and is complete only when the
+   *listing* ended the walk, never when the page budget did.
+
+2. **A single `HTTP 502` aborted a 447-call collection.** Fail-closed was
+   correct and left no partial file, but the tool was unusable. Only *transient*
+   failures (5xx, or a transport error with no HTTP status) are retried, up to
+   four attempts with backoff; a definite answer (404, 410, 403) is never
+   retried, an exhausted rate limit is never transient, every attempt counts as
+   a real API call, and the dataset records `retried_requests` so a collection
+   never reads as cleaner than it was. A raw GET that keeps failing transiently
+   now throws rather than returning null, because a 502 is not an expiry and
+   must not be recorded as one.
+
+3. **A `page=1` request returned page 2's content.** The `main_push` cohort
+   scanned 500 runs, kept none, and silently lost its hundred most recent runs,
+   while exit status, call count, page count and retry count all looked healthy;
+   only the run ids exposed it (500 scanned, 400 distinct). The walk now asserts
+   that a run listing strictly advances - page N+1's highest run id below page
+   N's lowest, and no run id twice in one cohort - refetches a page that does
+   not, and fails closed naming the page. This is the defect most worth carrying
+   forward: any other paginated Actions-API walk in this repository has no such
+   guard, and it is filed in Deferred observations.
+
+4. **The skip predicate belonged to the inventory.** Testing the job's `if` for
+   non-null would have labelled a skipped `always()` aggregate an expected
+   conditional skip.
+
+### What the focused test proves
+
+`tests/Architecture/CiRunEvidenceTest.php` is fixture-driven and makes **no live
+GitHub call**: the transport is injected, so collection, classification and
+reporting run end to end against a fixture response map.
+
+It proves that a reformat and a comment leave the fingerprint unchanged while a
+renamed job, a wider matrix, a new `needs` edge and an added job each move it;
+that the pull request number falls back to the commit-to-pulls endpoint and
+stays null when no pull request exists; queue and wall arithmetic including the
+never-negative clamp; the classification of a root execution failure, a setup
+step failure, an expected conditional skip, a prerequisite-starved skip, a
+cancellation and a derivative aggregate, each naming its root; that an
+`always()` aggregate is never an expected conditional skip; the critical path
+over a fixture DAG whose timestamps make the *later* of two sibling shards the
+gating one; nearest-rank percentiles, including that every reported value
+occurred in the sample; the log parser on a failure block, on interleaved
+failure and error blocks that both number from one, on unrelated noise that must
+not yield a false positive, and on a truncated log that must report low
+confidence; that only transient failures are retried and that a persistent
+transient failure is never recorded as an expiry; that a listing which serves
+the wrong page fails closed rather than losing runs; report determinism, the
+floor evaluation, and that a classification with no instance renders as an
+explicit zero.
+
+Four cases gate the tracked artifacts themselves: the dataset is classified
+evidence meeting its own cohort floors with every enforced run carrying the
+reference fingerprint; the cohort spec and the dataset name exactly the same
+runs, so a `--refetch` replay cannot drift from the freeze; the committed report
+is byte-identical to a fresh render of the committed dataset; and nothing in the
+dataset claims a billing figure. The CLI cases cover unknown options, missing
+and unreadable inputs, a refused unclassified dataset, a dry run that makes no
+call, and a failed collection that leaves an existing dataset untouched with no
+temp file beside it.
+
+The fingerprint cases shell out to the real Task 2 generator, because a test
+that reimplemented the parse would prove nothing about the comparability rule
+the cohort actually used.
+
+### Reproducibility and size
+
+The dataset commits the exact run ids, attempt numbers, head SHAs, PR numbers,
+workflow blob SHAs, the fingerprint, the query parameters and a `collected_at`.
+`--refetch` re-collects the committed run-id list, and the observed projection
+of the two collections is compared byte for byte, with time-dependent evidence
+state (artifact expiry, log availability) reported as its own category rather
+than as drift.
+
+The proof was executed twice. First on 2026-09-18 at 17:32:39Z against the
+dataset collected at 16:58:08Z (556 API calls, 0 transient retries): `runs`
+(113) identical; `jobs` (3,642) identical once the three fields the classifier
+adds afterwards - `key`, `key_reason`, `matrix` - are excluded; `cohort.resolved`
+run ids identical; `provenance` identical. `evidence_state` differed in all 113
+entries and only in `checked_at` and the log-probe state, which is the
+time-dependent category, not drift.
+
+That proof covered the observed fields, and they have not changed. It also
+exposed a limit worth recording: a `--refetch` replays a committed run-id list
+and never walks a listing, so it cannot re-derive what the walk passed over. The
+first refetch therefore produced a dataset whose skip accounting was empty, and
+the report rendered it as "No runs were skipped" - a false statement, and
+exactly the silence-reads-as-a-pass failure this record's Task 3 rules against.
+A dataset now records its `collection_mode`; a refetch carries the walk's
+accounting forward from the dataset it refreshes; and an empty skip list from a
+refetch renders as "Not available ... missing evidence, not an empty set".
+
+Because that accounting survived only in prose, the tracked dataset was then
+re-collected by a **fresh walk** at 17:59:59Z (447 calls, 0 retries) rather than
+patched. That was safe to do only because no new completed run had appeared
+since the freeze - the newest live run was still the newest committed one - and
+it is verified rather than assumed: a focused test asserts that the tracked spec
+and the tracked dataset name exactly the same run ids, and they do, for all
+three cohorts.
+
+That sequence produced a stronger proof than the original plan. The observed
+projections of two **independent collections taken by different routes** - the
+refetch of 17:49:02Z, which replayed the committed id list, and the walk of
+17:59:59Z, which re-derived the cohort from the listings - are byte-identical,
+SHA-256 `76be4b13293d6093c6cfb8685e3ee952e5972d262a9d8ea3bcfcc35f052b0f90` over
+2,430,232 bytes, with zero evidence-state changes. Reproducibility therefore
+does not rest on replaying a stored answer: two different ways of asking the
+question returned the same frozen facts.
+
+`tools/ci-measurement/dataset-2026-09.json` is about 5.05 MB pretty-printed. The
+per-job step **summary** is kept rather than dropped for size: only 119 of 3,642
+jobs have a failed step, so removing it would save around 250 KB, and the first
+failed step is exactly what separates a setup or infrastructure failure from an
+execution failure - dropping it would leave a classification `derived` from
+evidence the dataset no longer holds.
+
+### Boundary
+
+No workflow, ruleset, branch rule, product code, release or deployment behaviour
+changed. `tools/ci-check-roster.json`, `tools/ci-workflow-inventory.json`,
+`bin/generate-ci-workflow-inventory` and `bin/check-ci-roster-conformance` are
+untouched, and both frozen gates still exit 0. Every GitHub request was a GET;
+nothing was posted, labelled, rerun or cancelled.
+
+The baseline makes **no cadence recommendation**. Whether random-order execution
+should run on every pull request, at what shard width, or at all, is Task 8. A
+`corroborating` verdict means only that the random-order failure also appeared
+in an ordinary shard *on that head*; it is not evidence that random-order
+execution has no unique detection value in general, and the one unique detection
+in this cohort is the counterexample.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on
@@ -770,6 +1151,86 @@ here; each names its evidence and a suggested owner.
   `check-ci-roster-conformance` (manual refresh) are on the roster at `default`
   profile, enforced through the `architecture-test:` surface, so no workflow
   edit was needed.
+- **`ci/random-order-shard-N` leaves no machine-readable failure record.** It
+  runs PHPUnit with `--no-coverage` and no `--log-junit` and uploads nothing,
+  while `ci/test-shard-N` uploads `php-test-shard-N` (JUnit + Clover, 30-day
+  retention). The failing-test identity of a random-order shard therefore
+  exists only in the job console log, and answering "did random order catch
+  something the ordinary shards did not?" requires a log fetch and a text
+  parse, which Task 4 does with a versioned parser and a recorded confidence.
+  A `--log-junit` on that job would turn the whole question into an artifact
+  comparison and make the evidence survive log expiry. Owner: filed separately
+  by the orchestrator; it is a workflow edit and this record's Task 4 candidate
+  does not make one.
+- **A replay cannot re-derive a walk, and an empty result read as a clean one.**
+  `--refetch` re-collects a committed run-id list and never paginates a
+  listing, so the dataset it produced carried an empty `skipped_runs` and the
+  report rendered "No runs were skipped" - false, since the original walk
+  passed over ten. The bug was not the empty list but the rendering of it: a
+  missing derivation and an empty set are different facts. Datasets now record
+  `collection_mode`, a refetch carries the walk's accounting forward from the
+  dataset it refreshes, and an empty list from a refetch renders as "Not
+  available ... missing evidence, not an empty set". The same shape is worth
+  checking wherever a tool can produce a document by two different routes.
+  Owner: none outstanding.
+- **GitHub can return a completed, failed run with zero job records, and
+  `filter=all` does not guarantee every attempt.** Two instances in the Task 4
+  pull-request cohort. Run `34298553407` is `completed`/`failure` with
+  `total_count: 0` jobs on its only attempt. Run `34298520824` has
+  `run_attempt: 2`, and `filter=all` returns only attempt 2's 45 jobs because
+  GitHub lists none for attempt 1 - whose own conclusion, read from
+  `GET /actions/runs/{id}/attempts/1`, is `action_required`: it never executed,
+  which is why it has no jobs. Building run records from the jobs listing alone
+  made both runs vanish from `runs[]` and `jobs[]` while staying in
+  `resolved.run_ids`, so a resolved run left the evidence silently. The
+  collector now emits a run record from the run object itself with
+  `jobs_listed: 0` and null durations, names the gap in
+  `cohort.incomplete_runs` with a reason, and reads an earlier attempt's
+  conclusion from the per-attempt endpoint rather than copying the run-level
+  one - which describes the **latest** attempt and would have labelled that
+  never-executed attempt a success. A focused test asserts that every resolved
+  id has a first-attempt record or an `incomplete_runs` entry. Owner: none
+  outstanding; recorded because the same assumption ("a completed run has
+  jobs", "`filter=all` means every attempt") is easy to make again.
+- **A GitHub run-listing `page=1` request was observed returning page 2's
+  content.** During Task 4 collection the `main_push` cohort scanned 500 runs
+  across five pages, kept none, and silently lost its hundred most recent runs;
+  exit status, call count and page count all looked healthy, and only the run
+  ids exposed it (500 scanned, 400 distinct — one page served twice). The
+  collector now asserts that a run listing strictly advances — page N+1's
+  highest run id below page N's lowest, and no run id twice in one cohort —
+  refetches a page that does not, and fails closed naming the page rather than
+  freezing a cohort with a hole in it. Anything else that paginates the Actions
+  API in this repository is exposed to the same behaviour and has no such
+  guard. Owner: whoever next writes a paginated Actions-API walk.
+- **Billed runner minutes are structurally unavailable to this tooling.**
+  `GET /actions/runs/{id}/timing` reports `duration_ms: 0` per job on a public
+  repository, and organization billing needs an `admin:org` scope the
+  authenticated token does not hold. Every cost figure in the Task 4 baseline
+  is therefore summed job-wall seconds weighted by GitHub's published per-OS
+  multipliers, labelled a **cost proxy**. Any future claim about runner spend
+  needs a different evidence source, not a re-reading of these numbers. Owner:
+  Task 8, before any cadence decision that rests on cost.
+- **The Windows development host lacks `ext-fileinfo` and `ext-zip`.** `vendor/`
+  installs only with `--ignore-platform-req=ext-fileinfo
+  --ignore-platform-req=ext-zip`, and the Task 4 classifier consequently opens
+  artifact zips through an external extractor — the Windows system `tar.exe`
+  (bsdtar, under `%SystemRoot%/System32`) first and `unzip` second, recording
+  which one worked. Git Bash's GNU `tar` cannot read a zip and is skipped by
+  the probe order. This is a host observation, not a framework requirement;
+  nothing in `composer.json` changed.
+  Owner: whoever next provisions a Windows contributor host.
+- **`ci.yml` declares no skippable job-level condition.** Three of its 41 jobs
+  carry an `if`, and all three are `always()` aggregates — which, by the
+  inventory's own derivation rule, is the one condition that *cannot* skip a
+  job. Every skip observed in the Task 4 cohort is therefore a
+  prerequisite-starved skip, never an expected conditional one, and the
+  `expected_conditional_skip` term of the measurement vocabulary has no
+  instance in this repository's `ci.yml`. The same holds for
+  `publication_only`: `ci.yml` and `nightly.yml` contain no job the inventory
+  labels `publication`. Both terms are reported as explicit zeros rather than
+  omitted. Owner: nobody yet; it is a fact about the workflow, recorded so a
+  later reader does not mistake a zero for a gap in the pass.
 - No workflow declares a `merge_group` trigger, confirmed against all 22 files.
   Merge-queue cadence remains an open design decision already recorded in
   #3087.
@@ -905,10 +1366,10 @@ stays with the next CRC030 change.
 0. Evidence freeze and external benchmark: complete.
 1. Governance contract and schema repair: complete.
 2. Inventory generator: complete.
-3. Offline conformance verifier: this candidate. Task 3a (policy repair from
-   inventory evidence) lands first as its own reviewed slice; the verifier is
+3. Offline conformance verifier: complete. Task 3a (policy repair from
+   inventory evidence) landed first as its own reviewed slice; the verifier was
    written against the repaired policy afterwards.
-4. Measurement baseline under #2869.
+4. Measurement baseline under #2869: this candidate.
 5. Stable aggregate shadowing.
 6. Ruleset projection and live audit.
 7. Ruleset migration.
