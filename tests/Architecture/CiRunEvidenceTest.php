@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 /**
@@ -40,9 +41,11 @@ final class CiRunEvidenceTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach ($this->temporaryRoots as $root) {
-            self::removeTree($root);
-        }
+        // Filesystem::remove() is the repository's link-safe remover
+        // (tests/Architecture/RecursiveRemoverContractTest.php); a hand-rolled
+        // scandir()+rmdir() walk would follow a directory symlink out of the
+        // fixture root.
+        new Filesystem()->remove($this->temporaryRoots);
         $this->temporaryRoots = [];
     }
 
@@ -1472,7 +1475,7 @@ final class CiRunEvidenceTest extends TestCase
         $process->run();
         self::assertSame(0, $process->getExitCode(), $process->getErrorOutput());
         $cached = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
-        self::removeTree($root);
+        new Filesystem()->remove($root);
 
         return $cached;
     }
@@ -1825,20 +1828,5 @@ final class CiRunEvidenceTest extends TestCase
         $this->temporaryRoots[] = $root;
 
         return $root;
-    }
-
-    private static function removeTree(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        foreach (scandir($directory, SCANDIR_SORT_NONE) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $path = $directory . '/' . $entry;
-            is_dir($path) ? self::removeTree($path) : @unlink($path);
-        }
-        @rmdir($directory);
     }
 }
