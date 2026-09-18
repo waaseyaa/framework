@@ -15,7 +15,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-blueprint-governance.XXXXXX")"
 source_root="$work/source"
+authoring="$work/authoring"
 consumer="$work/consumer"
+custody="$work/custody"
 
 composer_bin="${COMPOSER_BIN:-}"
 if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
@@ -40,7 +42,8 @@ if [[ -z "$candidate" ]]; then
 fi
 candidate="$("$root/bin/git" -C "$root" rev-parse --verify "${candidate}^{commit}")"
 
-mkdir -p "$source_root" "$consumer"
+mkdir -p "$source_root" "$consumer" "$custody"
+chmod 0700 "$custody"
 "$root/bin/git" -C "$root" archive --format=tar "$candidate" \
     | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
 
@@ -201,6 +204,160 @@ php -r '
     fwrite(STDOUT, "Both blueprint providers registered exactly once in literal root composer.json.\n");
 ' "$consumer/composer.json"
 
+# --- CFG-03 signing lifecycle: the blueprint generator must not mint signing
+# custody, so the authored sync directory is signed on a separate authoring host
+# and the importing consumer receives only the public trust key plus the signed
+# envelope (mirrors check-verified-config-import exactly). ---
+php -r '
+    $pair = sodium_crypto_sign_keypair();
+    file_put_contents($argv[1] . "/manifest-signing.key", sodium_crypto_sign_secretkey($pair));
+    chmod($argv[1] . "/manifest-signing.key", 0600);
+    file_put_contents($argv[1] . "/manifest-signing.pub", base64_encode(sodium_crypto_sign_publickey($pair)));
+' "$custody"
+public_key="$(cat "$custody/manifest-signing.pub")"
+trust_reference='cfg04:blueprint-governance-key'
+
+write_config() {
+    local target="$1" role="$2"
+
+    php -r '
+        [$path, $reference, $publicKey, $role] = array_slice($argv, 1);
+        $source = (string) file_get_contents($path);
+        $signing = "    \x27config_manifest_signing\x27 => [\n"
+            . "        \x27trust_keys\x27 => [\n"
+            . "            \x27" . $reference . "\x27 => [\x27algorithm\x27 => \x27Ed25519\x27, \x27public_key\x27 => \x27" . $publicKey . "\x27],\n"
+            . "        ],\n"
+            . "        \x27revoked_trust_keys\x27 => [],\n";
+        if ($role === "authoring") {
+            $signing .= "        \x27signing_key\x27 => [\n"
+                . "            \x27trust_key_reference\x27 => \x27" . $reference . "\x27,\n"
+                . "            \x27secret_reference\x27 => [\n"
+                . "                \x27provider\x27 => \x27authoring-file\x27,\n"
+                . "                \x27identifier\x27 => \x27manifest-signing\x27,\n"
+                . "                \x27secret_class\x27 => \x27token-signing-private-key\x27,\n"
+                . "                \x27purpose\x27 => \x27waaseyaa.config.manifest-signing.v1\x27,\n"
+                . "            ],\n"
+                . "        ],\n";
+        }
+        $signing .= "    ],\n";
+        $updated = preg_replace("/^return \[\n/m", "return [\n" . $signing, $source, 1);
+        if (!is_string($updated) || $updated === $source) {
+            fwrite(STDERR, "Could not inject manifest signing configuration.\n");
+            exit(1);
+        }
+        file_put_contents($path, $updated);
+    ' "$target/config/waaseyaa.php" "$trust_reference" "$public_key" "$role"
+}
+
+read_active_token() {
+    ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/token.out" 2>&1
+    active_generation="$(sed -nE 's/.*generation ([a-f0-9]{64}).*/\1/p' "$work/token.out" | head -1)"
+    active_sequence="$(sed -nE 's/.*sequence ([0-9]+).*/\1/p' "$work/token.out" | head -1)"
+    if [[ -z "$active_generation" || -z "$active_sequence" ]]; then
+        cat "$work/token.out" >&2
+        echo 'FAIL: could not read the active configuration token.' >&2
+        exit 1
+    fi
+}
+
+# Cloning the blueprint-activated consumer into an authoring host is unsafe:
+# signing boots a kernel that still carries the generated blueprint providers and
+# mutates the active store. Use the full authoring build from
+# check-verified-config-import instead (one extra composer install).
+build_authoring_host() {
+    cp -R "$source_root/skeleton/." "$authoring/"
+    rm -f "$authoring/composer.lock" "$authoring/composer.local.json.example"
+    mkdir -p "$authoring/storage/framework" "$authoring/storage/files" "$authoring/config/sync"
+
+    php -r '
+        $path = $argv[1];
+        $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $composer["repositories"] = [
+            ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+            ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+        ];
+        $composer["require"]["waaseyaa/framework"] = "*";
+        unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+        $composer["extra"]["waaseyaa"]["providers"][] = $argv[3];
+        file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    ' "$authoring/composer.json" "$source_root" 'App\Provider\AuthoringCustodyServiceProvider'
+
+    printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/blueprint-governance-authoring.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+        "$app_secret" "$authoring" "$authoring" > "$authoring/.env"
+
+    if ! "$composer_bin" install --working-dir="$authoring" \
+            --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer-authoring.out" 2>&1; then
+        tail -100 "$work/composer-authoring.out" >&2
+        exit 1
+    fi
+
+    mkdir -p "$authoring/src/Provider"
+    cp "$source_root/tests/PackagedForm/fixtures/app-AuthoringCustodyServiceProvider.php" \
+       "$authoring/src/Provider/AuthoringCustodyServiceProvider.php"
+    cp "$source_root/tests/PackagedForm/fixtures/app-FileSigningKeyProvider.php" \
+       "$authoring/src/Provider/FileSigningKeyProvider.php"
+    "$composer_bin" dump-autoload --working-dir="$authoring" --no-interaction >/dev/null 2>&1
+    write_config "$authoring" authoring
+}
+
+build_authoring_host
+
+if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authoring-install.out" 2>&1; then
+    cat "$work/authoring-install.out" >&2
+    echo 'FAIL: install:init failed on the blueprint authoring host.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/authoring-install.out"
+test -d "$authoring/config/sync"
+test -z "$(ls -A "$authoring/config/sync")"
+
+cp -R "$consumer/config/sync/." "$authoring/config/sync/"
+test -n "$(ls -A "$authoring/config/sync")"
+
+if ! ( cd "$authoring" \
+        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
+           php vendor/bin/waaseyaa config:manifest:sign --scope=site:blueprint-governance ) >"$work/sign.out" 2>&1; then
+    cat "$work/sign.out" >&2
+    echo 'FAIL: the authoring host could not sign the blueprint-generated sync directory.' >&2
+    exit 1
+fi
+grep -Fq 'Envelope written to' "$work/sign.out"
+test -f "$authoring/config/sync.envelope.json"
+if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
+    cat "$work/sign.out" >&2
+    echo 'FAIL: signing output mentions secret material.' >&2
+    exit 1
+fi
+
+write_config "$consumer" consumer
+cp -R "$authoring/config/sync/." "$consumer/config/sync/"
+cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
+
+private_key_b64="$(php -r 'echo base64_encode((string) file_get_contents($argv[1]));' "$custody/manifest-signing.key")"
+# Rules 1 and 2 from check-consumer-key-hygiene are load-bearing for manifest
+# signing custody. Rule 3 (*signing* by name) false-positives on this harness's
+# symlink:false provenance install because the copied framework tree includes
+# OIDC migration/spec paths whose names contain "signing".
+if grep -rqF -- "$private_key_b64" "$consumer" 2>/dev/null; then
+    echo 'FAIL: the consumer tree contains the private signing key.' >&2
+    exit 1
+fi
+key_hits="$(find "$consumer" -type f -name '*.key' -print 2>/dev/null || true)"
+if [[ -n "$key_hits" ]]; then
+    echo 'FAIL: the consumer tree contains a key file:' >&2
+    printf '%s\n' "$key_hits" >&2
+    exit 1
+fi
+if grep -rq -- 'manifest-signing.key\|WAASEYAA_AUTHORING_SIGNING_KEY_FILE\|authoring-file' "$consumer/config" "$consumer/.env" 2>/dev/null; then
+    echo 'FAIL: the consumer references authoring signing custody.' >&2
+    exit 1
+fi
+grep -Fq 'signing_key' "$authoring/config/waaseyaa.php"
+if grep -Fq 'signing_key' "$consumer/config/waaseyaa.php"; then
+    echo 'FAIL: the consumer profile declares a signing key.' >&2
+    exit 1
+fi
+
 if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
     cat "$work/install-init.out" >&2
     echo 'FAIL: install:init failed on the blueprint-activated consumer.' >&2
@@ -208,12 +365,23 @@ if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-
 fi
 grep -Fq 'Installation is complete.' "$work/install-init.out"
 
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import ) >"$work/config-import.out" 2>&1; then
+read_active_token
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+             --activation-request-id=blueprint-governance-import-1 \
+             --expected-generation="$active_generation" \
+             --expected-sequence="$active_sequence" ) >"$work/config-import.out" 2>&1; then
     cat "$work/config-import.out" >&2
     echo 'FAIL: config:import failed to activate workflows.assignments.' >&2
     exit 1
 fi
 cat "$work/config-import.out"
+grep -Eq '[1-9][0-9]* created|[1-9][0-9]* updated' "$work/config-import.out" \
+    || { echo 'FAIL: config:import did not report created or updated entries.' >&2; exit 1; }
+if grep -rqF -- "$private_key_b64" "$work/config-import.out" "$work/install-init.out" "$consumer/storage" 2>/dev/null; then
+    echo 'FAIL: key material appeared in consumer output or storage.' >&2
+    exit 1
+fi
+echo 'CFG-03 signed import verified (authoring custody split, public trust only on consumer).'
 
 editor_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-editor --email=editor@packaged.test --password=governance-editor-pw)"
 viewer_out="$(cd "$consumer" && php vendor/bin/waaseyaa user:create governance-viewer --email=viewer@packaged.test --password=governance-viewer-pw)"
