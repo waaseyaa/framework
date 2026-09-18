@@ -53,21 +53,29 @@ class:
 - role: policy, setup, execution, aggregate, advisory, publication, or
   orchestration;
 - expansion: singleton or matrix;
-- selection: one or more unconditional, path, actor, or event predicates;
+- selection: composable `all_of` or `any_of` expressions over unconditional,
+  path, actor, event, or label predicates;
 - disposition: required, diagnostic, expected-skip, or publication-only;
 - authority: merge, release, operational, or informational;
 - cadence: pull request, merge group, main, scheduled, release, manual, or
   event-driven.
 
 Stable producer and invariant IDs are references inside the policy. They are not
-assertions about current GitHub job IDs or check-name derivation. The model
-includes `enable-native-auto-merge` as event- and actor-selected operational
-orchestration so a later generator can represent conditional producers without
-silently dropping them.
+assertions about current GitHub job IDs or check-name derivation. The eight
+invariant-level decisions are source/repository policy, PHP behavior/coverage,
+security/authorization, public/package contracts, consumer acceptance, browser
+acceptance, platform/runtime acceptance, and release integrity. Every current
+required projection context references one owned decision.
+
+The model includes `enable-native-auto-merge` as operational orchestration with
+the live selector semantics: manual `workflow_dispatch`, or a `pull_request`
+`labeled` event whose label is exactly `auto-merge-when-green`. It has no actor
+predicate, and its diagnostic disposition permits the operational job to run
+successfully. This is a contract representation, not workflow parsing.
 
 ## Attestation subjects
 
-Evidence is bound to six distinct coordinates:
+The vocabulary defines six distinct coordinates:
 
 1. pull-request head SHA;
 2. merge-ref SHA;
@@ -76,9 +84,16 @@ Evidence is bound to six distinct coordinates:
 5. run attempt;
 6. artifact source SHA.
 
-Subject substitution is forbidden. Evidence for a PR head cannot silently
-satisfy a merge-ref or merge-group subject, and an artifact is not accepted for
-a consumer unless its source SHA matches the consumer's declared subject.
+Each producer declares cadence-specific subject profiles. Pull-request,
+merge-group, main, release/manual, and event-driven executions are alternatives,
+not a conjunctive list of coordinates. Subject substitution is forbidden:
+evidence for a PR head cannot silently satisfy a merge-ref, merge-group, or main
+profile. Artifact-producing and consuming profiles additionally bind the
+artifact source SHA, which must match exactly.
+
+The schema supports a future merge-group profile bound to the merge-group
+combined SHA. No current producer declares merge-group cadence or claims that a
+merge queue exists.
 
 ## Aggregate lineage contract
 
@@ -94,8 +109,13 @@ It does not implement those aggregates. Ordinary PHP shard coverage uses the
 bounded artifact family `php-test-shard-1` through `php-test-shard-4`, expressed
 by `php-test-shard-*`; it does not rely on an undefined matrix expression.
 
-Random-order execution remains on every pull request throughout measurement.
-Any cadence decision waits until Task 8.
+Random-order execution remains on every pull request at the current two-shard
+width `[1, 2]`. Even a move to three shards is measurement-gated. Width and
+cadence decisions wait until Task 8.
+
+`ci/mutation-pilot` remains an unconditional required pull-request policy with
+merge authority. Its intentionally name-only ruleset binding does not make it
+path-selected, diagnostic, informational, or scheduled.
 
 ## Focused validation
 
@@ -104,19 +124,25 @@ and validates only Task 1 guarantees:
 
 - schema shape and exact controlled vocabularies;
 - stable, unique IDs and valid internal references;
-- exact and non-substitutable attestation subjects;
+- complete, satisfiable, cadence-specific and non-substitutable subject profiles;
 - aggregate lineage, terminal-state, and SHA-bound not-applicable rules;
 - the bounded shard artifact contract;
-- the unique 22-context required projection and its integration bindings;
+- all eight owned invariant decisions and the unique 22-context projection from
+  each required context to one of those decisions;
+- the exact required-context integration bindings;
+- the two-shard random-order and required pull-request mutation policies;
 - the conditional auto-merge policy shape;
 - the deferred Task 2 and Task 3 boundaries and residual task order.
 
-Discriminating negative fixtures cover invalid enums, duplicate IDs, broken
-references, subject substitution, duplicate contexts, incorrect integration
-bindings, cross-workflow lineage, permissive cancellation, an unbounded artifact
-expression, and premature inventory completion. The test deliberately does not
-read workflow YAML or infer job-to-context identity, triggers, matrices, needs,
-or artifact behavior.
+Discriminating negative fixtures cover invalid enums, duplicate IDs, broken or
+unmapped invariant references, missing or leaking subject profiles, flat
+conjunctive subjects, selector drift, premature merge-group claims, random-order
+width and cadence drift, mutation-policy drift, duplicate contexts, incorrect
+integration bindings, cross-workflow lineage, permissive cancellation, artifact
+subject mismatch, an unbounded artifact expression, and premature inventory
+completion. The test deliberately does not read workflow YAML or infer
+job-to-context identity, workflow triggers, generated matrices, needs, or
+artifact behavior.
 
 ## Ordered residual work
 
