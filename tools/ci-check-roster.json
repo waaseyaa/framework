@@ -6,7 +6,7 @@
     "task": 3,
     "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. It is not itself an expanded workflow inventory. Offline conformance compares this policy with that inventory only; it does not read workflow YAML and does not prove live ruleset conformance, which remains task 6.",
     "generated_workflow_inventory": {"status": "generated", "task": 2, "path": "tools/ci-workflow-inventory.json", "generator": "bin/generate-ci-workflow-inventory"},
-    "offline_workflow_conformance": {"status": "in-progress", "task": 3}
+    "offline_workflow_conformance": {"status": "implemented", "task": 3, "verifier": "bin/check-ci-roster-conformance"}
   },
   "evidence": {
     "repository": "waaseyaa/framework",

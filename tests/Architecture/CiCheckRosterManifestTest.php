@@ -152,7 +152,10 @@ final class CiCheckRosterManifestTest extends TestCase
             ['status' => 'generated', 'task' => 2, 'path' => 'tools/ci-workflow-inventory.json', 'generator' => 'bin/generate-ci-workflow-inventory'],
             $this->manifest['scope']['generated_workflow_inventory'],
         );
-        self::assertSame(['status' => 'in-progress', 'task' => 3], $this->manifest['scope']['offline_workflow_conformance']);
+        self::assertSame(
+            ['status' => 'implemented', 'task' => 3, 'verifier' => 'bin/check-ci-roster-conformance'],
+            $this->manifest['scope']['offline_workflow_conformance'],
+        );
         self::assertSame(self::PRODUCERS, array_column($this->manifest['policy']['producers'], 'id'));
         self::assertSame('id', $this->producer($this->manifest, 'php-test-shards')['matrix']['axis']);
         self::assertSame('id', $this->producer($this->manifest, 'random-order-shards')['matrix']['axis']);
@@ -217,6 +220,7 @@ final class CiCheckRosterManifestTest extends TestCase
             'artifact-pattern' => $mutated['policy']['artifact_contracts'][0]['producer_pattern'] = 'php-test-shard-${{ matrix.shard }}',
             'artifact-subject' => $mutated['policy']['producers'][$producerIndex('php-test-shards')]['subject_profiles'][0]['artifact_subject'] = 'pr-head-sha',
             'unbound-inventory-pointer' => $mutated['scope']['generated_workflow_inventory']['path'] = 'tools/somewhere-else.json',
+            'unbound-verifier-pointer' => $mutated['scope']['offline_workflow_conformance']['verifier'] = 'bin/somewhere-else',
             'producer-roster' => $mutated['policy']['producers'][$producerIndex('phpunit-shard-plan')]['id'] = 'ci-environment-setup',
             'matrix-axis' => $mutated['policy']['producers'][$producerIndex('php-test-shards')]['matrix']['axis'] = 'shard',
             'random-order-lineage' => $mutated['policy']['aggregate_lineage_contract']['aggregates'][2]['prerequisites'] = [
@@ -274,6 +278,7 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'bounded artifacts' => ['artifact-pattern', 'php shard coverage must use the bounded php-test-shard-* contract'];
         yield 'artifact subject matching' => ['artifact-subject', 'php shard coverage producer and consumer profiles must bind artifact-source-sha'];
         yield 'inventory pointer' => ['unbound-inventory-pointer', 'generated workflow inventory pointer must name the tracked inventory path'];
+        yield 'verifier pointer' => ['unbound-verifier-pointer', 'offline workflow conformance pointer must name the task 3 verifier'];
         yield 'producer roster' => ['producer-roster', 'policy must define the governed producer roster in order'];
         yield 'matrix axis' => ['matrix-axis', 'producer php-test-shards declares matrix axis shard with values [1,2,3,4], which ci.yml#ci-test-shards does not declare'];
         yield 'random-order lineage' => ['random-order-lineage', 'random-order-aggregate lineage prerequisites must be exactly [random-order-shards, random-order-plan]'];
@@ -310,9 +315,11 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($inventoryPointer['generator'] ?? null) !== 'bin/generate-ci-workflow-inventory') {
             $errors[] = 'generated workflow inventory pointer must name the tracked inventory path';
         }
-        if (($manifest['scope']['offline_workflow_conformance']['status'] ?? null) !== 'in-progress'
-            || ($manifest['scope']['offline_workflow_conformance']['task'] ?? null) !== 3) {
-            $errors[] = 'offline workflow conformance must be the current task 3 slice';
+        $conformance = $manifest['scope']['offline_workflow_conformance'] ?? [];
+        if (($conformance['status'] ?? null) !== 'implemented'
+            || ($conformance['task'] ?? null) !== 3
+            || ($conformance['verifier'] ?? null) !== 'bin/check-ci-roster-conformance') {
+            $errors[] = 'offline workflow conformance pointer must name the task 3 verifier';
         }
         if (($manifest['scope']['task'] ?? null) !== 3) {
             $errors[] = 'manifest scope must record task 3';

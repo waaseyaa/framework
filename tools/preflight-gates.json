@@ -393,6 +393,28 @@
             "enforced_by": "workflow:changelog-discipline.yml#check-changelog-discipline.sh"
         },
         {
+            "id": "check-ci-workflow-inventory",
+            "run": "php bin/generate-ci-workflow-inventory --check",
+            "repair": "php bin/generate-ci-workflow-inventory --write, then commit tools/ci-workflow-inventory.json",
+            "profile": "default",
+            "enforced_by": "architecture-test:CiWorkflowInventoryGeneratorTest.php",
+            "refresh": {
+                "mode": "auto",
+                "write": "php bin/generate-ci-workflow-inventory --write"
+            }
+        },
+        {
+            "id": "check-ci-roster-conformance",
+            "run": "php bin/check-ci-roster-conformance",
+            "repair": "reconcile tools/ci-check-roster.json with the generated inventory; each ERROR line names the rule id, the policy locator, the inventory locator, the current value and the expected value",
+            "profile": "default",
+            "enforced_by": "architecture-test:CiRosterConformanceTest.php",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "the CI policy is hand-authored governance and has no write mode: read the CRCxxx ERROR lines, decide whether the policy or the workflow is wrong, and repair the named policy locator (a workflow change is a separate governed decision)"
+            }
+        },
+        {
             "id": "cs-check",
             "alias": "cs-check",
             "run": "composer cs-check",

@@ -499,6 +499,210 @@ behaviour changed. `tools/ci-workflow-inventory.json` and
 `bin/generate-ci-workflow-inventory` are untouched, and
 `php bin/generate-ci-workflow-inventory --check` still exits 0.
 
+## Task 3: offline conformance verifier
+
+`bin/check-ci-roster-conformance` compares the repaired policy with the
+generated inventory and reports every mismatch. The library is
+`bin/lib/ci-roster-conformance.php` (plain `crc_` functions, no Composer
+dependency). Options are `--root=DIR`, `--policy=FILE`, `--inventory=FILE`,
+`--ruleset=FILE` and `--json`; exit codes are 0 no errors, 1 one or more
+errors, 2 usage or unreadable input. It never reads `.github/workflows/*.yml`:
+the inventory is its only structural evidence, which is what lets it say
+exactly what it checked and what it could not check offline.
+
+### Three severities, and silence is never a pass
+
+- **error** — the inventory positively contradicts a policy claim, or a claim
+  that must have inventory evidence has none. Exit code 1.
+- **notice** — the inventory carries structure the policy does not model. Never
+  the reverse, never an exit code: the policy is a deliberate subset of the
+  workflow graph and coverage gaps are reported, not punished.
+- **not-verified-offline** — the check needs live GitHub state. Emitted as its
+  own line so its absence is never read as a pass.
+
+Output is one line per finding, carrying the severity, the rule id, the policy
+locator, the inventory locator, the current value and the expected value —
+the failure format `docs/specs/workflow.md` requires. `--json` emits the same
+findings with per-severity counts.
+
+### Rules
+
+| ID | Rule | Severity |
+|---|---|---|
+| CRC001 | a `workflow_policies` binding names a workflow the inventory contains | error |
+| CRC002 | a producer (or a `recovery_producer`) binding names an existing job in that workflow | error |
+| CRC003 | a required-context binding names an existing job | error |
+| CRC004 | the required context is a visible context of its bound job | error |
+| CRC005 | the required context is visible in exactly one job repository-wide | error |
+| CRC006 | the required context's workflow declares a `pull_request` trigger, so a required merge check is producible on a pull request | error |
+| CRC007 | no `duplicate_contexts` entry collides with a required context | error |
+| CRC008 | the producer's `expansion` is the bound job's `expansion` | error |
+| CRC009 | a matrix producer's values equal the bound job's literal axis values; an unresolved matrix fails, because the policy claims a bounded width | error |
+| CRC010 | a matrix producer's declared axis is an axis the bound job declares | error |
+| CRC011 | `random_order_measurement.active_shards` equals the bound job's literal matrix values | error |
+| CRC012 | an `unconditional` producer (every selector leaf unconditional, however composed) has a job with no job-level `if`, or one classified **exactly** as `always()`. Any other classification fails, including an empty one: the inventory has no classifier for `vars.*` or `env.*`, and `always()` is the only condition that cannot skip a job | error |
+| CRC013 | each `event`/`label`/`actor`/`path` selector is evidenced by a trigger selector or the job's `if` classification | error |
+| CRC014 | a trigger the inventory declares that no bound producer models | notice |
+| CRC015 | disposition `expected-skip` implies a conditional job | error |
+| CRC016 | disposition `required` implies an unconditional job | error |
+| CRC017 | a policy aggregate's bound job is an inventory aggregate | error |
+| CRC018 | that aggregate's `gate` is the policy's `condition_semantics` | error |
+| CRC019 | every policy prerequisite is in the aggregate's `needs` **and** in its `result_checked_prerequisites` — an `always()` aggregate fails closed only on an explicit result check | error |
+| CRC020 | prerequisite and aggregate live in the same workflow (`ownership_scope: workflow-local`) | error |
+| CRC021 | a dependency edge between two bound jobs that the policy does not model | notice |
+| CRC022 | the producer job uploads an artifact whose bounded expansion equals `bounded_expansion` | error |
+| CRC023 | the consumer job downloads by `producer_pattern`, and that consumer's `matched_producers` contains the producer job | error |
+| CRC024 | `producer_pattern` glob-matches every name in `bounded_expansion` | error |
+| CRC025 | every declared cadence is producible by the triggers of the workflow that serves it | error (plus a notice naming a recovery split) |
+| CRC026 | each required context's integration binding against a frozen `--ruleset` snapshot of shape `{"id": <int>, "strict": <bool>, "contexts": [{"context": <string>, "integration_id": <int\|null>}]}` | error, or not-verified-offline without one |
+| CRC027 | a `ci/`-shaped visible context in neither the required projection nor a producer binding | notice |
+| CRC028 | an invariant no producer owns | notice |
+| CRC029 | a required context whose bound job has no recognised local command | notice |
+| CRC030 | a policy field the verifier iterates is empty or unbound — an aggregate with no prerequisites, a measurement naming no bound producer, an empty required projection — each of which would silence a rule rather than prove it | error |
+
+CRC025 honours the recovery split S3 recorded: when a producer declares a
+`recovery_producer`, the recovery cadence is checked against the recovery
+workflow and the remaining cadences against the primary workflow, and the
+split is reported as a notice so it is never invisible. `release` is satisfied
+by a `push` trigger with a non-empty `tags` filter, `manual` by
+`workflow_dispatch`. CRC013 reads a qualified selector the same way:
+`pull_request:labeled` needs a `pull_request` trigger whose `types` contains
+`labeled`, `push:tags` a `push` trigger with a non-empty `tags` filter, and a
+producer with a recovery producer may satisfy a selector from either workflow.
+
+### What is out of offline scope, and why
+
+- **The live ruleset.** Ruleset `15181711`, its strict flag, its 22 bound
+  contexts and GitHub Actions App `15368` are live state. CRC026 compares them
+  only against a frozen `--ruleset` snapshot; with no snapshot it reports
+  `not-verified-offline`. The live audit is Task 6.
+
+  The snapshot schema CRC026 expects is:
+
+  ```json
+  {
+    "id": 15181711,
+    "strict": true,
+    "contexts": [{"context": "ci/lint", "integration_id": 15368}]
+  }
+  ```
+
+  **Task 6 must emit exactly that shape from the live ruleset**:
+  `GET /repos/{owner}/{repo}/rulesets/{id}`, whose `required_status_checks`
+  rule carries one entry per required check with its `context` and
+  `integration_id`. A null `integration_id` is an intentionally name-only
+  binding — `ci/mutation-pilot` is the one the policy records — and CRC026
+  compares it as null rather than skipping it.
+- **Actual check-run names.** The verifier compares the inventory's *derived*
+  visible contexts. GitHub's own rendering is unobserved, in particular the
+  object-matrix default naming that carries 77 of the 160 visible contexts
+  (`split.yml#split`). The inventory records that extension as unverified and
+  so does the verifier.
+- **Attestation-subject profiles.** No offline artefact records which SHA a
+  hosted run attested. The policy self-validates their shape in Task 1; the
+  verifier does not re-assert it and cannot confirm it.
+- **Expression evaluation.** Only the inventory's `if` *classification* is
+  compared. No condition is ever evaluated, so a selector check proves that
+  the expression *references* the predicate, not that it is true.
+- **Policy `role` versus `structural_role`.** The inventory's own derivation
+  rules call that label a structural heuristic that "is not the policy role
+  vocabulary" and that "deliberately collides", so the verifier does not
+  compare them.
+
+### What the verifier assumes the Task 1 self-validator already proved
+
+The verifier is a comparison tool, not a schema validator. It assumes
+`tests/Architecture/CiCheckRosterManifestTest.php` has already proved the
+policy's own shape: the controlled vocabularies, stable and unique ids with
+valid internal references, complete cadence-specific and non-substitutable
+subject profiles, the eight owned invariant decisions and the unique 22-context
+projection onto them, the aggregate terminal-result and SHA-bound
+not-applicable rules, the bounded shard artifact contract, the exact
+integration bindings, and — since Task 3a — that every producer and every
+required context carries a binding whose workflow and job exist in the
+inventory. None of that is re-asserted here.
+
+What the verifier cannot assume is that an iteration has anything to iterate.
+CRC030 is the narrow backstop for that: an aggregate with no prerequisites, a
+`random_order_measurement.producer_id` naming no bound producer, or an empty
+`required_projection.contexts` would each make a rule report nothing and read
+as a pass. Those three are errors in their own right.
+
+### The real-tree result
+
+On the tracked pair the verifier exits 0 with **zero errors**, 19 notices and
+1 not-verified-offline line. The notices are: one `CRC014` (`ci.yml` declares a
+`workflow_dispatch` trigger no bound producer models); three `CRC021`
+dependency edges the aggregate contract does not cover
+(`ci-test-shards`←`prepare-test-plan`, `ci-random-order-shard`←
+`prepare-random-order-plan`, `ci-random-order-shard`←`prepare-test-plan`); one
+`CRC025` recording that the `manual` cadence is served by
+`github-release.yml#release`, not by `split.yml`; eight `CRC027` gate-shaped
+`ci/` contexts outside the policy (`ci/cli-health-report`,
+`ci/cli-io-consumer-contract`, `ci/cli-sync-rules`, `ci/local-operator-windows`,
+`ci/site-init-profile-acceptance`, `ci/site-recipe-provider-activation`,
+`ci/split-artifact-acceptance`, `ci/studio-alpha-acceptance`); four `CRC028`
+invariants with no producer (`public-package-contracts`, `consumer-acceptance`,
+`browser-acceptance`, `platform-runtime-acceptance` — each owns required
+contexts but no modelled producer); and two `CRC029` required contexts whose
+bound job has no recognised local command (`ci/random-order`, `ci/unit-tests`,
+both aggregates that only read prerequisite results). None is a defect; each
+names something a later task may choose to model.
+
+### What the focused test proves
+
+`tests/Architecture/CiRosterConformanceTest.php` builds a compact fixture
+policy-and-inventory pair that conforms with zero errors, then proves each rule
+fires on its own drift: one discriminating mutation per rule asserting the
+exact rule id **and** policy locator, covering a missing workflow, a job
+rename, a renamed required-context job, context drift, a context produced by
+two jobs, trigger drift, a duplicate context, expansion drift, matrix drift, an
+unresolved matrix, axis drift, random-order width drift, four conditional
+"unconditional" producers (an actor gate, an unconditional leaf carrying an
+extra key, two unconditional leaves, and a condition the inventory cannot
+classify), a selector with no evidence, expected-skip drift, a
+required producer on a conditional job, an aggregate that is not one,
+cancellation-propagation drift, a missing dependency, an unchecked prerequisite
+result, cross-workflow lineage, a missing artifact upload, a missing artifact
+download, an unmatched producer, an unbounded pattern, cadence drift, and
+integration-binding drift against a snapshot, and the three CRC030
+vacuous-pass paths. It also proves the
+integration-binding rule reports `not-verified-offline` without a snapshot and
+passes with a matching one, that coverage notices never fail a run — naming CRC014, CRC021, CRC027,
+CRC028 and CRC029 explicitly — and the CLI
+cases: exit 2 on an unknown option, on an unreadable file and on malformed
+JSON, exit 1 with an `ERROR [CRC009]` line on a drifted temp root, and `--json`
+parsing. The repository case is the drift gate: the verifier run against the
+tracked policy and inventory must exit 0 with zero errors, every finding a
+notice or not-verified-offline, and at least one not-verified-offline line so
+the live-ruleset gap stays visible.
+
+### Preflight roster
+
+Two entries were added to `tools/preflight-gates.json`, both `default`
+profile, because both are mechanical and neither needs a workflow edit —
+`enforced_by` accepts an `architecture-test:` surface, and CI already runs the
+Architecture suite inside `ci/unit-tests`:
+
+- `check-ci-workflow-inventory` runs `php bin/generate-ci-workflow-inventory
+  --check`, is enforced by `CiWorkflowInventoryGeneratorTest.php`, and carries
+  an `auto` refresh (`--write`), so `bin/refresh-governance-artifacts` can
+  repair inventory drift mechanically.
+- `check-ci-roster-conformance` runs the verifier, is enforced by
+  `CiRosterConformanceTest.php`, and carries a `manual` refresh: the policy is
+  hand-authored governance with no write mode, so the instruction is to read
+  the `CRCxxx` lines and decide whether the policy or the workflow is wrong.
+
+Neither gate declares a composer `alias`, which the manifest allows, so no
+`composer.json` change was needed. `bin/refresh-governance-artifacts` reports
+both as `clean`.
+
+No workflow, ruleset, branch rule, product code, release, or deployment
+behaviour changed. `tools/ci-workflow-inventory.json` and
+`bin/generate-ci-workflow-inventory` are untouched. The only policy edit in
+this slice is `scope.offline_workflow_conformance`, now
+`{status: "implemented", task: 3, verifier: "bin/check-ci-roster-conformance"}`.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on
@@ -556,13 +760,16 @@ here; each names its evidence and a suggested owner.
   spacing to the roster manifest test" — a style-only orchestrator commit, not
   the Task 1 candidate. The file now carries zero `fn (` and the fixer dry-run
   is clean.
-- `tools/preflight-gates.json` carries no inventory-drift gate. Drift is caught
-  today only by this candidate's architecture test (which CI runs inside
+- ~~`tools/preflight-gates.json` carries no inventory-drift gate. Drift is
+  caught today only by this candidate's architecture test (which CI runs inside
   `ci/unit-tests`). A roster entry would also give
   `bin/refresh-governance-artifacts` — which is driven entirely by that
   manifest's `refresh` metadata — a mechanical repair
-  (`php bin/generate-ci-workflow-inventory --write`). Whether the gate belongs
-  on the preflight roster is a governed-gates decision. Owner: Task 3.
+  (`php bin/generate-ci-workflow-inventory --write`).~~ **Resolved by Task 3.**
+  Both `check-ci-workflow-inventory` (auto refresh) and
+  `check-ci-roster-conformance` (manual refresh) are on the roster at `default`
+  profile, enforced through the `architecture-test:` surface, so no workflow
+  edit was needed.
 - No workflow declares a `merge_group` trigger, confirmed against all 22 files.
   Merge-queue cadence remains an open design decision already recorded in
   #3087.
@@ -653,6 +860,15 @@ supersedes the sweep's estimates). None is acted on here.
   retention, spread across 1, 7, 14, 30 and 90 days with no documented policy (`dependabot-admin-dist.yml:62` at 1
   day; `github-release.yml:146`, `release.yml:143,224`, `split.yml:476` at 90).
   Owner: new issue.
+- **An empty `selection.selectors` list silences CRC012 and CRC013.** The
+  verifier's unconditional guard requires at least one leaf and its leaf loop
+  has nothing to iterate, so a producer with `selectors: []` (or no `selection`
+  key) produces no selection finding. Today `CiCheckRosterManifestTest`
+  rejects an empty composition ("selector composition must not be empty"), so
+  the pair of gates is sound, but that clause has no dedicated negative fixture
+  and CRC030 does not cover this shape. Found in the Task 3 delta re-review.
+  Owner: the next slice that touches CRC030 — add a fourth clause and a roster
+  fixture.
 
 ## Ordered residual work
 
