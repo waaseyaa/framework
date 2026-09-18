@@ -1,0 +1,127 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Generates the deterministic expanded inventory of the repository's GitHub
+ * Actions workflows (FW-CI-CHECK-ROSTER-AUDIT-01, Task 2; GitHub mirror
+ * #3087):
+ *
+ *   tools/ci-workflow-inventory.json — one machine-readable record per
+ *   workflow, job, matrix leaf, visible context, trigger selector, dependency
+ *   edge, aggregate predicate, artifact flow, runner, permission grant, and
+ *   repository-local command, derived from `.github/workflows/*.yml` alone.
+ *
+ * The inventory is structural evidence, not policy. It never reads the
+ * hand-authored policy manifest (`tools/ci-check-roster.json`); comparing the
+ * two is Task 3. See bin/lib/ci-workflow-inventory.php for the fact kinds and
+ * the derivation rules, which the generated document also carries verbatim.
+ *
+ * Usage:
+ *   php bin/generate-ci-workflow-inventory [--root=DIR]            # stdout
+ *   php bin/generate-ci-workflow-inventory [--root=DIR] --write
+ *   php bin/generate-ci-workflow-inventory [--root=DIR] --check
+ *
+ * --root defaults to the repository root (this bin/ directory's parent) and
+ * selects only where `.github/workflows` is read and where the tracked
+ * inventory lives. The generator library always comes from THIS repository,
+ * so a test can compose a throwaway fixture tree without ever touching
+ * tools/ci-workflow-inventory.json.
+ *
+ * Exit codes: 0 success; 1 generation failure or --check drift; 2 usage.
+ */
+
+$selfRoot = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+
+require $selfRoot . '/vendor/autoload.php';
+require_once $selfRoot . '/bin/lib/ci-workflow-inventory.php';
+
+function gcwiFail(string $message, int $exit = 1): never
+{
+    fwrite(STDERR, "generate-ci-workflow-inventory: {$message}\n");
+    exit($exit);
+}
+
+function gcwiInfo(string $message): void
+{
+    fwrite(STDERR, "generate-ci-workflow-inventory: {$message}\n");
+}
+
+$root = $selfRoot;
+$write = false;
+$check = false;
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(str_replace('\\', '/', substr($argument, strlen('--root='))), '/');
+        continue;
+    }
+    if ($argument === '--write') {
+        $write = true;
+        continue;
+    }
+    if ($argument === '--check') {
+        $check = true;
+        continue;
+    }
+    gcwiFail("unknown argument {$argument}; expected --root=DIR, --write, or --check.", 2);
+}
+if ($root === '' || !is_dir($root)) {
+    gcwiFail("--root {$root} is not a directory.", 2);
+}
+
+try {
+    $generated = cwi_render(cwi_build_inventory($root));
+} catch (CiWorkflowInventoryFailure $failure) {
+    gcwiFail($failure->getMessage());
+}
+
+$target = $root . '/tools/ci-workflow-inventory.json';
+
+// ---------------------------------------------------------------------------
+// --check
+// ---------------------------------------------------------------------------
+
+if ($check) {
+    $onDisk = is_file($target) ? (string) file_get_contents($target) : null;
+    if ($onDisk === null) {
+        gcwiFail("{$target} does not exist. Run `php bin/generate-ci-workflow-inventory --write`.");
+    }
+    if ($onDisk !== $generated) {
+        gcwiFail(sprintf(
+            "%s differs from a fresh generation (on-disk %d bytes, generated %d bytes, first difference at byte %d).\n"
+            . 'Run `php bin/generate-ci-workflow-inventory --write` to regenerate.',
+            $target,
+            strlen($onDisk),
+            strlen($generated),
+            cwi_first_difference($onDisk, $generated),
+        ));
+    }
+    gcwiInfo('OK — the tracked inventory is byte-identical to a fresh generation.');
+}
+
+// ---------------------------------------------------------------------------
+// --write (atomic: write-to-temp-then-rename, never a partial file)
+// ---------------------------------------------------------------------------
+
+if ($write) {
+    $directory = dirname($target);
+    if (!is_dir($directory)) {
+        gcwiFail("cannot write {$target}: directory {$directory} does not exist.", 2);
+    }
+    $temporary = $target . '.tmp-' . getmypid();
+    if (file_put_contents($temporary, $generated) === false) {
+        gcwiFail("failed to write {$temporary}.");
+    }
+    if (!rename($temporary, $target)) {
+        @unlink($temporary);
+        gcwiFail("failed to move {$temporary} onto {$target}.");
+    }
+    gcwiInfo("wrote {$target} (" . strlen($generated) . ' bytes).');
+}
+
+if (!$write && !$check) {
+    fwrite(STDOUT, $generated);
+}
+
+exit(0);

@@ -1,0 +1,139 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Offline conformance verifier for the governed CI policy
+ * (FW-CI-CHECK-ROSTER-AUDIT-01, Task 3; GitHub mirror #3087).
+ *
+ * Compares the hand-authored policy `tools/ci-check-roster.json` with the
+ * generated workflow inventory `tools/ci-workflow-inventory.json` and reports
+ * every mismatch. It never reads `.github/workflows/*.yml` — the inventory is
+ * the only structural evidence — so it can say exactly what was checked and
+ * what could not be checked offline.
+ *
+ * Usage:
+ *   php bin/check-ci-roster-conformance [--root=DIR]
+ *   php bin/check-ci-roster-conformance --policy=FILE --inventory=FILE
+ *   php bin/check-ci-roster-conformance --ruleset=FILE
+ *   php bin/check-ci-roster-conformance --json
+ *
+ * --root defaults to the repository root and selects where the two tracked
+ * documents are read from; --policy and --inventory override either one.
+ * --ruleset takes a frozen ruleset snapshot for the integration-binding rule
+ * (CRC026); without it that rule reports `not-verified-offline` rather than
+ * passing or failing silently. The snapshot schema is:
+ *
+ *   {
+ *     "id": <int>,
+ *     "strict": <bool>,
+ *     "contexts": [{"context": <string>, "integration_id": <int|null>}]
+ *   }
+ *
+ * Task 6 must emit exactly that shape from the live ruleset:
+ * `GET /repos/{owner}/{repo}/rulesets/{id}`, whose `required_status_checks`
+ * rule carries one entry per required check with its `context` and
+ * `integration_id`. A null `integration_id` is an intentionally name-only
+ * binding (as `ci/mutation-pilot` is) and is compared as null, not skipped.
+ *
+ * Severities: error fails the run; notice reports structure the policy does
+ * not model; not-verified-offline reports a check that needs live GitHub
+ * state. Exit codes: 0 no errors; 1 one or more errors; 2 usage or unreadable
+ * input.
+ *
+ * See bin/lib/ci-roster-conformance.php for the rule list (CRC001-CRC029) and
+ * for what is deliberately out of offline scope.
+ */
+
+$selfRoot = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+
+require_once $selfRoot . '/bin/lib/ci-roster-conformance.php';
+
+function crcFail(string $message, int $exit = 1): never
+{
+    fwrite(STDERR, "check-ci-roster-conformance: {$message}\n");
+    exit($exit);
+}
+
+/** @return array<string, mixed> */
+function crcRead(string $path, string $label): array
+{
+    if (!is_file($path) || !is_readable($path)) {
+        crcFail("cannot read the {$label} at {$path}.", 2);
+    }
+    try {
+        $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        crcFail("the {$label} at {$path} is not valid JSON: " . $exception->getMessage(), 2);
+    }
+    if (!is_array($decoded)) {
+        crcFail("the {$label} at {$path} must decode to an object.", 2);
+    }
+
+    return $decoded;
+}
+
+$root = $selfRoot;
+$policyPath = null;
+$inventoryPath = null;
+$rulesetPath = null;
+$json = false;
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(str_replace('\\', '/', substr($argument, strlen('--root='))), '/');
+        continue;
+    }
+    if (str_starts_with($argument, '--policy=')) {
+        $policyPath = str_replace('\\', '/', substr($argument, strlen('--policy=')));
+        continue;
+    }
+    if (str_starts_with($argument, '--inventory=')) {
+        $inventoryPath = str_replace('\\', '/', substr($argument, strlen('--inventory=')));
+        continue;
+    }
+    if (str_starts_with($argument, '--ruleset=')) {
+        $rulesetPath = str_replace('\\', '/', substr($argument, strlen('--ruleset=')));
+        continue;
+    }
+    if ($argument === '--json') {
+        $json = true;
+        continue;
+    }
+    crcFail("unknown argument {$argument}; expected --root=DIR, --policy=FILE, --inventory=FILE, --ruleset=FILE, or --json.", 2);
+}
+if ($root === '' || !is_dir($root)) {
+    crcFail("--root {$root} is not a directory.", 2);
+}
+
+$policyPath ??= $root . '/tools/ci-check-roster.json';
+$inventoryPath ??= $root . '/tools/ci-workflow-inventory.json';
+
+$policy = crcRead($policyPath, 'policy');
+$inventory = crcRead($inventoryPath, 'workflow inventory');
+$ruleset = $rulesetPath === null ? null : crcRead($rulesetPath, 'ruleset snapshot');
+
+$findings = crc_verify($policy, $inventory, $ruleset);
+$counts = crc_counts($findings);
+
+if ($json) {
+    fwrite(STDOUT, crc_render_json($findings, $policyPath, $inventoryPath, $ruleset !== null));
+
+    exit($counts[CRC_ERROR] > 0 ? 1 : 0);
+}
+
+fwrite(STDOUT, crc_render_lines($findings));
+fwrite(STDOUT, sprintf(
+    "\nci-roster-conformance: %d error(s), %d notice(s), %d not-verified-offline.\n",
+    $counts[CRC_ERROR],
+    $counts[CRC_NOTICE],
+    $counts[CRC_UNVERIFIED],
+));
+if ($counts[CRC_ERROR] > 0) {
+    fwrite(STDOUT, "The policy and the generated workflow inventory disagree (see the ERROR lines above).\n");
+
+    exit(1);
+}
+fwrite(STDOUT, "OK — the policy conforms to the generated workflow inventory offline. Live ruleset conformance is task 6.\n");
+
+exit(0);

@@ -1,0 +1,322 @@
+{
+  "schema_version": 3,
+  "change_record": "FW-CI-CHECK-ROSTER-AUDIT-01",
+  "kind": "governed-ci-policy",
+  "scope": {
+    "task": 3,
+    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. It is not itself an expanded workflow inventory. Offline conformance compares this policy with that inventory only; it does not read workflow YAML and does not prove live ruleset conformance, which remains task 6.",
+    "generated_workflow_inventory": {"status": "generated", "task": 2, "path": "tools/ci-workflow-inventory.json", "generator": "bin/generate-ci-workflow-inventory"},
+    "offline_workflow_conformance": {"status": "implemented", "task": 3, "verifier": "bin/check-ci-roster-conformance"}
+  },
+  "evidence": {
+    "repository": "waaseyaa/framework",
+    "pinned_origin_main": "2718edc02f8a47167db1b31b2192690bff773cfd",
+    "representative_pull_request": 3086,
+    "final_pr_head": "5297875460d47d58a6328380d8702235d6afce2f",
+    "successful_ci_run": 35275141646,
+    "failed_head": "63c46174e08d3c3f50ad576980f6933c2d0b680c",
+    "failed_ci_run": 35271711540,
+    "ruleset_id": 15181711,
+    "github_actions_app_id": 15368,
+    "authority": "observational-only"
+  },
+  "vocabulary": {
+    "roles": ["policy", "setup", "execution", "aggregate", "advisory", "publication", "orchestration"],
+    "expansions": ["singleton", "matrix"],
+    "selections": ["unconditional", "path", "actor", "event", "label"],
+    "selection_compositions": ["all_of", "any_of"],
+    "dispositions": ["required", "diagnostic", "expected-skip", "publication-only"],
+    "authorities": ["merge", "release", "operational", "informational"],
+    "cadences": ["pull-request", "merge-group", "main", "scheduled", "release", "manual", "event-driven"],
+    "attestation_subjects": ["pr-head-sha", "merge-ref-sha", "merge-group-combined-sha", "main-sha", "run-attempt", "artifact-source-sha"]
+  },
+  "attestation_subject_contract": {
+    "substitution_allowed": false,
+    "rule": "Each execution selects exactly one cadence-specific subject profile. Evidence from one profile cannot satisfy another.",
+    "cadence_semantics": {
+      "release": "A release is a v* tag push, which is the only trigger of the bound release-publication workflow (split.yml). The tag is cut from main by release-cut.yml, so the attested SHA is a main SHA by construction and release therefore keeps main-sha.",
+      "manual": "workflow_dispatch. For release-publication the manual cadence is served by the recovery producer, not by split.yml."
+    },
+    "cadence_sha_subjects": {
+      "pull-request": ["pr-head-sha", "merge-ref-sha"],
+      "merge-group": ["merge-group-combined-sha"],
+      "main": ["main-sha"],
+      "scheduled": ["main-sha"],
+      "release": ["main-sha"],
+      "manual": ["main-sha", "pr-head-sha"],
+      "event-driven": ["pr-head-sha"]
+    },
+    "subjects": [
+      {"id": "pr-head-sha", "field": "pull_request_head_sha", "value_type": "git-sha"},
+      {"id": "merge-ref-sha", "field": "merge_ref_sha", "value_type": "git-sha"},
+      {"id": "merge-group-combined-sha", "field": "merge_group_combined_sha", "value_type": "git-sha"},
+      {"id": "main-sha", "field": "main_sha", "value_type": "git-sha"},
+      {"id": "run-attempt", "field": "run_attempt", "value_type": "positive-integer"},
+      {"id": "artifact-source-sha", "field": "artifact_source_sha", "value_type": "git-sha"}
+    ]
+  },
+  "policy": {
+    "invariants": [
+      {"id": "source-repository-policy", "owner": "repository-governance"},
+      {"id": "php-behavior-coverage", "owner": "framework-maintainers"},
+      {"id": "security-authorization", "owner": "security-maintainers"},
+      {"id": "public-package-contracts", "owner": "package-maintainers"},
+      {"id": "consumer-acceptance", "owner": "framework-maintainers"},
+      {"id": "browser-acceptance", "owner": "frontend-maintainers"},
+      {"id": "platform-runtime-acceptance", "owner": "runtime-maintainers"},
+      {"id": "release-integrity", "owner": "release-engineering"}
+    ],
+    "producers": [
+      {
+        "id": "source-integrity-policy", "workflow_policy_id": "primary-ci", "role": "policy", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "required", "authority": "merge", "cadence": ["pull-request", "main"],
+        "invariant": "source-repository-policy",
+        "subject_profiles": [
+          {"id": "pull-request-merge-ref", "cadences": ["pull-request"], "sha_subject": "merge-ref-sha", "run_attempt_subject": "run-attempt"},
+          {"id": "main", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt"}
+        ]
+      },
+      {
+        "id": "phpunit-shard-plan", "workflow_policy_id": "primary-ci", "role": "setup", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head-artifact", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "random-order-plan", "workflow_policy_id": "primary-ci", "role": "setup", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head-artifact", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "php-test-shards", "workflow_policy_id": "primary-ci", "role": "execution", "expansion": "matrix",
+        "matrix": {"axis": "id", "values": [1, 2, 3, 4]},
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head-artifact", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "php-behavior-aggregate", "workflow_policy_id": "primary-ci", "role": "aggregate", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "required", "authority": "merge", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"},
+          {"id": "main", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt"}
+        ]
+      },
+      {
+        "id": "php-coverage-aggregate", "workflow_policy_id": "primary-ci", "role": "aggregate", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "required", "authority": "merge", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head-artifact", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "random-order-shards", "workflow_policy_id": "primary-ci", "role": "execution", "expansion": "matrix",
+        "matrix": {"axis": "id", "values": [1, 2]},
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"},
+          {"id": "main", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt"}
+        ]
+      },
+      {
+        "id": "random-order-aggregate", "workflow_policy_id": "primary-ci", "role": "aggregate", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "required", "authority": "merge", "cadence": ["pull-request", "main"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"},
+          {"id": "main", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt"}
+        ]
+      },
+      {
+        "id": "mutation-pilot", "workflow_policy_id": "primary-ci", "role": "advisory", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "required", "authority": "merge", "cadence": ["pull-request"],
+        "invariant": "php-behavior-coverage",
+        "subject_profiles": [
+          {"id": "pull-request-head", "cadences": ["pull-request"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"}
+        ]
+      },
+      {
+        "id": "release-publish-evidence", "workflow_policy_id": "release-publication", "role": "publication", "expansion": "singleton",
+        "selection": {
+          "composition": "any_of",
+          "selectors": [
+            {"type": "event", "event": "push:tags"},
+            {"type": "event", "event": "workflow_dispatch"}
+          ]
+        },
+        "disposition": "publication-only", "authority": "release", "cadence": ["release", "manual"],
+        "invariant": "release-integrity",
+        "recovery_producer": {
+          "workflow": "github-release.yml", "job": "release", "cadence": "manual",
+          "reason": "The bound release-publication workflow (split.yml) is v* tag-push only, so it cannot serve the manual cadence. GitHub Release (manual) republishes the same waaseyaa-release-evidence artifact by workflow_dispatch and is the recovery path for the manual selector."
+        },
+        "subject_profiles": [
+          {"id": "release-or-manual", "cadences": ["release", "manual"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "enable-native-auto-merge", "workflow_policy_id": "auto-merge-control", "role": "orchestration", "expansion": "singleton",
+        "selection": {
+          "composition": "any_of",
+          "selectors": [
+            {"type": "event", "event": "workflow_dispatch"},
+            {"composition": "all_of", "selectors": [
+              {"type": "event", "event": "pull_request:labeled"},
+              {"type": "label", "label": "auto-merge-when-green"}
+            ]}
+          ]
+        },
+        "disposition": "diagnostic", "authority": "operational", "cadence": ["manual", "event-driven"],
+        "invariant": "security-authorization",
+        "subject_profiles": [
+          {"id": "manual-pr-head", "cadences": ["manual"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"},
+          {"id": "labeled-pr-head", "cadences": ["event-driven"], "sha_subject": "pr-head-sha", "run_attempt_subject": "run-attempt"}
+        ]
+      }
+    ],
+    "aggregate_lineage_contract": {
+      "implementation_status": "contract-only",
+      "ownership_scope": "workflow-local",
+      "condition_semantics": "always()",
+      "prerequisite_result_requirement": "success",
+      "terminal_result_policy": {"failure": "fail", "cancelled": "fail", "skipped": "fail-unless-sha-bound-not-applicable", "missing": "fail"},
+      "not_applicable_decision": {
+        "required_fields": ["subject_type", "subject_sha", "run_attempt", "producer_id", "reason"],
+        "reusable_across_subjects": false
+      },
+      "aggregates": [
+        {"producer_id": "php-behavior-aggregate", "prerequisites": [{"producer_id": "php-test-shards", "required_result": "success"}]},
+        {"producer_id": "php-coverage-aggregate", "prerequisites": [{"producer_id": "php-test-shards", "required_result": "success"}]},
+        {"producer_id": "random-order-aggregate", "prerequisites": [{"producer_id": "random-order-shards", "required_result": "success"}, {"producer_id": "random-order-plan", "required_result": "success"}]}
+      ]
+    },
+    "artifact_contracts": [
+      {
+        "id": "php-shard-coverage", "producer_id": "php-test-shards", "consumer_id": "php-coverage-aggregate",
+        "producer_pattern": "php-test-shard-*",
+        "bounded_expansion": ["php-test-shard-1", "php-test-shard-2", "php-test-shard-3", "php-test-shard-4"],
+        "subject": "artifact-source-sha", "require_exact_subject_match": true
+      }
+    ],
+    "artifact_contract_scope": {
+      "modelled": ["php-shard-coverage"],
+      "unmodelled": ["phpunit-shard-plan", "vendor-archive", "random-order-plan"],
+      "reason": "The contract shape is one producer, one consumer, one bounded family. ci.yml#prepare-test-plan uploads two families (phpunit-shard-plan and vendor-archive) and vendor-archive has two consumer jobs (ci-test-shards and ci-random-order-shard), so the plan and vendor flows cannot be expressed without widening the shape. Widening it is deferred rather than half-modelled; the offline verifier reports the unmodelled flows as coverage notices."
+    },
+    "random_order_measurement": {
+      "producer_id": "random-order-shards", "active_shards": [1, 2], "cadence": "every-pull-request",
+      "change_allowed_before_task": 8,
+      "statement": "Random-order remains on every pull request at two shards. Width and cadence changes require measurement and Task 8 review."
+    },
+    "required_projection": {
+      "source_ruleset_id": 15181711,
+      "strict": true,
+      "required_context_count": 22,
+      "contexts": [
+        {"context": "Frontend build", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "Ingestion defaults", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "Manifest conformance", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "Release publish shape", "invariant": "release-integrity", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "Security defaults", "invariant": "security-authorization", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "check-dead-code", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/core-only-boot", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/coverage", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/lint", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/playwright-smoke", "invariant": "browser-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/random-order", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/skeleton-create-project", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/unit-tests", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/verify-gates", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "composer-policy", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "packaged-form", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/package-isolation", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/mutation-pilot", "invariant": "php-behavior-coverage", "binding": {"mode": "name-only", "integration_id": null, "reason": "The live strict ruleset intentionally has no GitHub App binding for this context."}},
+        {"context": "ci/fresh-install-boot", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/frankenphp-worker", "invariant": "platform-runtime-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/skeleton-create-project-windows", "invariant": "platform-runtime-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "ci/bimaaji-skill-resources", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}}
+      ]
+    }
+  },
+  "bindings": {
+    "source": "tools/ci-workflow-inventory.json",
+    "derivation": "Every entry is derived from the generated workflow inventory. workflow_policies name an inventory workflow file; producers and required_contexts name an inventory job key inside that workflow. Policy role is deliberately NOT compared with the inventory's structural_role, which the inventory's own derivation rules describe as a structural heuristic that is not the policy role vocabulary.",
+    "workflow_policies": {
+      "primary-ci": "ci.yml",
+      "release-publication": "split.yml",
+      "auto-merge-control": "auto-merge.yml"
+    },
+    "producers": {
+      "source-integrity-policy": {"workflow": "ci.yml", "job": "verify-gates"},
+      "phpunit-shard-plan": {"workflow": "ci.yml", "job": "prepare-test-plan"},
+      "random-order-plan": {"workflow": "ci.yml", "job": "prepare-random-order-plan"},
+      "php-test-shards": {"workflow": "ci.yml", "job": "ci-test-shards"},
+      "php-behavior-aggregate": {"workflow": "ci.yml", "job": "ci-unit-tests"},
+      "php-coverage-aggregate": {"workflow": "ci.yml", "job": "ci-coverage"},
+      "random-order-shards": {"workflow": "ci.yml", "job": "ci-random-order-shard"},
+      "random-order-aggregate": {"workflow": "ci.yml", "job": "ci-random-order"},
+      "mutation-pilot": {"workflow": "ci.yml", "job": "mutation-pilot"},
+      "release-publish-evidence": {"workflow": "split.yml", "job": "assemble-release-evidence"},
+      "enable-native-auto-merge": {"workflow": "auto-merge.yml", "job": "enable-auto-merge"}
+    },
+    "required_contexts": {
+      "Frontend build": {"workflow": "ci.yml", "job": "frontend-build"},
+      "Ingestion defaults": {"workflow": "ci.yml", "job": "ingestion-defaults"},
+      "Manifest conformance": {"workflow": "ci.yml", "job": "manifest-conformance"},
+      "Release publish shape": {"workflow": "ci.yml", "job": "release-publish-shape"},
+      "Security defaults": {"workflow": "ci.yml", "job": "security-defaults"},
+      "check-dead-code": {"workflow": "ci.yml", "job": "check-dead-code"},
+      "ci/core-only-boot": {"workflow": "ci.yml", "job": "core-only-boot"},
+      "ci/coverage": {"workflow": "ci.yml", "job": "ci-coverage"},
+      "ci/lint": {"workflow": "ci.yml", "job": "ci-lint"},
+      "ci/playwright-smoke": {"workflow": "ci.yml", "job": "ci-playwright-smoke"},
+      "ci/random-order": {"workflow": "ci.yml", "job": "ci-random-order"},
+      "ci/skeleton-create-project": {"workflow": "ci.yml", "job": "skeleton-create-project"},
+      "ci/unit-tests": {"workflow": "ci.yml", "job": "ci-unit-tests"},
+      "ci/verify-gates": {"workflow": "ci.yml", "job": "verify-gates"},
+      "composer-policy": {"workflow": "ci.yml", "job": "composer-policy"},
+      "packaged-form": {"workflow": "ci.yml", "job": "packaged-form"},
+      "ci/package-isolation": {"workflow": "ci.yml", "job": "ci-package-isolation"},
+      "ci/mutation-pilot": {"workflow": "ci.yml", "job": "mutation-pilot"},
+      "ci/fresh-install-boot": {"workflow": "ci.yml", "job": "fresh-install-boot"},
+      "ci/frankenphp-worker": {"workflow": "ci.yml", "job": "frankenphp-worker"},
+      "ci/skeleton-create-project-windows": {"workflow": "ci.yml", "job": "skeleton-create-project-windows"},
+      "ci/bimaaji-skill-resources": {"workflow": "ci.yml", "job": "bimaaji-skill-resources"}
+    }
+  },
+  "residual_tasks": [
+    {"order": 0, "name": "Evidence freeze and external benchmark", "status": "complete"},
+    {"order": 1, "name": "Governance contract and schema repair", "status": "complete"},
+    {"order": 2, "name": "Inventory generator", "status": "complete"},
+    {"order": 3, "name": "Offline conformance verifier", "status": "current"},
+    {"order": 4, "name": "Measurement baseline under #2869", "status": "pending"},
+    {"order": 5, "name": "Stable aggregate shadowing", "status": "pending"},
+    {"order": 6, "name": "Ruleset projection and live audit", "status": "pending"},
+    {"order": 7, "name": "Ruleset migration", "status": "pending"},
+    {"order": 8, "name": "Cadence optimization", "status": "pending"},
+    {"order": 9, "name": "Final reconciliation", "status": "pending"}
+  ]
+}
