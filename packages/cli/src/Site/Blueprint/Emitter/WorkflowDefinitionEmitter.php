@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site\Blueprint\Emitter;
 
+use Waaseyaa\Config\Schema\ConfigSchemaRegistration;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
+use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Config\Sync\ConfigSyncSerializer;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowBinding;
@@ -14,6 +20,7 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\SiteManifest;
+use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 
 /**
  * Emits one `src/Workflow/<PascalCase(workflow.id)>WorkflowDefinition.php`
@@ -255,15 +262,47 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
             PHP;
     }
 
-    /** @param array<string, string> $bindingRows "entity.entity" => workflow id, sorted by key, always non-empty (see emit()) */
+    /**
+     * CFG-03 writable sync artifact for {@see WorkflowAssignmentsConfig::CONFIG_NAME}.
+     * Schema identity is derived from the real guarded registration; the empty
+     * entity-type manager supplies only the registration call shape — emitted
+     * binding rows are not validated against installed entity types here.
+     *
+     * @param array<string, string> $bindingRows "entity.entity" => workflow id, sorted by key, always non-empty (see emit())
+     */
     private function renderAssignments(array $bindingRows): string
     {
-        $lines = [];
-        foreach ($bindingRows as $key => $workflowId) {
-            $lines[] = "{$key}: {$workflowId}\n";
-        }
+        $registration = self::workflowAssignmentsSchemaRegistration();
+        $file = ConfigSyncFile::writable(
+            entityType: 'workflows',
+            entityId: 'assignments',
+            uuid: ConfigSyncFile::deterministicUuid('workflows', 'assignments'),
+            dependencies: [],
+            langcode: 'en',
+            fields: $bindingRows,
+            schemaId: $registration->schemaId,
+            schemaVersion: $registration->schemaVersion,
+            schemaHash: $registration->canonicalSchemaHash,
+            ownerPackage: $registration->ownerPackage,
+            ownerConfigContractVersion: $registration->ownerConfigContractVersion,
+        );
 
-        return implode('', $lines);
+        return new ConfigSyncSerializer()->toYaml($file);
+    }
+
+    /**
+     * Guarded {@see WorkflowAssignmentsConfig} registration for CFG-03 identity.
+     * The entity-type manager is not consulted for binding admissibility at emit
+     * time — only the canonical schema hash and owner contract are needed.
+     */
+    private static function workflowAssignmentsSchemaRegistration(): ConfigSchemaRegistration
+    {
+        $registry = new ConfigSchemaRegistry();
+
+        return WorkflowAssignmentsConfig::register(
+            $registry,
+            new EntityTypeManager(new SymfonyEventDispatcherAdapter()),
+        );
     }
 
     private static function singleQuoted(string $value): string

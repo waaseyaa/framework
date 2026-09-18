@@ -140,7 +140,11 @@ final class SiteBlueprintProcessTest extends TestCase
         self::assertStringContainsString('#[PolicyAttribute(entityType: \'article\')]', $plannedArtifacts['src/Access/ArticlePolicy.php'], 'discoverable policy');
         self::assertStringContainsString('implements AccessPolicyInterface, FieldAccessPolicyInterface', $plannedArtifacts['src/Access/ArticlePolicy.php'], 'authorization inputs are edit-sealed');
         self::assertStringContainsString('implements ProvidesRolesInterface, ProvidesPermissionsInterface', $plannedArtifacts['src/Provider/ApplicationBlueprintGovernanceServiceProvider.php'], 'shared permission catalogue contribution');
-        self::assertSame("article.article: editorial\n", $plannedArtifacts['config/sync/workflows.assignments.yml'], 'authored binding awaits a verified config:import');
+        $assignmentsYaml = $plannedArtifacts['config/sync/workflows.assignments.yml'];
+        self::assertStringStartsWith("_meta:\n", $assignmentsYaml, 'CFG-03 writable sync artifact');
+        self::assertStringContainsString('schema_id: workflows.assignments', $assignmentsYaml);
+        self::assertStringContainsString('article.article: editorial', $assignmentsYaml);
+        self::assertSame($this->golden('config/sync/workflows.assignments.yml'), $assignmentsYaml, 'authored binding is importable CFG-03 sync input');
         self::assertStringContainsString('use Waaseyaa\\Api\\JsonApiController;', $plannedArtifacts['tests/Blueprint/JsonApiGovernanceChecksTest.php']);
         $this->assertFixture('complete-planned', $planned);
 
