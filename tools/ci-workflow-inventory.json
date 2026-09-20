@@ -60,11 +60,11 @@
             },
             {
                 "file": "github-release.yml",
-                "sha256": "7e245641ae18965c0abd231c8b75a661278de4536dc492c9ba7751e66dc99511"
+                "sha256": "44813f98dfbba12ab2ff1b5332ebdafae0f6b0787aee52659b66df1299252f95"
             },
             {
                 "file": "manual-claude-review.yml",
-                "sha256": "7818ccafa1b341ef43c37ca9bf15dbb3cf0d306bfea3104e7da2522c53278732"
+                "sha256": "e083a293d3c3763c470c3bf5a45cc8ce452bf5eaf0bb280f7873b3935b62219a"
             },
             {
                 "file": "nightly.yml",
@@ -80,7 +80,7 @@
             },
             {
                 "file": "packagist-update.yml",
-                "sha256": "03ad25f2c0d7178d5f46a034ed3af6e2b42bd60db35baec69da9bdf387f7a6c2"
+                "sha256": "0f7ba2ad44463b720a45b785796cc33e353e9456c82901db329a33b1b7dfa471"
             },
             {
                 "file": "release-cut.yml",
@@ -96,15 +96,15 @@
             },
             {
                 "file": "skeleton-smoke.yml",
-                "sha256": "5dc0a9596634d91328a4d20e959d761a3a0c4d6376483fbd9687dfa0f6b2e0df"
+                "sha256": "843376094f0bba5e69cdbdcf2e02fbd5264c9f0205e9b42c991d7f41542abb10"
             },
             {
                 "file": "split-main.yml",
-                "sha256": "ad3aa911ff222f3e1b181a5fc6b27bc364bc4c685fda8b007a90a521d659936a"
+                "sha256": "2bbf5d933434164670714f2523b663f7a77d023ca7660ad16b9b89cc4f0b61f8"
             },
             {
                 "file": "split.yml",
-                "sha256": "f0f73087357443e897715a76056653890e344cf8fbb25cc67dea55001769008c"
+                "sha256": "dca06c22ef50b76b0b942f7326bea2838cd937e222609a77c4459c6cff304d0e"
             },
             {
                 "file": "surface-parity.yml",
@@ -112,7 +112,7 @@
             },
             {
                 "file": "sync-skeleton.yml",
-                "sha256": "4cbe681142d95308130fae2736a2d3ebcfcc81091c0e0f61238ac660bc9e22c3"
+                "sha256": "fa25f7d4941e3a74f15d9457cfdbc2a8a3e74b1f1f0fd93f4ca597aa0ff5034a"
             }
         ]
     },
@@ -5949,7 +5949,7 @@
         {
             "file": "github-release.yml",
             "name": "GitHub Release (manual)",
-            "source_sha256": "7e245641ae18965c0abd231c8b75a661278de4536dc492c9ba7751e66dc99511",
+            "source_sha256": "44813f98dfbba12ab2ff1b5332ebdafae0f6b0787aee52659b66df1299252f95",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -5996,12 +5996,12 @@
                     "key": "release",
                     "name": {
                         "kind": "literal",
-                        "raw": "Publish GitHub Release",
+                        "raw": "Publish GitHub Release (manual recovery)",
                         "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "Publish GitHub Release",
+                            "context": "Publish GitHub Release (manual recovery)",
                             "derivation": "literal",
                             "matrix": null
                         }
@@ -6181,7 +6181,7 @@
         {
             "file": "manual-claude-review.yml",
             "name": "Manual Claude review",
-            "source_sha256": "7818ccafa1b341ef43c37ca9bf15dbb3cf0d306bfea3104e7da2522c53278732",
+            "source_sha256": "e083a293d3c3763c470c3bf5a45cc8ce452bf5eaf0bb280f7873b3935b62219a",
             "triggers": {
                 "events": [
                     "issue_comment"
@@ -6217,13 +6217,13 @@
                     "key": "review",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Manual Claude review",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "review",
-                            "derivation": "default-job-key",
+                            "context": "Manual Claude review",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],
@@ -6802,7 +6802,7 @@
         {
             "file": "packagist-update.yml",
             "name": "Verify Packagist Publication (standalone)",
-            "source_sha256": "03ad25f2c0d7178d5f46a034ed3af6e2b42bd60db35baec69da9bdf387f7a6c2",
+            "source_sha256": "0f7ba2ad44463b720a45b785796cc33e353e9456c82901db329a33b1b7dfa471",
             "triggers": {
                 "events": [
                     "push",
@@ -6849,13 +6849,13 @@
                     "key": "discover",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Discover Packagist verification targets",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "discover",
-                            "derivation": "default-job-key",
+                            "context": "Discover Packagist verification targets",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],
@@ -6924,13 +6924,13 @@
                     "key": "verify",
                     "name": {
                         "kind": "unresolved-expression",
-                        "raw": null,
-                        "derivation": "default-matrix-unresolved"
+                        "raw": "Verify Packagist publication / ${{ matrix.package }}",
+                        "derivation": "unresolved-expression"
                     },
                     "contexts": [
                         {
                             "context": null,
-                            "derivation": "default-matrix-unresolved",
+                            "derivation": "unresolved-expression",
                             "matrix": null
                         }
                     ],
@@ -7044,7 +7044,7 @@
             "artifact_flows": [],
             "duplicate_contexts": [],
             "unresolved_expressions": [
-                "jobs.verify.name: default name over an unresolved matrix",
+                "jobs.verify.name: Verify Packagist publication / ${{ matrix.package }}",
                 "jobs.verify.strategy.matrix.package: ${{ fromJSON(needs.discover.outputs.packages) }}"
             ]
         },
@@ -7998,7 +7998,7 @@
         {
             "file": "skeleton-smoke.yml",
             "name": "Skeleton Smoke (Packaged-form CI)",
-            "source_sha256": "5dc0a9596634d91328a4d20e959d761a3a0c4d6376483fbd9687dfa0f6b2e0df",
+            "source_sha256": "843376094f0bba5e69cdbdcf2e02fbd5264c9f0205e9b42c991d7f41542abb10",
             "triggers": {
                 "events": [
                     "workflow_dispatch",
@@ -8042,13 +8042,13 @@
                     "key": "smoke",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Verify packaged skeleton",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "smoke",
-                            "derivation": "default-job-key",
+                            "context": "Verify packaged skeleton",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],
@@ -8143,7 +8143,7 @@
         {
             "file": "split-main.yml",
             "name": "Split selected package main branches",
-            "source_sha256": "ad3aa911ff222f3e1b181a5fc6b27bc364bc4c685fda8b007a90a521d659936a",
+            "source_sha256": "2bbf5d933434164670714f2523b663f7a77d023ca7660ad16b9b89cc4f0b61f8",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -8196,13 +8196,13 @@
                     "key": "prepare",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Prepare main split targets",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "prepare",
-                            "derivation": "default-job-key",
+                            "context": "Prepare main split targets",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],
@@ -8280,13 +8280,13 @@
                     "key": "split",
                     "name": {
                         "kind": "unresolved-expression",
-                        "raw": null,
-                        "derivation": "default-matrix-unresolved"
+                        "raw": "Split main / ${{ matrix.remote }}",
+                        "derivation": "unresolved-expression"
                     },
                     "contexts": [
                         {
                             "context": null,
-                            "derivation": "default-matrix-unresolved",
+                            "derivation": "unresolved-expression",
                             "matrix": null
                         }
                     ],
@@ -8405,7 +8405,7 @@
             ],
             "duplicate_contexts": [],
             "unresolved_expressions": [
-                "jobs.split.name: default name over an unresolved matrix",
+                "jobs.split.name: Split main / ${{ matrix.remote }}",
                 "jobs.split.steps.3.with.name: split-main-provenance-${{ matrix.remote }}",
                 "jobs.split.strategy.matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}"
             ]
@@ -8413,7 +8413,7 @@
         {
             "file": "split.yml",
             "name": "Split Monorepo",
-            "source_sha256": "f0f73087357443e897715a76056653890e344cf8fbb25cc67dea55001769008c",
+            "source_sha256": "dca06c22ef50b76b0b942f7326bea2838cd937e222609a77c4459c6cff304d0e",
             "triggers": {
                 "events": [
                     "push"
@@ -8564,12 +8564,12 @@
                     "key": "publish-github-release",
                     "name": {
                         "kind": "literal",
-                        "raw": "Publish GitHub Release",
+                        "raw": "Publish GitHub Release (release pipeline)",
                         "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "Publish GitHub Release",
+                            "context": "Publish GitHub Release (release pipeline)",
                             "derivation": "literal",
                             "matrix": null
                         }
@@ -8804,13 +8804,13 @@
                     "key": "split",
                     "name": {
                         "kind": "bounded-expansion",
-                        "raw": null,
-                        "derivation": "default-matrix"
+                        "raw": "Split release / ${{ matrix.package.remote }}",
+                        "derivation": "template-expanded"
                     },
                     "contexts": [
                         {
-                            "context": "split (packages/foundation, foundation)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / foundation",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/foundation",
@@ -8819,8 +8819,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/cache, cache)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / cache",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/cache",
@@ -8829,8 +8829,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/plugin, plugin)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / plugin",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/plugin",
@@ -8839,8 +8839,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/typed-data, typed-data)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / typed-data",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/typed-data",
@@ -8849,8 +8849,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/database-legacy, database-legacy)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / database-legacy",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/database-legacy",
@@ -8859,8 +8859,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/debug, debug)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / debug",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/debug",
@@ -8869,8 +8869,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/error-handler, error-handler)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / error-handler",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/error-handler",
@@ -8879,8 +8879,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/testing, testing)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / testing",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/testing",
@@ -8889,8 +8889,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/i18n, i18n)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / i18n",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/i18n",
@@ -8899,8 +8899,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/queue, queue)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / queue",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/queue",
@@ -8909,8 +8909,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/state, state)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / state",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/state",
@@ -8919,8 +8919,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/validation, validation)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / validation",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/validation",
@@ -8929,8 +8929,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/mail, mail)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / mail",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/mail",
@@ -8939,8 +8939,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/http-client, http-client)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / http-client",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/http-client",
@@ -8949,8 +8949,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/github, github)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / github",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/github",
@@ -8959,8 +8959,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ingestion, ingestion)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ingestion",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ingestion",
@@ -8969,8 +8969,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/deployer, deployer)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / deployer",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/deployer",
@@ -8979,8 +8979,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/site-contract, site-contract)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / site-contract",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/site-contract",
@@ -8989,8 +8989,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/entity, entity)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / entity",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/entity",
@@ -8999,8 +8999,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/entity-storage, entity-storage)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / entity-storage",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/entity-storage",
@@ -9009,8 +9009,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/access, access)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / access",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/access",
@@ -9019,8 +9019,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/audit, audit)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / audit",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/audit",
@@ -9029,8 +9029,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/user, user)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / user",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/user",
@@ -9039,8 +9039,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/config, config)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / config",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/config",
@@ -9049,8 +9049,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/field, field)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / field",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/field",
@@ -9059,8 +9059,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/oidc, oidc)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / oidc",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/oidc",
@@ -9069,8 +9069,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/node, node)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / node",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/node",
@@ -9079,8 +9079,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/attachment, attachment)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / attachment",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/attachment",
@@ -9089,8 +9089,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/taxonomy, taxonomy)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / taxonomy",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/taxonomy",
@@ -9099,8 +9099,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/media, media)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / media",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/media",
@@ -9109,8 +9109,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/path, path)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / path",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/path",
@@ -9119,8 +9119,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/menu, menu)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / menu",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/menu",
@@ -9129,8 +9129,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/note, note)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / note",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/note",
@@ -9139,8 +9139,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/relationship, relationship)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / relationship",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/relationship",
@@ -9149,8 +9149,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/groups, groups)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / groups",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/groups",
@@ -9159,8 +9159,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/auth, auth)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / auth",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/auth",
@@ -9169,8 +9169,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/billing, billing)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / billing",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/billing",
@@ -9179,8 +9179,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/bimaaji, bimaaji)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / bimaaji",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/bimaaji",
@@ -9189,8 +9189,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/listing, listing)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / listing",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/listing",
@@ -9199,8 +9199,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/page-builder, page-builder)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / page-builder",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/page-builder",
@@ -9209,8 +9209,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/publishing, publishing)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / publishing",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/publishing",
@@ -9219,8 +9219,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/migration, migration)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / migration",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/migration",
@@ -9229,8 +9229,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/search, search)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / search",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/search",
@@ -9239,8 +9239,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/seo, seo)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / seo",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/seo",
@@ -9249,8 +9249,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/structured-import, structured-import)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / structured-import",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/structured-import",
@@ -9259,8 +9259,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/workflows, workflows)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / workflows",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/workflows",
@@ -9269,8 +9269,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/api, api)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / api",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/api",
@@ -9279,8 +9279,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/routing, routing)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / routing",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/routing",
@@ -9289,8 +9289,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/wayfinding, wayfinding)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / wayfinding",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/wayfinding",
@@ -9299,8 +9299,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-schema, ai-schema)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-schema",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-schema",
@@ -9309,8 +9309,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-agent, ai-agent)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-agent",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-agent",
@@ -9319,8 +9319,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-pipeline, ai-pipeline)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-pipeline",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-pipeline",
@@ -9329,8 +9329,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-vector, ai-vector)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-vector",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-vector",
@@ -9339,8 +9339,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-observability, ai-observability)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-observability",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-observability",
@@ -9349,8 +9349,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-tools, ai-tools)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-tools",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-tools",
@@ -9359,8 +9359,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/graphql, graphql)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / graphql",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/graphql",
@@ -9369,8 +9369,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/cli, cli)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / cli",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/cli",
@@ -9379,8 +9379,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/frankenphp, frankenphp)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / frankenphp",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/frankenphp",
@@ -9389,8 +9389,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/genealogy, genealogy)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / genealogy",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/genealogy",
@@ -9399,8 +9399,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/inertia, inertia)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / inertia",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/inertia",
@@ -9409,8 +9409,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/mcp, mcp)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / mcp",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/mcp",
@@ -9419,8 +9419,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ssr, ssr)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ssr",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ssr",
@@ -9429,8 +9429,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/telescope, telescope)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / telescope",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/telescope",
@@ -9439,8 +9439,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/admin-surface, admin-surface)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / admin-surface",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/admin-surface",
@@ -9449,8 +9449,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/workspace, workspace)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / workspace",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/workspace",
@@ -9459,8 +9459,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/analytics, analytics)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / analytics",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/analytics",
@@ -9469,8 +9469,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/engagement, engagement)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / engagement",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/engagement",
@@ -9479,8 +9479,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/geo, geo)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / geo",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/geo",
@@ -9489,8 +9489,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/mercure, mercure)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / mercure",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/mercure",
@@ -9499,8 +9499,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/messaging, messaging)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / messaging",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/messaging",
@@ -9509,8 +9509,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/notification, notification)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / notification",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/notification",
@@ -9519,8 +9519,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/oauth-provider, oauth-provider)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / oauth-provider",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/oauth-provider",
@@ -9529,8 +9529,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/scheduler, scheduler)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / scheduler",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/scheduler",
@@ -9539,8 +9539,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/cms, cms)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / cms",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/cms",
@@ -9549,8 +9549,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/core, core)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / core",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/core",
@@ -9559,8 +9559,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/full, full)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / full",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/full",
@@ -9569,8 +9569,8 @@
                             }
                         },
                         {
-                            "context": "split (packages/ai-development, ai-development)",
-                            "derivation": "default-matrix",
+                            "context": "Split release / ai-development",
+                            "derivation": "template-expanded",
                             "matrix": {
                                 "package": {
                                     "local": "packages/ai-development",
@@ -10808,13 +10808,13 @@
                     "key": "verify-require-parity",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Verify split require parity",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "verify-require-parity",
-                            "derivation": "default-job-key",
+                            "context": "Verify split require parity",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],
@@ -10888,13 +10888,13 @@
                     "key": "verify-tag-parity",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Verify split tag parity",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "verify-tag-parity",
-                            "derivation": "default-job-key",
+                            "context": "Verify split tag parity",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],
@@ -11228,7 +11228,7 @@
         {
             "file": "sync-skeleton.yml",
             "name": "Sync Application Skeleton",
-            "source_sha256": "4cbe681142d95308130fae2736a2d3ebcfcc81091c0e0f61238ac660bc9e22c3",
+            "source_sha256": "fa25f7d4941e3a74f15d9457cfdbc2a8a3e74b1f1f0fd93f4ca597aa0ff5034a",
             "triggers": {
                 "events": [
                     "push"
@@ -11257,13 +11257,13 @@
                     "key": "sync",
                     "name": {
                         "kind": "literal",
-                        "raw": null,
-                        "derivation": "default-job-key"
+                        "raw": "Sync application skeleton",
+                        "derivation": "literal"
                     },
                     "contexts": [
                         {
-                            "context": "sync",
-                            "derivation": "default-job-key",
+                            "context": "Sync application skeleton",
+                            "derivation": "literal",
                             "matrix": null
                         }
                     ],

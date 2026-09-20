@@ -29,6 +29,7 @@ permissions:
 
 jobs:
   smoke:
+    name: Verify packaged skeleton
     # workflow_run fires on every completion; only proceed when upstream
     # succeeded AND its head_branch is a release tag we can pin to.
     if: |

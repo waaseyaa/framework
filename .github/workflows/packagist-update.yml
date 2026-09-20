@@ -54,6 +54,7 @@ permissions:
 
 jobs:
   discover:
+    name: Discover Packagist verification targets
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -120,6 +121,7 @@ jobs:
           echo "packages=$json" >> "$GITHUB_OUTPUT"
 
   verify:
+    name: Verify Packagist publication / ${{ matrix.package }}
     needs: [discover]
     if: always() && needs.discover.result == 'success'
     runs-on: ubuntu-latest

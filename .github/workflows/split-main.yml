@@ -27,6 +27,7 @@ permissions:
 
 jobs:
   prepare:
+    name: Prepare main split targets
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -130,6 +131,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
   split:
+    name: Split main / ${{ matrix.remote }}
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   review:
+    name: Manual Claude review
     if: >-
       github.event.issue.pull_request &&
       github.event.comment.body == '@claude review' &&
