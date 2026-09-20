@@ -608,9 +608,13 @@ final class CiWorkflowInventoryGeneratorTest extends TestCase
 
         self::assertSame(1, $inventory['schema_version']);
         self::assertSame('.github/workflows', $inventory['source']['directory']);
-        self::assertSame(22, $inventory['summary']['workflow_count']);
-        self::assertCount(22, $inventory['workflows']);
-        self::assertCount(22, $inventory['source']['files']);
+        self::assertSame(23, $inventory['summary']['workflow_count']);
+        self::assertCount(23, $inventory['workflows']);
+        self::assertCount(23, $inventory['source']['files']);
+        self::assertSame(
+            ['CI roster live audit'],
+            self::contexts(self::job($inventory, 'ci-roster-live-audit.yml', 'live-audit')),
+        );
 
         $shards = self::job($inventory, 'ci.yml', 'ci-test-shards');
         self::assertSame('bounded-expansion', $shards['name']['kind']);

@@ -147,7 +147,7 @@ final class CiCheckRosterManifestTest extends TestCase
     {
         self::assertSame([], $this->validate($this->manifest));
         self::assertSame(3, $this->manifest['schema_version']);
-        self::assertSame(5, $this->manifest['scope']['task']);
+        self::assertSame(6, $this->manifest['scope']['task']);
         self::assertSame(
             ['status' => 'generated', 'task' => 2, 'path' => 'tools/ci-workflow-inventory.json', 'generator' => 'bin/generate-ci-workflow-inventory'],
             $this->manifest['scope']['generated_workflow_inventory'],
@@ -156,6 +156,11 @@ final class CiCheckRosterManifestTest extends TestCase
             ['status' => 'implemented', 'task' => 3, 'verifier' => 'bin/check-ci-roster-conformance'],
             $this->manifest['scope']['offline_workflow_conformance'],
         );
+        self::assertSame('implemented', $this->manifest['scope']['live_projection_audit']['status']);
+        self::assertSame(6, $this->manifest['scope']['live_projection_audit']['task']);
+        self::assertSame('ci-roster-live-audit.yml', $this->manifest['scope']['live_projection_audit']['workflow']);
+        self::assertSame('bin/audit-ci-roster-live', $this->manifest['scope']['live_projection_audit']['verifier']);
+        self::assertFalse($this->manifest['scope']['live_projection_audit']['ordinary_pull_request_dependency']);
         self::assertSame(self::PRODUCERS, array_column($this->manifest['policy']['producers'], 'id'));
         self::assertSame('id', $this->producer($this->manifest, 'php-test-shards')['matrix']['axis']);
         self::assertSame('id', $this->producer($this->manifest, 'random-order-shards')['matrix']['axis']);
@@ -291,7 +296,7 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'producer expansion mismatch' => ['binding-expansion-mismatch', 'producer php-test-shards declares expansion matrix but ci.yml#ci-lint is singleton'];
         yield 'binding workflow drift' => ['binding-workflow-drift', 'producer php-test-shards binds split.yml but its workflow policy primary-ci binds ci.yml'];
         yield 'missing bound workflow' => ['binding-missing-workflow', 'workflow policy primary-ci binds not-a-workflow.yml, which the inventory does not contain'];
-        yield 'residual status' => ['residual-status', 'residual tasks must record 0-4 complete and 5 current'];
+        yield 'residual status' => ['residual-status', 'residual tasks must record 0-6 complete and 7 current'];
     }
 
     /** @param array<string, mixed> $manifest
@@ -321,8 +326,17 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($conformance['verifier'] ?? null) !== 'bin/check-ci-roster-conformance') {
             $errors[] = 'offline workflow conformance pointer must name the task 3 verifier';
         }
-        if (($manifest['scope']['task'] ?? null) !== 5) {
-            $errors[] = 'manifest scope must record task 5';
+        if (($manifest['scope']['task'] ?? null) !== 6) {
+            $errors[] = 'manifest scope must record task 6';
+        }
+        $liveAudit = $manifest['scope']['live_projection_audit'] ?? [];
+        if (($liveAudit['status'] ?? null) !== 'implemented'
+            || ($liveAudit['task'] ?? null) !== 6
+            || ($liveAudit['workflow'] ?? null) !== 'ci-roster-live-audit.yml'
+            || ($liveAudit['verifier'] ?? null) !== 'bin/audit-ci-roster-live'
+            || ($liveAudit['events'] ?? null) !== ['schedule', 'workflow_dispatch']
+            || ($liveAudit['ordinary_pull_request_dependency'] ?? null) !== false) {
+            $errors[] = 'live projection audit pointer must name the scheduled/manual task 6 verifier';
         }
 
         $this->validateSubjectContract($manifest, $errors);
@@ -879,9 +893,9 @@ final class CiCheckRosterManifestTest extends TestCase
         if (array_column($tasks, 'order') !== range(0, 9) || array_column($tasks, 'name') !== self::RESIDUAL_TASKS) {
             $errors[] = 'residual tasks must preserve the governed order';
         }
-        $expected = ['complete', 'complete', 'complete', 'complete', 'complete', 'current'];
-        if (array_slice(array_column($tasks, 'status'), 0, 6) !== $expected) {
-            $errors[] = 'residual tasks must record 0-4 complete and 5 current';
+        $expected = ['complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'current'];
+        if (array_slice(array_column($tasks, 'status'), 0, 8) !== $expected) {
+            $errors[] = 'residual tasks must record 0-6 complete and 7 current';
         }
     }
 

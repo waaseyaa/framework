@@ -3,10 +3,19 @@
   "change_record": "FW-CI-CHECK-ROSTER-AUDIT-01",
   "kind": "governed-ci-policy",
   "scope": {
-    "task": 5,
-    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. Task 5 adds stable aggregate contexts in shadow mode only. Offline conformance compares this policy with that inventory; live ruleset conformance and migration remain tasks 6 and 7.",
+    "task": 6,
+    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. Stable aggregate contexts remain shadow-only. Task 6 adds an exact-SHA live audit of their check runs and the current ruleset; ruleset migration remains Task 7.",
     "generated_workflow_inventory": {"status": "generated", "task": 2, "path": "tools/ci-workflow-inventory.json", "generator": "bin/generate-ci-workflow-inventory"},
-    "offline_workflow_conformance": {"status": "implemented", "task": 3, "verifier": "bin/check-ci-roster-conformance"}
+    "offline_workflow_conformance": {"status": "implemented", "task": 3, "verifier": "bin/check-ci-roster-conformance"},
+    "live_projection_audit": {
+      "status": "implemented",
+      "task": 6,
+      "workflow": "ci-roster-live-audit.yml",
+      "verifier": "bin/audit-ci-roster-live",
+      "events": ["schedule", "workflow_dispatch"],
+      "ordinary_pull_request_dependency": false,
+      "evidence_artifacts": ["report.json", "ruleset-snapshot.json", "summary.txt"]
+    }
   },
   "evidence": {
     "repository": "waaseyaa/framework",
@@ -263,11 +272,12 @@
     "stable_aggregate_shadow": {
       "status": "shadow-only",
       "workflow_policy_id": "primary-ci",
+      "integration_id": 15368,
       "ruleset_migration_task": 7,
       "required_context_count_before_migration": 22,
       "candidate_context_count": 9,
       "terminal_result_policy": {"failure": "fail", "cancelled": "fail", "skipped": "fail", "missing": "fail"},
-      "statement": "These contexts are visible diagnostics, not required checks. Task 6 must prove their live names and exact terminal-state parity before Task 7 changes the ruleset.",
+      "statement": "These contexts are visible diagnostics, not required checks. Task 6 audits their live exact-SHA names, producer binding, successful prerequisites, and terminal evidence before Task 7 changes the ruleset.",
       "contexts": {
         "merge-source-repository-policy": {
           "context": "merge/source-repository-policy", "invariant": "source-repository-policy", "failure_owner": "repository-governance", "required": false,
@@ -365,9 +375,9 @@
     {"order": 2, "name": "Inventory generator", "status": "complete"},
     {"order": 3, "name": "Offline conformance verifier", "status": "complete"},
     {"order": 4, "name": "Measurement baseline under #2869", "status": "complete"},
-    {"order": 5, "name": "Stable aggregate shadowing", "status": "current"},
-    {"order": 6, "name": "Ruleset projection and live audit", "status": "pending"},
-    {"order": 7, "name": "Ruleset migration", "status": "pending"},
+    {"order": 5, "name": "Stable aggregate shadowing", "status": "complete"},
+    {"order": 6, "name": "Ruleset projection and live audit", "status": "complete"},
+    {"order": 7, "name": "Ruleset migration", "status": "current"},
     {"order": 8, "name": "Cadence optimization", "status": "pending"},
     {"order": 9, "name": "Final reconciliation", "status": "pending"}
   ]

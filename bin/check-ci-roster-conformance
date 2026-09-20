@@ -31,7 +31,7 @@ declare(strict_types=1);
  *     "contexts": [{"context": <string>, "integration_id": <int|null>}]
  *   }
  *
- * Task 6 must emit exactly that shape from the live ruleset:
+ * Task 6's `bin/audit-ci-roster-live` emits exactly that shape from the live ruleset:
  * `GET /repos/{owner}/{repo}/rulesets/{id}`, whose `required_status_checks`
  * rule carries one entry per required check with its `context` and
  * `integration_id`. A null `integration_id` is an intentionally name-only
@@ -134,6 +134,6 @@ if ($counts[CRC_ERROR] > 0) {
 
     exit(1);
 }
-fwrite(STDOUT, "OK — the policy conforms to the generated workflow inventory offline. Live ruleset conformance is task 6.\n");
+fwrite(STDOUT, "OK — the policy conforms to the generated workflow inventory offline. Use bin/audit-ci-roster-live for live ruleset conformance.\n");
 
 exit(0);

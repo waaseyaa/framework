@@ -30,7 +30,8 @@ declare(strict_types=1);
  * Deliberately out of offline scope, and why:
  *
  *   - Live ruleset state (id, strict flag, bound contexts, GitHub App
- *     integration 15368). Task 6. Checked here only against a frozen
+ *     integration 15368). Task 6's live auditor checks it. This offline
+ *     verifier compares it only against a frozen
  *     `--ruleset` snapshot; otherwise CRC026 reports not-verified-offline.
  *     The snapshot schema CRC026 expects is:
  *
@@ -42,15 +43,14 @@ declare(strict_types=1);
  *         ]
  *       }
  *
- *     Task 6 must emit exactly that shape from the live ruleset:
+ *     `bin/audit-ci-roster-live` emits exactly that shape from the live ruleset:
  *     `GET /repos/{owner}/{repo}/rulesets/{id}`, whose
  *     `required_status_checks` rule carries one entry per required check with
  *     its `context` and `integration_id` (null for an intentionally name-only
  *     binding, as `ci/mutation-pilot` is).
- *   - Check-run names as GitHub actually renders them, in particular the
- *     object-matrix default naming that carries 77 of the 160 visible
- *     contexts (`split.yml#split`). The inventory records that extension as
- *     unverified and so does this verifier.
+ *   - Check-run names as GitHub actually renders them. Task 6 audits the
+ *     stable `ci.yml` projection for one exact SHA. The explicit
+ *     `Split release / <package>` names await the next normal release run.
  *   - Attestation-subject profiles. No offline artefact records which SHA a
  *     hosted run attested; the policy self-validates their shape in Task 1
  *     and this verifier does not re-assert it.
@@ -838,7 +838,7 @@ function crc_check_event_driven_cadence(array $producer, array $workflow, string
  *     "contexts": [{"context": <string>, "integration_id": <int|null>}]
  *   }
  *
- * Task 6 produces it from `GET /repos/{owner}/{repo}/rulesets/{id}`, taking
+ * Task 6's live auditor produces it from `GET /repos/{owner}/{repo}/rulesets/{id}`, taking
  * the `required_status_checks` rule's `context` and `integration_id` per
  * entry. A null `integration_id` is a name-only binding and is compared as
  * null, not skipped.
@@ -852,7 +852,7 @@ function crc_check_integration_bindings(array $policy, ?array $ruleset, array &$
     $projection = $policy['policy']['required_projection'] ?? [];
     $contexts = $projection['contexts'] ?? [];
     if ($ruleset === null) {
-        crc_add($findings, 'CRC026', CRC_UNVERIFIED, 'required_projection.contexts', '(live ruleset)', sprintf('%d context bindings were not compared with any ruleset', count($contexts)), 'a frozen snapshot via --ruleset=<json>, or the live audit in task 6');
+        crc_add($findings, 'CRC026', CRC_UNVERIFIED, 'required_projection.contexts', '(live ruleset)', sprintf('%d context bindings were not compared with any ruleset', count($contexts)), 'a frozen snapshot via --ruleset=<json>, or bin/audit-ci-roster-live');
 
         return;
     }

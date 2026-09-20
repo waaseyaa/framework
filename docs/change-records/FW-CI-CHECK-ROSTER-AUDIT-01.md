@@ -579,7 +579,8 @@ producer with a recovery producer may satisfy a selector from either workflow.
 - **The live ruleset.** Ruleset `15181711`, its strict flag, its 22 bound
   contexts and GitHub Actions App `15368` are live state. CRC026 compares them
   only against a frozen `--ruleset` snapshot; with no snapshot it reports
-  `not-verified-offline`. The live audit is Task 6.
+  `not-verified-offline`. Task 6's `bin/audit-ci-roster-live` now obtains that
+  state independently on a schedule or manual dispatch.
 
   The snapshot schema CRC026 expects is:
 
@@ -591,7 +592,7 @@ producer with a recovery producer may satisfy a selector from either workflow.
   }
   ```
 
-  **Task 6 must emit exactly that shape from the live ruleset**:
+  **Task 6 emits exactly that shape from the live ruleset**:
   `GET /repos/{owner}/{repo}/rulesets/{id}`, whose `required_status_checks`
   rule carries one entry per required check with its `context` and
   `integration_id`. A null `integration_id` is an intentionally name-only
@@ -1125,9 +1126,53 @@ evidence before migration; Task 6 records observed duration and Task 8 must use
 the #2869 cost-proxy vocabulary rather than claiming billed runner minutes.
 
 This task does not change branch protection, required contexts, cadence,
-matrices, product code, release behavior, or deployment behavior. Task 6 must
-compare the nine live check runs and the unchanged 22-context ruleset against
+matrices, product code, release behavior, or deployment behavior. Task 6
+compares the nine live check runs and the unchanged 22-context ruleset against
 the manifest before Task 7 can migrate anything.
+
+## Task 6: ruleset projection and live audit
+
+Task 6 adds `bin/audit-ci-roster-live` and the scheduled or manually dispatched
+`ci-roster-live-audit.yml`. The workflow has no `pull_request` trigger, so an API
+failure cannot block an ordinary pull request. It checks out one exact SHA,
+reads the live ruleset and latest check runs for that SHA, and publishes three
+30-day evidence files: the complete report, the CRC026 ruleset snapshot, and a
+human summary.
+
+The audit fails closed when the ruleset id, strict flag, required context set,
+or integration binding differs from the manifest. It also requires each of the
+nine `merge/*` contexts and each declared prerequisite to be present as a
+completed success on the same SHA. Every stable decision must be produced by
+GitHub Actions App `15368`. The generated inventory remains the structural
+authority for workflow/job identity, so a live name absent from the inventory
+also fails.
+
+The report classifies current results as success, root execution failure,
+setup or infrastructure failure, derivative aggregate failure, expected
+conditional skip, unexpected skip or missing prerequisite, cancellation, or
+publication-only. It records sample size, aggregate job-wall seconds, and the
+Ubuntu-weighted cost proxy while explicitly leaving billed runner minutes null.
+This preserves the #2869 measurement vocabulary and prevents wall time from
+being presented as spend.
+
+Task 5's qualifying evidence is the exact PR head
+`b61260651607960a71ca4c4dd7fdff0895d20fb3` and exact merge commit
+`2d0f7cc520fb1e1453ea1ff18d9f3648f170409b`. The PR exposed 56 successful
+checks. The merge run `35491874117` completed all 54 CI jobs successfully. All
+nine stable decisions were present on both SHAs and each used 2 to 4 observed
+job-wall seconds. The live ruleset still contained the original 22 contexts at
+the Task 6 boundary.
+
+Two limits remain explicit. A post-#3094 release has not occurred, so the next
+normal release run must confirm the new explicit `Split release / <package>`
+matrix names; no release was dispatched merely to manufacture that evidence.
+GitHub's public-repository timing response still exposes no billed runner
+minutes. Neither gap affects the nine-context `ci.yml` migration proof, but both
+remain in the live report rather than being silently treated as verified.
+
+Task 6 changes no ruleset, required context, execution cadence, product code,
+release behavior, or deployment behavior. Task 7 owns the governed ruleset
+migration and its rollback proof.
 
 ## Deferred observations
 
@@ -1422,8 +1467,8 @@ stays with the next CRC030 change.
    inventory evidence) landed first as its own reviewed slice; the verifier was
    written against the repaired policy afterwards.
 4. Measurement baseline under #2869: complete.
-5. Stable aggregate shadowing: current candidate.
-6. Ruleset projection and live audit.
-7. Ruleset migration.
+5. Stable aggregate shadowing: complete.
+6. Ruleset projection and live audit: complete.
+7. Ruleset migration: current.
 8. Cadence optimization.
 9. Final reconciliation.
