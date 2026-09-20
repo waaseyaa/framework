@@ -168,6 +168,14 @@ final class CiRosterConformanceTest extends TestCase
             => ['unbound-measurement', 'CRC030', 'random_order_measurement.producer_id'];
         yield 'empty required projection'
             => ['empty-projection', 'CRC030', 'required_projection.contexts'];
+        yield 'shadow context drift'
+            => ['shadow-context-drift', 'CRC031', 'stable_aggregate_shadow.contexts[stable]'];
+        yield 'shadow prerequisite result not checked'
+            => ['shadow-unchecked-result', 'CRC032', 'stable_aggregate_shadow.contexts[stable].prerequisite_jobs'];
+        yield 'shadow does not cover the current projection'
+            => ['shadow-coverage-drift', 'CRC033', 'stable_aggregate_shadow.contexts[stable].prerequisite_contexts'];
+        yield 'shadow promoted before migration'
+            => ['shadow-required-early', 'CRC034', 'stable_aggregate_shadow.contexts[stable].required'];
     }
 
     #[Test]
@@ -351,6 +359,10 @@ final class CiRosterConformanceTest extends TestCase
             'empty-prerequisites' => $policy['policy']['aggregate_lineage_contract']['aggregates'][0]['prerequisites'] = [],
             'unbound-measurement' => $policy['policy']['random_order_measurement']['producer_id'] = 'no-such-producer',
             'empty-projection' => $policy['policy']['required_projection']['contexts'] = [],
+            'shadow-context-drift' => $inventory['workflows'][0]['jobs'][3]['contexts'] = [self::context('merge/renamed')],
+            'shadow-unchecked-result' => $inventory['workflows'][0]['jobs'][3]['aggregate']['result_checked_prerequisites'] = [],
+            'shadow-coverage-drift' => $policy['policy']['stable_aggregate_shadow']['contexts']['stable']['prerequisite_contexts'] = ['ci/missing'],
+            'shadow-required-early' => $policy['policy']['stable_aggregate_shadow']['contexts']['stable']['required'] = true,
             default => self::fail(sprintf('Unknown fixture %s.', $case)),
         };
     }
@@ -437,6 +449,24 @@ final class CiRosterConformanceTest extends TestCase
                         ['context' => 'ci/gate', 'invariant' => 'behavior', 'binding' => ['mode' => 'github-app', 'integration_id' => 15368]],
                     ],
                 ],
+                'stable_aggregate_shadow' => [
+                    'status' => 'shadow-only',
+                    'workflow_policy_id' => 'main-ci',
+                    'ruleset_migration_task' => 7,
+                    'required_context_count_before_migration' => 1,
+                    'candidate_context_count' => 1,
+                    'terminal_result_policy' => ['failure' => 'fail', 'cancelled' => 'fail', 'skipped' => 'fail', 'missing' => 'fail'],
+                    'contexts' => [
+                        'stable' => [
+                            'context' => 'merge/behavior',
+                            'invariant' => 'behavior',
+                            'failure_owner' => 'maintainers',
+                            'required' => false,
+                            'prerequisite_contexts' => ['ci/gate'],
+                            'prerequisite_jobs' => ['gate'],
+                        ],
+                    ],
+                ],
             ],
             'bindings' => [
                 'source' => 'tools/ci-workflow-inventory.json',
@@ -492,6 +522,18 @@ final class CiRosterConformanceTest extends TestCase
                             'artifacts' => [
                                 'produces' => [],
                                 'consumes' => [['step_index' => 1, 'name' => null, 'pattern' => 'pack-*', 'kind' => 'literal', 'expansion' => ['pack-*']]],
+                            ],
+                            'local_equivalent' => ['status' => 'no-recognised-command', 'commands' => [], 'hosted_signals' => []],
+                        ]),
+                        self::job('stable', 'merge/behavior', [
+                            'structural_role' => 'aggregate',
+                            'needs' => ['gate'],
+                            'if' => self::condition('always()', ['always'], []),
+                            'aggregate' => [
+                                'gate' => 'always',
+                                'prerequisites' => ['gate'],
+                                'result_checked_prerequisites' => ['gate'],
+                                'result_unchecked_prerequisites' => [],
                             ],
                             'local_equivalent' => ['status' => 'no-recognised-command', 'commands' => [], 'hosted_signals' => []],
                         ]),

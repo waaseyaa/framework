@@ -44,7 +44,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "1c8a547f73f9fb9d81f82a0f3b39520dc883b6383599c620774154f62d58836b"
+                "sha256": "9e99dfbc1bf95a8c106300dfede52968bd3f6cf8cec074d3d8aeb1b0a5755754"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -118,8 +118,8 @@
     },
     "summary": {
         "workflow_count": 22,
-        "job_count": 86,
-        "visible_context_count": 161,
+        "job_count": 95,
+        "visible_context_count": 170,
         "unresolved_expression_count": 16
     },
     "workflows": [
@@ -1223,7 +1223,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "1c8a547f73f9fb9d81f82a0f3b39520dc883b6383599c620774154f62d58836b",
+            "source_sha256": "9e99dfbc1bf95a8c106300dfede52968bd3f6cf8cec074d3d8aeb1b0a5755754",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -1316,7 +1316,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-consumer-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -1390,7 +1392,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-source-repository-policy"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -1469,7 +1473,9 @@
                     "needs": [
                         "ci-test-shards"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-php-behavior-coverage"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
                         "raw": "always()",
@@ -1605,7 +1611,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-source-repository-policy"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -1684,7 +1692,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-public-package-contracts"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -1760,7 +1770,9 @@
                     "needs": [
                         "frontend-build"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-browser-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -1875,7 +1887,9 @@
                         "ci-random-order-shard",
                         "prepare-random-order-plan"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-random-order"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
                         "raw": "always()",
@@ -2320,7 +2334,9 @@
                     "needs": [
                         "ci-test-shards"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-php-behavior-coverage"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
                         "raw": "always()",
@@ -2710,7 +2726,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-source-repository-policy"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -2786,7 +2804,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-consumer-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -2862,7 +2882,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-platform-runtime-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -2937,7 +2959,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-consumer-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -3018,7 +3042,8 @@
                     },
                     "needs": [],
                     "needed_by": [
-                        "ci-playwright-smoke"
+                        "ci-playwright-smoke",
+                        "merge-public-package-contracts"
                     ],
                     "if": null,
                     "expected_skip": {
@@ -3217,7 +3242,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-consumer-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -3368,7 +3395,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-source-repository-policy"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -3392,6 +3421,996 @@
                         "commands": [
                             "npm install"
                         ],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-browser-acceptance",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/browser-acceptance",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/browser-acceptance",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "ci-playwright-smoke"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "ci-playwright-smoke"
+                        ],
+                        "result_checked_prerequisites": [
+                            "ci-playwright-smoke"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "ci-playwright-smoke",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-consumer-acceptance",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/consumer-acceptance",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/consumer-acceptance",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "bimaaji-skill-resources",
+                        "core-only-boot",
+                        "fresh-install-boot",
+                        "ingestion-defaults",
+                        "skeleton-create-project"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "bimaaji-skill-resources",
+                            "core-only-boot",
+                            "fresh-install-boot",
+                            "ingestion-defaults",
+                            "skeleton-create-project"
+                        ],
+                        "result_checked_prerequisites": [
+                            "bimaaji-skill-resources",
+                            "core-only-boot",
+                            "fresh-install-boot",
+                            "ingestion-defaults",
+                            "skeleton-create-project"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "bimaaji-skill-resources",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "core-only-boot",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "fresh-install-boot",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "ingestion-defaults",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "skeleton-create-project",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-php-behavior-coverage",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/php-behavior-and-coverage",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/php-behavior-and-coverage",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "ci-coverage",
+                        "ci-unit-tests",
+                        "mutation-pilot"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "ci-coverage",
+                            "ci-unit-tests",
+                            "mutation-pilot"
+                        ],
+                        "result_checked_prerequisites": [
+                            "ci-coverage",
+                            "ci-unit-tests",
+                            "mutation-pilot"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "ci-coverage",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "ci-unit-tests",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "mutation-pilot",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-platform-runtime-acceptance",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/platform-runtime-acceptance",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/platform-runtime-acceptance",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "frankenphp-worker",
+                        "skeleton-create-project-windows"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "frankenphp-worker",
+                            "skeleton-create-project-windows"
+                        ],
+                        "result_checked_prerequisites": [
+                            "frankenphp-worker",
+                            "skeleton-create-project-windows"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "frankenphp-worker",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "skeleton-create-project-windows",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-public-package-contracts",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/public-package-contracts",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/public-package-contracts",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "ci-package-isolation",
+                        "frontend-build",
+                        "packaged-form"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "ci-package-isolation",
+                            "frontend-build",
+                            "packaged-form"
+                        ],
+                        "result_checked_prerequisites": [
+                            "ci-package-isolation",
+                            "frontend-build",
+                            "packaged-form"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "ci-package-isolation",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "frontend-build",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "packaged-form",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-random-order",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/random-order",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/random-order",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "ci-random-order"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "ci-random-order"
+                        ],
+                        "result_checked_prerequisites": [
+                            "ci-random-order"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "ci-random-order",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-release-integrity",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/release-integrity",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/release-integrity",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "release-publish-shape"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "release-publish-shape"
+                        ],
+                        "result_checked_prerequisites": [
+                            "release-publish-shape"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "release-publish-shape",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-security-authorization",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/security-authorization",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/security-authorization",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "security-defaults"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "security-defaults"
+                        ],
+                        "result_checked_prerequisites": [
+                            "security-defaults"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "security-defaults",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "merge-source-repository-policy",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "merge/source-repository-policy",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "merge/source-repository-policy",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "check-dead-code",
+                        "ci-lint",
+                        "composer-policy",
+                        "manifest-conformance",
+                        "verify-gates"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "check-dead-code",
+                            "ci-lint",
+                            "composer-policy",
+                            "manifest-conformance",
+                            "verify-gates"
+                        ],
+                        "result_checked_prerequisites": [
+                            "check-dead-code",
+                            "ci-lint",
+                            "composer-policy",
+                            "manifest-conformance",
+                            "verify-gates"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "check-dead-code",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "ci-lint",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "composer-policy",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "manifest-conformance",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "verify-gates",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
                         "hosted_signals": []
                     }
                 },
@@ -3441,7 +4460,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-php-behavior-coverage"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -3534,7 +4555,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-public-package-contracts"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -3980,7 +5003,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-release-integrity"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -4052,7 +5077,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-security-authorization"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -4349,7 +5376,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-consumer-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -4438,7 +5467,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-platform-runtime-acceptance"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -4859,7 +5890,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "merge-source-repository-policy"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,

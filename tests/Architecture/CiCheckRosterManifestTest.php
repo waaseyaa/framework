@@ -147,7 +147,7 @@ final class CiCheckRosterManifestTest extends TestCase
     {
         self::assertSame([], $this->validate($this->manifest));
         self::assertSame(3, $this->manifest['schema_version']);
-        self::assertSame(3, $this->manifest['scope']['task']);
+        self::assertSame(5, $this->manifest['scope']['task']);
         self::assertSame(
             ['status' => 'generated', 'task' => 2, 'path' => 'tools/ci-workflow-inventory.json', 'generator' => 'bin/generate-ci-workflow-inventory'],
             $this->manifest['scope']['generated_workflow_inventory'],
@@ -291,7 +291,7 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'producer expansion mismatch' => ['binding-expansion-mismatch', 'producer php-test-shards declares expansion matrix but ci.yml#ci-lint is singleton'];
         yield 'binding workflow drift' => ['binding-workflow-drift', 'producer php-test-shards binds split.yml but its workflow policy primary-ci binds ci.yml'];
         yield 'missing bound workflow' => ['binding-missing-workflow', 'workflow policy primary-ci binds not-a-workflow.yml, which the inventory does not contain'];
-        yield 'residual status' => ['residual-status', 'residual tasks must record 0-2 complete and 3 current'];
+        yield 'residual status' => ['residual-status', 'residual tasks must record 0-4 complete and 5 current'];
     }
 
     /** @param array<string, mixed> $manifest
@@ -321,8 +321,8 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($conformance['verifier'] ?? null) !== 'bin/check-ci-roster-conformance') {
             $errors[] = 'offline workflow conformance pointer must name the task 3 verifier';
         }
-        if (($manifest['scope']['task'] ?? null) !== 3) {
-            $errors[] = 'manifest scope must record task 3';
+        if (($manifest['scope']['task'] ?? null) !== 5) {
+            $errors[] = 'manifest scope must record task 5';
         }
 
         $this->validateSubjectContract($manifest, $errors);
@@ -879,9 +879,9 @@ final class CiCheckRosterManifestTest extends TestCase
         if (array_column($tasks, 'order') !== range(0, 9) || array_column($tasks, 'name') !== self::RESIDUAL_TASKS) {
             $errors[] = 'residual tasks must preserve the governed order';
         }
-        $expected = ['complete', 'complete', 'complete', 'current'];
-        if (array_slice(array_column($tasks, 'status'), 0, 4) !== $expected) {
-            $errors[] = 'residual tasks must record 0-2 complete and 3 current';
+        $expected = ['complete', 'complete', 'complete', 'complete', 'complete', 'current'];
+        if (array_slice(array_column($tasks, 'status'), 0, 6) !== $expected) {
+            $errors[] = 'residual tasks must record 0-4 complete and 5 current';
         }
     }
 
