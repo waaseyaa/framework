@@ -1174,6 +1174,46 @@ Task 6 changes no ruleset, required context, execution cadence, product code,
 release behavior, or deployment behavior. Task 7 owns the governed ruleset
 migration and its rollback proof.
 
+## Task 7: fail-closed ruleset migration
+
+Task 7 first lands migration machinery without changing the live ruleset.
+`tools/ci-ruleset-main-protection-baseline.json` is the complete write-shaped
+rollback payload captured from ruleset `15181711`: name, target, enforcement,
+bypass actors, branch condition, every non-status rule parameter, strict status
+policy, all 22 context names, and the intentional name-only binding for
+`ci/mutation-pilot`. `bin/project-ci-ruleset` compares fresh live state with
+that baseline before it can emit a plan.
+
+The only forward path is `legacy (22) -> union (31) -> final (9)`. The union
+retains all 22 current requirements while making all nine stable decisions
+required. The final projection is unavailable until the exact union is live.
+Both union and final require completed-success evidence for the 22 legacy
+contexts and nine stable contexts on one exact SHA, including the governed
+GitHub Actions App binding where policy specifies one. An unexpected context,
+integration binding, predecessor, or non-status field fails closed.
+
+The CLI defaults to dry run. A write additionally requires `--apply`, the exact
+ruleset id, the SHA-256 hash printed by a fresh dry run, and a 40-character
+evidence SHA that still equals current `main` for forward transitions. Apply
+also refuses custom policy, baseline, fixture, or repository inputs. After a PUT it refetches the ruleset and requires the write-shaped
+payload hash to match the planned target. Rollback accepts only the union or
+final projection and restores the tracked 22-context baseline. It deliberately
+does not require green CI, so a broken forward projection cannot disable its own
+recovery path.
+
+The scheduled/manual live auditor temporarily recognises only the three exact
+migration projections. That bounded allowance prevents a known union or final
+state from being misreported as arbitrary drift while retaining a hard failure
+for every other set or binding. Task 9 must remove the migration allowance and
+make the final nine-context projection the sole durable authority.
+
+The tooling slice itself makes no branch-rule, workflow, product, cadence,
+release, or deployment change. After it is merged and qualified, the union is
+applied separately, followed by a fresh exact-head pull request and exact-merge
+main run with all 31 contexts required. Only that proof authorizes the final
+nine-context projection. The full 22-context baseline remains the immediate
+rollback map throughout.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on

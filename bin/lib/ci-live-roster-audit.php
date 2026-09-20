@@ -251,14 +251,39 @@ function cla_audit(
     }
     ksort($expectedRuleset);
     ksort($actualRuleset);
+    $stableRuleset = [];
+    foreach ($shadow['contexts'] as $entry) {
+        if (is_array($entry) && is_string($entry['context'] ?? null)) {
+            $stableRuleset[$entry['context']] = (int) ($shadow['integration_id'] ?? 15368);
+        }
+    }
+    ksort($stableRuleset);
+    $unionRuleset = $expectedRuleset + $stableRuleset;
+    ksort($unionRuleset);
+    $projectionMaps = [
+        'legacy' => $expectedRuleset,
+        'union' => $unionRuleset,
+        'final' => $stableRuleset,
+    ];
+    $migration = $policy['policy']['ruleset_migration'] ?? null;
+    $allowedProjectionNames = is_array($migration)
+        ? ($migration['allowed_live_projections_during_migration'] ?? [])
+        : ['legacy'];
+    $allowedProjectionMaps = [];
+    foreach ($allowedProjectionNames as $name) {
+        if (is_string($name) && isset($projectionMaps[$name])) {
+            $allowedProjectionMaps[$name] = $projectionMaps[$name];
+        }
+    }
+    $matchedProjection = array_search($actualRuleset, $allowedProjectionMaps, true);
     if ($snapshot['id'] !== ($projection['source_ruleset_id'] ?? null)) {
         $add('CLA001', CLA_ERROR, 'The live ruleset id differs from the manifest.', ['actual' => $snapshot['id'], 'expected' => $projection['source_ruleset_id'] ?? null]);
     }
     if ($snapshot['strict'] !== ($projection['strict'] ?? null)) {
         $add('CLA002', CLA_ERROR, 'The live strict required-check policy differs from the manifest.', ['actual' => $snapshot['strict'], 'expected' => $projection['strict'] ?? null]);
     }
-    if ($actualRuleset !== $expectedRuleset) {
-        $add('CLA003', CLA_ERROR, 'The live required contexts or integration bindings differ from the manifest.', ['actual' => $actualRuleset, 'expected' => $expectedRuleset]);
+    if ($matchedProjection === false) {
+        $add('CLA003', CLA_ERROR, 'The live required contexts or integration bindings do not match an allowed migration projection.', ['actual' => $actualRuleset, 'allowed' => $allowedProjectionMaps]);
     }
 
     $latest = cla_latest_check_runs($checkRuns);
@@ -352,6 +377,10 @@ function cla_audit(
         'repository' => $repository,
         'sha' => $sha,
         'ruleset_snapshot' => $snapshot,
+        'ruleset_projection' => [
+            'matched' => $matchedProjection === false ? null : $matchedProjection,
+            'allowed' => array_keys($allowedProjectionMaps),
+        ],
         'check_run_count' => count($latest),
         'stable_aggregate_count' => count($stableEvidence),
         'stable_aggregates' => $stableEvidence,
@@ -388,9 +417,10 @@ function cla_render_lines(array $report): string
     $lines = [
         sprintf('CI roster live audit for %s@%s', $report['repository'], $report['sha']),
         sprintf(
-            'Ruleset %d: %d required contexts; stable aggregates: %d; observed check runs: %d.',
+            'Ruleset %d: %d required contexts (%s projection); stable aggregates: %d; observed check runs: %d.',
             $report['ruleset_snapshot']['id'],
             count($report['ruleset_snapshot']['contexts']),
+            $report['ruleset_projection']['matched'] ?? 'unmatched',
             $report['stable_aggregate_count'],
             $report['check_run_count'],
         ),

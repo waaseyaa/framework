@@ -3,8 +3,8 @@
   "change_record": "FW-CI-CHECK-ROSTER-AUDIT-01",
   "kind": "governed-ci-policy",
   "scope": {
-    "task": 6,
-    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. Stable aggregate contexts remain shadow-only. Task 6 adds an exact-SHA live audit of their check runs and the current ruleset; ruleset migration remains Task 7.",
+    "task": 7,
+    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. Task 7 governs a fail-closed transition from the 22 legacy required contexts through a 31-context union to nine stable merge decisions; no projection changes until the tracked projector is separately applied against exact live state and exact-SHA evidence.",
     "generated_workflow_inventory": {"status": "generated", "task": 2, "path": "tools/ci-workflow-inventory.json", "generator": "bin/generate-ci-workflow-inventory"},
     "offline_workflow_conformance": {"status": "implemented", "task": 3, "verifier": "bin/check-ci-roster-conformance"},
     "live_projection_audit": {
@@ -321,6 +321,34 @@
           "prerequisite_contexts": ["Release publish shape"], "prerequisite_jobs": ["release-publish-shape"]
         }
       }
+    },
+    "ruleset_migration": {
+      "status": "tooling-only",
+      "task": 7,
+      "ruleset_id": 15181711,
+      "baseline": "tools/ci-ruleset-main-protection-baseline.json",
+      "projector": "bin/project-ci-ruleset",
+      "default_mode": "dry-run",
+      "allowed_live_projections_during_migration": ["legacy", "union", "final"],
+      "projections": {
+        "legacy": {"required_context_count": 22, "composition": ["required_projection"]},
+        "union": {"required_context_count": 31, "composition": ["required_projection", "stable_aggregate_shadow"]},
+        "final": {"required_context_count": 9, "composition": ["stable_aggregate_shadow"]}
+      },
+      "forward_transitions": ["legacy-to-union", "union-to-final"],
+      "rollback_transitions": ["union-to-legacy", "final-to-legacy"],
+      "apply_guards": [
+        "explicit-apply-flag",
+        "confirmed-ruleset-id",
+        "fresh-live-payload-hash",
+        "exact-40-character-evidence-sha",
+        "non-status-baseline-equality",
+        "exact-predecessor-projection",
+        "all-legacy-and-stable-checks-successful-on-evidence-sha",
+        "forward-evidence-sha-is-current-main",
+        "post-write-refetch-hash"
+      ],
+      "statement": "The three exact projections are temporarily accepted by the scheduled/manual live auditor while migration is in progress. Only the projector can authorize a transition, and Task 9 must narrow the accepted live projection to final after reconciliation."
     }
   },
   "bindings": {

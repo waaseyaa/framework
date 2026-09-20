@@ -284,6 +284,18 @@ the report and CRC026 snapshot as retained artifacts, and reports only labelled
 job-wall cost proxies because billed runner minutes are unavailable. GitHub API
 availability is therefore outside the ordinary pull-request critical path.
 
+Task 7 uses `bin/project-ci-ruleset` to project the tracked
+`main-protection` baseline through exactly three states: the 22 legacy contexts,
+the 31-context legacy-plus-stable union, and the nine stable decisions. The
+command is a dry run unless `--apply`, the exact ruleset id, a fresh live payload
+hash, and an exact evidence SHA at current `main` are all supplied. It rejects non-status drift,
+an unexpected predecessor projection, missing or non-green exact-SHA evidence,
+and a post-write refetch whose hash differs from the plan. Rollback from either
+forward state restores the complete tracked 22-context payload and does not
+depend on green checks. During the bounded migration only those three exact
+projections are accepted by the scheduled live audit. Task 9 narrows that
+temporary allowance to the final projection.
+
 ## Release readiness is not deployment
 
 Merging to `main` proves the Framework candidate through CI; it does not deploy
