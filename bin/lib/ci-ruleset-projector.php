@@ -108,16 +108,16 @@ function crp_context_map(array $contexts): array
 /** @return list<array{context: string, integration_id: int}> */
 function crp_stable_contexts(array $policy): array
 {
-    $shadow = $policy['policy']['stable_aggregate_shadow'] ?? null;
-    if (!is_array($shadow) || !is_array($shadow['contexts'] ?? null)) {
+    $interface = $policy['policy']['stable_aggregate_interface'] ?? null;
+    if (!is_array($interface) || !is_array($interface['contexts'] ?? null)) {
         throw new RuntimeException('The policy has no stable aggregate contract.');
     }
-    $integrationId = $shadow['integration_id'] ?? null;
+    $integrationId = $interface['integration_id'] ?? null;
     if (!is_int($integrationId)) {
         throw new RuntimeException('The stable aggregate contract has no integer integration_id.');
     }
     $contexts = [];
-    foreach ($shadow['contexts'] as $entry) {
+    foreach ($interface['contexts'] as $entry) {
         $name = is_array($entry) ? ($entry['context'] ?? null) : null;
         if (!is_string($name) || $name === '') {
             throw new RuntimeException('The stable aggregate contract contains an invalid context.');
@@ -199,21 +199,20 @@ function crp_normalize_check_runs(array $payload): array
 }
 
 /** @return list<array{context: string, app_id: int|null}> */
-function crp_verify_evidence(array $policy, array $checkRuns): array
+function crp_verify_evidence(array $policy, array $legacyContexts, array $checkRuns): array
 {
-    $projection = $policy['policy']['required_projection']['contexts'] ?? null;
-    $shadow = $policy['policy']['stable_aggregate_shadow'] ?? null;
-    if (!is_array($projection) || !is_array($shadow) || !is_array($shadow['contexts'] ?? null)) {
+    $interface = $policy['policy']['stable_aggregate_interface'] ?? null;
+    if (!is_array($interface) || !is_array($interface['contexts'] ?? null)) {
         throw new RuntimeException('The policy lacks ruleset projection evidence contracts.');
     }
     $expected = [];
-    foreach ($projection as $entry) {
+    foreach ($legacyContexts as $entry) {
         if (is_array($entry) && is_string($entry['context'] ?? null)) {
-            $expected[$entry['context']] = $entry['binding']['integration_id'] ?? null;
+            $expected[$entry['context']] = $entry['integration_id'] ?? null;
         }
     }
-    $stableApp = $shadow['integration_id'] ?? null;
-    foreach ($shadow['contexts'] as $entry) {
+    $stableApp = $interface['integration_id'] ?? null;
+    foreach ($interface['contexts'] as $entry) {
         if (!is_array($entry) || !is_string($entry['context'] ?? null)) {
             throw new RuntimeException('The policy has an invalid stable aggregate context.');
         }
@@ -271,7 +270,9 @@ function crp_plan(
     if (!in_array($actualMap, $allowed, true)) {
         throw new RuntimeException("The live required-check projection is not an allowed predecessor for {$phase}.");
     }
-    $evidence = $phase === 'rollback' ? [] : crp_verify_evidence($policy, $checkRuns);
+    $evidence = $phase === 'rollback'
+        ? []
+        : crp_verify_evidence($policy, crp_required_contexts($baselinePayload), $checkRuns);
     $targetPayload = crp_with_required_contexts($baselinePayload, $projection['target']);
 
     return [

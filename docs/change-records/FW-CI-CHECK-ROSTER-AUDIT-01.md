@@ -1,6 +1,6 @@
 # FW-CI-CHECK-ROSTER-AUDIT-01: governed CI policy contract
 
-Status: review candidate
+Status: complete
 
 GitHub mirror: waaseyaa/framework#3087
 
@@ -127,7 +127,7 @@ and validates only Task 1 guarantees:
 - complete, satisfiable, cadence-specific and non-substitutable subject profiles;
 - aggregate lineage, terminal-state, and SHA-bound not-applicable rules;
 - the bounded shard artifact contract;
-- all eight owned invariant decisions and the unique 22-context projection from
+- all eight owned invariant decisions and the governed required projection from
   each required context to one of those decisions;
 - the exact required-context integration bindings;
 - the two-shard random-order and required pull-request mutation policies;
@@ -559,10 +559,10 @@ findings with per-severity counts.
 | CRC028 | an invariant no producer owns | notice |
 | CRC029 | a required context whose bound job has no recognised local command | notice |
 | CRC030 | a policy field the verifier iterates is empty or unbound — an aggregate with no prerequisites, a measurement naming no bound producer, an empty required projection — each of which would silence a rule rather than prove it | error |
-| CRC031 | every stable shadow context is uniquely visible on an `always()` aggregate in the primary CI workflow | error |
-| CRC032 | each shadow aggregate's `needs` and explicit result checks exactly equal its declared prerequisite jobs, with none unchecked | error |
-| CRC033 | shadow prerequisites map to and cover every current required context exactly once | error |
-| CRC034 | the candidate remains shadow-only, absent from the current required projection, with accurate counts and every non-success or missing state fail-closed | error |
+| CRC031 | every stable interface context is uniquely visible on an `always()` aggregate in the primary CI workflow | error |
+| CRC032 | each required aggregate's `needs` and explicit result checks exactly equal its declared prerequisite jobs, with none unchecked | error |
+| CRC033 | every declared prerequisite context is uniquely produced by its paired prerequisite job, and the interface exactly matches the required projection | error |
+| CRC034 | every interface entry is required, the migration counts are accurate, and every non-success or missing state fails closed | error |
 
 CRC025 honours the recovery split S3 recorded: when a producer declares a
 `recovery_producer`, the recovery cadence is checked against the recovery
@@ -620,7 +620,7 @@ The verifier is a comparison tool, not a schema validator. It assumes
 `tests/Architecture/CiCheckRosterManifestTest.php` has already proved the
 policy's own shape: the controlled vocabularies, stable and unique ids with
 valid internal references, complete cadence-specific and non-substitutable
-subject profiles, the eight owned invariant decisions and the unique 22-context
+subject profiles, the eight owned invariant decisions and the unique required
 projection onto them, the aggregate terminal-result and SHA-bound
 not-applicable rules, the bounded shard artifact contract, the exact
 integration bindings, and — since Task 3a — that every producer and every
@@ -1242,6 +1242,70 @@ This candidate is the fresh exact-head proof while all 31 contexts are live and
 required. Its merge must also pass exact-merge main CI and the live audit before
 the `union -> final` transition is authorized.
 
+### Final projection evidence
+
+PR #3114 proved the union gate on exact head
+`82ca1188883c4749e7972a9bc2256e899bcc54d8`: all 56 visible checks passed while
+all 22 legacy and all nine stable contexts were required. It merged through the
+governed adapter as `5196f173b06bac698f14d292c7b827f2ddac388f`.
+Exact-merge CI run `35496240376` then passed all 54 jobs on that commit, and
+hosted live audit run `35496688253` confirmed the exact 31-context union.
+
+The guarded final dry run used the same current-main SHA, verified all 31 checks,
+matched union hash
+`5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27`,
+and projected the nine-context hash
+`f84798fbefbd93970f5f8f24696e4274799e19e0c800c174359766a951db591d`.
+The apply refetched that exact hash. No non-status ruleset field changed.
+Hosted live audit run `35496776183` passed on the exact main SHA after the
+write, and a dry-run rollback from final reproduced the original 22-context
+baseline hash without consulting check state.
+
+## Task 8: measured cadence decision
+
+Complete random-order execution remains on every pull request at two shards.
+This is an evidence-backed retention decision, not a default carried forward.
+
+The frozen Task 4 cohort contains 60 comparable pull-request runs, including 20
+failed random-order shard jobs. Nineteen corroborated failures already found by
+ordinary shards. One was a unique first-pass detection on run `34374251430`,
+and none was unclassifiable. The cohort therefore disproves the earlier
+seven-run observation that every random-order failure overlaps ordinary shards.
+
+There is no configured merge queue or `merge_group` producer set that preserves
+the same pre-merge protection. Moving random-order directly to main or nightly
+would knowingly weaken the gate, while a path selector would repeat the unsafe
+dependency-graph assumption already rejected by the testing policy. The
+decision is consequently to retain the current PR cadence and claim zero runner
+savings. A later change requires a new #2869 cohort plus an equivalent
+pre-merge replacement and replay path.
+
+## Task 9: final reconciliation
+
+The repository manifest now names the nine stable aggregates as the sole strict
+required projection. Their detailed prerequisites remain visible diagnostics,
+retain their existing execution cadence, and are checked offline against the
+workflow graph. The live auditor accepts only the exact final projection; the
+temporary legacy and union allowances are removed. The original complete
+22-context payload remains tracked only as the emergency rollback target.
+
+The branch-protection interface fell from 22 required names to nine, a reduction
+of 13 names or 59.1%, without removing an execution job. This improves policy
+stability and failure ownership but saves no runner time by itself. The retained
+random-order decision also saves zero runner time. Billed runner minutes remain
+unavailable, so no monetary saving is claimed.
+
+The first governed merge attempt for the reconciliation candidate exposed one
+stale operational consumer: `bin/enable-governed-auto-merge` still required the
+leaf `ci/verify-gates` directly in branch protection. Run `35498135504` refused
+the merge, as designed. The adapter now requires the strict
+`merge/source-repository-policy` GitHub Actions context, whose checked aggregate
+lineage explicitly requires `ci/verify-gates` to succeed. Its custody contract
+and regression fixture were updated together; there is still no bypass or
+unpinned fallback.
+
+No release or deployment occurred during the migration or reconciliation.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on
@@ -1537,6 +1601,6 @@ stays with the next CRC030 change.
 4. Measurement baseline under #2869: complete.
 5. Stable aggregate shadowing: complete.
 6. Ruleset projection and live audit: complete.
-7. Ruleset migration: current.
-8. Cadence optimization.
-9. Final reconciliation.
+7. Ruleset migration: complete.
+8. Cadence optimization: complete. Random-order remains on every pull request.
+9. Final reconciliation: complete.

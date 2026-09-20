@@ -237,104 +237,99 @@
     },
     "random_order_measurement": {
       "producer_id": "random-order-shards", "active_shards": [1, 2], "cadence": "every-pull-request",
-      "change_allowed_before_task": 8,
-      "statement": "Random-order remains on every pull request at two shards. Width and cadence changes require measurement and Task 8 review."
+      "decision_status": "complete",
+      "decision": "retain-every-pull-request",
+      "evidence": "docs/audits/ci-measurement-baseline-2026-09.md",
+      "pull_request_runs": 60,
+      "failed_random_order_shard_jobs": 20,
+      "unique_first_pass_detections": 1,
+      "corroborating_failures": 19,
+      "not_classifiable": 0,
+      "expected_runner_savings_seconds": 0,
+      "statement": "Retain complete two-shard random-order execution on every pull request. The frozen 60-run cohort found one unique first-pass defect, no equivalent pre-merge replacement exists, and merge queue is not configured. This decision claims no runner saving and can be revisited only with a new #2869 cohort and an equivalent pre-merge protection design."
     },
     "required_projection": {
       "source_ruleset_id": 15181711,
       "strict": true,
-      "required_context_count": 22,
+      "required_context_count": 9,
       "contexts": [
-        {"context": "Frontend build", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "Ingestion defaults", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "Manifest conformance", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "Release publish shape", "invariant": "release-integrity", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "Security defaults", "invariant": "security-authorization", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "check-dead-code", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/core-only-boot", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/coverage", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/lint", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/playwright-smoke", "invariant": "browser-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/random-order", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/skeleton-create-project", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/unit-tests", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/verify-gates", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "composer-policy", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "packaged-form", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/package-isolation", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/mutation-pilot", "invariant": "php-behavior-coverage", "binding": {"mode": "name-only", "integration_id": null, "reason": "The live strict ruleset intentionally has no GitHub App binding for this context."}},
-        {"context": "ci/fresh-install-boot", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/frankenphp-worker", "invariant": "platform-runtime-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/skeleton-create-project-windows", "invariant": "platform-runtime-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
-        {"context": "ci/bimaaji-skill-resources", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}}
+        {"context": "merge/source-repository-policy", "invariant": "source-repository-policy", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/php-behavior-and-coverage", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/random-order", "invariant": "php-behavior-coverage", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/security-authorization", "invariant": "security-authorization", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/public-package-contracts", "invariant": "public-package-contracts", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/consumer-acceptance", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/browser-acceptance", "invariant": "browser-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/platform-runtime-acceptance", "invariant": "platform-runtime-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
+        {"context": "merge/release-integrity", "invariant": "release-integrity", "binding": {"mode": "github-app", "integration_id": 15368}}
       ]
     },
-    "stable_aggregate_shadow": {
-      "status": "shadow-only",
+    "stable_aggregate_interface": {
+      "status": "required",
       "workflow_policy_id": "primary-ci",
       "integration_id": 15368,
       "ruleset_migration_task": 7,
       "required_context_count_before_migration": 22,
-      "candidate_context_count": 9,
+      "required_context_count": 9,
       "terminal_result_policy": {"failure": "fail", "cancelled": "fail", "skipped": "fail", "missing": "fail"},
-      "statement": "These contexts are visible diagnostics, not required checks. Task 6 audits their live exact-SHA names, producer binding, successful prerequisites, and terminal evidence before Task 7 changes the ruleset.",
+      "statement": "These nine fail-closed aggregate contexts are the sole required-check interface. Their prerequisite jobs and matrix leaves remain visible diagnostics and continue to execute at the same cadence.",
       "contexts": {
         "merge-source-repository-policy": {
-          "context": "merge/source-repository-policy", "invariant": "source-repository-policy", "failure_owner": "repository-governance", "required": false,
+          "context": "merge/source-repository-policy", "invariant": "source-repository-policy", "failure_owner": "repository-governance", "required": true,
           "prerequisite_contexts": ["Manifest conformance", "check-dead-code", "ci/lint", "ci/verify-gates", "composer-policy"],
           "prerequisite_jobs": ["manifest-conformance", "check-dead-code", "ci-lint", "verify-gates", "composer-policy"]
         },
         "merge-php-behavior-coverage": {
-          "context": "merge/php-behavior-and-coverage", "invariant": "php-behavior-coverage", "failure_owner": "framework-maintainers", "required": false,
+          "context": "merge/php-behavior-and-coverage", "invariant": "php-behavior-coverage", "failure_owner": "framework-maintainers", "required": true,
           "prerequisite_contexts": ["ci/coverage", "ci/unit-tests", "ci/mutation-pilot"],
           "prerequisite_jobs": ["ci-coverage", "ci-unit-tests", "mutation-pilot"]
         },
         "merge-random-order": {
-          "context": "merge/random-order", "invariant": "php-behavior-coverage", "failure_owner": "framework-maintainers", "required": false,
+          "context": "merge/random-order", "invariant": "php-behavior-coverage", "failure_owner": "framework-maintainers", "required": true,
           "prerequisite_contexts": ["ci/random-order"], "prerequisite_jobs": ["ci-random-order"]
         },
         "merge-security-authorization": {
-          "context": "merge/security-authorization", "invariant": "security-authorization", "failure_owner": "security-maintainers", "required": false,
+          "context": "merge/security-authorization", "invariant": "security-authorization", "failure_owner": "security-maintainers", "required": true,
           "prerequisite_contexts": ["Security defaults"], "prerequisite_jobs": ["security-defaults"]
         },
         "merge-public-package-contracts": {
-          "context": "merge/public-package-contracts", "invariant": "public-package-contracts", "failure_owner": "package-maintainers", "required": false,
+          "context": "merge/public-package-contracts", "invariant": "public-package-contracts", "failure_owner": "package-maintainers", "required": true,
           "prerequisite_contexts": ["Frontend build", "packaged-form", "ci/package-isolation"],
           "prerequisite_jobs": ["frontend-build", "packaged-form", "ci-package-isolation"]
         },
         "merge-consumer-acceptance": {
-          "context": "merge/consumer-acceptance", "invariant": "consumer-acceptance", "failure_owner": "framework-maintainers", "required": false,
+          "context": "merge/consumer-acceptance", "invariant": "consumer-acceptance", "failure_owner": "framework-maintainers", "required": true,
           "prerequisite_contexts": ["Ingestion defaults", "ci/core-only-boot", "ci/skeleton-create-project", "ci/fresh-install-boot", "ci/bimaaji-skill-resources"],
           "prerequisite_jobs": ["ingestion-defaults", "core-only-boot", "skeleton-create-project", "fresh-install-boot", "bimaaji-skill-resources"]
         },
         "merge-browser-acceptance": {
-          "context": "merge/browser-acceptance", "invariant": "browser-acceptance", "failure_owner": "frontend-maintainers", "required": false,
+          "context": "merge/browser-acceptance", "invariant": "browser-acceptance", "failure_owner": "frontend-maintainers", "required": true,
           "prerequisite_contexts": ["ci/playwright-smoke"], "prerequisite_jobs": ["ci-playwright-smoke"]
         },
         "merge-platform-runtime-acceptance": {
-          "context": "merge/platform-runtime-acceptance", "invariant": "platform-runtime-acceptance", "failure_owner": "runtime-maintainers", "required": false,
+          "context": "merge/platform-runtime-acceptance", "invariant": "platform-runtime-acceptance", "failure_owner": "runtime-maintainers", "required": true,
           "prerequisite_contexts": ["ci/frankenphp-worker", "ci/skeleton-create-project-windows"],
           "prerequisite_jobs": ["frankenphp-worker", "skeleton-create-project-windows"]
         },
         "merge-release-integrity": {
-          "context": "merge/release-integrity", "invariant": "release-integrity", "failure_owner": "release-engineering", "required": false,
+          "context": "merge/release-integrity", "invariant": "release-integrity", "failure_owner": "release-engineering", "required": true,
           "prerequisite_contexts": ["Release publish shape"], "prerequisite_jobs": ["release-publish-shape"]
         }
       }
     },
     "ruleset_migration": {
-      "status": "union-required",
+      "status": "complete",
       "task": 7,
       "ruleset_id": 15181711,
-      "active_live_projection": "union",
+      "active_live_projection": "final",
       "baseline": "tools/ci-ruleset-main-protection-baseline.json",
       "projector": "bin/project-ci-ruleset",
       "default_mode": "dry-run",
-      "allowed_live_projections_during_migration": ["legacy", "union", "final"],
+      "allowed_live_projections": ["final"],
       "projections": {
-        "legacy": {"required_context_count": 22, "composition": ["required_projection"]},
-        "union": {"required_context_count": 31, "composition": ["required_projection", "stable_aggregate_shadow"]},
-        "final": {"required_context_count": 9, "composition": ["stable_aggregate_shadow"]}
+        "legacy": {"required_context_count": 22, "composition": ["tools/ci-ruleset-main-protection-baseline.json"]},
+        "union": {"required_context_count": 31, "composition": ["tools/ci-ruleset-main-protection-baseline.json", "required_projection"]},
+        "final": {"required_context_count": 9, "composition": ["required_projection"]}
       },
       "forward_transitions": ["legacy-to-union", "union-to-final"],
       "rollback_transitions": ["union-to-legacy", "final-to-legacy"],
@@ -344,6 +339,18 @@
         "after_hash": "5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27",
         "verified_check_count": 31,
         "post_write_live_audit_run": 35495615254,
+        "rollback_dry_run_verified": true
+      },
+      "final_evidence": {
+        "union_proof_pr": 3114,
+        "union_proof_head_sha": "82ca1188883c4749e7972a9bc2256e899bcc54d8",
+        "applied_from_main_sha": "5196f173b06bac698f14d292c7b827f2ddac388f",
+        "exact_merge_ci_run": 35496240376,
+        "pre_write_live_audit_run": 35496688253,
+        "before_hash": "5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27",
+        "after_hash": "f84798fbefbd93970f5f8f24696e4274799e19e0c800c174359766a951db591d",
+        "verified_check_count": 31,
+        "post_write_live_audit_run": 35496776183,
         "rollback_dry_run_verified": true
       },
       "apply_guards": [
@@ -357,7 +364,7 @@
         "forward-evidence-sha-is-current-main",
         "post-write-refetch-hash"
       ],
-      "statement": "The three exact projections are temporarily accepted by the scheduled/manual live auditor while migration is in progress. Only the projector can authorize a transition, and Task 9 must narrow the accepted live projection to final after reconciliation."
+      "statement": "Migration completed through the governed legacy-to-union-to-final path. The live auditor now accepts only the exact nine-context final projection. The original 22-context baseline remains the explicit emergency rollback target."
     }
   },
   "bindings": {
@@ -382,28 +389,15 @@
       "enable-native-auto-merge": {"workflow": "auto-merge.yml", "job": "enable-auto-merge"}
     },
     "required_contexts": {
-      "Frontend build": {"workflow": "ci.yml", "job": "frontend-build"},
-      "Ingestion defaults": {"workflow": "ci.yml", "job": "ingestion-defaults"},
-      "Manifest conformance": {"workflow": "ci.yml", "job": "manifest-conformance"},
-      "Release publish shape": {"workflow": "ci.yml", "job": "release-publish-shape"},
-      "Security defaults": {"workflow": "ci.yml", "job": "security-defaults"},
-      "check-dead-code": {"workflow": "ci.yml", "job": "check-dead-code"},
-      "ci/core-only-boot": {"workflow": "ci.yml", "job": "core-only-boot"},
-      "ci/coverage": {"workflow": "ci.yml", "job": "ci-coverage"},
-      "ci/lint": {"workflow": "ci.yml", "job": "ci-lint"},
-      "ci/playwright-smoke": {"workflow": "ci.yml", "job": "ci-playwright-smoke"},
-      "ci/random-order": {"workflow": "ci.yml", "job": "ci-random-order"},
-      "ci/skeleton-create-project": {"workflow": "ci.yml", "job": "skeleton-create-project"},
-      "ci/unit-tests": {"workflow": "ci.yml", "job": "ci-unit-tests"},
-      "ci/verify-gates": {"workflow": "ci.yml", "job": "verify-gates"},
-      "composer-policy": {"workflow": "ci.yml", "job": "composer-policy"},
-      "packaged-form": {"workflow": "ci.yml", "job": "packaged-form"},
-      "ci/package-isolation": {"workflow": "ci.yml", "job": "ci-package-isolation"},
-      "ci/mutation-pilot": {"workflow": "ci.yml", "job": "mutation-pilot"},
-      "ci/fresh-install-boot": {"workflow": "ci.yml", "job": "fresh-install-boot"},
-      "ci/frankenphp-worker": {"workflow": "ci.yml", "job": "frankenphp-worker"},
-      "ci/skeleton-create-project-windows": {"workflow": "ci.yml", "job": "skeleton-create-project-windows"},
-      "ci/bimaaji-skill-resources": {"workflow": "ci.yml", "job": "bimaaji-skill-resources"}
+      "merge/source-repository-policy": {"workflow": "ci.yml", "job": "merge-source-repository-policy"},
+      "merge/php-behavior-and-coverage": {"workflow": "ci.yml", "job": "merge-php-behavior-coverage"},
+      "merge/random-order": {"workflow": "ci.yml", "job": "merge-random-order"},
+      "merge/security-authorization": {"workflow": "ci.yml", "job": "merge-security-authorization"},
+      "merge/public-package-contracts": {"workflow": "ci.yml", "job": "merge-public-package-contracts"},
+      "merge/consumer-acceptance": {"workflow": "ci.yml", "job": "merge-consumer-acceptance"},
+      "merge/browser-acceptance": {"workflow": "ci.yml", "job": "merge-browser-acceptance"},
+      "merge/platform-runtime-acceptance": {"workflow": "ci.yml", "job": "merge-platform-runtime-acceptance"},
+      "merge/release-integrity": {"workflow": "ci.yml", "job": "merge-release-integrity"}
     }
   },
   "residual_tasks": [
@@ -414,8 +408,8 @@
     {"order": 4, "name": "Measurement baseline under #2869", "status": "complete"},
     {"order": 5, "name": "Stable aggregate shadowing", "status": "complete"},
     {"order": 6, "name": "Ruleset projection and live audit", "status": "complete"},
-    {"order": 7, "name": "Ruleset migration", "status": "current"},
-    {"order": 8, "name": "Cadence optimization", "status": "pending"},
-    {"order": 9, "name": "Final reconciliation", "status": "pending"}
+    {"order": 7, "name": "Ruleset migration", "status": "complete"},
+    {"order": 8, "name": "Cadence optimization", "status": "complete"},
+    {"order": 9, "name": "Final reconciliation", "status": "complete"}
   ]
 }

@@ -121,22 +121,32 @@ final class CiStableAggregateShadowTest extends TestCase
 
         $required = $manifest['policy']['required_projection']['contexts'] ?? null;
         self::assertIsArray($required);
-        self::assertCount(22, $required);
+        self::assertCount(9, $required);
         $requiredNames = array_column($required, 'context');
-        $requiredBindings = $manifest['bindings']['required_contexts'] ?? null;
-        self::assertIsArray($requiredBindings);
+        $inventory = json_decode(
+            (string) file_get_contents($this->repoRoot . '/tools/ci-workflow-inventory.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
         $contextByJob = [];
-        foreach ($requiredBindings as $context => $binding) {
-            $contextByJob[$binding['job']] = $context;
+        foreach ($inventory['workflows'] ?? [] as $workflow) {
+            if (($workflow['file'] ?? null) !== 'ci.yml') {
+                continue;
+            }
+            foreach ($workflow['jobs'] ?? [] as $job) {
+                if (count($job['contexts'] ?? []) === 1 && is_string($job['contexts'][0]['context'] ?? null)) {
+                    $contextByJob[$job['key']] = $job['contexts'][0]['context'];
+                }
+            }
         }
         $owners = [];
         foreach ($manifest['policy']['invariants'] ?? [] as $invariant) {
             $owners[$invariant['id']] = $invariant['owner'];
         }
 
-        $shadow = $manifest['policy']['stable_aggregate_shadow'] ?? null;
+        $shadow = $manifest['policy']['stable_aggregate_interface'] ?? null;
         self::assertIsArray($shadow);
-        self::assertSame('shadow-only', $shadow['status'] ?? null);
+        self::assertSame('required', $shadow['status'] ?? null);
         self::assertSame(15368, $shadow['integration_id'] ?? null);
         self::assertSame(7, $shadow['ruleset_migration_task'] ?? null);
 
@@ -144,7 +154,8 @@ final class CiStableAggregateShadowTest extends TestCase
         self::assertIsArray($contexts);
         self::assertCount(count(self::SHADOWS), $contexts);
 
-        $coveredContexts = [];
+        $prerequisiteContexts = [];
+        $interfaceContexts = [];
         foreach (self::SHADOWS as $jobId => $expected) {
             $entry = $contexts[$jobId] ?? null;
             self::assertIsArray($entry, $jobId);
@@ -157,14 +168,16 @@ final class CiStableAggregateShadowTest extends TestCase
                 $jobId,
             );
             self::assertSame($owners[$expected['invariant']], $entry['failure_owner'] ?? null, $jobId);
-            self::assertFalse($entry['required'] ?? true, $jobId);
-            self::assertNotContains($entry['context'], $requiredNames, $jobId);
-            array_push($coveredContexts, ...$entry['prerequisite_contexts']);
+            self::assertTrue($entry['required'] ?? false, $jobId);
+            self::assertContains($entry['context'], $requiredNames, $jobId);
+            array_push($prerequisiteContexts, ...$entry['prerequisite_contexts']);
+            $interfaceContexts[] = $entry['context'];
         }
 
         sort($requiredNames);
-        sort($coveredContexts);
-        self::assertSame($requiredNames, $coveredContexts);
+        sort($interfaceContexts);
+        self::assertSame($requiredNames, $interfaceContexts);
+        self::assertCount(22, array_unique($prerequisiteContexts));
     }
 
     #[Test]

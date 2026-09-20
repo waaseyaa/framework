@@ -6,28 +6,33 @@ Runs on every PR and push to `main`.
 
 ### Required Status Checks
 
-The repository ruleset is authoritative. Its required checks are:
+The repository manifest at `tools/ci-check-roster.json` is the intended policy
+authority, and the live repository ruleset is continuously audited against it.
+The required merge interface is:
 
 | Check | What it does | Typical runtime |
 |---|---|---|
-| `Frontend build` | Builds Admin SPA, produces V8 coverage, and enforces changed-statement coverage | ~1.5 min |
-| `Ingestion defaults` | Validates ingestion schema metadata | ~10 sec |
-| `Manifest conformance` | Validates `defaults/*.yaml` project versioning | ~15 sec |
-| `Release publish shape` | Verifies release workflow and publication invariants | ~10 sec |
-| `Security defaults` | Scans default manifests and structural secret guards | ~20 sec |
-| `check-dead-code` | Rejects new PHPStan dead-code findings | ~20 sec |
-| `ci/core-only-boot` | Proves the minimal framework boot boundary | ~20 sec |
-| `ci/coverage` | Merges the shared PHPUnit shard evidence and enforces baseline and changed-line ratchets | shard critical path + ~20 sec |
-| `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
-| `ci/mutation-pilot` | Enforces the stable 84% Infection floors on bounded critical boundaries | ~1.25 min |
-| `ci/package-isolation` | Clean-installs and runs declared split-package suites without root dev autoload | ~30 sec |
-| `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
-| `ci/random-order` | Runs the **complete** configured PHPUnit inventory across 2 package-safe, timing-balanced shards, replayed in isolated per-suite processes with one logged, replayable random seed. There is no subset selection — a prior changed-package selector was measured, found to rest on an undeclared dependency graph, and removed. See [docs/specs/ci-test-selection.md](../specs/ci-test-selection.md) | shard critical path |
-| `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
-| `ci/unit-tests` | Attests that every timing-balanced PHPUnit package shard passed | shard critical path |
-| `ci/verify-gates` | Runs the fast repository invariant gates | ~40 sec |
-| `composer-policy` | Enforces dependency and package-layer policy | ~10 sec |
-| `packaged-form` | Verifies the distributable framework shape | ~15 sec |
+| `merge/source-repository-policy` | Fails closed over manifest conformance, dead-code, lint, repository gates, and Composer policy | aggregate only |
+| `merge/php-behavior-and-coverage` | Fails closed over ordinary PHPUnit, coverage, and mutation evidence | aggregate only |
+| `merge/random-order` | Fails closed over the complete two-shard random-order replay | aggregate only |
+| `merge/security-authorization` | Fails closed over security and authorization defaults | aggregate only |
+| `merge/public-package-contracts` | Fails closed over frontend build, packaged-form, and package-isolation contracts | aggregate only |
+| `merge/consumer-acceptance` | Fails closed over fresh, minimal, skeleton, ingestion, and Bimaaji consumer boundaries | aggregate only |
+| `merge/browser-acceptance` | Fails closed over the hosted Chromium and Firefox smoke proof | aggregate only |
+| `merge/platform-runtime-acceptance` | Fails closed over FrankenPHP worker and native Windows acceptance | aggregate only |
+| `merge/release-integrity` | Fails closed over release publication shape | aggregate only |
+
+The aggregate jobs use `if: always()` and explicitly require every prerequisite
+to succeed. A failed, cancelled, skipped, or missing prerequisite cannot produce
+a green merge decision. Detailed jobs and matrix leaves remain visible and run
+at their existing cadence for diagnosis; they are no longer separate branch
+protection names.
+
+Random-order remains required on every pull request. The frozen 60-run cohort
+found 20 failed random-order shard jobs: 19 corroborated ordinary shard failures
+and one was a unique first-pass detection. No equivalent merge-queue protection
+exists, so moving it to main or nightly would weaken pre-merge protection. See
+[`docs/audits/ci-measurement-baseline-2026-09.md`](../audits/ci-measurement-baseline-2026-09.md).
 
 ### Additional Checks (informational)
 
@@ -38,6 +43,7 @@ The repository ruleset is authoritative. Its required checks are:
 | `Release pipeline fixtures` | Exercises publication-decision fixtures |
 | `composer-deps-audit (warn-only)` | Reports dependency ownership debt without blocking |
 | `admin/*` | Runs path-scoped admin contract, adapter, build, and integration checks |
+| `ci/*`, policy, consumer, package, browser, platform, and release prerequisite jobs | Detailed root execution and failure-owner evidence consumed by the nine required aggregates |
 
 ### Artifacts
 

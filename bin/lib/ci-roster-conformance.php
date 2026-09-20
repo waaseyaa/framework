@@ -102,7 +102,7 @@ function crc_verify(array $policy, array $inventory, ?array $ruleset = null): ar
     crc_check_artifacts($policy, $index, $bindings, $findings);
     crc_check_cadences($policy, $index, $bindings, $findings);
     crc_check_integration_bindings($policy, $ruleset, $findings);
-    crc_check_stable_aggregate_shadow($policy, $index, $bindings, $findings);
+    crc_check_stable_aggregate_interface($policy, $index, $bindings, $findings);
     crc_check_coverage($policy, $index, $bindings, $findings);
     crc_check_verifiable_shape($policy, $bindings, $findings);
 
@@ -110,31 +110,30 @@ function crc_verify(array $policy, array $inventory, ?array $ruleset = null): ar
 }
 
 /**
- * CRC031-CRC034: the Task 5 candidate projection is visible, fail-closed,
- * equivalent to the current required roster, and still shadow-only.
+ * CRC031-CRC034: the stable required interface is visible, fail-closed,
+ * and exactly matches the current required projection.
  *
  * @param array<string, mixed> $policy
  * @param array{workflows: array<string, array<string, mixed>>, jobs: array<string, array<string, array<string, mixed>>>, context_owners: array<string, list<string>>} $index
  * @param array<string, mixed> $bindings
  * @param list<array<string, string>> $findings
  */
-function crc_check_stable_aggregate_shadow(array $policy, array $index, array $bindings, array &$findings): void
+function crc_check_stable_aggregate_interface(array $policy, array $index, array $bindings, array &$findings): void
 {
-    $shadow = $policy['policy']['stable_aggregate_shadow'] ?? null;
-    if (!is_array($shadow)) {
+    $interface = $policy['policy']['stable_aggregate_interface'] ?? null;
+    if (!is_array($interface)) {
         return;
     }
 
-    $workflowPolicyId = $shadow['workflow_policy_id'] ?? null;
+    $workflowPolicyId = $interface['workflow_policy_id'] ?? null;
     $primaryWorkflow = is_string($workflowPolicyId) ? ($bindings['workflow_policies'][$workflowPolicyId] ?? null) : null;
-    $contexts = $shadow['contexts'] ?? [];
+    $contexts = $interface['contexts'] ?? [];
     $requiredEntries = $policy['policy']['required_projection']['contexts'] ?? [];
     $requiredNames = array_column($requiredEntries, 'context');
-    $requiredBindings = $bindings['required_contexts'] ?? [];
-    $coveredContexts = [];
+    $interfaceContexts = [];
 
     foreach ($contexts as $jobId => $entry) {
-        $locator = sprintf('stable_aggregate_shadow.contexts[%s]', $jobId);
+        $locator = sprintf('stable_aggregate_interface.contexts[%s]', $jobId);
         $binding = ['workflow' => $primaryWorkflow, 'job' => $jobId];
         $bound = crc_locator($binding);
         $job = is_string($primaryWorkflow) ? crc_job($index, $binding) : null;
@@ -185,41 +184,44 @@ function crc_check_stable_aggregate_shadow(array $policy, array $index, array $b
         }
         foreach ($prerequisiteContexts as $position => $requiredContext) {
             $expectedJob = $prerequisiteJobs[$position] ?? null;
-            $requiredBinding = $requiredBindings[$requiredContext] ?? null;
-            if (!is_array($requiredBinding)
-                || ($requiredBinding['workflow'] ?? null) !== $primaryWorkflow
-                || ($requiredBinding['job'] ?? null) !== $expectedJob) {
+            $expectedOwner = sprintf('%s#%s', (string) $primaryWorkflow, (string) $expectedJob);
+            $owners = is_string($requiredContext) ? ($index['context_owners'][$requiredContext] ?? []) : [];
+            if ($owners !== [$expectedOwner]) {
                 crc_add(
                     $findings,
                     'CRC033',
                     CRC_ERROR,
                     $locator . '.prerequisite_contexts',
                     $bound,
-                    sprintf('%s maps to %s', (string) $requiredContext, crc_json($requiredBinding)),
-                    sprintf('the current required binding %s#%s', (string) $primaryWorkflow, (string) $expectedJob),
+                    sprintf('%s is owned by %s', (string) $requiredContext, crc_json($owners)),
+                    sprintf('the diagnostic prerequisite %s', $expectedOwner),
                 );
             }
-            $coveredContexts[] = $requiredContext;
         }
 
-        if (($entry['required'] ?? null) !== false || (is_string($context) && in_array($context, $requiredNames, true))) {
-            crc_add($findings, 'CRC034', CRC_ERROR, $locator . '.required', $bound, sprintf('required=%s current_projection=%s', crc_json($entry['required'] ?? null), is_string($context) && in_array($context, $requiredNames, true) ? 'yes' : 'no'), 'required=false and absent from the current required projection until Task 7');
+        if (($entry['required'] ?? null) !== true || !is_string($context) || !in_array($context, $requiredNames, true)) {
+            crc_add($findings, 'CRC034', CRC_ERROR, $locator . '.required', $bound, sprintf('required=%s current_projection=%s', crc_json($entry['required'] ?? null), is_string($context) && in_array($context, $requiredNames, true) ? 'yes' : 'no'), 'required=true and present in the current required projection');
+        }
+        if (is_string($context)) {
+            $interfaceContexts[] = $context;
         }
     }
 
     $sortedRequired = $requiredNames;
     sort($sortedRequired);
-    sort($coveredContexts);
-    if ($coveredContexts !== $sortedRequired) {
-        crc_add($findings, 'CRC033', CRC_ERROR, 'stable_aggregate_shadow.contexts', (string) $primaryWorkflow, sprintf('covered contexts are %s', crc_json($coveredContexts)), sprintf('every current required context exactly once: %s', crc_json($sortedRequired)));
+    sort($interfaceContexts);
+    if ($interfaceContexts !== $sortedRequired) {
+        crc_add($findings, 'CRC033', CRC_ERROR, 'stable_aggregate_interface.contexts', (string) $primaryWorkflow, sprintf('interface contexts are %s', crc_json($interfaceContexts)), sprintf('every current required context exactly once: %s', crc_json($sortedRequired)));
     }
 
     $failClosed = ['failure' => 'fail', 'cancelled' => 'fail', 'skipped' => 'fail', 'missing' => 'fail'];
-    if (($shadow['status'] ?? null) !== 'shadow-only'
-        || ($shadow['required_context_count_before_migration'] ?? null) !== count($requiredNames)
-        || ($shadow['candidate_context_count'] ?? null) !== count($contexts)
-        || ($shadow['terminal_result_policy'] ?? null) !== $failClosed) {
-        crc_add($findings, 'CRC034', CRC_ERROR, 'stable_aggregate_shadow', (string) $primaryWorkflow, sprintf('status=%s required_count=%s candidate_count=%s terminal_policy=%s', (string) ($shadow['status'] ?? 'null'), crc_json($shadow['required_context_count_before_migration'] ?? null), crc_json($shadow['candidate_context_count'] ?? null), crc_json($shadow['terminal_result_policy'] ?? null)), sprintf('shadow-only, counts %d/%d, and every non-success or missing state fails', count($requiredNames), count($contexts)));
+    $legacyCount = $interface['required_context_count_before_migration'] ?? null;
+    if (($interface['status'] ?? null) !== 'required'
+        || !is_int($legacyCount)
+        || $legacyCount < count($contexts)
+        || ($interface['required_context_count'] ?? null) !== count($contexts)
+        || ($interface['terminal_result_policy'] ?? null) !== $failClosed) {
+        crc_add($findings, 'CRC034', CRC_ERROR, 'stable_aggregate_interface', (string) $primaryWorkflow, sprintf('status=%s legacy_count=%s required_count=%s terminal_policy=%s', (string) ($interface['status'] ?? 'null'), crc_json($legacyCount), crc_json($interface['required_context_count'] ?? null), crc_json($interface['terminal_result_policy'] ?? null)), sprintf('required, a legacy count no smaller than %d, final count %d, and every non-success or missing state fails', count($contexts), count($contexts)));
     }
 }
 
@@ -229,7 +231,7 @@ function crc_check_stable_aggregate_shadow(array $policy, array $index, array $b
  *
  * This is a narrow backstop, not a schema validator. The policy's own schema —
  * vocabularies, stable ids, complete cadence-specific subject profiles, the
- * eight owned invariants, the unique 22-context projection, the aggregate
+ * eight owned invariants, the unique required projection, the aggregate
  * terminal-result and not-applicable rules, the bounded artifact contract —
  * is proved by `tests/Architecture/CiCheckRosterManifestTest.php`, the Task 1
  * self-validator, and this verifier assumes all of it. What it cannot assume
@@ -904,6 +906,26 @@ function crc_check_coverage(array $policy, array $index, array $bindings, array 
             $producerJobs[] = crc_locator($binding);
         }
     }
+    foreach ($bindings['required_contexts'] ?? [] as $binding) {
+        if (is_array($binding)) {
+            $producerJobs[] = crc_locator($binding);
+        }
+    }
+    $interface = $policy['policy']['stable_aggregate_interface'] ?? [];
+    $interfaceWorkflowId = $interface['workflow_policy_id'] ?? null;
+    $interfaceWorkflow = is_string($interfaceWorkflowId)
+        ? ($bindings['workflow_policies'][$interfaceWorkflowId] ?? null)
+        : null;
+    if (is_string($interfaceWorkflow)) {
+        foreach ($interface['contexts'] ?? [] as $entry) {
+            foreach ($entry['prerequisite_jobs'] ?? [] as $job) {
+                if (is_string($job)) {
+                    $producerJobs[] = $interfaceWorkflow . '#' . $job;
+                }
+            }
+        }
+    }
+    $producerJobs = array_values(array_unique($producerJobs));
 
     // CRC027 - gate-shaped contexts the policy does not model at all.
     foreach ($index['jobs'] as $file => $jobs) {
@@ -922,6 +944,11 @@ function crc_check_coverage(array $policy, array $index, array $bindings, array 
 
     // CRC028 - invariants no producer owns.
     $owned = array_column($policy['policy']['producers'] ?? [], 'invariant');
+    foreach ($interface['contexts'] ?? [] as $entry) {
+        if (is_string($entry['invariant'] ?? null)) {
+            $owned[] = $entry['invariant'];
+        }
+    }
     foreach ($policy['policy']['invariants'] ?? [] as $invariant) {
         if (!in_array($invariant['id'] ?? null, $owned, true)) {
             crc_add($findings, 'CRC028', CRC_NOTICE, sprintf('invariants[%s]', (string) ($invariant['id'] ?? '?')), '(no producer)', 'no producer declares this invariant', 'a producer owning the invariant, or a projection-only invariant by design');
@@ -933,7 +960,9 @@ function crc_check_coverage(array $policy, array $index, array $bindings, array 
         $name = $item['context'] ?? '?';
         $binding = $bindings['required_contexts'][$name] ?? null;
         $job = is_array($binding) ? crc_job($index, $binding) : null;
-        if ($job !== null && ($job['local_equivalent']['status'] ?? null) === 'no-recognised-command') {
+        if ($job !== null
+            && ($job['structural_role'] ?? null) !== 'aggregate'
+            && ($job['local_equivalent']['status'] ?? null) === 'no-recognised-command') {
             crc_add($findings, 'CRC029', CRC_NOTICE, sprintf('required_projection.contexts[%s]', $name), crc_locator($binding), 'the inventory recognised no repository-local command and no hosted signal', 'a recognised local entry point, or an accepted hosted-only gate');
         }
     }

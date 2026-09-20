@@ -70,28 +70,15 @@ final class CiCheckRosterManifestTest extends TestCase
     ];
 
     private const REQUIRED_PROJECTION = [
-        'Frontend build' => 'public-package-contracts',
-        'Ingestion defaults' => 'consumer-acceptance',
-        'Manifest conformance' => 'source-repository-policy',
-        'Release publish shape' => 'release-integrity',
-        'Security defaults' => 'security-authorization',
-        'check-dead-code' => 'source-repository-policy',
-        'ci/core-only-boot' => 'consumer-acceptance',
-        'ci/coverage' => 'php-behavior-coverage',
-        'ci/lint' => 'source-repository-policy',
-        'ci/playwright-smoke' => 'browser-acceptance',
-        'ci/random-order' => 'php-behavior-coverage',
-        'ci/skeleton-create-project' => 'consumer-acceptance',
-        'ci/unit-tests' => 'php-behavior-coverage',
-        'ci/verify-gates' => 'source-repository-policy',
-        'composer-policy' => 'source-repository-policy',
-        'packaged-form' => 'public-package-contracts',
-        'ci/package-isolation' => 'public-package-contracts',
-        'ci/mutation-pilot' => 'php-behavior-coverage',
-        'ci/fresh-install-boot' => 'consumer-acceptance',
-        'ci/frankenphp-worker' => 'platform-runtime-acceptance',
-        'ci/skeleton-create-project-windows' => 'platform-runtime-acceptance',
-        'ci/bimaaji-skill-resources' => 'consumer-acceptance',
+        'merge/source-repository-policy' => 'source-repository-policy',
+        'merge/php-behavior-and-coverage' => 'php-behavior-coverage',
+        'merge/random-order' => 'php-behavior-coverage',
+        'merge/security-authorization' => 'security-authorization',
+        'merge/public-package-contracts' => 'public-package-contracts',
+        'merge/consumer-acceptance' => 'consumer-acceptance',
+        'merge/browser-acceptance' => 'browser-acceptance',
+        'merge/platform-runtime-acceptance' => 'platform-runtime-acceptance',
+        'merge/release-integrity' => 'release-integrity',
     ];
 
     private const CADENCE_SHA_SUBJECTS = [
@@ -170,12 +157,12 @@ final class CiCheckRosterManifestTest extends TestCase
         self::assertSame(['workflow' => 'ci.yml', 'job' => 'verify-gates'], $bindings['producers']['source-integrity-policy']);
         self::assertSame(['workflow' => 'split.yml', 'job' => 'assemble-release-evidence'], $bindings['producers']['release-publish-evidence']);
         self::assertSame('split.yml', $bindings['workflow_policies']['release-publication']);
-        self::assertCount(22, $bindings['required_contexts']);
+        self::assertCount(9, $bindings['required_contexts']);
 
         $projection = $this->manifest['policy']['required_projection'];
         self::assertTrue($projection['strict']);
-        self::assertCount(22, $projection['contexts']);
-        self::assertCount(21, array_filter(
+        self::assertCount(9, $projection['contexts']);
+        self::assertCount(9, array_filter(
             $projection['contexts'],
             static fn(array $item): bool => $item['binding']['mode'] === 'github-app'
                 && $item['binding']['integration_id'] === 15368,
@@ -203,11 +190,10 @@ final class CiCheckRosterManifestTest extends TestCase
             'duplicate-profile-cadence' => $mutated['policy']['producers'][$producerIndex('phpunit-shard-plan')]['subject_profiles'][1]['cadences'] = ['pull-request'],
             'unmapped-context' => $mutated['policy']['required_projection']['contexts'][0]['invariant'] = null,
             'unknown-context-invariant' => $mutated['policy']['required_projection']['contexts'][0]['invariant'] = 'unknown',
-            'duplicate-context' => $mutated['policy']['required_projection']['contexts'][1]['context'] = 'Frontend build',
+            'duplicate-context' => $mutated['policy']['required_projection']['contexts'][1]['context'] = 'merge/source-repository-policy',
             'wrong-app-binding' => $mutated['policy']['required_projection']['contexts'][0]['binding']['integration_id'] = 999,
-            'mutation-app-binding' => $mutated['policy']['required_projection']['contexts'][17]['binding'] = ['mode' => 'github-app', 'integration_id' => 15368],
             'random-width' => $mutated['policy']['producers'][$producerIndex('random-order-shards')]['matrix']['values'] = [1, 2, 3],
-            'random-task' => $mutated['policy']['random_order_measurement']['change_allowed_before_task'] = 7,
+            'random-task' => $mutated['policy']['random_order_measurement']['decision_status'] = 'pending',
             'auto-merge-selector' => $mutated['policy']['producers'][$producerIndex('enable-native-auto-merge')]['selection'] = [
                 'composition' => 'all_of',
                 'selectors' => [['type' => 'actor', 'actor' => 'dependabot']],
@@ -240,9 +226,9 @@ final class CiCheckRosterManifestTest extends TestCase
                 ['mutation-pilot' => null],
             ),
             'binding-missing-job' => $mutated['bindings']['producers']['php-test-shards']['job'] = 'renamed-shards',
-            'binding-missing-context-job' => $mutated['bindings']['required_contexts']['ci/lint']['job'] = 'renamed-lint',
-            'binding-wrong-context-job' => $mutated['bindings']['required_contexts']['ci/lint']['job'] = 'frontend-build',
-            'binding-wrong-workflow-real-job' => $mutated['bindings']['required_contexts']['ci/lint'] = ['workflow' => 'split.yml', 'job' => 'split'],
+            'binding-missing-context-job' => $mutated['bindings']['required_contexts']['merge/source-repository-policy']['job'] = 'renamed-aggregate',
+            'binding-wrong-context-job' => $mutated['bindings']['required_contexts']['merge/source-repository-policy']['job'] = 'frontend-build',
+            'binding-wrong-workflow-real-job' => $mutated['bindings']['required_contexts']['merge/source-repository-policy'] = ['workflow' => 'split.yml', 'job' => 'split'],
             'binding-expansion-mismatch' => $mutated['bindings']['producers']['php-test-shards']['job'] = 'ci-lint',
             'binding-workflow-drift' => $mutated['bindings']['producers']['php-test-shards'] = ['workflow' => 'split.yml', 'job' => 'split'],
             'binding-missing-workflow' => $mutated['bindings']['workflow_policies']['primary-ci'] = 'not-a-workflow.yml',
@@ -265,13 +251,12 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'subject leakage' => ['subject-leakage', 'phpunit-shard-plan profile pull-request-head-artifact leaks main-sha into pull-request'];
         yield 'flat conjunctive subjects' => ['flat-subjects', 'source-integrity-policy must use profiles instead of flat attestation subjects'];
         yield 'alternative profiles' => ['duplicate-profile-cadence', 'phpunit-shard-plan subject profiles must cover every active cadence exactly once'];
-        yield 'unmapped required context' => ['unmapped-context', 'Frontend build must reference an owned invariant decision'];
-        yield 'unknown required context invariant' => ['unknown-context-invariant', 'Frontend build must reference an owned invariant decision'];
+        yield 'unmapped required context' => ['unmapped-context', 'merge/source-repository-policy must reference an owned invariant decision'];
+        yield 'unknown required context invariant' => ['unknown-context-invariant', 'merge/source-repository-policy must reference an owned invariant decision'];
         yield 'projection uniqueness' => ['duplicate-context', 'required projection contexts must be unique'];
-        yield 'app binding' => ['wrong-app-binding', 'Frontend build must bind to GitHub Actions app 15368'];
-        yield 'name-only exception' => ['mutation-app-binding', 'ci/mutation-pilot must remain intentionally name-only'];
+        yield 'app binding' => ['wrong-app-binding', 'merge/source-repository-policy must bind to GitHub Actions app 15368'];
         yield 'random-order width' => ['random-width', 'random-order active shard width must remain [1, 2]'];
-        yield 'random-order task gate' => ['random-task', 'random-order width and cadence changes belong to task 8'];
+        yield 'random-order task gate' => ['random-task', 'random-order cadence decision must retain every-pull-request execution with the frozen Task 4 evidence'];
         yield 'auto-merge selector' => ['auto-merge-selector', 'native auto-merge selection must be workflow_dispatch OR the exact labeled-PR predicate'];
         yield 'auto-merge execution' => ['auto-merge-disposition', 'native auto-merge must permit successful operational execution'];
         yield 'mutation selection' => ['mutation-selection', 'mutation-pilot must remain an unconditional required pull-request policy'];
@@ -290,13 +275,13 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'release selector' => ['release-selector', 'release publication selection must be the tag-push or manual-dispatch predicate'];
         yield 'unbound producer' => ['unbound-producer', 'producer mutation-pilot has no inventory binding'];
         yield 'renamed producer job' => ['binding-missing-job', 'producer php-test-shards binds ci.yml#renamed-shards, which the inventory does not contain'];
-        yield 'renamed context job' => ['binding-missing-context-job', 'required context ci/lint binds ci.yml#renamed-lint, which the inventory does not contain'];
-        yield 'context bound to the wrong job' => ['binding-wrong-context-job', 'required context ci/lint binds ci.yml#frontend-build, but the inventory shows that context on [ci.yml#ci-lint]'];
-        yield 'context bound across workflows' => ['binding-wrong-workflow-real-job', 'required context ci/lint binds split.yml#split, but the inventory shows that context on [ci.yml#ci-lint]'];
+        yield 'renamed context job' => ['binding-missing-context-job', 'required context merge/source-repository-policy binds ci.yml#renamed-aggregate, which the inventory does not contain'];
+        yield 'context bound to the wrong job' => ['binding-wrong-context-job', 'required context merge/source-repository-policy binds ci.yml#frontend-build, but the inventory shows that context on [ci.yml#merge-source-repository-policy]'];
+        yield 'context bound across workflows' => ['binding-wrong-workflow-real-job', 'required context merge/source-repository-policy binds split.yml#split, but the inventory shows that context on [ci.yml#merge-source-repository-policy]'];
         yield 'producer expansion mismatch' => ['binding-expansion-mismatch', 'producer php-test-shards declares expansion matrix but ci.yml#ci-lint is singleton'];
         yield 'binding workflow drift' => ['binding-workflow-drift', 'producer php-test-shards binds split.yml but its workflow policy primary-ci binds ci.yml'];
         yield 'missing bound workflow' => ['binding-missing-workflow', 'workflow policy primary-ci binds not-a-workflow.yml, which the inventory does not contain'];
-        yield 'residual status' => ['residual-status', 'residual tasks must record 0-6 complete and 7 current'];
+        yield 'residual status' => ['residual-status', 'residual tasks must all be complete'];
     }
 
     /** @param array<string, mixed> $manifest
@@ -529,8 +514,16 @@ final class CiCheckRosterManifestTest extends TestCase
         if (($random['matrix']['values'] ?? null) !== [1, 2] || ($measurement['active_shards'] ?? null) !== [1, 2]) {
             $errors[] = 'random-order active shard width must remain [1, 2]';
         }
-        if (($measurement['cadence'] ?? null) !== 'every-pull-request' || ($measurement['change_allowed_before_task'] ?? null) !== 8) {
-            $errors[] = 'random-order width and cadence changes belong to task 8';
+        if (($measurement['cadence'] ?? null) !== 'every-pull-request'
+            || ($measurement['decision_status'] ?? null) !== 'complete'
+            || ($measurement['decision'] ?? null) !== 'retain-every-pull-request'
+            || ($measurement['pull_request_runs'] ?? null) !== 60
+            || ($measurement['failed_random_order_shard_jobs'] ?? null) !== 20
+            || ($measurement['unique_first_pass_detections'] ?? null) !== 1
+            || ($measurement['corroborating_failures'] ?? null) !== 19
+            || ($measurement['not_classifiable'] ?? null) !== 0
+            || ($measurement['expected_runner_savings_seconds'] ?? null) !== 0) {
+            $errors[] = 'random-order cadence decision must retain every-pull-request execution with the frozen Task 4 evidence';
         }
 
         $mutation = $this->producer($manifest, 'mutation-pilot');
@@ -674,9 +667,9 @@ final class CiCheckRosterManifestTest extends TestCase
         $names = array_column($contexts, 'context');
         if (($projection['source_ruleset_id'] ?? null) !== 15181711
             || ($projection['strict'] ?? null) !== true
-            || ($projection['required_context_count'] ?? null) !== 22
-            || count($contexts) !== 22) {
-            $errors[] = 'required projection must preserve the live 22-context strict ruleset';
+            || ($projection['required_context_count'] ?? null) !== 9
+            || count($contexts) !== 9) {
+            $errors[] = 'required projection must preserve the live nine-context strict ruleset';
         }
         if (count($names) !== count(array_unique($names))) {
             $errors[] = 'required projection contexts must be unique';
@@ -690,12 +683,7 @@ final class CiCheckRosterManifestTest extends TestCase
             }
             $actualProjection[$name] = $invariant;
             $binding = $item['binding'] ?? [];
-            if ($name === 'ci/mutation-pilot') {
-                if (($binding['mode'] ?? null) !== 'name-only'
-                    || (array_key_exists('integration_id', $binding) && $binding['integration_id'] !== null)) {
-                    $errors[] = 'ci/mutation-pilot must remain intentionally name-only';
-                }
-            } elseif (($binding['mode'] ?? null) !== 'github-app' || ($binding['integration_id'] ?? null) !== 15368) {
+            if (($binding['mode'] ?? null) !== 'github-app' || ($binding['integration_id'] ?? null) !== 15368) {
                 $errors[] = sprintf('%s must bind to GitHub Actions app 15368', $name);
             }
         }
@@ -711,14 +699,14 @@ final class CiCheckRosterManifestTest extends TestCase
         }
 
         $migration = $manifest['policy']['ruleset_migration'] ?? [];
-        if (($migration['status'] ?? null) !== 'union-required'
+        if (($migration['status'] ?? null) !== 'complete'
             || ($migration['ruleset_id'] ?? null) !== 15181711
-            || ($migration['active_live_projection'] ?? null) !== 'union'
+            || ($migration['active_live_projection'] ?? null) !== 'final'
             || ($migration['baseline'] ?? null) !== 'tools/ci-ruleset-main-protection-baseline.json'
             || ($migration['projector'] ?? null) !== 'bin/project-ci-ruleset'
             || ($migration['default_mode'] ?? null) !== 'dry-run'
-            || ($migration['allowed_live_projections_during_migration'] ?? null) !== ['legacy', 'union', 'final']) {
-            $errors[] = 'Task 7 ruleset migration must remain an explicit dry-run-first three-projection contract';
+            || ($migration['allowed_live_projections'] ?? null) !== ['final']) {
+            $errors[] = 'Task 7 ruleset migration must record the completed final-only live contract';
         }
         $unionEvidence = $migration['union_evidence'] ?? [];
         if (($unionEvidence['applied_from_main_sha'] ?? null) !== '840033e3b35a81aa3beb81d4391772a5ee810e24'
@@ -728,6 +716,19 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($unionEvidence['post_write_live_audit_run'] ?? null) !== 35495615254
             || ($unionEvidence['rollback_dry_run_verified'] ?? null) !== true) {
             $errors[] = 'Task 7 union projection must retain its exact write, audit, and rollback evidence';
+        }
+        $finalEvidence = $migration['final_evidence'] ?? [];
+        if (($finalEvidence['union_proof_pr'] ?? null) !== 3114
+            || ($finalEvidence['union_proof_head_sha'] ?? null) !== '82ca1188883c4749e7972a9bc2256e899bcc54d8'
+            || ($finalEvidence['applied_from_main_sha'] ?? null) !== '5196f173b06bac698f14d292c7b827f2ddac388f'
+            || ($finalEvidence['exact_merge_ci_run'] ?? null) !== 35496240376
+            || ($finalEvidence['pre_write_live_audit_run'] ?? null) !== 35496688253
+            || ($finalEvidence['before_hash'] ?? null) !== '5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27'
+            || ($finalEvidence['after_hash'] ?? null) !== 'f84798fbefbd93970f5f8f24696e4274799e19e0c800c174359766a951db591d'
+            || ($finalEvidence['verified_check_count'] ?? null) !== 31
+            || ($finalEvidence['post_write_live_audit_run'] ?? null) !== 35496776183
+            || ($finalEvidence['rollback_dry_run_verified'] ?? null) !== true) {
+            $errors[] = 'Task 7 final projection must retain its exact union proof, write, audit, and rollback evidence';
         }
         $phaseCounts = array_map(
             static fn(array $phase): mixed => $phase['required_context_count'] ?? null,
@@ -865,7 +866,7 @@ final class CiCheckRosterManifestTest extends TestCase
                 );
             }
         }
-        if (count($contextBindings) !== 22) {
+        if (count($contextBindings) !== 9) {
             $errors[] = 'every required projection context must carry exactly one binding';
         }
     }
@@ -924,9 +925,8 @@ final class CiCheckRosterManifestTest extends TestCase
         if (array_column($tasks, 'order') !== range(0, 9) || array_column($tasks, 'name') !== self::RESIDUAL_TASKS) {
             $errors[] = 'residual tasks must preserve the governed order';
         }
-        $expected = ['complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'current'];
-        if (array_slice(array_column($tasks, 'status'), 0, 8) !== $expected) {
-            $errors[] = 'residual tasks must record 0-6 complete and 7 current';
+        if (array_column($tasks, 'status') !== array_fill(0, 10, 'complete')) {
+            $errors[] = 'residual tasks must all be complete';
         }
     }
 

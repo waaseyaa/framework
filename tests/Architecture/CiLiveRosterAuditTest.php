@@ -21,7 +21,7 @@ final class CiLiveRosterAuditTest extends TestCase
     }
 
     #[Test]
-    public function a_conforming_exact_sha_proves_ruleset_and_all_nine_shadow_contexts(): void
+    public function a_conforming_exact_sha_proves_ruleset_and_all_nine_required_contexts(): void
     {
         [$policy, $inventory, $ruleset, $runs] = self::fixtures();
 
@@ -31,8 +31,8 @@ final class CiLiveRosterAuditTest extends TestCase
         self::assertSame(0, $report['counts']['error']);
         self::assertSame(15181711, $report['ruleset_snapshot']['id']);
         self::assertTrue($report['ruleset_snapshot']['strict']);
-        self::assertCount(22, $report['ruleset_snapshot']['contexts']);
-        self::assertSame('legacy', $report['ruleset_projection']['matched']);
+        self::assertCount(9, $report['ruleset_snapshot']['contexts']);
+        self::assertSame('final', $report['ruleset_projection']['matched']);
         self::assertSame(9, $report['stable_aggregate_count']);
         self::assertCount(9, $report['stable_aggregates']);
         self::assertSame(1, $report['measurement']['sample_size']);
@@ -48,22 +48,33 @@ final class CiLiveRosterAuditTest extends TestCase
     }
 
     #[Test]
-    public function exact_union_and_final_migration_projections_are_auditable(): void
+    public function only_the_final_projection_is_auditable_after_reconciliation(): void
     {
         [$policy, $inventory, $ruleset, $runs] = self::fixtures();
         $stable = array_map(
             static fn(array $entry): array => ['context' => $entry['context'], 'integration_id' => 15368],
-            array_values($policy['policy']['stable_aggregate_shadow']['contexts']),
+            array_values($policy['policy']['stable_aggregate_interface']['contexts']),
         );
+        $baseline = json_decode((string) file_get_contents(self::$root . '/tools/ci-ruleset-main-protection-baseline.json'), true, 512, JSON_THROW_ON_ERROR);
+        $legacy = [];
+        foreach ($baseline['rules'] as $rule) {
+            if (($rule['type'] ?? null) === 'required_status_checks') {
+                $legacy = $rule['parameters']['required_status_checks'];
+            }
+        }
 
-        foreach (['union' => array_merge($ruleset['rules'][0]['parameters']['required_status_checks'], $stable), 'final' => $stable] as $phase => $contexts) {
+        foreach (['legacy' => $legacy, 'union' => array_merge($legacy, $stable)] as $contexts) {
             $candidate = $ruleset;
             $candidate['rules'][0]['parameters']['required_status_checks'] = $contexts;
             $report = \cla_audit($policy, $inventory, $candidate, $runs, 'waaseyaa/framework', str_repeat('a', 40));
 
-            self::assertTrue($report['ok'], json_encode($report['findings']));
-            self::assertSame($phase, $report['ruleset_projection']['matched']);
+            self::assertFalse($report['ok']);
+            self::assertContains('CLA003', self::errorCodes($report));
         }
+
+        $report = \cla_audit($policy, $inventory, $ruleset, $runs, 'waaseyaa/framework', str_repeat('a', 40));
+        self::assertTrue($report['ok'], json_encode($report['findings']));
+        self::assertSame('final', $report['ruleset_projection']['matched']);
     }
 
     #[Test]
@@ -177,7 +188,7 @@ final class CiLiveRosterAuditTest extends TestCase
             self::assertSame('ci-roster-live-audit', $report['kind']);
             self::assertSame(['id', 'strict', 'contexts'], array_keys($snapshot));
             self::assertSame(15181711, $snapshot['id']);
-            self::assertCount(22, $snapshot['contexts']);
+            self::assertCount(9, $snapshot['contexts']);
         } finally {
             foreach (glob($directory . '/*') ?: [] as $path) {
                 unlink($path);
@@ -225,7 +236,7 @@ final class CiLiveRosterAuditTest extends TestCase
         ];
 
         $names = [];
-        foreach ($policy['policy']['stable_aggregate_shadow']['contexts'] as $entry) {
+        foreach ($policy['policy']['stable_aggregate_interface']['contexts'] as $entry) {
             $names[] = $entry['context'];
             array_push($names, ...$entry['prerequisite_contexts']);
         }
