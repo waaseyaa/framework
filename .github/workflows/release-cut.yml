@@ -79,6 +79,7 @@ jobs:
   cut:
     name: Cut release tag ${{ inputs.version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Verify SPLIT_GITHUB_TOKEN secret
         env:

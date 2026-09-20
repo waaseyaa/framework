@@ -25,6 +25,7 @@ jobs:
   contracts:
     name: admin/contracts
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/admin
@@ -86,6 +87,7 @@ jobs:
   build:
     name: admin/build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/admin
@@ -169,6 +171,7 @@ jobs:
   adapters:
     name: admin/adapters
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/admin
@@ -191,6 +194,7 @@ jobs:
   release:
     name: admin/release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [contracts, adapters, build, integration]
     if: startsWith(github.ref, 'refs/tags/v')
     defaults:

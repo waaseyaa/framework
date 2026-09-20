@@ -30,6 +30,7 @@ jobs:
     name: Enable native auto-merge
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'auto-merge-when-green'
     runs-on: ubuntu-latest
+    timeout-minutes: 125
     permissions:
       contents: write
       pull-requests: write

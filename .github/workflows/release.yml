@@ -25,6 +25,7 @@ jobs:
   validate-readiness-request:
     name: Validate explicit readiness request
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       candidate_sha: ${{ steps.validate.outputs.candidate_sha }}
     steps:
@@ -69,6 +70,7 @@ jobs:
   promote-ci-source-artifact:
     name: Promote exact-head CI source artifact
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [validate-readiness-request]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -94,6 +96,7 @@ jobs:
   build-release-candidate:
     name: Build exact release candidate
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs: [validate-readiness-request, promote-ci-source-artifact]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

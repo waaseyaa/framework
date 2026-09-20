@@ -12,6 +12,7 @@ jobs:
   verify-ci-green:
     name: Verify tagged SHA has green CI
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       actions: read
       contents: read
@@ -33,6 +34,7 @@ jobs:
   split:
     needs: verify-ci-green
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -258,6 +260,7 @@ jobs:
     name: Verify the tagged commit is still reachable from monorepo main
     needs: split
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # This does NOT require main == github.sha. Legitimate PRs can merge to
       # main while the split fan-out for this tag is still running (main only
@@ -288,6 +291,7 @@ jobs:
   verify-tag-parity:
     needs: split
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -311,6 +315,7 @@ jobs:
     # split target + existing repo in the first place.
     needs: split
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -354,6 +359,7 @@ jobs:
     needs: [publish-packagist]
     if: ${{ always() && (needs.publish-packagist.result == 'success' || needs.publish-packagist.result == 'failure') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -426,6 +432,7 @@ jobs:
     name: Assemble deterministic release evidence
     needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -493,6 +500,7 @@ jobs:
     needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist, assemble-release-evidence]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -549,6 +557,7 @@ jobs:
     name: Publish to Packagist (one crawl per package)
     needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
