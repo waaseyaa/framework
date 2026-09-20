@@ -276,6 +276,14 @@ cannot produce a green decision. The `merge/*` contexts are visible but are
 not required until the Task 6 live audit proves their names and terminal-state
 parity and Task 7 performs the governed ruleset migration.
 
+Task 6 adds `ci-roster-live-audit.yml`, scheduled weekly and available by manual
+dispatch only. `bin/audit-ci-roster-live` compares the manifest with the live
+ruleset integration bindings and the latest check runs for one exact SHA. It
+fails on a missing or non-successful stable decision or prerequisite, publishes
+the report and CRC026 snapshot as retained artifacts, and reports only labelled
+job-wall cost proxies because billed runner minutes are unavailable. GitHub API
+availability is therefore outside the ordinary pull-request critical path.
+
 ## Release readiness is not deployment
 
 Merging to `main` proves the Framework candidate through CI; it does not deploy

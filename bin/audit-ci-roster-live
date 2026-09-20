@@ -1,0 +1,143 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Scheduled/manual live audit for FW-CI-CHECK-ROSTER-AUDIT-01 Task 6.
+ *
+ * GitHub API access is deliberately absent from ordinary pull-request gates.
+ * Fixture files use the same REST response shapes for deterministic tests.
+ */
+
+$root = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+require_once $root . '/bin/lib/ci-live-roster-audit.php';
+
+function cla_cli_fail(string $message, int $exit = 2): never
+{
+    fwrite(STDERR, "audit-ci-roster-live: {$message}\n");
+    exit($exit);
+}
+
+/** @return array<string, mixed> */
+function cla_cli_read_json(string $path, string $label): array
+{
+    if (!is_file($path) || !is_readable($path)) {
+        cla_cli_fail("cannot read {$label} at {$path}.");
+    }
+    try {
+        $value = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        cla_cli_fail("{$label} is invalid JSON: " . $exception->getMessage());
+    }
+    if (!is_array($value)) {
+        cla_cli_fail("{$label} must decode to an object or array.");
+    }
+
+    return $value;
+}
+
+/** @return array<string, mixed> */
+function cla_cli_gh(array $arguments, string $label): array
+{
+    $command = array_merge(['gh', 'api'], $arguments);
+    $pipes = [];
+    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    if (!is_resource($process)) {
+        cla_cli_fail("could not start gh for {$label}.");
+    }
+    $output = stream_get_contents($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+    if ($exit !== 0) {
+        cla_cli_fail("GitHub API request for {$label} failed: " . trim((string) $error));
+    }
+    try {
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        cla_cli_fail("GitHub API response for {$label} is invalid JSON: " . $exception->getMessage());
+    }
+    if (!is_array($decoded)) {
+        cla_cli_fail("GitHub API response for {$label} must decode to an object or array.");
+    }
+
+    return $decoded;
+}
+
+$repository = getenv('GITHUB_REPOSITORY') ?: '';
+$sha = getenv('GITHUB_SHA') ?: '';
+$policyPath = $root . '/tools/ci-check-roster.json';
+$inventoryPath = $root . '/tools/ci-workflow-inventory.json';
+$rulesetPath = null;
+$checkRunsPath = null;
+$outputPath = null;
+$snapshotOutputPath = null;
+$json = false;
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--repo=')) {
+        $repository = substr($argument, strlen('--repo='));
+    } elseif (str_starts_with($argument, '--sha=')) {
+        $sha = substr($argument, strlen('--sha='));
+    } elseif (str_starts_with($argument, '--policy=')) {
+        $policyPath = substr($argument, strlen('--policy='));
+    } elseif (str_starts_with($argument, '--inventory=')) {
+        $inventoryPath = substr($argument, strlen('--inventory='));
+    } elseif (str_starts_with($argument, '--ruleset=')) {
+        $rulesetPath = substr($argument, strlen('--ruleset='));
+    } elseif (str_starts_with($argument, '--check-runs=')) {
+        $checkRunsPath = substr($argument, strlen('--check-runs='));
+    } elseif (str_starts_with($argument, '--output=')) {
+        $outputPath = substr($argument, strlen('--output='));
+    } elseif (str_starts_with($argument, '--snapshot-output=')) {
+        $snapshotOutputPath = substr($argument, strlen('--snapshot-output='));
+    } elseif ($argument === '--json') {
+        $json = true;
+    } else {
+        cla_cli_fail("unknown argument {$argument}.");
+    }
+}
+
+if (preg_match('~^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$~', $repository) !== 1) {
+    cla_cli_fail('--repo must be owner/repository.');
+}
+if (preg_match('/^[0-9a-f]{40}$/', $sha) !== 1) {
+    cla_cli_fail('--sha must be an exact 40-character lowercase commit SHA.');
+}
+
+$policy = cla_cli_read_json($policyPath, 'policy');
+$inventory = cla_cli_read_json($inventoryPath, 'workflow inventory');
+$rulesetId = $policy['policy']['required_projection']['source_ruleset_id'] ?? null;
+if (!is_int($rulesetId)) {
+    cla_cli_fail('the policy has no integer source_ruleset_id.');
+}
+
+$ruleset = $rulesetPath === null
+    ? cla_cli_gh(["repos/{$repository}/rulesets/{$rulesetId}"], 'ruleset')
+    : cla_cli_read_json($rulesetPath, 'ruleset fixture');
+$checkPayload = $checkRunsPath === null
+    ? cla_cli_gh(['--paginate', '--slurp', "repos/{$repository}/commits/{$sha}/check-runs?per_page=100&filter=latest"], 'check runs')
+    : cla_cli_read_json($checkRunsPath, 'check-run fixture');
+
+$report = cla_audit(
+    $policy,
+    $inventory,
+    $ruleset,
+    cla_normalize_check_runs($checkPayload),
+    $repository,
+    $sha,
+);
+$encoded = json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+if ($outputPath !== null && file_put_contents($outputPath, $encoded) === false) {
+    cla_cli_fail("could not write report to {$outputPath}.");
+}
+if ($snapshotOutputPath !== null) {
+    $snapshot = json_encode($report['ruleset_snapshot'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+    if (file_put_contents($snapshotOutputPath, $snapshot) === false) {
+        cla_cli_fail("could not write ruleset snapshot to {$snapshotOutputPath}.");
+    }
+}
+
+fwrite(STDOUT, $json ? $encoded : cla_render_lines($report));
+exit($report['ok'] ? 0 : 1);

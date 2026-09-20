@@ -62,7 +62,7 @@ final class CiRosterConformanceTest extends TestCase
         self::assertSame(0, $result['exit'], $result['error']);
         self::assertStringContainsString('0 error(s)', $result['output']);
         self::assertStringContainsString('not-verified-offline', $result['output']);
-        self::assertStringContainsString('Live ruleset conformance is task 6.', $result['output']);
+        self::assertStringContainsString('Use bin/audit-ci-roster-live for live ruleset conformance.', $result['output']);
     }
 
     #[Test]

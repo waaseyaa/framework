@@ -43,6 +43,10 @@
                 "sha256": "1dc04422e291d445d15578a2e2cc3bd9ac4db97eb08b9d3375de36b9ae97b685"
             },
             {
+                "file": "ci-roster-live-audit.yml",
+                "sha256": "6c53f1d483120b739111c1a2fee5ee426e1eec4c5a9f3861f5d773cdcc86c446"
+            },
+            {
                 "file": "ci.yml",
                 "sha256": "9e99dfbc1bf95a8c106300dfede52968bd3f6cf8cec074d3d8aeb1b0a5755754"
             },
@@ -117,10 +121,10 @@
         ]
     },
     "summary": {
-        "workflow_count": 22,
-        "job_count": 95,
-        "visible_context_count": 170,
-        "unresolved_expression_count": 16
+        "workflow_count": 23,
+        "job_count": 96,
+        "visible_context_count": 171,
+        "unresolved_expression_count": 17
     },
     "workflows": [
         {
@@ -1219,6 +1223,162 @@
             "artifact_flows": [],
             "duplicate_contexts": [],
             "unresolved_expressions": []
+        },
+        {
+            "file": "ci-roster-live-audit.yml",
+            "name": "CI roster live audit",
+            "source_sha256": "6c53f1d483120b739111c1a2fee5ee426e1eec4c5a9f3861f5d773cdcc86c446",
+            "triggers": {
+                "events": [
+                    "schedule",
+                    "workflow_dispatch"
+                ],
+                "selectors": [
+                    {
+                        "event": "schedule",
+                        "cron": [
+                            "41 6 * * 3"
+                        ]
+                    },
+                    {
+                        "event": "workflow_dispatch",
+                        "inputs": [
+                            {
+                                "name": "target_sha",
+                                "required": false,
+                                "type": "string",
+                                "has_default": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "actions": "read",
+                    "checks": "read",
+                    "contents": "read"
+                }
+            },
+            "concurrency": null,
+            "defaults": null,
+            "env": [],
+            "jobs": [
+                {
+                    "key": "live-audit",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "CI roster live audit",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "CI roster live audit",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "execution",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": false,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": null,
+                    "effective_permissions": {
+                        "scope": "workflow",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "actions": "read",
+                            "checks": "read",
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [],
+                    "needed_by": [],
+                    "if": null,
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": null,
+                    "dependency_result_references": [],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [
+                            {
+                                "step_index": 4,
+                                "name": "ci-roster-live-audit-${{ github.run_id }}",
+                                "kind": "unresolved-expression",
+                                "expansion": [],
+                                "path": [
+                                    "ci-roster-live-audit/"
+                                ],
+                                "if": "always()",
+                                "if_no_files_found": "error",
+                                "retention_days": 30,
+                                "overwrite": null
+                            }
+                        ],
+                        "consumes": []
+                    },
+                    "action_uses": [
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 5,
+                    "local_equivalent": {
+                        "status": "partial",
+                        "commands": [
+                            "bin/audit-ci-roster-live"
+                        ],
+                        "hosted_signals": [
+                            "github-token"
+                        ]
+                    }
+                }
+            ],
+            "artifact_flows": [
+                {
+                    "id": "ci-roster-live-audit-${{ github.run_id }}",
+                    "producers": [
+                        {
+                            "job": "live-audit",
+                            "kind": "unresolved-expression",
+                            "expansion": [],
+                            "if": "always()"
+                        }
+                    ],
+                    "consumers": [],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                }
+            ],
+            "duplicate_contexts": [],
+            "unresolved_expressions": [
+                "jobs.live-audit.steps.4.with.name: ci-roster-live-audit-${{ github.run_id }}"
+            ]
         },
         {
             "file": "ci.yml",

@@ -137,6 +137,7 @@ final class CiStableAggregateShadowTest extends TestCase
         $shadow = $manifest['policy']['stable_aggregate_shadow'] ?? null;
         self::assertIsArray($shadow);
         self::assertSame('shadow-only', $shadow['status'] ?? null);
+        self::assertSame(15368, $shadow['integration_id'] ?? null);
         self::assertSame(7, $shadow['ruleset_migration_task'] ?? null);
 
         $contexts = $shadow['contexts'] ?? null;
