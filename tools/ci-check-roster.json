@@ -323,9 +323,10 @@
       }
     },
     "ruleset_migration": {
-      "status": "tooling-only",
+      "status": "union-required",
       "task": 7,
       "ruleset_id": 15181711,
+      "active_live_projection": "union",
       "baseline": "tools/ci-ruleset-main-protection-baseline.json",
       "projector": "bin/project-ci-ruleset",
       "default_mode": "dry-run",
@@ -337,6 +338,14 @@
       },
       "forward_transitions": ["legacy-to-union", "union-to-final"],
       "rollback_transitions": ["union-to-legacy", "final-to-legacy"],
+      "union_evidence": {
+        "applied_from_main_sha": "840033e3b35a81aa3beb81d4391772a5ee810e24",
+        "before_hash": "671d65c3259e35c583de6ce71799bf091ffd08b1fd783d7323c4c8d12c388748",
+        "after_hash": "5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27",
+        "verified_check_count": 31,
+        "post_write_live_audit_run": 35495615254,
+        "rollback_dry_run_verified": true
+      },
       "apply_guards": [
         "explicit-apply-flag",
         "confirmed-ruleset-id",

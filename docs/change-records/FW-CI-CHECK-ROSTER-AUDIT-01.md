@@ -1214,6 +1214,34 @@ main run with all 31 contexts required. Only that proof authorizes the final
 nine-context projection. The full 22-context baseline remains the immediate
 rollback map throughout.
 
+### Union projection evidence
+
+PR #3113 qualified the projector on exact head
+`03d4862a2e443f5755ab0d8e3b8bb266ae914df6` with 56 successful visible
+checks and merged through the governed adapter as
+`840033e3b35a81aa3beb81d4391772a5ee810e24`. Post-merge run `35495114828`
+completed all 54 CI jobs successfully. Live audit run `35495539590` then
+confirmed the unchanged 22-context legacy projection on that same merge SHA.
+
+The fresh union dry run used `840033e3b35a81aa3beb81d4391772a5ee810e24`
+as both the current-main and evidence SHA. It verified 31 completed-success
+checks, matched before hash
+`671d65c3259e35c583de6ce71799bf091ffd08b1fd783d7323c4c8d12c388748`,
+and projected after hash
+`5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27`.
+The explicit apply refetched that exact after hash with 31 required contexts.
+No non-status field changed.
+
+The post-write local live audit matched the exact `union` projection with all
+nine stable decisions and their prerequisites green. Hosted live audit run
+`35495615254` independently passed on the same exact SHA. A dry-run rollback
+from the live union matched the inverse hashes and restored all 22 legacy
+contexts in its planned payload without consulting check state.
+
+This candidate is the fresh exact-head proof while all 31 contexts are live and
+required. Its merge must also pass exact-merge main CI and the live audit before
+the `union -> final` transition is authorized.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on
