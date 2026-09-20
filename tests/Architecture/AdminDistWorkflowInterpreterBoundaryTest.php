@@ -58,14 +58,11 @@ use Symfony\Component\Yaml\Yaml;
  * this run's artifact; the digest makes `publish`'s claim to hold the verified
  * bytes independent of resolution semantics, and assertable here.
  *
- * AUDITED, UNAFFECTED: .github/workflows/admin-dist.yml (the main-branch
- * rebuild) is not the same shape and does not need to be. It triggers on
- * `push` to main, so its input is code that is already merged rather than an
- * untrusted PR head, and its single `build-and-publish` job pins
- * shivammathur/setup-php @ 8.5 itself — so its `php bin/...` invocations never
- * fell back to a runner default and it never had the #2704 bug. The last test
- * here holds that pin in place. Extending the build/validate/publish split to
- * it is deliberately out of scope for #2704.
+ * The main-branch admin-dist rebuild now separates its dependency-executing
+ * build from its write-capable publisher (#3092). It still does not need this
+ * Dependabot workflow's independent validation job because its input is code
+ * already merged to main. The last test holds the pinned build interpreter
+ * and the no-interpreter publication boundary in place.
  */
 #[CoversNothing]
 final class AdminDistWorkflowInterpreterBoundaryTest extends TestCase
@@ -429,20 +426,25 @@ final class AdminDistWorkflowInterpreterBoundaryTest extends TestCase
     #[Test]
     public function the_main_branch_admin_dist_rebuild_pins_its_own_interpreter(): void
     {
-        // Audited alongside #2704: admin-dist.yml has one job, and that job
-        // pins setup-php @ 8.5, so its `php bin/...` invocations never fall
-        // back to the runner default. It triggers on push to main rather than
-        // on an untrusted PR head, so the three-job split is not what it
-        // needs; the pin is.
+        // The read-only build pins PHP 8.5. The write-capable publisher only
+        // installs the resulting data and must not execute an interpreter.
         $parsed = Yaml::parseFile(dirname(__DIR__, 2) . '/.github/workflows/admin-dist.yml');
         self::assertIsArray($parsed);
-        self::assertSame(['build-and-publish'], array_keys($parsed['jobs']));
+        self::assertSame(['build', 'build-and-publish'], array_keys($parsed['jobs']));
         self::assertSame(['main'], $parsed['on']['push']['branches'] ?? null);
 
-        $steps = $parsed['jobs']['build-and-publish']['steps'];
+        $steps = $parsed['jobs']['build']['steps'];
         $setupPhpIndex = $this->indexOfActionStep($steps, self::SETUP_PHP);
         self::assertNotNull($setupPhpIndex);
         self::assertSame('8.5', $steps[$setupPhpIndex]['with']['php-version'] ?? null);
+
+        foreach ($parsed['jobs']['build-and-publish']['steps'] as $step) {
+            self::assertStringNotContainsString('setup-php', (string) ($step['uses'] ?? ''));
+            self::assertDoesNotMatchRegularExpression(
+                '/(?:^|\n)\s*(?:sudo\s+)?(php|composer|npm|npx|node)\b/',
+                (string) ($step['run'] ?? ''),
+            );
+        }
     }
 
     /** @return list<string> */

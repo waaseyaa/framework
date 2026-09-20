@@ -11,6 +11,9 @@ name: changelog-discipline
 on:
   pull_request: {}
 
+permissions:
+  contents: read
+
 jobs:
   changelog-discipline:
     runs-on: ubuntu-latest

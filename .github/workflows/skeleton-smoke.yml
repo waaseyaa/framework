@@ -24,6 +24,9 @@ on:
         description: 'composer constraint for waaseyaa/framework (e.g. 0.1.0-alpha.168). Required.'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   smoke:
     # workflow_run fires on every completion; only proceed when upstream

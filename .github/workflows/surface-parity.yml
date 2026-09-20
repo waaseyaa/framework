@@ -28,6 +28,9 @@ on:
       - 'bin/generate-surface-map'
       - '.github/workflows/surface-parity.yml'
 
+permissions:
+  contents: read
+
 jobs:
   surface-parity:
     runs-on: ubuntu-latest

@@ -28,23 +28,23 @@
         "files": [
             {
                 "file": "admin-dist.yml",
-                "sha256": "b6b543f442439d43f55c0e0f39cb93d5251b216fab3ccae1dfd021103abc786a"
+                "sha256": "a8fb313607c23d5750c8da078e51e5cac3cec9db4b9b829dffdcabb24a48d470"
             },
             {
                 "file": "admin.yml",
-                "sha256": "c21886b3751672bfc915e26478bb2ad016ad067140286e12e126d57ac4292b00"
+                "sha256": "cd5180f52a00366b8e372cfe1755000a8f401a8ed834815fa48bad2b4043e480"
             },
             {
                 "file": "auto-merge.yml",
-                "sha256": "e99b827a13470b86419887115d65251855a992ef11f980e1fddbd01afa838248"
+                "sha256": "859a52659c096f91f66a5dcd9f9b26b7988f1485dab258268ed27f579d0d0094"
             },
             {
                 "file": "changelog-discipline.yml",
-                "sha256": "178a6b6ce94ceb281767394a69801f39ceae0ec794dd4a16e4259076540bcdb3"
+                "sha256": "7d8d8baef1f617f7f4fc771a0ea7a2a620504c82083cc9b03a2c0a04cc0645b6"
             },
             {
                 "file": "ci.yml",
-                "sha256": "25e11c7464dc1db2c9c20af46acfa0eaa78e1c818ed369738fd7331f9709add6"
+                "sha256": "7ff758fb5db56ae1521c59d828fc259685b3f30207e2bd3dc535f2a69be806fa"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -80,7 +80,7 @@
             },
             {
                 "file": "packagist-update.yml",
-                "sha256": "e6715939e145299100d5aa0afb5dcecaa1396c28eeda4e879eb4215c417ed268"
+                "sha256": "b1cce2a3e298cb8f3d72787d61598b4f501e33f903d9413f494d5631bffc4b86"
             },
             {
                 "file": "release-cut.yml",
@@ -88,7 +88,7 @@
             },
             {
                 "file": "release-gate.yml",
-                "sha256": "20acf0569b94436af1e7e2ede840c8683b60ad7c91e319393dc945075e53278d"
+                "sha256": "cda12d8778714422566135bb96ad518fad599d293ad04b0102c9961e768ce207"
             },
             {
                 "file": "release.yml",
@@ -96,7 +96,7 @@
             },
             {
                 "file": "skeleton-smoke.yml",
-                "sha256": "178f855bc4db5db45875a4904809aa1ca0219eb66b0385d5714d03fa461a1c8f"
+                "sha256": "5dc0a9596634d91328a4d20e959d761a3a0c4d6376483fbd9687dfa0f6b2e0df"
             },
             {
                 "file": "split-main.yml",
@@ -104,29 +104,29 @@
             },
             {
                 "file": "split.yml",
-                "sha256": "b97b4f510b3ed0faab34a4766944e0897b9f7fd246243da2571a3df7cd167fcd"
+                "sha256": "ede4ccf6e53cfe2e8bcbf789a4396fa33e94e1eec6fbc5eb556ca8f009e1515d"
             },
             {
                 "file": "surface-parity.yml",
-                "sha256": "b95bb117b76b6faea0fe3b4090d27fbd28d6132273b11f892bbe0e1de25b1588"
+                "sha256": "4bd7436ef9ba92b01034e2e0a1b167af49a61c086cf56ec7f0ef33af28eb9cb8"
             },
             {
                 "file": "sync-skeleton.yml",
-                "sha256": "d27409d6767303d25556795dd4290d6d1d05e2376dbdbb2223669b7f7a359342"
+                "sha256": "917e1b6902fe5a7fd13b41df447a6bf9552ae10860bcfa00ed2bb3f2d17deafc"
             }
         ]
     },
     "summary": {
         "workflow_count": 22,
-        "job_count": 85,
-        "visible_context_count": 160,
-        "unresolved_expression_count": 14
+        "job_count": 86,
+        "visible_context_count": 161,
+        "unresolved_expression_count": 16
     },
     "workflows": [
         {
             "file": "admin-dist.yml",
             "name": "Admin SPA Distribution Build",
-            "source_sha256": "b6b543f442439d43f55c0e0f39cb93d5251b216fab3ccae1dfd021103abc786a",
+            "source_sha256": "a8fb313607c23d5750c8da078e51e5cac3cec9db4b9b829dffdcabb24a48d470",
             "triggers": {
                 "events": [
                     "push",
@@ -152,9 +152,7 @@
                 "kind": "literal",
                 "shorthand": null,
                 "grants": {
-                    "actions": "write",
-                    "contents": "write",
-                    "pull-requests": "write"
+                    "contents": "read"
                 }
             },
             "concurrency": {
@@ -167,6 +165,105 @@
             "defaults": null,
             "env": [],
             "jobs": [
+                {
+                    "key": "build",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "Build admin SPA dist without write credentials",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "Build admin SPA dist without write credentials",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "setup",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": false,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-latest"
+                    },
+                    "timeout_minutes": null,
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [],
+                    "needed_by": [
+                        "build-and-publish"
+                    ],
+                    "if": null,
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": null,
+                    "dependency_result_references": [],
+                    "outputs": [
+                        "changed"
+                    ],
+                    "artifacts": {
+                        "produces": [
+                            {
+                                "step_index": 6,
+                                "name": "admin-dist-${{ github.sha }}",
+                                "kind": "unresolved-expression",
+                                "expansion": [],
+                                "path": [
+                                    "packages/admin-surface/dist",
+                                    "packages/admin-surface/dist.signature",
+                                    "packages/admin-surface/dist.manifest.json"
+                                ],
+                                "if": "steps.diff.outputs.changed == 'true'",
+                                "if_no_files_found": "error",
+                                "retention_days": 1,
+                                "overwrite": null
+                            }
+                        ],
+                        "consumes": []
+                    },
+                    "action_uses": [
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 8,
+                    "local_equivalent": {
+                        "status": "discoverable",
+                        "commands": [
+                            "bin/build-admin-dist",
+                            "composer install"
+                        ],
+                        "hosted_signals": []
+                    }
+                },
                 {
                     "key": "build-and-publish",
                     "name": {
@@ -205,9 +302,7 @@
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
-                    "permissions": null,
-                    "effective_permissions": {
-                        "scope": "workflow",
+                    "permissions": {
                         "kind": "literal",
                         "shorthand": null,
                         "grants": {
@@ -216,34 +311,69 @@
                             "pull-requests": "write"
                         }
                     },
-                    "needs": [],
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "actions": "write",
+                            "contents": "write",
+                            "pull-requests": "write"
+                        }
+                    },
+                    "needs": [
+                        "build"
+                    ],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "needs.build.outputs.changed == 'true'",
+                        "normalized": "needs.build.outputs.changed == 'true'",
+                        "classification": [
+                            "dependency-output"
+                        ],
+                        "references": [
+                            "needs.build.outputs.changed"
+                        ],
+                        "literals": [
+                            "true"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
-                        "propagates_prerequisite_failure": false
+                        "propagates_prerequisite_failure": true
                     },
                     "aggregate": null,
                     "dependency_result_references": [],
                     "outputs": [],
                     "artifacts": {
                         "produces": [],
-                        "consumes": []
+                        "consumes": [
+                            {
+                                "step_index": 1,
+                                "name": "admin-dist-${{ github.sha }}",
+                                "pattern": null,
+                                "kind": "unresolved-expression",
+                                "expansion": [],
+                                "path": "build/admin-dist-artifact",
+                                "merge_multiple": null,
+                                "cross_run": false,
+                                "run_id": null,
+                                "if": null
+                            }
+                        ]
                     },
                     "action_uses": [
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-                        "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                        "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
                     ],
-                    "step_count": 10,
+                    "step_count": 6,
                     "local_equivalent": {
                         "status": "partial",
                         "commands": [
                             "bin/admin-dist-acceptance",
-                            "bin/build-admin-dist",
-                            "composer create-project",
-                            "composer install"
+                            "composer create-project"
                         ],
                         "hosted_signals": [
                             "gh-cli",
@@ -254,14 +384,40 @@
                     }
                 }
             ],
-            "artifact_flows": [],
+            "artifact_flows": [
+                {
+                    "id": "admin-dist-${{ github.sha }}",
+                    "producers": [
+                        {
+                            "job": "build",
+                            "kind": "unresolved-expression",
+                            "expansion": [],
+                            "if": "steps.diff.outputs.changed == 'true'"
+                        }
+                    ],
+                    "consumers": [
+                        {
+                            "job": "build-and-publish",
+                            "via": "name",
+                            "kind": "unresolved-expression",
+                            "matched_producers": [],
+                            "if": null
+                        }
+                    ],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                }
+            ],
             "duplicate_contexts": [],
-            "unresolved_expressions": []
+            "unresolved_expressions": [
+                "jobs.build-and-publish.steps.1.with.name: admin-dist-${{ github.sha }}",
+                "jobs.build.steps.6.with.name: admin-dist-${{ github.sha }}"
+            ]
         },
         {
             "file": "admin.yml",
             "name": "Admin SPA",
-            "source_sha256": "c21886b3751672bfc915e26478bb2ad016ad067140286e12e126d57ac4292b00",
+            "source_sha256": "cd5180f52a00366b8e372cfe1755000a8f401a8ed834815fa48bad2b4043e480",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -293,7 +449,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": {
                 "kind": "unresolved-expression",
                 "value": {
@@ -343,10 +505,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -418,10 +582,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -511,10 +677,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -606,10 +774,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "build"
@@ -687,10 +857,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "adapters",
@@ -782,7 +954,7 @@
         {
             "file": "auto-merge.yml",
             "name": "Auto-merge when green",
-            "source_sha256": "e99b827a13470b86419887115d65251855a992ef11f980e1fddbd01afa838248",
+            "source_sha256": "859a52659c096f91f66a5dcd9f9b26b7988f1485dab258268ed27f579d0d0094",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -812,9 +984,7 @@
                 "kind": "literal",
                 "shorthand": null,
                 "grants": {
-                    "actions": "write",
-                    "contents": "write",
-                    "pull-requests": "write"
+                    "contents": "read"
                 }
             },
             "concurrency": null,
@@ -857,9 +1027,17 @@
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
-                    "permissions": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "actions": "write",
+                            "contents": "write",
+                            "pull-requests": "write"
+                        }
+                    },
                     "effective_permissions": {
-                        "scope": "workflow",
+                        "scope": "job",
                         "kind": "literal",
                         "shorthand": null,
                         "grants": {
@@ -922,7 +1100,7 @@
         {
             "file": "changelog-discipline.yml",
             "name": "changelog-discipline",
-            "source_sha256": "178a6b6ce94ceb281767394a69801f39ceae0ec794dd4a16e4259076540bcdb3",
+            "source_sha256": "7d8d8baef1f617f7f4fc771a0ea7a2a620504c82083cc9b03a2c0a04cc0645b6",
             "triggers": {
                 "events": [
                     "pull_request"
@@ -933,7 +1111,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -973,10 +1157,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -1013,7 +1199,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "25e11c7464dc1db2c9c20af46acfa0eaa78e1c818ed369738fd7331f9709add6",
+            "source_sha256": "7ff758fb5db56ae1521c59d828fc259685b3f30207e2bd3dc535f2a69be806fa",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -1043,7 +1229,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": {
                 "kind": "unresolved-expression",
                 "value": {
@@ -1089,10 +1281,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -1158,10 +1352,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -1230,10 +1426,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "ci-test-shards"
@@ -1363,10 +1561,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -1437,10 +1637,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -1509,10 +1711,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "frontend-build"
@@ -1618,10 +1822,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "ci-random-order-shard",
@@ -1753,10 +1959,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "prepare-random-order-plan",
@@ -1918,10 +2126,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "prepare-test-plan",
@@ -2049,10 +2259,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "ci-test-shards"
@@ -2139,10 +2351,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2208,10 +2422,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2277,10 +2493,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2346,10 +2564,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2416,10 +2636,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2487,10 +2709,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2561,10 +2785,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2631,10 +2857,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2706,10 +2934,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -2812,10 +3042,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2896,10 +3128,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -2970,10 +3204,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3040,10 +3276,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3108,10 +3346,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3196,10 +3436,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3266,10 +3508,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "spec-drift",
@@ -3357,10 +3601,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "spec-drift",
@@ -3467,10 +3713,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3550,10 +3798,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3617,10 +3867,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3684,10 +3936,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3755,10 +4009,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3824,10 +4080,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3893,10 +4151,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -3961,10 +4221,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -4048,10 +4310,12 @@
                     },
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -4123,10 +4387,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -4194,10 +4460,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -4263,10 +4531,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -4352,10 +4622,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -4444,10 +4716,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -6366,7 +6640,7 @@
         {
             "file": "packagist-update.yml",
             "name": "Verify Packagist Publication (standalone)",
-            "source_sha256": "e6715939e145299100d5aa0afb5dcecaa1396c28eeda4e879eb4215c417ed268",
+            "source_sha256": "b1cce2a3e298cb8f3d72787d61598b4f501e33f903d9413f494d5631bffc4b86",
             "triggers": {
                 "events": [
                     "push",
@@ -6398,7 +6672,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -6438,10 +6718,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [
@@ -6526,10 +6808,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "discover"
@@ -6734,7 +7018,7 @@
         {
             "file": "release-gate.yml",
             "name": "Release Gate",
-            "source_sha256": "20acf0569b94436af1e7e2ede840c8683b60ad7c91e319393dc945075e53278d",
+            "source_sha256": "cda12d8778714422566135bb96ad518fad599d293ad04b0102c9961e768ce207",
             "triggers": {
                 "events": [
                     "push",
@@ -6760,7 +7044,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -6800,10 +7090,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -6865,10 +7157,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -6930,10 +7224,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -7513,7 +7809,7 @@
         {
             "file": "skeleton-smoke.yml",
             "name": "Skeleton Smoke (Packaged-form CI)",
-            "source_sha256": "178f855bc4db5db45875a4904809aa1ca0219eb66b0385d5714d03fa461a1c8f",
+            "source_sha256": "5dc0a9596634d91328a4d20e959d761a3a0c4d6376483fbd9687dfa0f6b2e0df",
             "triggers": {
                 "events": [
                     "workflow_dispatch",
@@ -7542,7 +7838,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -7585,10 +7887,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -7914,7 +8218,7 @@
         {
             "file": "split.yml",
             "name": "Split Monorepo",
-            "source_sha256": "b97b4f510b3ed0faab34a4766944e0897b9f7fd246243da2571a3df7cd167fcd",
+            "source_sha256": "ede4ccf6e53cfe2e8bcbf789a4396fa33e94e1eec6fbc5eb556ca8f009e1515d",
             "triggers": {
                 "events": [
                     "push"
@@ -7928,7 +8232,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -8244,10 +8554,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "split",
@@ -9875,10 +10187,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "verify-ci-green"
@@ -10127,10 +10441,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "split"
@@ -10202,10 +10518,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "publish-packagist"
@@ -10305,10 +10623,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "split"
@@ -10380,10 +10700,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [
                         "split"
@@ -10564,7 +10886,7 @@
         {
             "file": "surface-parity.yml",
             "name": "surface-parity",
-            "source_sha256": "b95bb117b76b6faea0fe3b4090d27fbd28d6132273b11f892bbe0e1de25b1588",
+            "source_sha256": "4bd7436ef9ba92b01034e2e0a1b167af49a61c086cf56ec7f0ef33af28eb9cb8",
             "triggers": {
                 "events": [
                     "pull_request"
@@ -10591,7 +10913,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -10631,10 +10959,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -10673,7 +11003,7 @@
         {
             "file": "sync-skeleton.yml",
             "name": "Sync Application Skeleton",
-            "source_sha256": "d27409d6767303d25556795dd4290d6d1d05e2376dbdbb2223669b7f7a359342",
+            "source_sha256": "917e1b6902fe5a7fd13b41df447a6bf9552ae10860bcfa00ed2bb3f2d17deafc",
             "triggers": {
                 "events": [
                     "push"
@@ -10687,7 +11017,13 @@
                     }
                 ]
             },
-            "permissions": null,
+            "permissions": {
+                "kind": "literal",
+                "shorthand": null,
+                "grants": {
+                    "contents": "read"
+                }
+            },
             "concurrency": null,
             "defaults": null,
             "env": [],
@@ -10730,10 +11066,12 @@
                     "defaults": null,
                     "permissions": null,
                     "effective_permissions": {
-                        "scope": "repository-default",
-                        "kind": "unresolved-expression",
+                        "scope": "workflow",
+                        "kind": "literal",
                         "shorthand": null,
-                        "grants": null
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],

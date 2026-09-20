@@ -23,15 +23,17 @@ on:
         type: number
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: read
 
 jobs:
   enable-auto-merge:
     name: Enable native auto-merge
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'auto-merge-when-green'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}

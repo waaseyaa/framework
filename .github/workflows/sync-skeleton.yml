@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -65,9 +68,27 @@ jobs:
             git commit -m "chore: sync with framework ${TAG_NAME}"
           fi
 
-          # Always tag to match the framework release
-          git tag "${TAG_NAME}" -f
-          git push origin main --tags --force
+          # Publish only a forward update. A release tag is immutable: a rerun
+          # may confirm the same tag/SHA pair, but it must never retarget it.
+          CURRENT_SHA="$(git rev-parse HEAD)"
+          REMOTE_TAG_SHA="$(git ls-remote --refs origin "refs/tags/${TAG_NAME}" | awk '{print $1}')"
+          if [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" != "$CURRENT_SHA" ]; then
+            echo "::error::RETAG_BLOCKED: ${TAG_NAME} already points to ${REMOTE_TAG_SHA}, not ${CURRENT_SHA}."
+            exit 1
+          fi
+
+          LOCAL_TAG_SHA="$(git rev-parse -q --verify "refs/tags/${TAG_NAME}^{commit}" || true)"
+          if [ -n "$LOCAL_TAG_SHA" ] && [ "$LOCAL_TAG_SHA" != "$CURRENT_SHA" ]; then
+            echo "::error::Local ${TAG_NAME} points to ${LOCAL_TAG_SHA}, not ${CURRENT_SHA}."
+            exit 1
+          fi
+          if [ -z "$LOCAL_TAG_SHA" ]; then
+            git tag "${TAG_NAME}"
+          fi
+
+          # Atomic publication prevents a main-only or tag-only partial sync.
+          # A non-fast-forward main update or conflicting tag fails closed.
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/${TAG_NAME}"
 
       - name: Publish skeleton to Packagist (one crawl)
         # sync-skeleton.yml is the SOLE owner of waaseyaa/waaseyaa: split.yml's

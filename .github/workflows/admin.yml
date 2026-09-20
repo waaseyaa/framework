@@ -14,6 +14,9 @@ on:
       - 'packages/admin-surface/contract/**'
       - '.github/workflows/admin.yml'
 
+permissions:
+  contents: read
+
 concurrency:
   group: admin-${{ github.ref }}
   cancel-in-progress: true
