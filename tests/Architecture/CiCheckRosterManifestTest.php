@@ -711,13 +711,23 @@ final class CiCheckRosterManifestTest extends TestCase
         }
 
         $migration = $manifest['policy']['ruleset_migration'] ?? [];
-        if (($migration['status'] ?? null) !== 'tooling-only'
+        if (($migration['status'] ?? null) !== 'union-required'
             || ($migration['ruleset_id'] ?? null) !== 15181711
+            || ($migration['active_live_projection'] ?? null) !== 'union'
             || ($migration['baseline'] ?? null) !== 'tools/ci-ruleset-main-protection-baseline.json'
             || ($migration['projector'] ?? null) !== 'bin/project-ci-ruleset'
             || ($migration['default_mode'] ?? null) !== 'dry-run'
             || ($migration['allowed_live_projections_during_migration'] ?? null) !== ['legacy', 'union', 'final']) {
             $errors[] = 'Task 7 ruleset migration must remain an explicit dry-run-first three-projection contract';
+        }
+        $unionEvidence = $migration['union_evidence'] ?? [];
+        if (($unionEvidence['applied_from_main_sha'] ?? null) !== '840033e3b35a81aa3beb81d4391772a5ee810e24'
+            || ($unionEvidence['before_hash'] ?? null) !== '671d65c3259e35c583de6ce71799bf091ffd08b1fd783d7323c4c8d12c388748'
+            || ($unionEvidence['after_hash'] ?? null) !== '5a8a3e17013dc138a73d32739fb5139def5d675301a4a3761c28e70f0f97ca27'
+            || ($unionEvidence['verified_check_count'] ?? null) !== 31
+            || ($unionEvidence['post_write_live_audit_run'] ?? null) !== 35495615254
+            || ($unionEvidence['rollback_dry_run_verified'] ?? null) !== true) {
+            $errors[] = 'Task 7 union projection must retain its exact write, audit, and rollback evidence';
         }
         $phaseCounts = array_map(
             static fn(array $phase): mixed => $phase['required_context_count'] ?? null,
