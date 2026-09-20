@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   verify-ci-green:
     name: Verify tagged SHA has green CI

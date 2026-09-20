@@ -10,6 +10,9 @@ on:
         description: Tag to validate
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   check-approval:
     name: Verify v1.0 release authorization
