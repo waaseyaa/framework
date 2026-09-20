@@ -7,11 +7,11 @@
     "prefer-stable": true,
     "require": {
         "php": ">=8.5",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.300"
+        "waaseyaa/database-legacy": "^0.1.0-alpha.301"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/entity": "^0.1.0-alpha.300"
+        "waaseyaa/entity": "^0.1.0-alpha.301"
     },
     "repositories": [
         {

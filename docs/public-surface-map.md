@@ -46,7 +46,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `DatabaseIdentityProviderInterface` | interface | public | — |
 | `DatabaseInterface` | interface | public | Doctrine DBAL abstraction: query builder entry point for select, insert, update, delete |
 | `DeleteInterface` | interface | public | Fluent DELETE query builder with conditions |
-| `Exception\TransactionCompletionException` | final class | public | Reports completion-effect failures after the database has committed |
+| `Exception\TransactionCompletionException` | final class | public | Reports completion-effect failures after the database has committed; optional `committedByUnitToken` correlates UnitOfWork post-commit drains (#2999) |
 | `ForeignKeySchemaInterface` | interface | public | — |
 | `InsertInterface` | interface | public | Fluent INSERT query builder |
 | `SchemaInterface` | interface | public | DDL operations: create/alter/drop tables and columns |
@@ -143,9 +143,11 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface` | interface | public | — |
 | `ServiceProvider\Capability\ProvidesCapabilitiesInterface` | interface | public | — |
 | `ServiceProvider\Capability\ProvidesConsoleCommandsInterface` | interface | public | — |
+| `ServiceProvider\Capability\ProvidesPermissionsInterface` | interface | public | Contributes permission definitions to the one kernel-composed permission catalogue that role grants are validated against at boot |
 | `ServiceProvider\Capability\ProvidesRolesInterface` | interface | public | — |
 | `ServiceProvider\Capability\RequiresCapabilitiesInterface` | interface | public | — |
 | `ServiceProvider\Capability\RequiresOptionalPackagesInterface` | interface | public | — |
+| `ServiceProvider\CircularServiceResolutionException` | final class | public | Reports an ordered circular dependency path from service-provider or kernel-handler resolution |
 | `ServiceProvider\KernelServicesInterface` | interface | public | — |
 | `ServiceProvider\ServiceProvider` | abstract class | public | Base class for service providers with DI binding and resolution helpers |
 | `ServiceProvider\ServiceProviderInterface` | interface | public | Contract for packages to register and boot their services |
@@ -204,6 +206,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
 | `OAuthProviderInterface` | interface | public | OAuth 2.0 provider abstraction: authorization URL, code exchange, token refresh, user profile |
+| `Provider\GoogleAccessType` | enum | public | Selects online or offline access for Google authorization requests |
 | `SessionInterface` | interface | public | Manages OAuth session state (CSRF state token and post-auth redirect) |
 
 ### plugin
@@ -232,7 +235,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Exception\InvalidPersistentPayload` | final class | public | Exact replay payload failed authentication |
 | `FailedJobRepositoryInterface` | interface | internal | — |
 | `Handler\HandlerInterface` | interface | internal | — |
-| `Job` | abstract class | internal | — |
+| `Job` | abstract class | public | Abstract application job: subclass and implement handle(); there is no JobInterface |
 | `OccurrenceQueueInterface` | interface | public | — |
 | `Occurrence\OccurrenceAwareMessageInterface` | interface | public | — |
 | `Occurrence\OccurrenceContextInterface` | interface | public | — |
@@ -261,6 +264,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
+| `Blueprint\BlueprintAppliedEvidence` | final readonly class | public | Closed generated-metadata evidence that a digest-bound approved application blueprint was applied |
 | `Blueprint\BlueprintCheckKind` | enum | public | — |
 | `Blueprint\BlueprintConditionKind` | enum | public | — |
 | `Blueprint\BlueprintDecision` | enum | public | — |
@@ -277,8 +281,10 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Generation\ChangeOutcome` | enum | public | Closed applied/no_op/refused/failed/recovered governed-change receipt outcome |
 | `Generation\Exception\GenerationErrorCode` | enum | public | Closed GEN001-GEN015 refusal ids for the generation execution and plan boundary, reserved by ADR-025 D-5 |
 | `Generation\GenerationUnitDisposition` | enum | public | Closed managed/seeded vocabulary for how a generation unit's artifacts are treated after publication |
+| `Generation\GeneratorFeatureNegotiation` | final class | public | Fail-closed generator-feature negotiation refusing an unadvertised required token before any render, lock, journal or write |
 | `Generation\ObservedTargetMode` | enum | public | Closed 0644/0755/other/unknown record of the permission bits evaluation observed |
 | `Generation\ObservedTargetState` | enum | public | Closed absent/file/other record of what evaluation observed at one target path |
+| `Generation\SiteRecipeProviderRegistrationInterface` | interface | public | A first-party recipe's fixed Composer provider registration, consumed by SiteArtifactRenderer::compile() to enter the root artifact plan |
 | `Generation\SiteRecipeRendererInterface` | interface | public | — |
 | `ManifestShapeReader` | trait | internal | — |
 | `Version\ManifestVersionDisposition` | enum | public | Closed current, migration-required, and unsupported-future schema-version decision |
@@ -342,9 +348,10 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `ProtectedFieldReadPolicyInterface` | interface | public | Dedicated fail-closed Protected read policy; only explicit Allowed will release a value after activation |
 | `ProtectedReadPolicyProviderInterface` | interface | public | Additive companion through which a discovered legacy policy exposes its entity and field V2 read policies |
 | `Query\QueryFieldReadRequest` | final readonly class | public | Metadata-only query compiler input retaining exact fields/operations and an irreversible normalized-shape fingerprint |
+| `Read\AuthorizationInputReader` | final class | public | Generalizes the bound-closure authorizationInput read pattern to any entity, for generated access policies with no entity-specific reader class |
 | `User\UserAuthorizationSnapshot` | final readonly class | public | — |
 | `User\UserCredentialSnapshot` | final readonly class | public | — |
-| `User\UserIdentityLookupInterface` | interface | public | Closed audited active-login, mail-only recovery, and mail-existence query boundary |
+| `User\UserIdentityLookupInterface` | interface | public | Closed audited active-login, mail-only recovery, and historical login/mail-existence query boundary |
 | `User\UserInternalFieldReaderInterface` | interface | public | Narrow reason-specific User credential, session, mail, verification, 2FA, and maintenance read boundary |
 | `User\UserMailSnapshot` | final readonly class | public | — |
 | `User\UserSelfProfileReaderInterface` | interface | public | — |
@@ -461,6 +468,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Sync\DiffResult` | final readonly class | internal | — |
 | `Sync\FieldValueMapper` | final class | internal | — |
 | `Sync\FieldViolation` | final readonly class | internal | — |
+| `Sync\InitialConfigImportPreflightInterface` | interface | public | — |
 | `Sync\SignedEnvelopeConfigImportPreflight` | final readonly class | public | — |
 | `Sync\StatusEntry` | final readonly class | internal | — |
 | `Sync\StatusReport` | final readonly class | internal | — |
@@ -494,6 +502,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `DateTime\UtcEntityClock` | final class | public | — |
 | `DefinesEntityType` | interface | public | — |
 | `EntityBase` | abstract class | public | Default implementations of `EntityInterface`; subclasses hardcode entity type ID and keys |
+| `EntityCreationValuesInterface` | interface | public | Pure entity-owned normalization of new semantic values before sealed repository construction |
 | `EntityInterface` | interface | public | Core contract for all entity types: identity, label, type ID, and value access |
 | `EntitySerializationBoundary` | final readonly class | public | Explicit dormant/enforced PHP serialization boundary for value-bearing entities |
 | `EntitySerializationBoundaryConfig` | final readonly class | public | Exact activation toggle for entity PHP serialization rejection |
@@ -530,6 +539,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Testing\Translation\TranslatableEntityContractTest` | abstract class | public | — |
 | `TranslatableEntityTrait` | trait | public | — |
 | `TranslatableInterface` | interface | public | Per-language translation access for a translatable entity (M-006 / ADR 017): `getTranslation`, `hasTranslation`, `addTranslation`, `removeTranslation`, `translations`, `defaultLangcode`, `activeLangcode`, `fieldLangcode`. `language()` retained as deprecated alias for `activeLangcode()` |
+| `Validation\EntityReferenceExistenceChecker` | final class | internal | Closed resolver-backed callable admitted for non-Public entity-reference existence validation |
 | `Validation\RedactedInvalidValue` | enum | internal | Internal value-free sentinel used when validation reports a restricted invalid field |
 | `Validation\ValidationReadLedgerInterface` | interface | internal | Internal validation adapter that reserves an authorized restricted-field read before value access |
 | `Validation\ValidationReadReservationInterface` | interface | internal | Internal one-shot reservation that records validation-read success or failure without retaining the value |
@@ -585,6 +595,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Exception\BundleAmbiguousFieldException` | final class | public | — |
 | `Exception\BundleUniqueKeyConflictException` | final class | public | Stable repository conflict for a database-enforced bundle key (`BUNDLE_UNIQUE_KEY_CONFLICT`) (#2603) |
 | `Exception\BundleUniqueKeyMigrationException` | final class | public | Stable schema-sync refusal when existing bundle rows duplicate a declared key (`bundle_unique_key_duplicates`) (#2603) |
+| `Exception\EntityMutationCommittedSideEffectsFailedException` | final class | public | Repository-translated signal that this mutation-authority UnitOfWork committed then failed post-commit completion; wraps a token-matched `TransactionCompletionException` (#2999) |
 | `Exception\PartialSaveException` | final class | public | Thrown on backend fan-out failure, including first-backend failure with an empty committed set; carries `$errorCode` (M-001, WP04) |
 | `Exception\StorageMigrationException` | final class | public | Typed exception for storage-migration / two-axis schema failures during kernel boot, schema sync, or migration generator runs. Stable `errorCode` strings: `no_op_promotion`, `unsupported_two_axis_field` (M-004, WP04) |
 | `Exception\UnknownBackendException` | final class | public | Thrown when a field references an unregistered backend id (M-001, WP02) |
@@ -679,6 +690,8 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 |---------|------|-------------|---------|
 | `Authentication\AuthenticationEligibilityInterface` | interface | public | — |
 | `Authentication\AuthenticationStage` | enum | public | — |
+| `RegisteredRoleAssignment` | final readonly class | public | Canonical registered-role membership and flattened permission union |
+| `RegisteredRoleAssignmentService` | final readonly class | public | Shared registered-role replacement/removal and permission-union authority |
 
 ## Layer 2: Content Types
 
@@ -894,10 +907,14 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
 | `Graph\GraphSectionProviderInterface` | interface | public | — |
+| `Install\ClientCapabilitySurface` | enum | public | — |
 | `Install\ClientTransformerInterface` | interface | public | — |
+| `Install\Client\AbstractPerSkillClientTransformer` | abstract class | public | — |
 | `Install\Client\AbstractSingleFileClientTransformer` | abstract class | public | — |
+| `Install\ManifestReadStatus` | enum | public | — |
 | `Install\SkillDeliveryMode` | enum | public | — |
 | `Install\SkillResourceFailure` | enum | public | — |
+| `Install\VerifyFindingCode` | enum | public | — |
 
 ### routing
 
@@ -975,14 +992,29 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
 | `Action\SurfaceActionHandlerInterface` | interface | public | Handles a custom admin surface action for a given entity type and payload |
+| `AdminDestinationPaths` | final class | public | Canonical Admin SPA destination URL authority |
+| `AdminSurfaceRoutePaths` | final class | public | Canonical Admin Surface HTTP route path authority |
+| `Catalog\ActionDefinition` | final class | public | Catalog action declaration returned through custom host composition |
+| `Catalog\CatalogBuilder` | final class | public | Application catalog construction API used by custom Admin Surface hosts |
+| `Catalog\EntityDefinition` | final class | public | Catalog entity declaration returned through custom host composition |
+| `Catalog\FieldDefinition` | final class | public | Catalog field declaration returned through custom host composition |
 | `Host\AbstractAdminSurfaceHost` | abstract class | public | Base class applications extend to integrate with the admin SPA (session, catalog, entity ops) |
 | `Host\AdminPublicationFieldReaderInterface` | interface | public | Closed application-wiring boundary for authorized node publication metadata in admin lists |
 | `Host\AdminRevisionPreviewAuthorityInterface` | interface | public | — |
+| `Host\AdminRevisionPreviewGrantData` | final readonly class | public | Crossing value for an application-authorized exact-revision preview grant |
 | `Host\AdminSurfaceHostFactoryInterface` | interface | public | — |
+| `Host\AdminSurfaceResultData` | final readonly class | public | Canonical Admin Surface success and refusal envelope value |
+| `Host\AdminSurfaceSessionData` | final readonly class | public | Canonical session payload value returned by custom hosts |
+| `Host\AdminSurfaceUiPayload` | final readonly class | public | Optional Admin UI customization payload supplied by custom hosts |
 | `Host\BatchAdminPublicationFieldReaderInterface` | interface | public | Cardinality-preserving batch extension that projects an authorized list scope transactionally |
 | `List\ListFormatter` | enum | public | — |
+| `List\ListMetadata` | final readonly class | public | Validated list-metadata declaration shared by hosts and query enforcement |
+| `List\SurfaceQueryPolicy` | final class | public | Enforces declared list filters and sorting before host delegation |
+| `PageBuilder\GenericPageBuilderSurfaceHost` | final readonly class | public | Framework default page-builder host for generated and application composition |
 | `PageBuilder\PageBuilderSurfaceHostInterface` | interface | public | — |
+| `PageBuilder\PageBuilderSurfaceRequest` | final readonly class | public | Authenticated principal and body value passed to page-builder host ports |
 | `Query\SurfaceFilterOperator` | enum | public | — |
+| `Query\SurfaceQuery` | final readonly class | public | Parsed and validated Admin list query crossing value |
 
 ### cli
 
@@ -1010,9 +1042,22 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Handler\MakeStorageMigrationHandler` | final class | public | — |
 | `Handler\MutationAuthorityBackfillHandler` | final readonly class | public | — |
 | `Io\StdinSource` | interface | public | — |
+| `ProjectInit\ProjectInitProcessRunnerInterface` | interface | internal | — |
 | `Provider\MakeStorageMigrationServiceProvider` | final class | public | — |
 | `Security\CliFieldReadCapabilityDeclaration` | final readonly class | public | Exact command scope and closed CLI-valid privileged-read reason |
 | `Security\CliFieldReadCapabilityIssuer` | final readonly class | public | Issues null-actor NoActingContext capabilities from command metadata |
+| `Site\Blueprint\ApplicationBlueprintCompiler` | final class | public | Pure root compiler composing the manifest renderer with the blueprint emitter roster; unreachable from the CLI until the eligibility-gated 01D-2 slice |
+| `Site\Blueprint\ApplicationBlueprintCompilerFactory` | final class | public | Single composition root for the blueprint compiler and its emitter roster |
+| `Site\Blueprint\Emitter\AccessPolicyEmitter` | final class | public | Emits one open-by-default AccessPolicyInterface class per blueprint entity declaring at least one policy |
+| `Site\Blueprint\Emitter\BlueprintArtifactEmitterInterface` | interface | public | Pure emitter seam contributing artifacts, registrations, and companion tests to the blueprint compiler |
+| `Site\Blueprint\Emitter\BlueprintEmission` | final readonly class | public | Immutable output of one blueprint artifact emitter |
+| `Site\Blueprint\Emitter\EntityClassEmitter` | final class | public | Emits one content entity class per blueprint entity |
+| `Site\Blueprint\Emitter\GovernanceCheckEmitter` | final class | public | Emits the blueprint check-derived companion tests under tests/Blueprint/, always including a default-deny regression test |
+| `Site\Blueprint\Emitter\GovernanceProviderEmitter` | final class | public | Emits the second, distinct provider implementing ProvidesRolesInterface and seeding declared workflows |
+| `Site\Blueprint\Emitter\PermissionCatalogueEmitter` | final class | public | Emits PERMISSION_* constants, a seed(), and a register() convenience for the blueprint's declared permissions |
+| `Site\Blueprint\Emitter\ProviderRegistrationEmitter` | final class | public | Emits the generated application blueprint service provider and its Composer registration |
+| `Site\Blueprint\Emitter\RelationshipEmitter` | final class | public | Emits the deterministic blueprint relationship registry for a later consumer; not loaded by the generated provider today |
+| `Site\Blueprint\Emitter\WorkflowDefinitionEmitter` | final class | public | Emits one Workflow-hydration-shaped WorkflowDefinition class per blueprint workflow plus the aggregate workflows.assignments sync entry |
 | `Site\SiteHostPlatform` | enum | internal | — |
 | `Site\SitePathContainment` | final class | internal | — |
 | `Site\SitePreset` | enum | internal | — |
