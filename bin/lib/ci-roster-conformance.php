@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 /**
  * Offline conformance verifier for the governed CI policy
- * (FW-CI-CHECK-ROSTER-AUDIT-01, Task 3; GitHub mirror #3087).
+ * (FW-CI-CHECK-ROSTER-AUDIT-01, Task 3 with Task 5 shadow extensions;
+ * GitHub mirror #3087).
  *
  * `bin/check-ci-roster-conformance` compares the hand-authored policy
  * (`tools/ci-check-roster.json`) with the generated workflow inventory
@@ -101,10 +102,125 @@ function crc_verify(array $policy, array $inventory, ?array $ruleset = null): ar
     crc_check_artifacts($policy, $index, $bindings, $findings);
     crc_check_cadences($policy, $index, $bindings, $findings);
     crc_check_integration_bindings($policy, $ruleset, $findings);
+    crc_check_stable_aggregate_shadow($policy, $index, $bindings, $findings);
     crc_check_coverage($policy, $index, $bindings, $findings);
     crc_check_verifiable_shape($policy, $bindings, $findings);
 
     return $findings;
+}
+
+/**
+ * CRC031-CRC034: the Task 5 candidate projection is visible, fail-closed,
+ * equivalent to the current required roster, and still shadow-only.
+ *
+ * @param array<string, mixed> $policy
+ * @param array{workflows: array<string, array<string, mixed>>, jobs: array<string, array<string, array<string, mixed>>>, context_owners: array<string, list<string>>} $index
+ * @param array<string, mixed> $bindings
+ * @param list<array<string, string>> $findings
+ */
+function crc_check_stable_aggregate_shadow(array $policy, array $index, array $bindings, array &$findings): void
+{
+    $shadow = $policy['policy']['stable_aggregate_shadow'] ?? null;
+    if (!is_array($shadow)) {
+        return;
+    }
+
+    $workflowPolicyId = $shadow['workflow_policy_id'] ?? null;
+    $primaryWorkflow = is_string($workflowPolicyId) ? ($bindings['workflow_policies'][$workflowPolicyId] ?? null) : null;
+    $contexts = $shadow['contexts'] ?? [];
+    $requiredEntries = $policy['policy']['required_projection']['contexts'] ?? [];
+    $requiredNames = array_column($requiredEntries, 'context');
+    $requiredBindings = $bindings['required_contexts'] ?? [];
+    $coveredContexts = [];
+
+    foreach ($contexts as $jobId => $entry) {
+        $locator = sprintf('stable_aggregate_shadow.contexts[%s]', $jobId);
+        $binding = ['workflow' => $primaryWorkflow, 'job' => $jobId];
+        $bound = crc_locator($binding);
+        $job = is_string($primaryWorkflow) ? crc_job($index, $binding) : null;
+
+        if ($job === null) {
+            crc_add($findings, 'CRC031', CRC_ERROR, $locator, $bound, 'the candidate aggregate job is missing', 'a job in the primary CI workflow');
+            continue;
+        }
+
+        $context = $entry['context'] ?? null;
+        $owners = is_string($context) ? ($index['context_owners'][$context] ?? []) : [];
+        $actualContexts = crc_context_names($job);
+        if (!is_string($context) || $actualContexts !== [$context] || $owners !== [$bound]
+            || ($job['structural_role'] ?? null) !== 'aggregate'
+            || ($job['aggregate']['gate'] ?? null) !== 'always') {
+            crc_add(
+                $findings,
+                'CRC031',
+                CRC_ERROR,
+                $locator,
+                $bound,
+                sprintf('contexts=%s owners=%s role=%s gate=%s', crc_json($actualContexts), crc_json($owners), (string) ($job['structural_role'] ?? 'null'), (string) ($job['aggregate']['gate'] ?? 'null')),
+                sprintf('one uniquely owned context %s on an always() aggregate', crc_json($context)),
+            );
+        }
+
+        $prerequisiteJobs = $entry['prerequisite_jobs'] ?? [];
+        $actualNeeds = $job['needs'] ?? [];
+        $checked = $job['aggregate']['result_checked_prerequisites'] ?? [];
+        $unchecked = $job['aggregate']['result_unchecked_prerequisites'] ?? [];
+        $sortedExpectedJobs = $prerequisiteJobs;
+        sort($sortedExpectedJobs);
+        if ($actualNeeds !== $sortedExpectedJobs || $checked !== $sortedExpectedJobs || $unchecked !== []) {
+            crc_add(
+                $findings,
+                'CRC032',
+                CRC_ERROR,
+                $locator . '.prerequisite_jobs',
+                $bound,
+                sprintf('needs=%s checked=%s unchecked=%s', crc_json($actualNeeds), crc_json($checked), crc_json($unchecked)),
+                sprintf('needs and explicit success checks exactly %s, with none unchecked', crc_json($sortedExpectedJobs)),
+            );
+        }
+
+        $prerequisiteContexts = $entry['prerequisite_contexts'] ?? [];
+        if (count($prerequisiteContexts) !== count($prerequisiteJobs)) {
+            crc_add($findings, 'CRC033', CRC_ERROR, $locator . '.prerequisite_contexts', $bound, 'context and job prerequisite counts differ', 'one current required context for every prerequisite job');
+        }
+        foreach ($prerequisiteContexts as $position => $requiredContext) {
+            $expectedJob = $prerequisiteJobs[$position] ?? null;
+            $requiredBinding = $requiredBindings[$requiredContext] ?? null;
+            if (!is_array($requiredBinding)
+                || ($requiredBinding['workflow'] ?? null) !== $primaryWorkflow
+                || ($requiredBinding['job'] ?? null) !== $expectedJob) {
+                crc_add(
+                    $findings,
+                    'CRC033',
+                    CRC_ERROR,
+                    $locator . '.prerequisite_contexts',
+                    $bound,
+                    sprintf('%s maps to %s', (string) $requiredContext, crc_json($requiredBinding)),
+                    sprintf('the current required binding %s#%s', (string) $primaryWorkflow, (string) $expectedJob),
+                );
+            }
+            $coveredContexts[] = $requiredContext;
+        }
+
+        if (($entry['required'] ?? null) !== false || (is_string($context) && in_array($context, $requiredNames, true))) {
+            crc_add($findings, 'CRC034', CRC_ERROR, $locator . '.required', $bound, sprintf('required=%s current_projection=%s', crc_json($entry['required'] ?? null), is_string($context) && in_array($context, $requiredNames, true) ? 'yes' : 'no'), 'required=false and absent from the current required projection until Task 7');
+        }
+    }
+
+    $sortedRequired = $requiredNames;
+    sort($sortedRequired);
+    sort($coveredContexts);
+    if ($coveredContexts !== $sortedRequired) {
+        crc_add($findings, 'CRC033', CRC_ERROR, 'stable_aggregate_shadow.contexts', (string) $primaryWorkflow, sprintf('covered contexts are %s', crc_json($coveredContexts)), sprintf('every current required context exactly once: %s', crc_json($sortedRequired)));
+    }
+
+    $failClosed = ['failure' => 'fail', 'cancelled' => 'fail', 'skipped' => 'fail', 'missing' => 'fail'];
+    if (($shadow['status'] ?? null) !== 'shadow-only'
+        || ($shadow['required_context_count_before_migration'] ?? null) !== count($requiredNames)
+        || ($shadow['candidate_context_count'] ?? null) !== count($contexts)
+        || ($shadow['terminal_result_policy'] ?? null) !== $failClosed) {
+        crc_add($findings, 'CRC034', CRC_ERROR, 'stable_aggregate_shadow', (string) $primaryWorkflow, sprintf('status=%s required_count=%s candidate_count=%s terminal_policy=%s', (string) ($shadow['status'] ?? 'null'), crc_json($shadow['required_context_count_before_migration'] ?? null), crc_json($shadow['candidate_context_count'] ?? null), crc_json($shadow['terminal_result_policy'] ?? null)), sprintf('shadow-only, counts %d/%d, and every non-success or missing state fails', count($requiredNames), count($contexts)));
+    }
 }
 
 /**

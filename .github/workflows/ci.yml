@@ -2547,3 +2547,216 @@ jobs:
 
       - name: Run structural secrets scan
         run: ./vendor/bin/phpunit --filter Phase22 --no-coverage
+
+  # Task 5 of FW-CI-CHECK-ROSTER-AUDIT-01. These stable merge decisions run in
+  # shadow mode while the live ruleset continues to require the 22 established
+  # contexts. Every job uses always() and explicitly rejects every terminal
+  # prerequisite state except success. Tasks 6 and 7 must prove live parity
+  # before any of these names enters the ruleset.
+  merge-source-repository-policy:
+    name: merge/source-repository-policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [manifest-conformance, check-dead-code, ci-lint, verify-gates, composer-policy]
+    if: always()
+    steps:
+      - name: Require source and repository policy
+        env:
+          MANIFEST_CONFORMANCE: ${{ needs.manifest-conformance.result }}
+          DEAD_CODE: ${{ needs.check-dead-code.result }}
+          LINT: ${{ needs.ci-lint.result }}
+          VERIFY_GATES: ${{ needs.verify-gates.result }}
+          COMPOSER_POLICY: ${{ needs.composer-policy.result }}
+        run: |
+          failed=0
+          for item in \
+            "manifest-conformance=$MANIFEST_CONFORMANCE" \
+            "check-dead-code=$DEAD_CODE" \
+            "ci-lint=$LINT" \
+            "verify-gates=$VERIFY_GATES" \
+            "composer-policy=$COMPOSER_POLICY"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=Source and repository policy::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  merge-php-behavior-coverage:
+    name: merge/php-behavior-and-coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [ci-coverage, ci-unit-tests, mutation-pilot]
+    if: always()
+    steps:
+      - name: Require PHP behavior and coverage
+        env:
+          COVERAGE: ${{ needs.ci-coverage.result }}
+          UNIT_TESTS: ${{ needs.ci-unit-tests.result }}
+          MUTATION_PILOT: ${{ needs.mutation-pilot.result }}
+        run: |
+          failed=0
+          for item in \
+            "ci-coverage=$COVERAGE" \
+            "ci-unit-tests=$UNIT_TESTS" \
+            "mutation-pilot=$MUTATION_PILOT"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=PHP behavior and coverage::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  merge-random-order:
+    name: merge/random-order
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [ci-random-order]
+    if: always()
+    steps:
+      - name: Require random-order execution
+        env:
+          RANDOM_ORDER: ${{ needs.ci-random-order.result }}
+        run: |
+          item="ci-random-order=$RANDOM_ORDER"
+          if [ "${item#*=}" != success ]; then
+            echo "::error title=Random-order execution::${item%%=*} finished ${item#*=}"
+            exit 1
+          fi
+
+  merge-security-authorization:
+    name: merge/security-authorization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [security-defaults]
+    if: always()
+    steps:
+      - name: Require security and authorization
+        env:
+          SECURITY_DEFAULTS: ${{ needs.security-defaults.result }}
+        run: |
+          item="security-defaults=$SECURITY_DEFAULTS"
+          if [ "${item#*=}" != success ]; then
+            echo "::error title=Security and authorization::${item%%=*} finished ${item#*=}"
+            exit 1
+          fi
+
+  merge-public-package-contracts:
+    name: merge/public-package-contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [frontend-build, packaged-form, ci-package-isolation]
+    if: always()
+    steps:
+      - name: Require public and package contracts
+        env:
+          FRONTEND_BUILD: ${{ needs.frontend-build.result }}
+          PACKAGED_FORM: ${{ needs.packaged-form.result }}
+          PACKAGE_ISOLATION: ${{ needs.ci-package-isolation.result }}
+        run: |
+          failed=0
+          for item in \
+            "frontend-build=$FRONTEND_BUILD" \
+            "packaged-form=$PACKAGED_FORM" \
+            "ci-package-isolation=$PACKAGE_ISOLATION"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=Public and package contracts::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  merge-consumer-acceptance:
+    name: merge/consumer-acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [ingestion-defaults, core-only-boot, skeleton-create-project, fresh-install-boot, bimaaji-skill-resources]
+    if: always()
+    steps:
+      - name: Require consumer acceptance
+        env:
+          INGESTION_DEFAULTS: ${{ needs.ingestion-defaults.result }}
+          CORE_ONLY_BOOT: ${{ needs.core-only-boot.result }}
+          SKELETON_CREATE_PROJECT: ${{ needs.skeleton-create-project.result }}
+          FRESH_INSTALL_BOOT: ${{ needs.fresh-install-boot.result }}
+          BIMAAJI_SKILL_RESOURCES: ${{ needs.bimaaji-skill-resources.result }}
+        run: |
+          failed=0
+          for item in \
+            "ingestion-defaults=$INGESTION_DEFAULTS" \
+            "core-only-boot=$CORE_ONLY_BOOT" \
+            "skeleton-create-project=$SKELETON_CREATE_PROJECT" \
+            "fresh-install-boot=$FRESH_INSTALL_BOOT" \
+            "bimaaji-skill-resources=$BIMAAJI_SKILL_RESOURCES"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=Consumer acceptance::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  merge-browser-acceptance:
+    name: merge/browser-acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [ci-playwright-smoke]
+    if: always()
+    steps:
+      - name: Require browser acceptance
+        env:
+          PLAYWRIGHT_SMOKE: ${{ needs.ci-playwright-smoke.result }}
+        run: |
+          item="ci-playwright-smoke=$PLAYWRIGHT_SMOKE"
+          if [ "${item#*=}" != success ]; then
+            echo "::error title=Browser acceptance::${item%%=*} finished ${item#*=}"
+            exit 1
+          fi
+
+  merge-platform-runtime-acceptance:
+    name: merge/platform-runtime-acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [frankenphp-worker, skeleton-create-project-windows]
+    if: always()
+    steps:
+      - name: Require platform and runtime acceptance
+        env:
+          FRANKENPHP_WORKER: ${{ needs.frankenphp-worker.result }}
+          SKELETON_WINDOWS: ${{ needs.skeleton-create-project-windows.result }}
+        run: |
+          failed=0
+          for item in \
+            "frankenphp-worker=$FRANKENPHP_WORKER" \
+            "skeleton-create-project-windows=$SKELETON_WINDOWS"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=Platform and runtime acceptance::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  merge-release-integrity:
+    name: merge/release-integrity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [release-publish-shape]
+    if: always()
+    steps:
+      - name: Require release integrity
+        env:
+          RELEASE_PUBLISH_SHAPE: ${{ needs.release-publish-shape.result }}
+        run: |
+          item="release-publish-shape=$RELEASE_PUBLISH_SHAPE"
+          if [ "${item#*=}" != success ]; then
+            echo "::error title=Release integrity::${item%%=*} finished ${item#*=}"
+            exit 1
+          fi

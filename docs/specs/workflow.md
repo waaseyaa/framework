@@ -266,6 +266,16 @@ consumed by branch protection. They must not be normalized independently of the
 fail-closed ruleset migration that runs old and replacement contexts in
 parallel. New jobs must not inherit an implicit job-key or matrix-derived name.
 
+Task 5 of `FW-CI-CHECK-ROSTER-AUDIT-01` adds nine `merge/*` contexts in shadow
+mode. They group the current 22 required contexts by owned invariant, with
+random-order kept separate from the other PHP behavior checks so its Task 8
+cadence decision cannot weaken ordinary test or coverage protection. Each
+shadow job uses `if: always()` and explicitly requires every prerequisite
+result to equal `success`; failed, cancelled, skipped, or missing evidence
+cannot produce a green decision. The `merge/*` contexts are visible but are
+not required until the Task 6 live audit proves their names and terminal-state
+parity and Task 7 performs the governed ruleset migration.
+
 ## Release readiness is not deployment
 
 Merging to `main` proves the Framework candidate through CI; it does not deploy

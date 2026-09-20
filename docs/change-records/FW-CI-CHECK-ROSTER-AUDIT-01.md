@@ -559,6 +559,10 @@ findings with per-severity counts.
 | CRC028 | an invariant no producer owns | notice |
 | CRC029 | a required context whose bound job has no recognised local command | notice |
 | CRC030 | a policy field the verifier iterates is empty or unbound — an aggregate with no prerequisites, a measurement naming no bound producer, an empty required projection — each of which would silence a rule rather than prove it | error |
+| CRC031 | every stable shadow context is uniquely visible on an `always()` aggregate in the primary CI workflow | error |
+| CRC032 | each shadow aggregate's `needs` and explicit result checks exactly equal its declared prerequisite jobs, with none unchecked | error |
+| CRC033 | shadow prerequisites map to and cover every current required context exactly once | error |
+| CRC034 | the candidate remains shadow-only, absent from the current required projection, with accurate counts and every non-success or missing state fail-closed | error |
 
 CRC025 honours the recovery split S3 recorded: when a producer declares a
 `recovery_producer`, the recovery cadence is checked against the recovery
@@ -1084,6 +1088,47 @@ in an ordinary shard *on that head*; it is not evidence that random-order
 execution has no unique detection value in general, and the one unique detection
 in this cohort is the counterexample.
 
+## Task 5: stable aggregate shadowing
+
+Task 5 adds a candidate required-check interface without changing the live
+ruleset. Nine stable contexts are emitted by `ci.yml`:
+
+| Shadow context | Current required prerequisites | Failure owner |
+| --- | --- | --- |
+| `merge/source-repository-policy` | `Manifest conformance`, `check-dead-code`, `ci/lint`, `ci/verify-gates`, `composer-policy` | repository governance |
+| `merge/php-behavior-and-coverage` | `ci/coverage`, `ci/unit-tests`, `ci/mutation-pilot` | framework maintainers |
+| `merge/random-order` | `ci/random-order` | framework maintainers |
+| `merge/security-authorization` | `Security defaults` | security maintainers |
+| `merge/public-package-contracts` | `Frontend build`, `packaged-form`, `ci/package-isolation` | package maintainers |
+| `merge/consumer-acceptance` | `Ingestion defaults`, `ci/core-only-boot`, `ci/skeleton-create-project`, `ci/fresh-install-boot`, `ci/bimaaji-skill-resources` | framework maintainers |
+| `merge/browser-acceptance` | `ci/playwright-smoke` | frontend maintainers |
+| `merge/platform-runtime-acceptance` | `ci/frankenphp-worker`, `ci/skeleton-create-project-windows` | runtime maintainers |
+| `merge/release-integrity` | `Release publish shape` | release engineering |
+
+The 22 existing required contexts are covered exactly once. Random-order stays
+separate because Task 8 owns its cadence; combining it with ordinary PHP
+behavior would make a later cadence change alter the stable PHP decision or
+require an unproven not-applicable path.
+
+Every shadow job is workflow-local, uses `if: always()`, has an explicit
+five-minute timeout and no token permissions, and compares every declared
+`needs.<job>.result` with `success`. There is no not-applicable decision in
+this slice: `failure`, `cancelled`, `skipped`, and missing are all fail-closed.
+The manifest records the candidate projection separately from the current
+22-context projection, and CRC031-CRC034 verify unique visible identity,
+aggregate shape, explicit prerequisite result checks, one-to-one coverage of
+the current roster, and shadow-only status.
+
+The expected incremental cost is nine minimal Ubuntu job initializations per
+CI run. That is accepted temporarily to obtain independent hosted check-run
+evidence before migration; Task 6 records observed duration and Task 8 must use
+the #2869 cost-proxy vocabulary rather than claiming billed runner minutes.
+
+This task does not change branch protection, required contexts, cadence,
+matrices, product code, release behavior, or deployment behavior. Task 6 must
+compare the nine live check runs and the unchanged 22-context ruleset against
+the manifest before Task 7 can migrate anything.
+
 ## Deferred observations
 
 A ledger of things noticed while generating the inventory. None is acted on
@@ -1376,8 +1421,8 @@ stays with the next CRC030 change.
 3. Offline conformance verifier: complete. Task 3a (policy repair from
    inventory evidence) landed first as its own reviewed slice; the verifier was
    written against the repaired policy afterwards.
-4. Measurement baseline under #2869: this candidate.
-5. Stable aggregate shadowing.
+4. Measurement baseline under #2869: complete.
+5. Stable aggregate shadowing: current candidate.
 6. Ruleset projection and live audit.
 7. Ruleset migration.
 8. Cadence optimization.

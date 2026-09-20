@@ -3,8 +3,8 @@
   "change_record": "FW-CI-CHECK-ROSTER-AUDIT-01",
   "kind": "governed-ci-policy",
   "scope": {
-    "task": 3,
-    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. It is not itself an expanded workflow inventory. Offline conformance compares this policy with that inventory only; it does not read workflow YAML and does not prove live ruleset conformance, which remains task 6.",
+    "task": 5,
+    "statement": "This manifest defines intended governance policy and binds it to the generated workflow inventory. Task 5 adds stable aggregate contexts in shadow mode only. Offline conformance compares this policy with that inventory; live ruleset conformance and migration remain tasks 6 and 7.",
     "generated_workflow_inventory": {"status": "generated", "task": 2, "path": "tools/ci-workflow-inventory.json", "generator": "bin/generate-ci-workflow-inventory"},
     "offline_workflow_conformance": {"status": "implemented", "task": 3, "verifier": "bin/check-ci-roster-conformance"}
   },
@@ -259,6 +259,58 @@
         {"context": "ci/skeleton-create-project-windows", "invariant": "platform-runtime-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}},
         {"context": "ci/bimaaji-skill-resources", "invariant": "consumer-acceptance", "binding": {"mode": "github-app", "integration_id": 15368}}
       ]
+    },
+    "stable_aggregate_shadow": {
+      "status": "shadow-only",
+      "workflow_policy_id": "primary-ci",
+      "ruleset_migration_task": 7,
+      "required_context_count_before_migration": 22,
+      "candidate_context_count": 9,
+      "terminal_result_policy": {"failure": "fail", "cancelled": "fail", "skipped": "fail", "missing": "fail"},
+      "statement": "These contexts are visible diagnostics, not required checks. Task 6 must prove their live names and exact terminal-state parity before Task 7 changes the ruleset.",
+      "contexts": {
+        "merge-source-repository-policy": {
+          "context": "merge/source-repository-policy", "invariant": "source-repository-policy", "failure_owner": "repository-governance", "required": false,
+          "prerequisite_contexts": ["Manifest conformance", "check-dead-code", "ci/lint", "ci/verify-gates", "composer-policy"],
+          "prerequisite_jobs": ["manifest-conformance", "check-dead-code", "ci-lint", "verify-gates", "composer-policy"]
+        },
+        "merge-php-behavior-coverage": {
+          "context": "merge/php-behavior-and-coverage", "invariant": "php-behavior-coverage", "failure_owner": "framework-maintainers", "required": false,
+          "prerequisite_contexts": ["ci/coverage", "ci/unit-tests", "ci/mutation-pilot"],
+          "prerequisite_jobs": ["ci-coverage", "ci-unit-tests", "mutation-pilot"]
+        },
+        "merge-random-order": {
+          "context": "merge/random-order", "invariant": "php-behavior-coverage", "failure_owner": "framework-maintainers", "required": false,
+          "prerequisite_contexts": ["ci/random-order"], "prerequisite_jobs": ["ci-random-order"]
+        },
+        "merge-security-authorization": {
+          "context": "merge/security-authorization", "invariant": "security-authorization", "failure_owner": "security-maintainers", "required": false,
+          "prerequisite_contexts": ["Security defaults"], "prerequisite_jobs": ["security-defaults"]
+        },
+        "merge-public-package-contracts": {
+          "context": "merge/public-package-contracts", "invariant": "public-package-contracts", "failure_owner": "package-maintainers", "required": false,
+          "prerequisite_contexts": ["Frontend build", "packaged-form", "ci/package-isolation"],
+          "prerequisite_jobs": ["frontend-build", "packaged-form", "ci-package-isolation"]
+        },
+        "merge-consumer-acceptance": {
+          "context": "merge/consumer-acceptance", "invariant": "consumer-acceptance", "failure_owner": "framework-maintainers", "required": false,
+          "prerequisite_contexts": ["Ingestion defaults", "ci/core-only-boot", "ci/skeleton-create-project", "ci/fresh-install-boot", "ci/bimaaji-skill-resources"],
+          "prerequisite_jobs": ["ingestion-defaults", "core-only-boot", "skeleton-create-project", "fresh-install-boot", "bimaaji-skill-resources"]
+        },
+        "merge-browser-acceptance": {
+          "context": "merge/browser-acceptance", "invariant": "browser-acceptance", "failure_owner": "frontend-maintainers", "required": false,
+          "prerequisite_contexts": ["ci/playwright-smoke"], "prerequisite_jobs": ["ci-playwright-smoke"]
+        },
+        "merge-platform-runtime-acceptance": {
+          "context": "merge/platform-runtime-acceptance", "invariant": "platform-runtime-acceptance", "failure_owner": "runtime-maintainers", "required": false,
+          "prerequisite_contexts": ["ci/frankenphp-worker", "ci/skeleton-create-project-windows"],
+          "prerequisite_jobs": ["frankenphp-worker", "skeleton-create-project-windows"]
+        },
+        "merge-release-integrity": {
+          "context": "merge/release-integrity", "invariant": "release-integrity", "failure_owner": "release-engineering", "required": false,
+          "prerequisite_contexts": ["Release publish shape"], "prerequisite_jobs": ["release-publish-shape"]
+        }
+      }
     }
   },
   "bindings": {
@@ -311,9 +363,9 @@
     {"order": 0, "name": "Evidence freeze and external benchmark", "status": "complete"},
     {"order": 1, "name": "Governance contract and schema repair", "status": "complete"},
     {"order": 2, "name": "Inventory generator", "status": "complete"},
-    {"order": 3, "name": "Offline conformance verifier", "status": "current"},
-    {"order": 4, "name": "Measurement baseline under #2869", "status": "pending"},
-    {"order": 5, "name": "Stable aggregate shadowing", "status": "pending"},
+    {"order": 3, "name": "Offline conformance verifier", "status": "complete"},
+    {"order": 4, "name": "Measurement baseline under #2869", "status": "complete"},
+    {"order": 5, "name": "Stable aggregate shadowing", "status": "current"},
     {"order": 6, "name": "Ruleset projection and live audit", "status": "pending"},
     {"order": 7, "name": "Ruleset migration", "status": "pending"},
     {"order": 8, "name": "Cadence optimization", "status": "pending"},
