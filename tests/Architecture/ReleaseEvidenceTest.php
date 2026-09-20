@@ -145,7 +145,7 @@ final class ReleaseEvidenceTest extends TestCase
         self::assertStringContainsString('pattern: split-provenance-*', $manualWorkflow);
         self::assertStringContainsString('run-id: ${{ inputs.split_run_id }}', $manualWorkflow);
         self::assertStringContainsString('bin/generate-release-evidence', $manualWorkflow);
-        self::assertStringContainsString('repo.packagist.org/p2/${package}.json', $manualWorkflow);
+        self::assertStringContainsString('uses: ./.github/actions/packagist-verify', $manualWorkflow);
         self::assertStringContainsString('github-token: ${{ github.token }}', $manualWorkflow);
         self::assertStringContainsString('Verify retained release evidence', $manualWorkflow);
         self::assertStringContainsString('files: release-evidence/*', $manualWorkflow);
@@ -159,11 +159,12 @@ final class ReleaseEvidenceTest extends TestCase
     public function new_packagist_packages_use_main_token_auth_without_skipping_release_bookkeeping(): void
     {
         $workflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/split.yml');
+        $submitAction = (string) file_get_contents($this->repoRoot . '/.github/actions/packagist-submit/submit.sh');
 
-        self::assertStringContainsString('PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}', $workflow);
-        self::assertStringContainsString('"https://packagist.org/api/create-package"', $workflow);
-        self::assertStringContainsString('-H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}"', $workflow);
-        self::assertStringNotContainsString('api/create-package?username=', $workflow);
+        self::assertStringContainsString('main-token: ${{ secrets.PACKAGIST_MAIN_TOKEN }}', $workflow);
+        self::assertStringContainsString("'https://packagist.org/api/create-package'", $submitAction);
+        self::assertStringContainsString('-H "Authorization: Bearer ${username}:${main_token}"', $submitAction);
+        self::assertStringNotContainsString('api/create-package?username=', $submitAction);
         self::assertMatchesRegularExpression(
             '/verify-packagist:.*?if: \$\{\{ always\(\).*?needs\.publish-packagist\.result/s',
             $workflow,
@@ -178,9 +179,8 @@ final class ReleaseEvidenceTest extends TestCase
         );
 
         $manualWorkflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/packagist-register.yml');
-        self::assertStringContainsString('PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}', $manualWorkflow);
-        self::assertStringContainsString('-H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}"', $manualWorkflow);
-        self::assertStringNotContainsString('api/create-package?username=', $manualWorkflow);
+        self::assertStringContainsString('main-token: ${{ secrets.PACKAGIST_MAIN_TOKEN }}', $manualWorkflow);
+        self::assertStringContainsString('uses: ./.github/actions/packagist-submit', $manualWorkflow);
     }
 
     private function writeCompleteSplitRecords(string $directory, string $sourceSha): void

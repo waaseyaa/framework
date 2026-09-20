@@ -216,6 +216,30 @@ but is not used as evidence that its execution is fast.
 | `packagist-register.yml#register` | 10 min | 1 failed execution; 0.1 min | There is no successful sample yet. Registration is a single API operation and must fail fast enough for operator retry. |
 | `discord-release.yml#notify` | 50 min | 5 runs; 1.2 min maximum | The job intentionally waits up to 45 minutes for exact-SHA Skeleton Smoke evidence before announcing. |
 
+### Packagist submission and verification authority
+
+Packagist push webhooks remain disabled. The release pipeline submits exactly
+one authenticated `update-package` request per package after split and parity
+gates succeed. A 404 may fall back to `create-package` only in the release
+pipeline and the explicit registration workflow, where the main Packagist token
+is provided. Skeleton publication and recovery never create packages.
+
+All four submission paths delegate to
+`.github/actions/packagist-submit`. That action owns input validation, safe-token
+submission, the optional main-token registration fallback, response job-id
+capture, and recovery resubmission. Release-pipeline, standalone, and manual
+GitHub Release recovery verification delegate to
+`.github/actions/packagist-verify`, and targeted Packagist recovery uses the
+same P2 visibility implementation. A successful submission means accepted or
+queued, never published. Only the exact release tag appearing in P2 metadata
+satisfies the publication invariant.
+
+`packagist-update.yml` is manual-only. It is an ad-hoc verifier for an existing
+tag and does not run on tag pushes, submit crawls, or participate in release
+publication. The ordered release gate remains `split.yml#verify-packagist`.
+Both composite actions expose a no-network dry-run mode for contract testing;
+release and recovery workflows never enable it.
+
 Non-release jobs use the same rule. Ordinary static and aggregate gates receive
 5 to 20 minutes, release-readiness assembly receives up to 30 minutes, existing
 nightly and skeleton-smoke budgets remain 45 and 40 minutes, and the governed
@@ -261,7 +285,7 @@ real immutable artifact and external target exist. A Framework workflow must
 not claim those operations merely because it builds on a hosted runner or
 writes metadata.
 
-The push must use the `SPLIT_GITHUB_TOKEN` PAT, not the default `GITHUB_TOKEN`, because tag pushes by `GITHUB_TOKEN` do **not** trigger downstream workflows — and `split.yml` + `packagist-update.yml` are exactly what we need to fire.
+The push must use the `SPLIT_GITHUB_TOKEN` PAT, not the default `GITHUB_TOKEN`, because tag pushes by `GITHUB_TOKEN` do **not** trigger downstream workflows. The tag must start `split.yml`, which owns package submission and verification, as well as the separately scoped tag consumers such as skeleton synchronization.
 
 **A run location is not an authority.** Release evidence must come from the
 declared Linux runner profile and bind the exact candidate, commands, inputs,

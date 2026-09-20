@@ -29,15 +29,15 @@ set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SPLIT="${ROOT_DIR}/.github/workflows/split.yml"
-PKG="${ROOT_DIR}/.github/workflows/packagist-update.yml"
 SYNC="${ROOT_DIR}/.github/workflows/sync-skeleton.yml"
+SUBMIT_ACTION="${ROOT_DIR}/.github/actions/packagist-submit/submit.sh"
 VER="${ROOT_DIR}/docs/VERSIONING.md"
 
 fail=0
 pass() { printf 'OK   %s\n' "$1"; }
 bad()  { printf 'FAIL %s\n' "$1"; fail=1; }
 
-for f in "$SPLIT" "$PKG" "$SYNC" "$VER"; do
+for f in "$SPLIT" "$SYNC" "$SUBMIT_ACTION" "$VER"; do
   [ -f "$f" ] || { echo "FAIL [RP100] missing file: $f"; exit 1; }
 done
 
@@ -55,11 +55,12 @@ else
   bad "[RP102] split.yml has no re-tag / SHA-mismatch guard on the tag push."
 fi
 
-# 3. Publishing must use a single idempotent update-package POST (not webhooks).
-if grep -Eq 'api/update-package' "$SPLIT" "$PKG"; then
+# 3. Publishing must use the shared idempotent update-package POST (not webhooks).
+if grep -Eq 'api/update-package' "$SUBMIT_ACTION" \
+  && grep -Eq 'uses: .*/packagist-submit' "$SPLIT"; then
   pass "[RP103] release pipeline POSTs to Packagist update-package (explicit single crawl)."
 else
-  bad "[RP103] no Packagist update-package POST — publishing still relies on per-ref push webhooks (multi-crawl)."
+  bad "[RP103] release pipeline is not wired to the shared Packagist update-package submitter."
 fi
 
 # 4. The publish step must be gated on split + parity success.
@@ -101,10 +102,12 @@ fi
 #    only packages/* + the root (never the skeleton), and the push webhooks are
 #    off — so sync-skeleton.yml MUST trigger the skeleton's single Packagist
 #    crawl itself, or the skeleton silently stops publishing (the gap WP01 left).
-if grep -Eq 'api/update-package' "$SYNC"; then
+if grep -Eq 'uses: .*/packagist-submit' "$SYNC" \
+  && grep -Eq 'packages: +waaseyaa/waaseyaa' "$SYNC" \
+  && grep -Eq 'allow-create: +false' "$SYNC"; then
   pass "[RP107] sync-skeleton.yml triggers the skeleton's Packagist crawl (single owner publishes it)."
 else
-  bad "[RP107] sync-skeleton.yml does not POST a Packagist crawl for waaseyaa/waaseyaa — its publish is dropped."
+  bad "[RP107] sync-skeleton.yml is not wired to submit exactly waaseyaa/waaseyaa through the shared Packagist action."
 fi
 
 if [ "$fail" -ne 0 ]; then

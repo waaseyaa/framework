@@ -60,7 +60,7 @@
             },
             {
                 "file": "github-release.yml",
-                "sha256": "44813f98dfbba12ab2ff1b5332ebdafae0f6b0787aee52659b66df1299252f95"
+                "sha256": "f94e5d163640b6956f81171ec6d2fbf7747a770dc6c6e23278aec83cd8bec886"
             },
             {
                 "file": "manual-claude-review.yml",
@@ -72,19 +72,19 @@
             },
             {
                 "file": "packagist-recover.yml",
-                "sha256": "8bace210b08b7ee03af6463f2afa81ae38498281a659f18c841559d9290c5edb"
+                "sha256": "03cd8090adaea86776ab68737c818a0717d6a61b6118c53c90164f6d86fc7f90"
             },
             {
                 "file": "packagist-register.yml",
-                "sha256": "466219253a82d83afb5fc870ffedcc6a8392c767179a619be54c87f7b92e5b68"
+                "sha256": "c62c24e48cd5620e6878cf0f61dd2452b437e7c28e82b0f6f14ab0d77faab5d2"
             },
             {
                 "file": "packagist-update.yml",
-                "sha256": "0f7ba2ad44463b720a45b785796cc33e353e9456c82901db329a33b1b7dfa471"
+                "sha256": "89803c9307377b55fdfda744014232c69d733eee852bb28f2647c517e2761b56"
             },
             {
                 "file": "release-cut.yml",
-                "sha256": "a0b6b907b1ac9d6fa0bfbb06c418374d56c1c60ecdba85a588531470cf00623c"
+                "sha256": "b9163e68324dff97d71502e7587a884091f943815d93c541c768525ef921e165"
             },
             {
                 "file": "release-gate.yml",
@@ -104,7 +104,7 @@
             },
             {
                 "file": "split.yml",
-                "sha256": "dca06c22ef50b76b0b942f7326bea2838cd937e222609a77c4459c6cff304d0e"
+                "sha256": "e4daa1426d0b34098b00410698a989c33317ee61c01fe46eab97f612cfc2b033"
             },
             {
                 "file": "surface-parity.yml",
@@ -112,7 +112,7 @@
             },
             {
                 "file": "sync-skeleton.yml",
-                "sha256": "fa25f7d4941e3a74f15d9457cfdbc2a8a3e74b1f1f0fd93f4ca597aa0ff5034a"
+                "sha256": "01a43b761d8cdd60eb58b888b6e67bc9811a1629a7753de63662a9ac58397a54"
             }
         ]
     },
@@ -5949,7 +5949,7 @@
         {
             "file": "github-release.yml",
             "name": "GitHub Release (manual)",
-            "source_sha256": "44813f98dfbba12ab2ff1b5332ebdafae0f6b0787aee52659b66df1299252f95",
+            "source_sha256": "f94e5d163640b6956f81171ec6d2fbf7747a770dc6c6e23278aec83cd8bec886",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -6054,7 +6054,7 @@
                     "artifacts": {
                         "produces": [
                             {
-                                "step_index": 8,
+                                "step_index": 10,
                                 "name": "waaseyaa-release-evidence",
                                 "kind": "literal",
                                 "expansion": [
@@ -6103,6 +6103,7 @@
                         ]
                     },
                     "action_uses": [
+                        "./.github/actions/packagist-verify",
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
                         "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
                         "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
@@ -6110,7 +6111,7 @@
                         "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240",
                         "softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228"
                     ],
-                    "step_count": 11,
+                    "step_count": 13,
                     "local_equivalent": {
                         "status": "partial",
                         "commands": [
@@ -6563,7 +6564,7 @@
         {
             "file": "packagist-recover.yml",
             "name": "Recover Packagist Publication",
-            "source_sha256": "8bace210b08b7ee03af6463f2afa81ae38498281a659f18c841559d9290c5edb",
+            "source_sha256": "03cd8090adaea86776ab68737c818a0717d6a61b6118c53c90164f6d86fc7f90",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -6622,11 +6623,9 @@
                     "structural_role": "publication",
                     "role_evidence": {
                         "publication_signals": [
-                            "packagist-write-api"
+                            "packagist-submit-action"
                         ],
-                        "orchestration_signals": [
-                            "gh-workflow-run"
-                        ],
+                        "orchestration_signals": [],
                         "aggregate_condition_with_needs": false,
                         "feeds_same_workflow_consumer": false
                     },
@@ -6669,14 +6668,15 @@
                         "produces": [],
                         "consumes": []
                     },
-                    "action_uses": [],
-                    "step_count": 1,
+                    "action_uses": [
+                        "./.github/actions/packagist-submit",
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+                    ],
+                    "step_count": 2,
                     "local_equivalent": {
                         "status": "hosted-signals-only",
                         "commands": [],
                         "hosted_signals": [
-                            "gh-cli",
-                            "github-api",
                             "github-token",
                             "packagist-api",
                             "secrets"
@@ -6693,7 +6693,7 @@
         {
             "file": "packagist-register.yml",
             "name": "Packagist Register Package",
-            "source_sha256": "466219253a82d83afb5fc870ffedcc6a8392c767179a619be54c87f7b92e5b68",
+            "source_sha256": "c62c24e48cd5620e6878cf0f61dd2452b437e7c28e82b0f6f14ab0d77faab5d2",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -6715,7 +6715,9 @@
             "permissions": {
                 "kind": "literal",
                 "shorthand": null,
-                "grants": []
+                "grants": {
+                    "contents": "read"
+                }
             },
             "concurrency": null,
             "defaults": null,
@@ -6738,7 +6740,7 @@
                     "structural_role": "publication",
                     "role_evidence": {
                         "publication_signals": [
-                            "packagist-write-api"
+                            "packagist-submit-action"
                         ],
                         "orchestration_signals": [],
                         "aggregate_condition_with_needs": false,
@@ -6764,7 +6766,9 @@
                         "scope": "workflow",
                         "kind": "literal",
                         "shorthand": null,
-                        "grants": []
+                        "grants": {
+                            "contents": "read"
+                        }
                     },
                     "needs": [],
                     "needed_by": [],
@@ -6781,8 +6785,11 @@
                         "produces": [],
                         "consumes": []
                     },
-                    "action_uses": [],
-                    "step_count": 1,
+                    "action_uses": [
+                        "./.github/actions/packagist-submit",
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+                    ],
+                    "step_count": 2,
                     "local_equivalent": {
                         "status": "hosted-signals-only",
                         "commands": [],
@@ -6802,19 +6809,12 @@
         {
             "file": "packagist-update.yml",
             "name": "Verify Packagist Publication (standalone)",
-            "source_sha256": "0f7ba2ad44463b720a45b785796cc33e353e9456c82901db329a33b1b7dfa471",
+            "source_sha256": "89803c9307377b55fdfda744014232c69d733eee852bb28f2647c517e2761b56",
             "triggers": {
                 "events": [
-                    "push",
                     "workflow_dispatch"
                 ],
                 "selectors": [
-                    {
-                        "event": "push",
-                        "tags": [
-                            "v*"
-                        ]
-                    },
                     {
                         "event": "workflow_dispatch",
                         "inputs": [
@@ -7030,8 +7030,11 @@
                         "produces": [],
                         "consumes": []
                     },
-                    "action_uses": [],
-                    "step_count": 1,
+                    "action_uses": [
+                        "./.github/actions/packagist-verify",
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+                    ],
+                    "step_count": 2,
                     "local_equivalent": {
                         "status": "hosted-signals-only",
                         "commands": [],
@@ -7051,7 +7054,7 @@
         {
             "file": "release-cut.yml",
             "name": "Cut Release",
-            "source_sha256": "a0b6b907b1ac9d6fa0bfbb06c418374d56c1c60ecdba85a588531470cf00623c",
+            "source_sha256": "b9163e68324dff97d71502e7587a884091f943815d93c541c768525ef921e165",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -8413,7 +8416,7 @@
         {
             "file": "split.yml",
             "name": "Split Monorepo",
-            "source_sha256": "dca06c22ef50b76b0b942f7326bea2838cd937e222609a77c4459c6cff304d0e",
+            "source_sha256": "e4daa1426d0b34098b00410698a989c33317ee61c01fe46eab97f612cfc2b033",
             "triggers": {
                 "events": [
                     "push"
@@ -8735,7 +8738,7 @@
                     "structural_role": "publication",
                     "role_evidence": {
                         "publication_signals": [
-                            "packagist-write-api"
+                            "packagist-submit-action"
                         ],
                         "orchestration_signals": [],
                         "aggregate_condition_with_needs": false,
@@ -8788,6 +8791,7 @@
                         "consumes": []
                     },
                     "action_uses": [
+                        "./.github/actions/packagist-submit",
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
                     ],
                     "step_count": 3,
@@ -10708,12 +10712,10 @@
                             "matrix": null
                         }
                     ],
-                    "structural_role": "orchestration",
+                    "structural_role": "aggregate",
                     "role_evidence": {
                         "publication_signals": [],
-                        "orchestration_signals": [
-                            "gh-workflow-run"
-                        ],
+                        "orchestration_signals": [],
                         "aggregate_condition_with_needs": true,
                         "feeds_same_workflow_consumer": false
                     },
@@ -10792,14 +10794,14 @@
                         "consumes": []
                     },
                     "action_uses": [
+                        "./.github/actions/packagist-verify",
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
                     ],
-                    "step_count": 2,
+                    "step_count": 3,
                     "local_equivalent": {
                         "status": "hosted-signals-only",
                         "commands": [],
                         "hosted_signals": [
-                            "gh-cli",
                             "packagist-api"
                         ]
                     }
@@ -11228,7 +11230,7 @@
         {
             "file": "sync-skeleton.yml",
             "name": "Sync Application Skeleton",
-            "source_sha256": "fa25f7d4941e3a74f15d9457cfdbc2a8a3e74b1f1f0fd93f4ca597aa0ff5034a",
+            "source_sha256": "01a43b761d8cdd60eb58b888b6e67bc9811a1629a7753de63662a9ac58397a54",
             "triggers": {
                 "events": [
                     "push"
@@ -11271,7 +11273,7 @@
                     "role_evidence": {
                         "publication_signals": [
                             "git-push",
-                            "packagist-write-api"
+                            "packagist-submit-action"
                         ],
                         "orchestration_signals": [],
                         "aggregate_condition_with_needs": false,
@@ -11317,6 +11319,7 @@
                         "consumes": []
                     },
                     "action_uses": [
+                        "./framework/.github/actions/packagist-submit",
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
                     ],
                     "step_count": 7,
