@@ -47,8 +47,8 @@ name: Cut Release
 #                         installation token minted immediately before it.
 #
 # Neither may be the built-in `GITHUB_TOKEN`: pushes made with it do not trigger
-# downstream workflows, so split.yml and packagist-update.yml would silently
-# never fire and the release would tag without publishing.
+# downstream workflows, so split.yml would silently never fire and the release
+# would tag without publishing or verifying Packagist publication.
 #
 # The App exists because `main-protection` requires pull requests for
 # refs/heads/main and its only role-based bypass is bypass_mode "pull_request",
@@ -87,8 +87,8 @@ jobs:
         run: |
           if [ -z "${SPLIT_GH_TOKEN}" ]; then
             echo "::error::SPLIT_GITHUB_TOKEN secret is not configured."
-            echo "::error::Without a PAT, downstream workflows (split.yml,"
-            echo "::error::packagist-update.yml) will NOT fire on the tag push."
+            echo "::error::Without a PAT, split.yml will NOT fire on the tag push."
+            echo "::error::The release would not publish or verify Packagist packages."
             exit 1
           fi
 
@@ -136,8 +136,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-          # Use PAT so subsequent push triggers downstream workflows
-          # (split.yml, packagist-update.yml).
+          # Use PAT so the subsequent push triggers split.yml.
           token: ${{ secrets.SPLIT_GITHUB_TOKEN }}
 
       - name: Set up PHP
@@ -400,9 +399,9 @@ jobs:
         # granted `always` bypass, scoped to this repository.
         #
         # Deliberately NOT the built-in GITHUB_TOKEN: pushes made with it do not
-        # trigger downstream workflows, which would silently break split.yml and
-        # packagist-update.yml fan-out — the exact failure this workflow's
-        # SPLIT_GITHUB_TOKEN comment already warns about.
+        # trigger downstream workflows, which would silently break split.yml
+        # fan-out and its Packagist publication gate. That is the exact failure
+        # this workflow's SPLIT_GITHUB_TOKEN comment already warns about.
         id: release_identity
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -489,7 +488,7 @@ jobs:
             echo
             echo "- Tag: https://github.com/${REPO}/releases/tag/${VERSION}"
             echo "- Split runs: https://github.com/${REPO}/actions/workflows/split.yml"
-            echo "- Packagist publish: https://github.com/${REPO}/actions/workflows/packagist-update.yml"
+            echo "- Packagist publication gate: https://github.com/${REPO}/actions/workflows/split.yml"
             echo
-            echo "Downstream workflows fire automatically on the tag push."
+            echo "The split workflow fires automatically on the tag push."
           } >> "$GITHUB_STEP_SUMMARY"

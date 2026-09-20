@@ -1,0 +1,55 @@
+name: Verify Packagist publication
+description: Poll Packagist P2 metadata until every selected package exposes an exact release tag.
+inputs:
+  packages:
+    description: Comma-separated or newline-separated waaseyaa/* package names.
+    required: false
+    default: ''
+  packages-file:
+    description: File containing one waaseyaa/* package name per line. Mutually exclusive with packages.
+    required: false
+    default: ''
+  tag:
+    description: Exact v-prefixed release tag that must appear in P2 metadata.
+    required: true
+  max-attempts:
+    description: Maximum number of P2 probes per package.
+    required: false
+    default: '24'
+  deadline-seconds:
+    description: Overall deadline. Zero disables the deadline and relies on max-attempts.
+    required: false
+    default: '0'
+  interval-min-seconds:
+    description: Minimum delay between probes.
+    required: false
+    default: '30'
+  interval-max-seconds:
+    description: Maximum delay between probes.
+    required: false
+    default: '30'
+  recovery-command:
+    description: Include the packagist-recover command when verification fails.
+    required: false
+    default: 'false'
+  dry-run:
+    description: Validate inputs and report the intended verification without network calls or sleeps.
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Verify exact Packagist publication
+      shell: bash
+      env:
+        PACKAGIST_PACKAGES: ${{ inputs.packages }}
+        PACKAGIST_PACKAGES_FILE: ${{ inputs.packages-file }}
+        PACKAGIST_TAG: ${{ inputs.tag }}
+        PACKAGIST_MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+        PACKAGIST_DEADLINE_SECONDS: ${{ inputs.deadline-seconds }}
+        PACKAGIST_INTERVAL_MIN_SECONDS: ${{ inputs.interval-min-seconds }}
+        PACKAGIST_INTERVAL_MAX_SECONDS: ${{ inputs.interval-max-seconds }}
+        PACKAGIST_RECOVERY_COMMAND: ${{ inputs.recovery-command }}
+        PACKAGIST_DRY_RUN: ${{ inputs.dry-run }}
+      run: bash "${GITHUB_ACTION_PATH}/verify.sh"
+

@@ -36,8 +36,6 @@ name: Verify Packagist Publication (standalone)
 # when Packagist is healthy this turns green automatically.
 
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
@@ -61,12 +59,8 @@ jobs:
       packages: ${{ steps.scan.outputs.packages }}
       tag: ${{ steps.target.outputs.tag }}
     steps:
-      # Pinned to github.sha so the tag-push trigger always reads the
-      # tagged commit's packages/*/composer.json (#1934). This is safe on
-      # workflow_dispatch too: github.sha there resolves to the HEAD of
-      # whichever ref the dispatch was run against, so the pin never breaks
-      # manual runs — it just documents/guarantees the same checkout ref
-      # the default behavior would have used anyway.
+      # Pinned to github.sha so a dispatch run against a release tag reads that
+      # tag's packages/*/composer.json rather than a moving default branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -114,7 +108,7 @@ jobs:
             echo "::error::No packages matched filter '$FILTER'"
             exit 1
           fi
-          echo "Will publish $count package(s):"
+          echo "Will verify $count package(s):"
           cat /tmp/pkgs.txt
 
           json=$(jq -R -s -c 'split("\n") | map(select(length > 0))' /tmp/pkgs.txt)
@@ -132,24 +126,16 @@ jobs:
       matrix:
         package: ${{ fromJSON(needs.discover.outputs.packages) }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Wait for ${{ needs.discover.outputs.tag }} on ${{ matrix.package }}
-        env:
-          PACKAGE: ${{ matrix.package }}
-          TAG: ${{ needs.discover.outputs.tag }}
-        run: |
-          # Poll p2 (composer's metadata endpoint) for up to 24 * 30s = 12 min.
-          attempt=1
-          max_attempts=24
-          while [[ $attempt -le $max_attempts ]]; do
-            body=$(curl -sS --max-time 15 "https://repo.packagist.org/p2/${PACKAGE}.json" || echo '{}')
-            versions=$(echo "$body" | jq -r --arg pkg "$PACKAGE" '.packages[$pkg][]?.version // empty' 2>/dev/null || true)
-            if echo "$versions" | grep -qFx "$TAG"; then
-              echo "::notice::$PACKAGE $TAG visible on Packagist (attempt $attempt)"
-              exit 0
-            fi
-            echo "attempt $attempt: $TAG not yet listed for $PACKAGE"
-            attempt=$((attempt + 1))
-            sleep 30
-          done
-          echo "::error::$PACKAGE $TAG not visible on Packagist after $((max_attempts * 30))s — Packagist crawl may be stalled"
-          exit 1
+        uses: ./.github/actions/packagist-verify
+        with:
+          packages: ${{ matrix.package }}
+          tag: ${{ needs.discover.outputs.tag }}
+          max-attempts: '24'
+          interval-min-seconds: '30'
+          interval-max-seconds: '30'

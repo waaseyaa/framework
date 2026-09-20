@@ -263,7 +263,7 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertStringContainsString('repositories: ${{ github.event.repository.name }}', $release);
 
         // The push must use the App token. GITHUB_TOKEN would not trigger
-        // split.yml or packagist-update.yml, tagging without publishing.
+        // split.yml or sync-skeleton.yml, tagging without package publication.
         self::assertStringContainsString('RELEASE_TOKEN: ${{ steps.release_identity.outputs.token }}', $release);
         self::assertStringNotContainsString('secrets.GITHUB_TOKEN', $release);
 

@@ -1,0 +1,79 @@
+name: Submit packages to Packagist
+description: Submit idempotent package crawls, with optional first-registration and bounded recovery semantics.
+inputs:
+  packages:
+    description: Comma-separated or newline-separated waaseyaa/* package names.
+    required: false
+    default: ''
+  packages-file:
+    description: File containing one waaseyaa/* package name per line. Mutually exclusive with packages.
+    required: false
+    default: ''
+  repository-owner:
+    description: GitHub owner of the framework and split repositories.
+    required: true
+  username:
+    description: Packagist username.
+    required: false
+    default: ''
+  token:
+    description: Packagist safe API token used by update-package.
+    required: false
+    default: ''
+  main-token:
+    description: Packagist main API token used by create-package when explicitly allowed.
+    required: false
+    default: ''
+  allow-create:
+    description: Permit update-package HTTP 404 to fall back to create-package.
+    required: false
+    default: 'true'
+  mode:
+    description: submit for one crawl per package, or recovery for split-tag validation and bounded resubmission.
+    required: false
+    default: submit
+  tag:
+    description: Existing release tag required by recovery mode.
+    required: false
+    default: ''
+  github-token:
+    description: GitHub token used only to verify split tags in recovery mode.
+    required: false
+    default: ''
+  max-attempts:
+    description: Maximum submission attempts per package in recovery mode.
+    required: false
+    default: '3'
+  spacing-min-seconds:
+    description: Minimum delay between package submissions in submit mode.
+    required: false
+    default: '3'
+  spacing-max-seconds:
+    description: Maximum delay between package submissions in submit mode.
+    required: false
+    default: '6'
+  dry-run:
+    description: Validate inputs and report intended endpoints without credentials, network calls, or sleeps.
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Submit Packagist crawl requests
+      shell: bash
+      env:
+        PACKAGIST_PACKAGES: ${{ inputs.packages }}
+        PACKAGIST_PACKAGES_FILE: ${{ inputs.packages-file }}
+        PACKAGIST_REPOSITORY_OWNER: ${{ inputs.repository-owner }}
+        PACKAGIST_USERNAME: ${{ inputs.username }}
+        PACKAGIST_TOKEN: ${{ inputs.token }}
+        PACKAGIST_MAIN_TOKEN: ${{ inputs.main-token }}
+        PACKAGIST_ALLOW_CREATE: ${{ inputs.allow-create }}
+        PACKAGIST_MODE: ${{ inputs.mode }}
+        PACKAGIST_TAG: ${{ inputs.tag }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PACKAGIST_MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+        PACKAGIST_SPACING_MIN_SECONDS: ${{ inputs.spacing-min-seconds }}
+        PACKAGIST_SPACING_MAX_SECONDS: ${{ inputs.spacing-max-seconds }}
+        PACKAGIST_DRY_RUN: ${{ inputs.dry-run }}
+      run: bash "${GITHUB_ACTION_PATH}/submit.sh"

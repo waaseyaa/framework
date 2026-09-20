@@ -1288,16 +1288,22 @@ supersedes the sweep's estimates). None is acted on here.
   `# v7.0.1` everywhere else; `actions/github-script` is `v7` in
   `manual-claude-review.yml:30,107` and `v9.0.0` in
   `discord-release.yml:38,141`. Owner: new issue.
-- **Packagist publish/verify logic is duplicated four ways** —
+- ~~**Packagist publish/verify logic is duplicated four ways** —
   `split.yml:563-651`, `packagist-register.yml:31-75`,
   `packagist-recover.yml:46-196`, `sync-skeleton.yml:72-98` — and the P2
   polling loop three ways: `split.yml:359-420`,
   `packagist-update.yml:118-148`, `packagist-recover.yml:114-162`. Owner: new
-  issue; consolidate before any new CI machinery depends on it.
-- **`packagist-update.yml` documents itself as ad-hoc** (`:11-14`) but triggers
+  issue; consolidate before any new CI machinery depends on it.~~ **Resolved by
+  #3091.** Submission and exact-tag P2 verification now have one implementation
+  each behind local composite actions. The release, registration, recovery, and
+  skeleton call sites retain their distinct create and retry policies through
+  explicit inputs, and both actions have a no-network dry-run contract.
+- ~~**`packagist-update.yml` documents itself as ad-hoc** (`:11-14`) but triggers
   on `push: tags: ['v*']` (`:38-40`), duplicating `split.yml`'s
   `verify-packagist` on every tag. Either the prose or the trigger is wrong.
-  Owner: new issue.
+  Owner: new issue.~~ **Resolved by #3091.** The standalone verifier is
+  `workflow_dispatch` only; tag-push verification remains ordered inside
+  `split.yml`.
 - **Ten jobs are unnamed**, so their check name is the bare job id: seven
   singletons (`manual-claude-review.yml#review`,
   `packagist-update.yml#discover`, `skeleton-smoke.yml#smoke`,
@@ -1339,8 +1345,9 @@ issues after Task 3. The ledger remains the portable authority; the issues
 are the forge adapter.
 
 - waaseyaa/framework#3090 — `timeout-minutes` on every job, release pipeline first.
-- waaseyaa/framework#3091 — consolidate the four-way Packagist submit/verify
-  duplication; settle `packagist-update.yml`'s prose-vs-trigger contradiction.
+- waaseyaa/framework#3091 — Packagist submit/verify consolidation and the
+  standalone-verifier trigger correction; delivered as the final ordered
+  clean-first prerequisite before Task 5.
 - waaseyaa/framework#3092 — explicit least-privilege `permissions:` in the nine
   default-token workflows; narrow `admin-dist.yml` / `auto-merge.yml`; review
   the `sync-skeleton.yml` force-push.

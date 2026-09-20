@@ -154,7 +154,7 @@ const CWI_HOSTED_SIGNAL_PATTERNS = [
     'github-token' => '/\bgithub\.token\b|\bGITHUB_TOKEN\b/',
     'gh-cli' => '/(?<![\w-])gh\s+(api|pr|release|run|workflow|issue|repo|auth)\b/',
     'github-api' => '/api\.github\.com|(?<![\w-])gh\s+api\b/',
-    'packagist-api' => '/packagist\.org/',
+    'packagist-api' => '#packagist\.org|\./(?:framework/)?\.github/actions/packagist-(?:submit|verify)(?:\b|$)#',
     'git-push' => '/\bgit\s+push\b/',
     'webhook' => '/\bwebhookUrl\b|_WEBHOOK_URL\b|discord\.com\/api\/webhooks/',
 ];
@@ -174,6 +174,10 @@ const CWI_PUBLICATION_SIGNAL_PATTERNS = [
     // the action reference itself is the evidence (split.yml and
     // github-release.yml both create the GitHub Release this way).
     'release-action' => '/(?:softprops\/action-gh-release|actions\/create-release)(?:@|\b)/',
+    // Local composite actions hide their run-step text from a workflow-only
+    // inventory. The stable action identity is therefore the publication
+    // signal, just as a third-party release action is above.
+    'packagist-submit-action' => '#\./(?:framework/)?\.github/actions/packagist-submit(?:\b|$)#',
 ];
 
 const CWI_ORCHESTRATION_SIGNAL_PATTERNS = [

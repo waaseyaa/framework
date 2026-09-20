@@ -100,27 +100,31 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - name: Verify Packagist and reconstruct deterministic evidence
+      - name: Discover packages for recovery verification
+        if: ${{ inputs.split_run_id != '' }}
+        run: |
+          {
+            jq -r '.name // empty' composer.json
+            for manifest in packages/*/composer.json; do jq -r '.name // empty' "${manifest}"; done
+          } | grep '^waaseyaa/' | sort -u > /tmp/release-packages.txt
+
+      - name: Verify exact package publication for recovery
+        if: ${{ inputs.split_run_id != '' }}
+        uses: ./.github/actions/packagist-verify
+        with:
+          packages-file: /tmp/release-packages.txt
+          tag: ${{ inputs.tag }}
+          max-attempts: '1'
+          interval-min-seconds: '0'
+          interval-max-seconds: '0'
+
+      - name: Reconstruct deterministic release evidence
         if: ${{ inputs.split_run_id != '' }}
         env:
           SPLIT_RUN_ID: ${{ inputs.split_run_id }}
           TAG_NAME: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          {
-            jq -r '.name // empty' composer.json
-            for manifest in packages/*/composer.json; do jq -r '.name // empty' "${manifest}"; done
-          } | grep '^waaseyaa/' | sort -u > /tmp/release-packages.txt
-
-          while IFS= read -r package; do
-            curl -fsS --max-time 30 "https://repo.packagist.org/p2/${package}.json" \
-              | jq -e --arg package "${package}" --arg tag "${TAG_NAME}" \
-                '.packages[$package][]? | select(.version == $tag)' >/dev/null || {
-                  echo "::error::${package} ${TAG_NAME} is not visible in Packagist P2."
-                  exit 1
-                }
-          done < /tmp/release-packages.txt
-
           source_sha="$(git rev-parse "${TAG_NAME}^{commit}")"
           bin/generate-release-evidence \
             --repository-root="${GITHUB_WORKSPACE}" \

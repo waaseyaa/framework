@@ -345,7 +345,7 @@ jobs:
         run: bash bin/check-release-require-parity
 
   # Stage 4 of the release state machine: split tags -> verify split parity ->
-  # submit Packagist updates -> VERIFY 76/76 -> publish GitHub Release.
+  # submit Packagist updates -> VERIFY every discovered package -> publish GitHub Release.
   #
   # This lived in a separate workflow (`packagist-update.yml`) that ran on the
   # same tag push, so the two raced: the release could publish while
@@ -368,68 +368,23 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Poll P2 until every package lists the tag
-        env:
-          TAG: ${{ github.ref_name }}
+      - name: Discover waaseyaa/* packages
         run: |
-          set -uo pipefail
-          UA='waaseyaa-release/1.0 (+https://github.com/waaseyaa/framework; release verification)'
-
           {
             for f in packages/*/composer.json; do jq -r '.name // empty' "$f"; done
             jq -r '.name // empty' composer.json
           } | grep '^waaseyaa/' | sort -u > /tmp/pkgs.txt
-          total=$(wc -l < /tmp/pkgs.txt)
-          echo "Verifying ${total} package(s) at ${TAG}."
 
-          deadline=$(( $(date +%s) + 2400 ))   # 40 minutes
-          missing_file=/tmp/missing.txt
-          cp /tmp/pkgs.txt "${missing_file}"
-          start=$(date +%s)
-
-          while [ -s "${missing_file}" ] && [ "$(date +%s)" -lt "${deadline}" ]; do
-            : > /tmp/still-missing.txt
-            while IFS= read -r pkg; do
-              [ -z "${pkg}" ] && continue
-              if curl -sS -A "${UA}" "https://repo.packagist.org/p2/${pkg}.json" \
-                   | jq -e --arg t "${TAG}" '.packages[][] | select(.version == $t)' >/dev/null 2>&1; then
-                echo "::notice::${pkg}: visible after $(( $(date +%s) - start ))s."
-              else
-                echo "${pkg}" >> /tmp/still-missing.txt
-              fi
-            done < "${missing_file}"
-            mv /tmp/still-missing.txt "${missing_file}"
-            [ -s "${missing_file}" ] || break
-            echo "$(wc -l < "${missing_file}") still pending after $(( $(date +%s) - start ))s; waiting."
-            sleep $(( 45 + RANDOM % 30 ))
-          done
-
-          elapsed=$(( $(date +%s) - start ))
-
-          if [ -s "${missing_file}" ]; then
-            list=$(paste -sd, "${missing_file}")
-            {
-              echo "## Packagist verification FAILED after ${elapsed}s"
-              echo
-              echo '```json'
-              jq -R -s -c 'split("\n") | map(select(length > 0)) | {missing: .}' < "${missing_file}"
-              echo '```'
-              echo
-              echo "Recover only these packages, without republishing the rest:"
-              echo
-              echo '```'
-              echo "gh workflow run packagist-recover.yml -f packages=${list} -f tag=${TAG}"
-              echo '```'
-            } >> "${GITHUB_STEP_SUMMARY}"
-            echo "::error::Not installable at ${TAG}: ${list}"
-            echo "::error::Recover: gh workflow run packagist-recover.yml -f packages=${list} -f tag=${TAG}"
-            exit 1
-          fi
-
-          echo "## Packagist verification passed" >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "All ${total} packages installable at \`${TAG}\` after ${elapsed}s." >> "${GITHUB_STEP_SUMMARY}"
-          echo "::notice::All ${total} packages visible at ${TAG} after ${elapsed}s."
+      - name: Poll P2 until every package lists the tag
+        uses: ./.github/actions/packagist-verify
+        with:
+          packages-file: /tmp/pkgs.txt
+          tag: ${{ github.ref_name }}
+          max-attempts: '60'
+          deadline-seconds: '2400'
+          interval-min-seconds: '45'
+          interval-max-seconds: '74'
+          recovery-command: true
 
   assemble-release-evidence:
     name: Assemble deterministic release evidence
@@ -576,91 +531,11 @@ jobs:
           echo "Discovered $(wc -l < /tmp/pkgs.txt) package(s)."
 
       - name: Trigger exactly one Packagist crawl per package
-        env:
-          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
-          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
-          PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}
-          REPO_OWNER: ${{ github.repository_owner }}
-        run: |
-          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
-            echo "::error::PACKAGIST_USERNAME / PACKAGIST_TOKEN secret not set."
-            echo "::error::The Packagist push webhooks are disabled by design (single-crawl model),"
-            echo "::error::so without these secrets nothing publishes. Configure them, then re-run."
-            exit 1
-          fi
-          # Packagist asks API consumers to identify themselves.
-          UA='waaseyaa-release/1.0 (+https://github.com/waaseyaa/framework; release fan-out)'
-
-          rc=0
-          n=0
-          : > /tmp/packagist-jobs.txt
-          while IFS= read -r pkg; do
-            [ -z "${pkg}" ] && continue
-            n=$(( n + 1 ))
-            # Spacing between submissions (alpha.285). This loop previously
-            # fired ~76 POSTs back to back; the three packages that took
-            # longest to appear were the first three alphabetically, i.e. the
-            # front of that burst. Jitter avoids synchronising with anything
-            # else hitting the same endpoint.
-            [ "${n}" -gt 1 ] && sleep $(( 3 + RANDOM % 4 ))
-            # waaseyaa/<x> is registered on Packagist at github.com/<owner>/<x>
-            # (each split package's own repo; the monorepo for waaseyaa/framework).
-            repo_url="https://github.com/${REPO_OWNER}/${pkg#waaseyaa/}"
-            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
-              "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
-              -H 'Content-Type: application/json' \
-              -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
-            if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
-              # ACCEPTED, NOT PUBLISHED. 202 means the crawl is queued. The
-              # `verify-packagist` job below decides whether it actually
-              # happened; this step must never be read as publication.
-              #
-              # The job id is recorded because without it a package that never
-              # appears is indistinguishable from one still in the queue —
-              # which is exactly what made the alpha.285 investigation guesswork.
-              job_id=$(jq -r '.job // .jobs[0] // empty' /tmp/resp.json 2>/dev/null)
-              printf '%s\t%s\t%s\n' "${pkg}" "${code}" "${job_id:-none}" >> /tmp/packagist-jobs.txt
-              echo "::notice::${pkg}: update-package QUEUED (HTTP ${code}, job ${job_id:-none}) — not yet published."
-            elif [ "${code}" = "404" ]; then
-              # Package not yet registered on Packagist — first release of a new
-              # split package (e.g. waaseyaa/publishing, alpha.277). Register it
-              # via create-package. Packagist classifies this endpoint as unsafe:
-              # unlike update-package, it requires the account's main API token.
-              # Use the documented Bearer form and keep credentials out of URLs.
-              # Payload is a plain-string repository URL per packagist.org/apidoc.
-              # Idempotent by construction: once registered, the update-package
-              # call above succeeds and this branch never runs.
-              echo "::notice::${pkg}: not registered on Packagist yet — creating."
-              if [ -z "${PACKAGIST_MAIN_TOKEN}" ]; then
-                echo "::error::${pkg}: PACKAGIST_MAIN_TOKEN is required to register a new package."
-                rc=1
-                continue
-              fi
-              ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
-                "https://packagist.org/api/create-package" \
-                -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}" \
-                -H 'Content-Type: application/json' \
-                -d "{\"repository\":\"${repo_url}\"}" || echo "000")
-              if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then
-                echo "::notice::${pkg}: create-package accepted (HTTP ${ccode})."
-              else
-                echo "::error::${pkg}: create-package failed (HTTP ${ccode}): $(cat /tmp/create.json 2>/dev/null)"
-                rc=1
-              fi
-            else
-              echo "::error::${pkg}: update-package failed (HTTP ${code}): $(cat /tmp/resp.json 2>/dev/null)"
-              rc=1
-            fi
-          done < /tmp/pkgs.txt
-
-          {
-            echo "## Packagist crawl submissions"
-            echo
-            echo "Queued, **not** published — see the \`verify-packagist\` job."
-            echo
-            echo "| Package | HTTP | Job |"
-            echo "|---|---|---|"
-            while IFS=$'\t' read -r pk co jb; do echo "| \`${pk}\` | ${co} | \`${jb}\` |"; done < /tmp/packagist-jobs.txt
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-          exit "${rc}"
+        uses: ./.github/actions/packagist-submit
+        with:
+          packages-file: /tmp/pkgs.txt
+          repository-owner: ${{ github.repository_owner }}
+          username: ${{ secrets.PACKAGIST_USERNAME }}
+          token: ${{ secrets.PACKAGIST_TOKEN }}
+          main-token: ${{ secrets.PACKAGIST_MAIN_TOKEN }}
+          allow-create: true

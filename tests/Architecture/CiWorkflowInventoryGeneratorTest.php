@@ -650,6 +650,13 @@ final class CiWorkflowInventoryGeneratorTest extends TestCase
         self::assertSame('unresolved-expression', $verify['name']['derivation']);
         self::assertSame('Verify Packagist publication / ${{ matrix.package }}', $verify['name']['raw']);
         self::assertSame([null], self::contexts($verify));
+
+        $packagistPublication = self::job($inventory, 'split.yml', 'publish-packagist');
+        self::assertSame('publication', $packagistPublication['structural_role']);
+        self::assertSame(
+            ['packagist-submit-action'],
+            $packagistPublication['role_evidence']['publication_signals'],
+        );
     }
 
     #[Test]

@@ -21,7 +21,8 @@ on:
         required: true
         type: string
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   register:
@@ -29,48 +30,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Register (update-package, create-package on 404)
-        env:
-          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
-          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
-          PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}
-          PKG: ${{ inputs.package }}
-          REPO_OWNER: ${{ github.repository_owner }}
-        run: |
-          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
-            echo "::error::PACKAGIST_USERNAME / PACKAGIST_TOKEN secret not set."
-            exit 1
-          fi
-          if ! printf '%s' "${PKG}" | grep -Eq '^waaseyaa/[a-z0-9][a-z0-9-]*$'; then
-            echo "::error::package must match waaseyaa/<name> (got: ${PKG})"
-            exit 1
-          fi
-          repo_url="https://github.com/${REPO_OWNER}/${PKG#waaseyaa/}"
-          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
-            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
-            -H 'Content-Type: application/json' \
-            -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
-          if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
-            echo "::notice::${PKG}: already registered — update-package accepted (HTTP ${code})."
-            exit 0
-          fi
-          if [ "${code}" != "404" ]; then
-            echo "::error::${PKG}: update-package failed (HTTP ${code}): $(cat /tmp/resp.json 2>/dev/null)"
-            exit 1
-          fi
-          echo "::notice::${PKG}: not registered yet — calling create-package."
-          if [ -z "${PACKAGIST_MAIN_TOKEN}" ]; then
-            echo "::error::PACKAGIST_MAIN_TOKEN is required to register a new package."
-            exit 1
-          fi
-          ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
-            "https://packagist.org/api/create-package" \
-            -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}" \
-            -H 'Content-Type: application/json' \
-            -d "{\"repository\":\"${repo_url}\"}" || echo "000")
-          if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then
-            echo "::notice::${PKG}: create-package accepted (HTTP ${ccode})."
-          else
-            echo "::error::${PKG}: create-package failed (HTTP ${ccode}): $(cat /tmp/create.json 2>/dev/null)"
-            exit 1
-          fi
+        uses: ./.github/actions/packagist-submit
+        with:
+          packages: ${{ inputs.package }}
+          repository-owner: ${{ github.repository_owner }}
+          username: ${{ secrets.PACKAGIST_USERNAME }}
+          token: ${{ secrets.PACKAGIST_TOKEN }}
+          main-token: ${{ secrets.PACKAGIST_MAIN_TOKEN }}
+          allow-create: true
+          spacing-min-seconds: '0'
+          spacing-max-seconds: '0'
