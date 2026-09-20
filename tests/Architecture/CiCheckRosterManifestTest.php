@@ -147,7 +147,7 @@ final class CiCheckRosterManifestTest extends TestCase
     {
         self::assertSame([], $this->validate($this->manifest));
         self::assertSame(3, $this->manifest['schema_version']);
-        self::assertSame(6, $this->manifest['scope']['task']);
+        self::assertSame(7, $this->manifest['scope']['task']);
         self::assertSame(
             ['status' => 'generated', 'task' => 2, 'path' => 'tools/ci-workflow-inventory.json', 'generator' => 'bin/generate-ci-workflow-inventory'],
             $this->manifest['scope']['generated_workflow_inventory'],
@@ -326,8 +326,8 @@ final class CiCheckRosterManifestTest extends TestCase
             || ($conformance['verifier'] ?? null) !== 'bin/check-ci-roster-conformance') {
             $errors[] = 'offline workflow conformance pointer must name the task 3 verifier';
         }
-        if (($manifest['scope']['task'] ?? null) !== 6) {
-            $errors[] = 'manifest scope must record task 6';
+        if (($manifest['scope']['task'] ?? null) !== 7) {
+            $errors[] = 'manifest scope must record task 7';
         }
         $liveAudit = $manifest['scope']['live_projection_audit'] ?? [];
         if (($liveAudit['status'] ?? null) !== 'implemented'
@@ -708,6 +708,27 @@ final class CiCheckRosterManifestTest extends TestCase
         sort($expected);
         if ($used !== $expected) {
             $errors[] = 'all eight invariant decisions must own at least one required context';
+        }
+
+        $migration = $manifest['policy']['ruleset_migration'] ?? [];
+        if (($migration['status'] ?? null) !== 'tooling-only'
+            || ($migration['ruleset_id'] ?? null) !== 15181711
+            || ($migration['baseline'] ?? null) !== 'tools/ci-ruleset-main-protection-baseline.json'
+            || ($migration['projector'] ?? null) !== 'bin/project-ci-ruleset'
+            || ($migration['default_mode'] ?? null) !== 'dry-run'
+            || ($migration['allowed_live_projections_during_migration'] ?? null) !== ['legacy', 'union', 'final']) {
+            $errors[] = 'Task 7 ruleset migration must remain an explicit dry-run-first three-projection contract';
+        }
+        $phaseCounts = array_map(
+            static fn(array $phase): mixed => $phase['required_context_count'] ?? null,
+            $migration['projections'] ?? [],
+        );
+        if ($phaseCounts !== ['legacy' => 22, 'union' => 31, 'final' => 9]) {
+            $errors[] = 'Task 7 ruleset migration projection counts must remain 22, 31, and 9';
+        }
+        if (($migration['rollback_transitions'] ?? null) !== ['union-to-legacy', 'final-to-legacy']
+            || count($migration['apply_guards'] ?? []) !== 9) {
+            $errors[] = 'Task 7 ruleset migration must retain both rollback paths and all nine apply guards';
         }
     }
 

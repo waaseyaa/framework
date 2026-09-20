@@ -32,6 +32,7 @@ final class CiLiveRosterAuditTest extends TestCase
         self::assertSame(15181711, $report['ruleset_snapshot']['id']);
         self::assertTrue($report['ruleset_snapshot']['strict']);
         self::assertCount(22, $report['ruleset_snapshot']['contexts']);
+        self::assertSame('legacy', $report['ruleset_projection']['matched']);
         self::assertSame(9, $report['stable_aggregate_count']);
         self::assertCount(9, $report['stable_aggregates']);
         self::assertSame(1, $report['measurement']['sample_size']);
@@ -43,6 +44,25 @@ final class CiLiveRosterAuditTest extends TestCase
             self::assertSame(15368, $aggregate['app_id']);
             self::assertGreaterThan(0, $aggregate['duration_seconds']);
             self::assertNotSame([], $aggregate['prerequisites']);
+        }
+    }
+
+    #[Test]
+    public function exact_union_and_final_migration_projections_are_auditable(): void
+    {
+        [$policy, $inventory, $ruleset, $runs] = self::fixtures();
+        $stable = array_map(
+            static fn(array $entry): array => ['context' => $entry['context'], 'integration_id' => 15368],
+            array_values($policy['policy']['stable_aggregate_shadow']['contexts']),
+        );
+
+        foreach (['union' => array_merge($ruleset['rules'][0]['parameters']['required_status_checks'], $stable), 'final' => $stable] as $phase => $contexts) {
+            $candidate = $ruleset;
+            $candidate['rules'][0]['parameters']['required_status_checks'] = $contexts;
+            $report = \cla_audit($policy, $inventory, $candidate, $runs, 'waaseyaa/framework', str_repeat('a', 40));
+
+            self::assertTrue($report['ok'], json_encode($report['findings']));
+            self::assertSame($phase, $report['ruleset_projection']['matched']);
         }
     }
 

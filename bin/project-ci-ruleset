@@ -1,0 +1,182 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
+require_once $root . '/bin/lib/ci-ruleset-projector.php';
+
+function crp_cli_fail(string $message, int $exit = 2): never
+{
+    fwrite(STDERR, "project-ci-ruleset: {$message}\n");
+    exit($exit);
+}
+
+/** @return array<string, mixed> */
+function crp_cli_read_json(string $path, string $label): array
+{
+    if (!is_file($path) || !is_readable($path)) {
+        crp_cli_fail("cannot read {$label} at {$path}.");
+    }
+    try {
+        $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        crp_cli_fail("{$label} is invalid JSON: " . $exception->getMessage());
+    }
+    if (!is_array($decoded)) {
+        crp_cli_fail("{$label} must decode to an object or array.");
+    }
+
+    return $decoded;
+}
+
+/** @return array<string, mixed> */
+function crp_cli_gh(array $arguments, string $label, ?array $input = null): array
+{
+    $command = array_merge(['gh', 'api'], $arguments);
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    if ($input !== null) {
+        $descriptors[0] = ['pipe', 'r'];
+    }
+    $pipes = [];
+    $process = proc_open($command, $descriptors, $pipes);
+    if (!is_resource($process)) {
+        crp_cli_fail("could not start gh for {$label}.");
+    }
+    if ($input !== null) {
+        fwrite($pipes[0], json_encode($input, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        fclose($pipes[0]);
+    }
+    $output = stream_get_contents($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+    if ($exit !== 0) {
+        crp_cli_fail("GitHub API request for {$label} failed: " . trim((string) $error), 1);
+    }
+    try {
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        crp_cli_fail("GitHub API response for {$label} is invalid JSON: " . $exception->getMessage(), 1);
+    }
+    if (!is_array($decoded)) {
+        crp_cli_fail("GitHub API response for {$label} must decode to an object or array.", 1);
+    }
+
+    return $decoded;
+}
+
+$phase = null;
+$repository = getenv('GITHUB_REPOSITORY') ?: 'waaseyaa/framework';
+$evidenceSha = '';
+$policyPath = $root . '/tools/ci-check-roster.json';
+$baselinePath = $root . '/tools/ci-ruleset-main-protection-baseline.json';
+$rulesetPath = null;
+$checkRunsPath = null;
+$outputPath = null;
+$apply = false;
+$confirmedRulesetId = null;
+$expectedLiveHash = null;
+$customGovernanceInput = false;
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--phase=')) {
+        $phase = substr($argument, strlen('--phase='));
+    } elseif (str_starts_with($argument, '--repo=')) {
+        $repository = substr($argument, strlen('--repo='));
+    } elseif (str_starts_with($argument, '--evidence-sha=')) {
+        $evidenceSha = substr($argument, strlen('--evidence-sha='));
+    } elseif (str_starts_with($argument, '--policy=')) {
+        $policyPath = substr($argument, strlen('--policy='));
+        $customGovernanceInput = true;
+    } elseif (str_starts_with($argument, '--baseline=')) {
+        $baselinePath = substr($argument, strlen('--baseline='));
+        $customGovernanceInput = true;
+    } elseif (str_starts_with($argument, '--ruleset=')) {
+        $rulesetPath = substr($argument, strlen('--ruleset='));
+    } elseif (str_starts_with($argument, '--check-runs=')) {
+        $checkRunsPath = substr($argument, strlen('--check-runs='));
+    } elseif (str_starts_with($argument, '--output=')) {
+        $outputPath = substr($argument, strlen('--output='));
+    } elseif (str_starts_with($argument, '--confirm-ruleset-id=')) {
+        $confirmedRulesetId = substr($argument, strlen('--confirm-ruleset-id='));
+    } elseif (str_starts_with($argument, '--expected-live-hash=')) {
+        $expectedLiveHash = substr($argument, strlen('--expected-live-hash='));
+    } elseif ($argument === '--apply') {
+        $apply = true;
+    } else {
+        crp_cli_fail("unknown argument {$argument}.");
+    }
+}
+
+if (!in_array($phase, ['union', 'final', 'rollback'], true)) {
+    crp_cli_fail('--phase must be union, final, or rollback.');
+}
+if (preg_match('~^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$~', $repository) !== 1) {
+    crp_cli_fail('--repo must be owner/repository.');
+}
+if (preg_match('/^[0-9a-f]{40}$/', $evidenceSha) !== 1) {
+    crp_cli_fail('--evidence-sha must be an exact 40-character lowercase commit SHA.');
+}
+
+$policy = crp_cli_read_json($policyPath, 'policy');
+$baseline = crp_cli_read_json($baselinePath, 'baseline');
+$rulesetId = $policy['policy']['required_projection']['source_ruleset_id'] ?? null;
+if (!is_int($rulesetId)) {
+    crp_cli_fail('the policy has no integer source_ruleset_id.');
+}
+$governedRepository = $policy['evidence']['repository'] ?? null;
+if (!is_string($governedRepository) || $repository !== $governedRepository) {
+    crp_cli_fail("--repo must equal the governed repository {$governedRepository}.");
+}
+$live = $rulesetPath === null
+    ? crp_cli_gh(["repos/{$repository}/rulesets/{$rulesetId}"], 'live ruleset')
+    : crp_cli_read_json($rulesetPath, 'ruleset fixture');
+$checkPayload = $phase === 'rollback'
+    ? []
+    : ($checkRunsPath === null
+        ? crp_cli_gh(['--paginate', '--slurp', "repos/{$repository}/commits/{$evidenceSha}/check-runs?per_page=100&filter=latest"], 'exact-SHA check runs')
+        : crp_cli_read_json($checkRunsPath, 'check-run fixture'));
+
+try {
+    $plan = crp_plan($phase, $baseline, $policy, $live, crp_normalize_check_runs($checkPayload), $repository, $evidenceSha);
+} catch (Throwable $exception) {
+    crp_cli_fail($exception->getMessage(), 1);
+}
+$plan['mode'] = $apply ? 'apply' : 'dry-run';
+
+if ($apply) {
+    if ($rulesetPath !== null || $checkRunsPath !== null) {
+        crp_cli_fail('--apply cannot use fixture inputs.');
+    }
+    if ($customGovernanceInput) {
+        crp_cli_fail('--apply must use the tracked policy and baseline paths.');
+    }
+    if ($confirmedRulesetId !== (string) $rulesetId) {
+        crp_cli_fail("--confirm-ruleset-id must equal {$rulesetId}.");
+    }
+    if (!is_string($expectedLiveHash) || !hash_equals($plan['before']['hash'], $expectedLiveHash)) {
+        crp_cli_fail('--expected-live-hash must equal the hash from a fresh dry-run.');
+    }
+    if ($phase !== 'rollback') {
+        $mainRef = crp_cli_gh(["repos/{$repository}/git/ref/heads/main"], 'current main ref');
+        if (($mainRef['object']['sha'] ?? null) !== $evidenceSha) {
+            crp_cli_fail('--evidence-sha must equal current main for a forward transition.');
+        }
+    }
+    crp_cli_gh(['--method', 'PUT', "repos/{$repository}/rulesets/{$rulesetId}", '--input', '-'], 'ruleset update', $plan['payload']);
+    $verified = crp_cli_gh(["repos/{$repository}/rulesets/{$rulesetId}"], 'post-update ruleset');
+    if (!hash_equals($plan['after']['hash'], crp_hash(crp_write_payload($verified)))) {
+        crp_cli_fail('post-update ruleset does not match the planned projection.', 1);
+    }
+    $plan['applied'] = true;
+    $plan['verified_after_hash'] = $plan['after']['hash'];
+} else {
+    $plan['applied'] = false;
+}
+
+$encoded = json_encode($plan, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+if ($outputPath !== null && file_put_contents($outputPath, $encoded) === false) {
+    crp_cli_fail("could not write plan to {$outputPath}.");
+}
+fwrite(STDOUT, $encoded);
