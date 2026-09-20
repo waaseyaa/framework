@@ -625,12 +625,12 @@ final class CiWorkflowInventoryGeneratorTest extends TestCase
         );
 
         // 77 literal `package` entries in split.yml, each an object axis
-        // value, rendered through GitHub's documented default matrix name.
+        // value, rendered through the explicit stable package-name template.
         $split = self::job($inventory, 'split.yml', 'split');
         self::assertSame('literal', $split['matrix']['resolution']);
         self::assertCount(77, $split['matrix']['combinations']);
-        self::assertSame('default-matrix', $split['name']['derivation']);
-        self::assertSame('split (packages/foundation, foundation)', self::contexts($split)[0]);
+        self::assertSame('template-expanded', $split['name']['derivation']);
+        self::assertSame('Split release / foundation', self::contexts($split)[0]);
         $provenance = self::flow($inventory, 'split.yml', 'split-provenance-${{ matrix.package.remote }}');
         self::assertSame('bounded-expansion', $provenance['producers'][0]['kind']);
         self::assertCount(77, $provenance['producers'][0]['expansion']);
@@ -647,7 +647,8 @@ final class CiWorkflowInventoryGeneratorTest extends TestCase
         $verify = self::job($inventory, 'packagist-update.yml', 'verify');
         self::assertSame('unresolved-expression', $verify['matrix']['resolution']);
         self::assertNull($verify['matrix']['combinations']);
-        self::assertSame('default-matrix-unresolved', $verify['name']['derivation']);
+        self::assertSame('unresolved-expression', $verify['name']['derivation']);
+        self::assertSame('Verify Packagist publication / ${{ matrix.package }}', $verify['name']['raw']);
         self::assertSame([null], self::contexts($verify));
     }
 

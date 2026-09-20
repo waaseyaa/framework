@@ -32,6 +32,7 @@ jobs:
         run: bash bin/wait-for-green-ci "${SHA}" 2700
 
   split:
+    name: Split release / ${{ matrix.package.remote }}
     needs: verify-ci-green
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -289,6 +290,7 @@ jobs:
           esac
 
   verify-tag-parity:
+    name: Verify split tag parity
     needs: split
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -307,6 +309,7 @@ jobs:
           bash bin/check-release-tag-parity "${TAG_NAME}"
 
   verify-require-parity:
+    name: Verify split require parity
     # Defense-in-depth mirror of the pre-tag gate in release-cut.yml. Catches a
     # poisoned root manifest if a tag was pushed by a path that bypasses
     # release-cut (e.g. a manual `git push --tags`). Companion to the
@@ -496,7 +499,7 @@ jobs:
   # and stayed published when it failed. A release note pointing at packages
   # that `composer require` cannot resolve is worse than a late release note.
   publish-github-release:
-    name: Publish GitHub Release
+    name: Publish GitHub Release (release pipeline)
     needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist, assemble-release-evidence]
     if: ${{ always() }}
     runs-on: ubuntu-latest

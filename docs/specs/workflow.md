@@ -223,6 +223,25 @@ auto-merge adapter receives 125 minutes because its explicit merge poll lasts
 up to 120 minutes. Any future job must declare a limit and document a long
 budget next to the internal wait that requires it.
 
+### Stable workflow job names
+
+Every workflow job declares an explicit `name:` because its visible check name
+is an operational and policy interface. Matrix names include the leaf identity
+that owns the failure, and visible names are unique across workflows. The
+release pipeline and manual recovery path therefore publish distinct contexts:
+`Publish GitHub Release (release pipeline)` and
+`Publish GitHub Release (manual recovery)`.
+
+The mixed naming surface in `ci.yml` is intentional until the governed ruleset
+migration in #3087 Task 7. `ci/<slug>` names identify detailed CI execution and
+aggregate lanes, title-case names identify human-facing repository or release
+policy checks, and `support/s1-contract` keeps its separate support-contract
+namespace. The remaining bare required names, including `composer-policy`,
+`check-dead-code`, and `packaged-form`, are compatibility interfaces already
+consumed by branch protection. They must not be normalized independently of the
+fail-closed ruleset migration that runs old and replacement contexts in
+parallel. New jobs must not inherit an implicit job-key or matrix-derived name.
+
 ## Release readiness is not deployment
 
 Merging to `main` proves the Framework candidate through CI; it does not deploy
