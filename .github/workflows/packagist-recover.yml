@@ -42,6 +42,7 @@ jobs:
   recover:
     name: Recover ${{ inputs.tag }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Recover named packages
         env:

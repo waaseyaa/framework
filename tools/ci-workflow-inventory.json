@@ -28,39 +28,39 @@
         "files": [
             {
                 "file": "admin-dist.yml",
-                "sha256": "a8fb313607c23d5750c8da078e51e5cac3cec9db4b9b829dffdcabb24a48d470"
+                "sha256": "f2b8451c1adde2dde479a22bc52a85ad5d5f83d8d94f0b3e0f66a798379d2dc5"
             },
             {
                 "file": "admin.yml",
-                "sha256": "cd5180f52a00366b8e372cfe1755000a8f401a8ed834815fa48bad2b4043e480"
+                "sha256": "288fc73997f659152cb2cd4e9b0339f05137d84c37d438f58a9c6217120159a6"
             },
             {
                 "file": "auto-merge.yml",
-                "sha256": "859a52659c096f91f66a5dcd9f9b26b7988f1485dab258268ed27f579d0d0094"
+                "sha256": "0a6119e59abc29b53bf91f0e37827d9a45989428cd8041d36ffbd08f631aeb1a"
             },
             {
                 "file": "changelog-discipline.yml",
-                "sha256": "7d8d8baef1f617f7f4fc771a0ea7a2a620504c82083cc9b03a2c0a04cc0645b6"
+                "sha256": "1dc04422e291d445d15578a2e2cc3bd9ac4db97eb08b9d3375de36b9ae97b685"
             },
             {
                 "file": "ci.yml",
-                "sha256": "7ff758fb5db56ae1521c59d828fc259685b3f30207e2bd3dc535f2a69be806fa"
+                "sha256": "1c8a547f73f9fb9d81f82a0f3b39520dc883b6383599c620774154f62d58836b"
             },
             {
                 "file": "dependabot-admin-dist.yml",
-                "sha256": "ced8d6cca889766bc64411bc6536cf713f2ad0480cee7a43b3cb87bc3ca449b1"
+                "sha256": "51ff54ca70144004faf07771ccc2e5e0ddf8d9c8b9068851827e322826d4fb28"
             },
             {
                 "file": "dependency-audit.yml",
-                "sha256": "d34b53938675f4ed595f583499bc69aa6467e984b9329d3b5aeca566fb50aa28"
+                "sha256": "220891dd61251f207ceda99973b5550caf6c9cc80db5a2eba617da94846e2988"
             },
             {
                 "file": "discord-release.yml",
-                "sha256": "fda17dd475e1ccc014a9e1dc7311c36ca34028e254fd5e1894066da689dc0380"
+                "sha256": "67cce3c285994a1ce6418234c2a5c3410c804f96b03b65e65f3c60668523fb00"
             },
             {
                 "file": "github-release.yml",
-                "sha256": "71f8f82c4519a8a71ea84f2b667ae1cc4b15bc6362cfbb98f4b8fa653b6f6ac6"
+                "sha256": "7e245641ae18965c0abd231c8b75a661278de4536dc492c9ba7751e66dc99511"
             },
             {
                 "file": "manual-claude-review.yml",
@@ -72,27 +72,27 @@
             },
             {
                 "file": "packagist-recover.yml",
-                "sha256": "74fa5368c9d290193e09aa828dd461f1d1f0eb70d3a028bcb2708553d1528ecd"
+                "sha256": "8bace210b08b7ee03af6463f2afa81ae38498281a659f18c841559d9290c5edb"
             },
             {
                 "file": "packagist-register.yml",
-                "sha256": "d4de5b3d2e6c4bcab8f98c27cc44336c4064f2f82e39825b14d9f1de352ff6ba"
+                "sha256": "466219253a82d83afb5fc870ffedcc6a8392c767179a619be54c87f7b92e5b68"
             },
             {
                 "file": "packagist-update.yml",
-                "sha256": "b1cce2a3e298cb8f3d72787d61598b4f501e33f903d9413f494d5631bffc4b86"
+                "sha256": "03ad25f2c0d7178d5f46a034ed3af6e2b42bd60db35baec69da9bdf387f7a6c2"
             },
             {
                 "file": "release-cut.yml",
-                "sha256": "12f21ef40f33d5c533c5e551b367a2522167ec52ce58f770f2fe88b9078460fa"
+                "sha256": "a0b6b907b1ac9d6fa0bfbb06c418374d56c1c60ecdba85a588531470cf00623c"
             },
             {
                 "file": "release-gate.yml",
-                "sha256": "cda12d8778714422566135bb96ad518fad599d293ad04b0102c9961e768ce207"
+                "sha256": "7683306e8fb5f555725291eb784ad3c3a3e0a5ed68577ebb408c13b890aa4133"
             },
             {
                 "file": "release.yml",
-                "sha256": "8130fa0aa4664d7f94e09d52e7a0679abbea82a84d1c46b1cc55ed1885b94f39"
+                "sha256": "ea85ea58c25d037a763cb1cffa95b695d9c73a5b5ded98d1248c935220d02a51"
             },
             {
                 "file": "skeleton-smoke.yml",
@@ -100,19 +100,19 @@
             },
             {
                 "file": "split-main.yml",
-                "sha256": "24befcffde5f0682e461652bbffd4543c6634abd9305c7e36342a87b3c821167"
+                "sha256": "ad3aa911ff222f3e1b181a5fc6b27bc364bc4c685fda8b007a90a521d659936a"
             },
             {
                 "file": "split.yml",
-                "sha256": "ede4ccf6e53cfe2e8bcbf789a4396fa33e94e1eec6fbc5eb556ca8f009e1515d"
+                "sha256": "f0f73087357443e897715a76056653890e344cf8fbb25cc67dea55001769008c"
             },
             {
                 "file": "surface-parity.yml",
-                "sha256": "4bd7436ef9ba92b01034e2e0a1b167af49a61c086cf56ec7f0ef33af28eb9cb8"
+                "sha256": "852356deb8e4b5cfa2dbd0b38b8509a396fa06670b7297d1f65b65db6296c321"
             },
             {
                 "file": "sync-skeleton.yml",
-                "sha256": "917e1b6902fe5a7fd13b41df447a6bf9552ae10860bcfa00ed2bb3f2d17deafc"
+                "sha256": "4cbe681142d95308130fae2736a2d3ebcfcc81091c0e0f61238ac660bc9e22c3"
             }
         ]
     },
@@ -126,7 +126,7 @@
         {
             "file": "admin-dist.yml",
             "name": "Admin SPA Distribution Build",
-            "source_sha256": "a8fb313607c23d5750c8da078e51e5cac3cec9db4b9b829dffdcabb24a48d470",
+            "source_sha256": "f2b8451c1adde2dde479a22bc52a85ad5d5f83d8d94f0b3e0f66a798379d2dc5",
             "triggers": {
                 "events": [
                     "push",
@@ -194,7 +194,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -298,7 +301,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -417,7 +423,7 @@
         {
             "file": "admin.yml",
             "name": "Admin SPA",
-            "source_sha256": "cd5180f52a00366b8e372cfe1755000a8f401a8ed834815fa48bad2b4043e480",
+            "source_sha256": "288fc73997f659152cb2cd4e9b0339f05137d84c37d438f58a9c6217120159a6",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -495,7 +501,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": {
@@ -572,7 +581,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": {
@@ -667,7 +679,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": {
@@ -847,7 +862,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": {
@@ -954,7 +972,7 @@
         {
             "file": "auto-merge.yml",
             "name": "Auto-merge when green",
-            "source_sha256": "859a52659c096f91f66a5dcd9f9b26b7988f1485dab258268ed27f579d0d0094",
+            "source_sha256": "0a6119e59abc29b53bf91f0e37827d9a45989428cd8041d36ffbd08f631aeb1a",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -1023,7 +1041,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 125
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1100,7 +1121,7 @@
         {
             "file": "changelog-discipline.yml",
             "name": "changelog-discipline",
-            "source_sha256": "7d8d8baef1f617f7f4fc771a0ea7a2a620504c82083cc9b03a2c0a04cc0645b6",
+            "source_sha256": "1dc04422e291d445d15578a2e2cc3bd9ac4db97eb08b9d3375de36b9ae97b685",
             "triggers": {
                 "events": [
                     "pull_request"
@@ -1151,7 +1172,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1199,7 +1223,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "7ff758fb5db56ae1521c59d828fc259685b3f30207e2bd3dc535f2a69be806fa",
+            "source_sha256": "1c8a547f73f9fb9d81f82a0f3b39520dc883b6383599c620774154f62d58836b",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -1275,7 +1299,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1346,7 +1373,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1420,7 +1450,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1555,7 +1588,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1631,7 +1667,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1816,7 +1855,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -1953,7 +1995,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2120,7 +2165,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2253,7 +2301,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2345,7 +2396,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2416,7 +2470,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2487,7 +2544,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2558,7 +2618,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2630,7 +2693,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2703,7 +2769,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2851,7 +2920,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -2924,7 +2996,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": {
@@ -3036,7 +3111,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3122,7 +3200,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3270,7 +3351,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3340,7 +3424,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3430,7 +3517,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3502,7 +3592,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3595,7 +3688,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3707,7 +3803,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3792,7 +3891,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3861,7 +3963,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -3930,7 +4035,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4003,7 +4111,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4074,7 +4185,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4145,7 +4259,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4215,7 +4332,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4381,7 +4501,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4454,7 +4577,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4525,7 +4651,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4616,7 +4745,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -4710,7 +4842,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -5078,7 +5213,7 @@
         {
             "file": "dependabot-admin-dist.yml",
             "name": "Dependabot admin dist rebuild",
-            "source_sha256": "ced8d6cca889766bc64411bc6536cf713f2ad0480cee7a43b3cb87bc3ca449b1",
+            "source_sha256": "51ff54ca70144004faf07771ccc2e5e0ddf8d9c8b9068851827e322826d4fb28",
             "triggers": {
                 "events": [
                     "pull_request_target"
@@ -5138,7 +5273,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -5257,7 +5395,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -5373,7 +5514,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -5489,7 +5633,7 @@
         {
             "file": "dependency-audit.yml",
             "name": "Scheduled dependency audits",
-            "source_sha256": "d34b53938675f4ed595f583499bc69aa6467e984b9329d3b5aeca566fb50aa28",
+            "source_sha256": "220891dd61251f207ceda99973b5550caf6c9cc80db5a2eba617da94846e2988",
             "triggers": {
                 "events": [
                     "schedule",
@@ -5547,7 +5691,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": {
@@ -5621,7 +5768,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -5670,7 +5820,7 @@
         {
             "file": "discord-release.yml",
             "name": "Discord Release Notification",
-            "source_sha256": "fda17dd475e1ccc014a9e1dc7311c36ca34028e254fd5e1894066da689dc0380",
+            "source_sha256": "67cce3c285994a1ce6418234c2a5c3410c804f96b03b65e65f3c60668523fb00",
             "triggers": {
                 "events": [
                     "workflow_run"
@@ -5730,7 +5880,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 50
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -5796,7 +5949,7 @@
         {
             "file": "github-release.yml",
             "name": "GitHub Release (manual)",
-            "source_sha256": "71f8f82c4519a8a71ea84f2b667ae1cc4b15bc6362cfbb98f4b8fa653b6f6ac6",
+            "source_sha256": "7e245641ae18965c0abd231c8b75a661278de4536dc492c9ba7751e66dc99511",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -5870,7 +6023,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -6407,7 +6563,7 @@
         {
             "file": "packagist-recover.yml",
             "name": "Recover Packagist Publication",
-            "source_sha256": "74fa5368c9d290193e09aa828dd461f1d1f0eb70d3a028bcb2708553d1528ecd",
+            "source_sha256": "8bace210b08b7ee03af6463f2afa81ae38498281a659f18c841559d9290c5edb",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -6482,7 +6638,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -6534,7 +6693,7 @@
         {
             "file": "packagist-register.yml",
             "name": "Packagist Register Package",
-            "source_sha256": "d4de5b3d2e6c4bcab8f98c27cc44336c4064f2f82e39825b14d9f1de352ff6ba",
+            "source_sha256": "466219253a82d83afb5fc870ffedcc6a8392c767179a619be54c87f7b92e5b68",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -6593,7 +6752,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -6640,7 +6802,7 @@
         {
             "file": "packagist-update.yml",
             "name": "Verify Packagist Publication (standalone)",
-            "source_sha256": "b1cce2a3e298cb8f3d72787d61598b4f501e33f903d9413f494d5631bffc4b86",
+            "source_sha256": "03ad25f2c0d7178d5f46a034ed3af6e2b42bd60db35baec69da9bdf387f7a6c2",
             "triggers": {
                 "events": [
                     "push",
@@ -6712,7 +6874,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -6802,7 +6967,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -6883,7 +7051,7 @@
         {
             "file": "release-cut.yml",
             "name": "Cut Release",
-            "source_sha256": "12f21ef40f33d5c533c5e551b367a2522167ec52ce58f770f2fe88b9078460fa",
+            "source_sha256": "a0b6b907b1ac9d6fa0bfbb06c418374d56c1c60ecdba85a588531470cf00623c",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -6952,7 +7120,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 120
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7018,7 +7189,7 @@
         {
             "file": "release-gate.yml",
             "name": "Release Gate",
-            "source_sha256": "cda12d8778714422566135bb96ad518fad599d293ad04b0102c9961e768ce207",
+            "source_sha256": "7683306e8fb5f555725291eb784ad3c3a3e0a5ed68577ebb408c13b890aa4133",
             "triggers": {
                 "events": [
                     "push",
@@ -7084,7 +7255,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7151,7 +7325,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7218,7 +7395,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7277,7 +7457,7 @@
         {
             "file": "release.yml",
             "name": "Release Readiness",
-            "source_sha256": "8130fa0aa4664d7f94e09d52e7a0679abbea82a84d1c46b1cc55ed1885b94f39",
+            "source_sha256": "ea85ea58c25d037a763cb1cffa95b695d9c73a5b5ded98d1248c935220d02a51",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -7343,7 +7523,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 30
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7582,7 +7765,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7674,7 +7860,10 @@
                         "kind": "literal",
                         "value": "ubuntu-24.04"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -7954,7 +8143,7 @@
         {
             "file": "split-main.yml",
             "name": "Split selected package main branches",
-            "source_sha256": "24befcffde5f0682e461652bbffd4543c6634abd9305c7e36342a87b3c821167",
+            "source_sha256": "ad3aa911ff222f3e1b181a5fc6b27bc364bc4c685fda8b007a90a521d659936a",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
@@ -8032,7 +8221,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -8130,7 +8322,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -8218,7 +8413,7 @@
         {
             "file": "split.yml",
             "name": "Split Monorepo",
-            "source_sha256": "ede4ccf6e53cfe2e8bcbf789a4396fa33e94e1eec6fbc5eb556ca8f009e1515d",
+            "source_sha256": "f0f73087357443e897715a76056653890e344cf8fbb25cc67dea55001769008c",
             "triggers": {
                 "events": [
                     "push"
@@ -8272,7 +8467,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -8393,7 +8591,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -8548,7 +8749,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10181,7 +10385,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10354,7 +10561,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 60
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10435,7 +10645,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10512,7 +10725,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 45
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10617,7 +10833,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10694,7 +10913,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -10886,7 +11108,7 @@
         {
             "file": "surface-parity.yml",
             "name": "surface-parity",
-            "source_sha256": "4bd7436ef9ba92b01034e2e0a1b167af49a61c086cf56ec7f0ef33af28eb9cb8",
+            "source_sha256": "852356deb8e4b5cfa2dbd0b38b8509a396fa06670b7297d1f65b65db6296c321",
             "triggers": {
                 "events": [
                     "pull_request"
@@ -10953,7 +11175,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,
@@ -11003,7 +11228,7 @@
         {
             "file": "sync-skeleton.yml",
             "name": "Sync Application Skeleton",
-            "source_sha256": "917e1b6902fe5a7fd13b41df447a6bf9552ae10860bcfa00ed2bb3f2d17deafc",
+            "source_sha256": "4cbe681142d95308130fae2736a2d3ebcfcc81091c0e0f61238ac660bc9e22c3",
             "triggers": {
                 "events": [
                     "push"
@@ -11060,7 +11285,10 @@
                         "kind": "literal",
                         "value": "ubuntu-latest"
                     },
-                    "timeout_minutes": null,
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
                     "continue_on_error": null,
                     "environment": null,
                     "defaults": null,

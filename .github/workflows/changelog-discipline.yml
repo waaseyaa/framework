@@ -17,6 +17,7 @@ permissions:
 jobs:
   changelog-discipline:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Changelog discipline check
     steps:
       - name: Checkout

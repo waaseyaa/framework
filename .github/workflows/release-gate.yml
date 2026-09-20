@@ -17,6 +17,7 @@ jobs:
   check-approval:
     name: Verify v1.0 release authorization
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,6 +53,7 @@ jobs:
   check-manifests:
     name: Validate default manifests contain project_versioning
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -72,6 +74,7 @@ jobs:
   detect-quarantine:
     name: Detect existing v1.0 tags (quarantine scan)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -55,6 +55,7 @@ permissions:
 jobs:
   discover:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       packages: ${{ steps.scan.outputs.packages }}
       tag: ${{ steps.target.outputs.tag }}
@@ -122,6 +123,7 @@ jobs:
     needs: [discover]
     if: always() && needs.discover.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       max-parallel: 6

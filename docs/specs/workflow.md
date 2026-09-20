@@ -189,6 +189,40 @@ The workflow:
 
 Failure recovery is clean by construction: if either gate fails, main is untouched and no tag exists. Fix main (normal commits, normal CI), then re-run the cut with the same version. If the final atomic push is rejected because main advanced during the gate, nothing was tagged — re-run the cut.
 
+### Release workflow timeout budgets
+
+Every workflow job declares `timeout-minutes`; inheriting GitHub's 360-minute
+default is forbidden. The limit is a failure boundary, not a runtime target.
+Choose it from recent observed duration plus headroom, or from the job's larger
+explicit polling/retry budget when that budget dominates the observations.
+
+The release values below were frozen from the five most recent completed runs
+available on 2026-09-20. Sparse workflows report their actual smaller sample.
+Matrix sample counts are per leaf. A skipped job remains a structural sample
+but is not used as evidence that its execution is fast.
+
+| Workflow / job | Timeout | Observed evidence | Rationale |
+|---|---:|---|---|
+| `release-cut.yml#cut` | 120 min | 4 executions across 3 versions; 24.1 min maximum | Two exact-SHA CI waits can each consume 45 minutes, followed by final release mutation. The limit admits the configured worst case but caps the serialized privileged job at two hours. |
+| `split.yml#verify-ci-green` | 60 min | 5 runs; 10.3 min maximum | The underlying green-CI wait has a 45-minute budget. |
+| `split.yml#split` | 10 min | 2 to 5 samples per package leaf; 1.5 min maximum | Leaves are independent pushes; ten minutes preserves generous network headroom without letting one leaf occupy the fan-out indefinitely. |
+| `split.yml` parity, evidence, main-integrity, and GitHub Release jobs | 10 min | 5 runs each; 0.8 min maximum | These are bounded API, artifact, or repository checks with no long poll. |
+| `split.yml#publish-packagist` | 15 min | 5 runs; 6.6 min maximum | Submission is deliberately serialized and jittered, so the limit is more than twice the observed maximum. |
+| `split.yml#verify-packagist` | 45 min | 5 runs; 16.2 min maximum | The verifier intentionally owns a 40-minute crawl deadline. |
+| `sync-skeleton.yml#sync` | 10 min | 5 runs; 0.2 min maximum | Covers the atomic external-repository update and Packagist submission with network headroom. |
+| `github-release.yml#release` | 15 min | 5 runs; 1.2 min maximum | Recovery includes parity and release API operations but no long poll. |
+| `packagist-update.yml#discover` / `#verify` | 5 / 20 min | 5 runs; 0.2 / 12.3 min maximum | The verifier has a 12-minute retry budget; discovery is local enumeration. |
+| `packagist-recover.yml#recover` | 10 min | 3 executions across 2 versions; 0.7 min maximum | Bounded recovery submissions retain network headroom. |
+| `packagist-register.yml#register` | 10 min | 1 failed execution; 0.1 min | There is no successful sample yet. Registration is a single API operation and must fail fast enough for operator retry. |
+| `discord-release.yml#notify` | 50 min | 5 runs; 1.2 min maximum | The job intentionally waits up to 45 minutes for exact-SHA Skeleton Smoke evidence before announcing. |
+
+Non-release jobs use the same rule. Ordinary static and aggregate gates receive
+5 to 20 minutes, release-readiness assembly receives up to 30 minutes, existing
+nightly and skeleton-smoke budgets remain 45 and 40 minutes, and the governed
+auto-merge adapter receives 125 minutes because its explicit merge poll lasts
+up to 120 minutes. Any future job must declare a limit and document a long
+budget next to the internal wait that requires it.
+
 ## Release readiness is not deployment
 
 Merging to `main` proves the Framework candidate through CI; it does not deploy

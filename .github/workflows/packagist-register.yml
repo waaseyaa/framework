@@ -27,6 +27,7 @@ jobs:
   register:
     name: Register ${{ inputs.package }} on Packagist
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Register (update-package, create-package on 404)
         env:

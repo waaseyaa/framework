@@ -27,6 +27,7 @@ jobs:
   immutable-source-artifact:
     name: Immutable exact-head source artifact
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,6 +59,7 @@ jobs:
   support-contract:
     name: support/s1-contract
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -113,6 +115,7 @@ jobs:
   release-pipeline-fixtures:
     name: Release pipeline fixtures
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,6 +129,7 @@ jobs:
   release-evidence:
     name: Deterministic release evidence
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,6 +158,7 @@ jobs:
   composer-policy:
     name: composer-policy
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -178,6 +183,7 @@ jobs:
   composer-deps-audit:
     name: composer-deps-audit (warn-only)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -212,6 +218,7 @@ jobs:
     # it asks "did this PR update the spec alongside the source?". There is no
     # such question to ask on a post-merge push to main, so skip it there.
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -229,6 +236,7 @@ jobs:
   ci-lint:
     name: ci/lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -286,6 +294,7 @@ jobs:
   check-dead-code:
     name: check-dead-code
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -331,6 +340,7 @@ jobs:
   prepare-test-plan:
     name: Prepare timing-balanced PHPUnit plan
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [support-contract, spec-drift]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -408,6 +418,7 @@ jobs:
   ci-test-shards:
     name: ci/test-shard-${{ matrix.id }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs: [support-contract, spec-drift, prepare-test-plan]
     strategy:
       fail-fast: false
@@ -529,6 +540,7 @@ jobs:
   ci-unit-tests:
     name: ci/unit-tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [ci-test-shards]
     if: always()
     steps:
@@ -540,6 +552,7 @@ jobs:
   prepare-random-order-plan:
     name: Prepare random-order plan
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [support-contract, spec-drift]
     steps:
       # fetch-depth: 0 is not needed here: the plan is built from the
@@ -582,6 +595,7 @@ jobs:
   ci-random-order-shard:
     name: ci/random-order-shard-${{ matrix.id }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs: [prepare-random-order-plan, prepare-test-plan]
     strategy:
       fail-fast: false
@@ -678,6 +692,7 @@ jobs:
   ci-random-order:
     name: ci/random-order
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [prepare-random-order-plan, ci-random-order-shard]
     if: always()
     steps:
@@ -709,6 +724,7 @@ jobs:
   ci-package-isolation:
     name: ci/package-isolation
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -775,6 +791,7 @@ jobs:
   ci-coverage:
     name: ci/coverage
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [ci-test-shards]
     if: always()
     steps:
@@ -831,6 +848,7 @@ jobs:
   mutation-pilot:
     name: ci/mutation-pilot
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -871,6 +889,7 @@ jobs:
   skeleton-create-project:
     name: ci/skeleton-create-project
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       # fetch-depth: 2 is required by the fail-closed release-cut guard in the
       # production-image step below: it compares skeleton/Dockerfile at HEAD
@@ -1519,6 +1538,7 @@ jobs:
   packaged-form:
     name: packaged-form
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1553,6 +1573,7 @@ jobs:
   site-reference-consumer:
     name: site-reference-consumer
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1582,6 +1603,7 @@ jobs:
     # See tests/PackagedForm/check-fresh-install-boot and tests/FreshInstallBoot/boot.php.
     name: ci/fresh-install-boot
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1629,6 +1651,7 @@ jobs:
     # See tests/PackagedForm/check-site-recipe-provider-activation.
     name: ci/site-recipe-provider-activation
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1668,6 +1691,7 @@ jobs:
     # See tests/PackagedForm/check-bimaaji-skill-resources.
     name: ci/bimaaji-skill-resources
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1699,6 +1723,7 @@ jobs:
     # editorial authoring is available.
     name: ci/site-init-profile-acceptance
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1741,6 +1766,7 @@ jobs:
     # See tests/PackagedForm/check-cli-health-report.
     name: ci/cli-health-report
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1769,6 +1795,7 @@ jobs:
     # #2832: prove package-owned rules from candidate bytes in direct and aggregate consumers.
     name: ci/cli-sync-rules
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1803,6 +1830,7 @@ jobs:
     # the console kernel.
     name: ci/cli-io-consumer-contract
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1852,6 +1880,7 @@ jobs:
     # See tests/PackagedForm/check-split-artifact-acceptance.
     name: ci/split-artifact-acceptance
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1911,6 +1940,7 @@ jobs:
     # See tests/PackagedForm/check-studio-alpha-acceptance.
     name: ci/studio-alpha-acceptance
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1981,6 +2011,7 @@ jobs:
     # in this train) — the gap that source-tree co-resolution masks. See tests/CoreOnlyBoot/boot.php.
     name: ci/core-only-boot
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2156,6 +2187,7 @@ jobs:
     # reclassified out of `composer verify` so verify == this CI gate set; run it on demand via
     # `composer check-external-consumers`. See roadmap triage for the retire/narrow follow-up.
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2358,6 +2390,7 @@ jobs:
   frontend-build:
     name: Frontend build
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/admin
@@ -2413,6 +2446,7 @@ jobs:
   manifest-conformance:
     name: Manifest conformance
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2462,6 +2496,7 @@ jobs:
   ingestion-defaults:
     name: Ingestion defaults
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2472,6 +2507,7 @@ jobs:
   release-publish-shape:
     name: Release publish shape
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2482,6 +2518,7 @@ jobs:
   security-defaults:
     name: Security defaults
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -34,6 +34,7 @@ permissions:
 jobs:
   surface-parity:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # BLOCKING since audit C-14: tools/check-surface-parity.php is now a real
     # php-parser AST scanner (interface/abstract/trait/enum across packages/*/src
     # and packages/*/testing), enforcing both parity directions. The prior
