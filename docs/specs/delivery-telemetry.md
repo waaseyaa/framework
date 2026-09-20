@@ -82,10 +82,13 @@ modes require a complete (non-shallow) repository; truncated history cannot prov
 uniqueness or ancestry.
 
 The governed merge adapter pins the PR head and requires main's effective rules
-to enforce strict `ci/verify-gates` checks from GitHub Actions. GitHub enforces
-freshness at the actual merge, including if main moves after the adapter's rules
-lookup. There is no bypass or unpinned fallback. This does not remove normal
-strict branch requirements or solve conflicting concurrent appends (#2902).
+to enforce strict `merge/source-repository-policy` checks from GitHub Actions.
+That fail-closed aggregate explicitly requires `ci/verify-gates` to succeed, so
+ledger custody remains part of the atomic merge decision without exposing the
+leaf as a separate branch-protection name. GitHub enforces freshness at the
+actual merge, including if main moves after the adapter's rules lookup. There is
+no bypass or unpinned fallback. This does not remove normal strict branch
+requirements or solve conflicting concurrent appends (#2902).
 
 `--self-test` seeds independent schema, causality, temporal, adjudication, and
 history corruptions and must fail each one.

@@ -30,7 +30,7 @@ final class DeliveryLedgerMergeGuardTest extends TestCase
                 SH);
             chmod($fixture . '/gh', 0o755);
             $pr = ['headRefOid' => str_repeat('a', 40), 'baseRefName' => 'main', 'state' => 'OPEN', 'isDraft' => false];
-            $rule = ['type' => 'required_status_checks', 'parameters' => ['strict_required_status_checks_policy' => true, 'required_status_checks' => [['context' => 'ci/verify-gates', 'integration_id' => 15368]]]];
+            $rule = ['type' => 'required_status_checks', 'parameters' => ['strict_required_status_checks_policy' => true, 'required_status_checks' => [['context' => 'merge/source-repository-policy', 'integration_id' => 15368]]]];
             file_put_contents($fixture . '/pr.json', json_encode($pr, JSON_THROW_ON_ERROR));
             file_put_contents($fixture . '/rules.json', json_encode([$rule], JSON_THROW_ON_ERROR));
             $env = ['PATH' => $fixture . ':' . getenv('PATH'), 'FIXTURE' => $fixture, 'GITHUB_REPOSITORY' => 'waaseyaa/framework', 'PR_NUMBER' => '42'];

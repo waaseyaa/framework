@@ -1295,6 +1295,15 @@ stability and failure ownership but saves no runner time by itself. The retained
 random-order decision also saves zero runner time. Billed runner minutes remain
 unavailable, so no monetary saving is claimed.
 
+The first governed merge attempt for the reconciliation candidate exposed one
+stale operational consumer: `bin/enable-governed-auto-merge` still required the
+leaf `ci/verify-gates` directly in branch protection. Run `35498135504` refused
+the merge, as designed. The adapter now requires the strict
+`merge/source-repository-policy` GitHub Actions context, whose checked aggregate
+lineage explicitly requires `ci/verify-gates` to succeed. Its custody contract
+and regression fixture were updated together; there is still no bypass or
+unpinned fallback.
+
 No release or deployment occurred during the migration or reconciliation.
 
 ## Deferred observations
