@@ -232,9 +232,9 @@ function cla_audit(
     };
 
     $projection = $policy['policy']['required_projection'] ?? null;
-    $shadow = $policy['policy']['stable_aggregate_shadow'] ?? null;
-    if (!is_array($projection) || !is_array($shadow) || !is_array($shadow['contexts'] ?? null)) {
-        throw new RuntimeException('The policy lacks the required projection or stable aggregate shadow contract.');
+    $interface = $policy['policy']['stable_aggregate_interface'] ?? null;
+    if (!is_array($projection) || !is_array($interface) || !is_array($interface['contexts'] ?? null)) {
+        throw new RuntimeException('The policy lacks the required projection or stable aggregate interface contract.');
     }
 
     $snapshot = cla_ruleset_snapshot($ruleset);
@@ -252,23 +252,19 @@ function cla_audit(
     ksort($expectedRuleset);
     ksort($actualRuleset);
     $stableRuleset = [];
-    foreach ($shadow['contexts'] as $entry) {
+    foreach ($interface['contexts'] as $entry) {
         if (is_array($entry) && is_string($entry['context'] ?? null)) {
-            $stableRuleset[$entry['context']] = (int) ($shadow['integration_id'] ?? 15368);
+            $stableRuleset[$entry['context']] = (int) ($interface['integration_id'] ?? 15368);
         }
     }
     ksort($stableRuleset);
-    $unionRuleset = $expectedRuleset + $stableRuleset;
-    ksort($unionRuleset);
     $projectionMaps = [
-        'legacy' => $expectedRuleset,
-        'union' => $unionRuleset,
-        'final' => $stableRuleset,
+        'final' => $expectedRuleset,
     ];
     $migration = $policy['policy']['ruleset_migration'] ?? null;
     $allowedProjectionNames = is_array($migration)
-        ? ($migration['allowed_live_projections_during_migration'] ?? [])
-        : ['legacy'];
+        ? ($migration['allowed_live_projections'] ?? [])
+        : ['final'];
     $allowedProjectionMaps = [];
     foreach ($allowedProjectionNames as $name) {
         if (is_string($name) && isset($projectionMaps[$name])) {
@@ -289,7 +285,7 @@ function cla_audit(
     $latest = cla_latest_check_runs($checkRuns);
     $jobsByContext = cla_inventory_jobs_by_context($inventory);
     $shadowByContext = [];
-    foreach ($shadow['contexts'] as $id => $entry) {
+    foreach ($interface['contexts'] as $id => $entry) {
         if (is_array($entry) && is_string($entry['context'] ?? null)) {
             $shadowByContext[$entry['context']] = ['id' => $id] + $entry;
         }
@@ -298,7 +294,7 @@ function cla_audit(
     $stableEvidence = [];
     $aggregateSeconds = 0;
     $aggregateDurations = [];
-    $expectedAppId = (int) ($shadow['integration_id'] ?? 15368);
+    $expectedAppId = (int) ($interface['integration_id'] ?? 15368);
     foreach ($shadowByContext as $context => $entry) {
         $run = $latest[$context] ?? null;
         $evidence = [
@@ -335,7 +331,7 @@ function cla_audit(
             } elseif (($upstream['status'] ?? null) !== 'completed' || ($upstream['conclusion'] ?? null) !== 'success') {
                 $add('CLA008', CLA_ERROR, "Prerequisite {$prerequisite} for {$context} is not a completed success.", ['status' => $upstream['status'] ?? null, 'conclusion' => $upstream['conclusion'] ?? null]);
             }
-            $expectedPrerequisiteApp = $expectedRuleset[$prerequisite] ?? null;
+            $expectedPrerequisiteApp = $expectedAppId;
             if (is_array($upstream)
                 && is_int($expectedPrerequisiteApp)
                 && ($upstream['app']['id'] ?? null) !== $expectedPrerequisiteApp) {

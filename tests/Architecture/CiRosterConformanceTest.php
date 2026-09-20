@@ -105,15 +105,15 @@ final class CiRosterConformanceTest extends TestCase
         yield 'job rename'
             => ['job-rename', 'CRC002', 'bindings.producers[shard-producer]'];
         yield 'required context bound to a missing job'
-            => ['context-job-rename', 'CRC003', 'required_contexts[ci/gate]'];
+            => ['context-job-rename', 'CRC003', 'required_contexts[merge/behavior]'];
         yield 'context drift'
-            => ['context-drift', 'CRC004', 'required_projection.contexts[ci/gate]'];
+            => ['context-drift', 'CRC004', 'required_projection.contexts[merge/behavior]'];
         yield 'context produced by two jobs'
-            => ['context-two-owners', 'CRC005', 'required_projection.contexts[ci/gate]'];
+            => ['context-two-owners', 'CRC005', 'required_projection.contexts[merge/behavior]'];
         yield 'trigger drift'
-            => ['trigger-drift', 'CRC006', 'required_projection.contexts[ci/gate]'];
+            => ['trigger-drift', 'CRC006', 'required_projection.contexts[merge/behavior]'];
         yield 'duplicate visible context'
-            => ['duplicate-context', 'CRC007', 'required_projection.contexts[ci/gate]'];
+            => ['duplicate-context', 'CRC007', 'required_projection.contexts[merge/behavior]'];
         yield 'expansion drift'
             => ['expansion-drift', 'CRC008', 'producers[shard-producer]'];
         yield 'matrix drift'
@@ -161,7 +161,7 @@ final class CiRosterConformanceTest extends TestCase
         yield 'cadence drift'
             => ['cadence-drift', 'CRC025', 'producers[publish-producer].cadence'];
         yield 'integration binding drift'
-            => ['integration-drift', 'CRC026', 'required_projection.contexts[ci/gate].binding'];
+            => ['integration-drift', 'CRC026', 'required_projection.contexts[merge/behavior].binding'];
         yield 'aggregate with no prerequisites'
             => ['empty-prerequisites', 'CRC030', 'aggregate_lineage_contract.aggregates[gate-aggregate].prerequisites'];
         yield 'measurement naming no producer'
@@ -169,13 +169,13 @@ final class CiRosterConformanceTest extends TestCase
         yield 'empty required projection'
             => ['empty-projection', 'CRC030', 'required_projection.contexts'];
         yield 'shadow context drift'
-            => ['shadow-context-drift', 'CRC031', 'stable_aggregate_shadow.contexts[stable]'];
+            => ['shadow-context-drift', 'CRC031', 'stable_aggregate_interface.contexts[stable]'];
         yield 'shadow prerequisite result not checked'
-            => ['shadow-unchecked-result', 'CRC032', 'stable_aggregate_shadow.contexts[stable].prerequisite_jobs'];
+            => ['shadow-unchecked-result', 'CRC032', 'stable_aggregate_interface.contexts[stable].prerequisite_jobs'];
         yield 'shadow does not cover the current projection'
-            => ['shadow-coverage-drift', 'CRC033', 'stable_aggregate_shadow.contexts[stable].prerequisite_contexts'];
+            => ['shadow-coverage-drift', 'CRC033', 'stable_aggregate_interface.contexts[stable].prerequisite_contexts'];
         yield 'shadow promoted before migration'
-            => ['shadow-required-early', 'CRC034', 'stable_aggregate_shadow.contexts[stable].required'];
+            => ['shadow-required-early', 'CRC034', 'stable_aggregate_interface.contexts[stable].required'];
     }
 
     #[Test]
@@ -221,7 +221,6 @@ final class CiRosterConformanceTest extends TestCase
         self::assertContains('CRC021', $rules);
         self::assertContains('CRC027', $rules);
         self::assertContains('CRC028', $rules);
-        self::assertContains('CRC029', $rules);
         foreach ($findings as $finding) {
             self::assertContains($finding['severity'], ['notice', 'not-verified-offline']);
         }
@@ -295,14 +294,14 @@ final class CiRosterConformanceTest extends TestCase
         match ($case) {
             'missing-workflow' => $policy['bindings']['workflow_policies']['main-ci'] = 'gone.yml',
             'job-rename' => $policy['bindings']['producers']['shard-producer']['job'] = 'renamed-shards',
-            'context-job-rename' => $policy['bindings']['required_contexts']['ci/gate']['job'] = 'renamed-gate',
-            'context-drift' => $inventory['workflows'][0]['jobs'][2]['contexts'] = [self::context('ci/renamed-gate')],
-            'context-two-owners' => $inventory['workflows'][0]['jobs'][0]['contexts'][] = self::context('ci/gate'),
+            'context-job-rename' => $policy['bindings']['required_contexts']['merge/behavior']['job'] = 'renamed-gate',
+            'context-drift' => $inventory['workflows'][0]['jobs'][3]['contexts'] = [self::context('merge/renamed-gate')],
+            'context-two-owners' => $inventory['workflows'][0]['jobs'][0]['contexts'][] = self::context('merge/behavior'),
             'trigger-drift' => $inventory['workflows'][0]['triggers'] = [
                 'events' => ['push'],
                 'selectors' => [['event' => 'push', 'branches' => ['main']]],
             ],
-            'duplicate-context' => $inventory['workflows'][0]['duplicate_contexts'] = ['ci/gate'],
+            'duplicate-context' => $inventory['workflows'][0]['duplicate_contexts'] = ['merge/behavior'],
             'expansion-drift' => $policy['policy']['producers'][1]['expansion'] = 'singleton',
             'matrix-drift' => $policy['policy']['producers'][1]['matrix']['values'] = [1, 2, 3],
             'unresolved-matrix' => $inventory['workflows'][0]['jobs'][1]['matrix'] = [
@@ -361,8 +360,8 @@ final class CiRosterConformanceTest extends TestCase
             'empty-projection' => $policy['policy']['required_projection']['contexts'] = [],
             'shadow-context-drift' => $inventory['workflows'][0]['jobs'][3]['contexts'] = [self::context('merge/renamed')],
             'shadow-unchecked-result' => $inventory['workflows'][0]['jobs'][3]['aggregate']['result_checked_prerequisites'] = [],
-            'shadow-coverage-drift' => $policy['policy']['stable_aggregate_shadow']['contexts']['stable']['prerequisite_contexts'] = ['ci/missing'],
-            'shadow-required-early' => $policy['policy']['stable_aggregate_shadow']['contexts']['stable']['required'] = true,
+            'shadow-coverage-drift' => $policy['policy']['stable_aggregate_interface']['contexts']['stable']['prerequisite_contexts'] = ['ci/missing'],
+            'shadow-required-early' => $policy['policy']['stable_aggregate_interface']['contexts']['stable']['required'] = false,
             default => self::fail(sprintf('Unknown fixture %s.', $case)),
         };
     }
@@ -446,22 +445,22 @@ final class CiRosterConformanceTest extends TestCase
                     'strict' => true,
                     'required_context_count' => 1,
                     'contexts' => [
-                        ['context' => 'ci/gate', 'invariant' => 'behavior', 'binding' => ['mode' => 'github-app', 'integration_id' => 15368]],
+                        ['context' => 'merge/behavior', 'invariant' => 'behavior', 'binding' => ['mode' => 'github-app', 'integration_id' => 15368]],
                     ],
                 ],
-                'stable_aggregate_shadow' => [
-                    'status' => 'shadow-only',
+                'stable_aggregate_interface' => [
+                    'status' => 'required',
                     'workflow_policy_id' => 'main-ci',
                     'ruleset_migration_task' => 7,
                     'required_context_count_before_migration' => 1,
-                    'candidate_context_count' => 1,
+                    'required_context_count' => 1,
                     'terminal_result_policy' => ['failure' => 'fail', 'cancelled' => 'fail', 'skipped' => 'fail', 'missing' => 'fail'],
                     'contexts' => [
                         'stable' => [
                             'context' => 'merge/behavior',
                             'invariant' => 'behavior',
                             'failure_owner' => 'maintainers',
-                            'required' => false,
+                            'required' => true,
                             'prerequisite_contexts' => ['ci/gate'],
                             'prerequisite_jobs' => ['gate'],
                         ],
@@ -477,7 +476,7 @@ final class CiRosterConformanceTest extends TestCase
                     'gate-aggregate' => ['workflow' => 'ci.yml', 'job' => 'gate'],
                     'publish-producer' => ['workflow' => 'release.yml', 'job' => 'publish'],
                 ],
-                'required_contexts' => ['ci/gate' => ['workflow' => 'ci.yml', 'job' => 'gate']],
+                'required_contexts' => ['merge/behavior' => ['workflow' => 'ci.yml', 'job' => 'stable']],
             ],
         ];
     }
@@ -572,7 +571,7 @@ final class CiRosterConformanceTest extends TestCase
         return [
             'id' => 4242,
             'strict' => true,
-            'contexts' => [['context' => 'ci/gate', 'integration_id' => $integrationId]],
+            'contexts' => [['context' => 'merge/behavior', 'integration_id' => $integrationId]],
         ];
     }
 

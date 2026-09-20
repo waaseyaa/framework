@@ -40,15 +40,13 @@ final class CiRulesetProjectorTest extends TestCase
     #[Test]
     public function tracked_baseline_is_the_exact_legacy_write_payload(): void
     {
-        [$policy, $baseline] = self::fixtures();
-        $expected = [];
-        foreach ($policy['policy']['required_projection']['contexts'] as $entry) {
-            $expected[$entry['context']] = $entry['binding']['integration_id'];
-        }
-        ksort($expected);
+        [, $baseline] = self::fixtures();
+        $legacy = \crp_context_map(\crp_required_contexts($baseline));
 
         self::assertSame('671d65c3259e35c583de6ce71799bf091ffd08b1fd783d7323c4c8d12c388748', \crp_hash($baseline));
-        self::assertSame($expected, \crp_context_map(\crp_required_contexts($baseline)));
+        self::assertCount(22, $legacy);
+        self::assertArrayHasKey('ci/mutation-pilot', $legacy);
+        self::assertNull($legacy['ci/mutation-pilot']);
         self::assertSame(['non_fast_forward', 'deletion', 'required_status_checks', 'pull_request'], array_column($baseline['rules'], 'type'));
     }
 
@@ -158,7 +156,7 @@ final class CiRulesetProjectorTest extends TestCase
         $baseline = self::json(self::$root . '/tools/ci-ruleset-main-protection-baseline.json');
         $live = ['id' => 15181711] + $baseline;
         $names = [];
-        foreach ($policy['policy']['stable_aggregate_shadow']['contexts'] as $entry) {
+        foreach ($policy['policy']['stable_aggregate_interface']['contexts'] as $entry) {
             $names[] = $entry['context'];
             array_push($names, ...$entry['prerequisite_contexts']);
         }
