@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Tools;
 
 use Psr\Container\ContainerInterface;
+use Waaseyaa\Access\Capability\AgentCapabilities;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
 use Waaseyaa\AI\Tools\Catalogue\AutowiringToolContainer;
@@ -16,6 +17,7 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -29,10 +31,23 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * @api
  */
-final class AiToolsServiceProvider extends ServiceProvider implements AcceptsAgentToolProvidersInterface
+final class AiToolsServiceProvider extends ServiceProvider implements AcceptsAgentToolProvidersInterface, ProvidesPermissionsInterface
 {
     /** @var list<ProvidesAgentToolsInterface> */
     private array $agentToolProviders = [];
+
+    public function permissions(): array
+    {
+        if (!SearchPackageContentSearchAdapter::isAvailable()) {
+            return [];
+        }
+
+        $definitions = AgentCapabilities::seed();
+
+        return [
+            AgentCapabilities::PERMISSION_TOOL_CONTENT_SEARCH => $definitions[AgentCapabilities::PERMISSION_TOOL_CONTENT_SEARCH],
+        ];
+    }
 
     public function withAgentToolProviders(array $providers): void
     {

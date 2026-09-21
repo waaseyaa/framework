@@ -77,7 +77,7 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
     {
         if ($operation === 'view' && in_array($fieldName, ['status', 'uid', 'workflow_state'], true)) {
-            return $account->hasPermission('administer nodes')
+            return $account->hasPermission(NodePermissions::ADMINISTER)
                 ? AccessResult::neutral('Node administrator view is decided by the protected field policy.')
                 : AccessResult::forbidden('Protected node fields are not part of the ordinary view projection.');
         }
@@ -87,7 +87,7 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
             return AccessResult::neutral('Node field gate restricts edit only.');
         }
 
-        if ($account->hasPermission('administer nodes')) {
+        if ($account->hasPermission(NodePermissions::ADMINISTER)) {
             return AccessResult::neutral('Admin may edit any node field.');
         }
 
@@ -119,7 +119,7 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         // Admin bypass.
-        if ($account->hasPermission('administer nodes')) {
+        if ($account->hasPermission(NodePermissions::ADMINISTER)) {
             return AccessResult::allowed('User has administer nodes permission.');
         }
 
@@ -145,11 +145,11 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
         // Admin bypass.
-        if ($account->hasPermission('administer nodes')) {
+        if ($account->hasPermission(NodePermissions::ADMINISTER)) {
             return AccessResult::allowed('User has administer nodes permission.');
         }
 
-        if ($account->hasPermission("create $bundle content")) {
+        if ($account->hasPermission(NodePermissions::create($bundle))) {
             return AccessResult::allowed("User has 'create $bundle content' permission.");
         }
 
@@ -162,7 +162,7 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     private function viewAccess(bool $published, AccountInterface $account, bool $isOwner): AccessResult
     {
         if ($published) {
-            if ($account->hasPermission('access content')) {
+            if ($account->hasPermission(NodePermissions::ACCESS_CONTENT)) {
                 return AccessResult::allowed('Published node and user has access content permission.');
             }
 
@@ -170,7 +170,7 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
         }
 
         // Unpublished node.
-        if ($isOwner && $account->hasPermission('view own unpublished content')) {
+        if ($isOwner && $account->hasPermission(NodePermissions::VIEW_OWN_UNPUBLISHED)) {
             return AccessResult::allowed('Author viewing own unpublished content.');
         }
 
@@ -182,11 +182,11 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
      */
     private function editAccess(string $type, AccountInterface $account, bool $isOwner): AccessResult
     {
-        if ($account->hasPermission("edit any $type content")) {
+        if ($account->hasPermission(NodePermissions::editAny($type))) {
             return AccessResult::allowed("User has 'edit any $type content' permission.");
         }
 
-        if ($isOwner && $account->hasPermission("edit own $type content")) {
+        if ($isOwner && $account->hasPermission(NodePermissions::editOwn($type))) {
             return AccessResult::allowed("Author has 'edit own $type content' permission.");
         }
 
@@ -198,11 +198,11 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
      */
     private function deleteAccess(string $type, AccountInterface $account, bool $isOwner): AccessResult
     {
-        if ($account->hasPermission("delete any $type content")) {
+        if ($account->hasPermission(NodePermissions::deleteAny($type))) {
             return AccessResult::allowed("User has 'delete any $type content' permission.");
         }
 
-        if ($isOwner && $account->hasPermission("delete own $type content")) {
+        if ($isOwner && $account->hasPermission(NodePermissions::deleteOwn($type))) {
             return AccessResult::allowed("Author has 'delete own $type content' permission.");
         }
 

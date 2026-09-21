@@ -1,3 +1,5 @@
+<!-- Spec reviewed 2026-09-21 - permission catalogue ownership (#3119): ai-tools implements ProvidesPermissionsInterface and contributes the shared `tool.content.search` descriptor only when its optional search adapter is available; the capability id and definition come from `AgentCapabilities::seed()`, so tool authorization and the permission catalogue cannot drift. Package-declared permission definitions remain compiled through the normal manifest catalogue. -->
+
 # AI Integration
 
 <!-- Spec reviewed 2026-09-05 - #2636: ContentResourceProviderInterface.list()

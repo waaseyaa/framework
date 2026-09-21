@@ -9,5 +9,6 @@ declare(strict_types=1);
 return [
     'entries' => [
         ['fqcn' => 'Waaseyaa\\Workflows\\Event\\WorkflowEvents', 'disposition' => 'public', 'ref' => '#1920'],
+        ['fqcn' => 'Waaseyaa\\Workflows\\WorkflowPermissions', 'disposition' => 'public', 'purpose' => 'Generates canonical workflow transition permission ids and catalogue definitions', 'ref' => '#3119'],
     ],
 ];

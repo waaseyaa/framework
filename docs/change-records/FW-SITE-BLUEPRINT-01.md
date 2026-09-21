@@ -830,7 +830,8 @@ form already sorted), only bytes were.
   composing the compiled manifest's `extra.waaseyaa.permissions` entries
   with every contributing provider (duplicate or empty ids fail closed with
   `LogicException`), `RoleRepository::assertPermissionsCatalogued()`, and
-  `AbstractKernel::composePermissionCatalogue()` after provider boot: a
+  `AbstractKernel::composePermissionCatalogue()` after provider registration
+  and before any provider boot: a
   `ProvidesRolesInterface` role granting an uncatalogued permission is a
   hard boot `RuntimeException` naming every offending grant and the role
   providers, and the catalogue is served through

@@ -715,6 +715,13 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 |---------|------|-------------|---------|
 | `FileRepositoryInterface` | interface | public | CRUD operations for file value objects keyed by URI |
 | `Http\MediaDownloadSourceReaderInterface` | interface | public | — |
+| `MediaPermissions` | final class | public | Generates canonical media-type permission ids and catalogue definitions |
+
+### node
+
+| Element | Type | Disposition | Purpose |
+|---------|------|-------------|---------|
+| `NodePermissions` | final class | public | Generates canonical node bundle permission ids and catalogue definitions |
 
 ### relationship
 
@@ -722,6 +729,12 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 |---------|------|-------------|---------|
 | `EntityVisibilityFilterInterface` | interface | public | — |
 | `VisibilityFilterInterface` | interface | public | Filters relationship results based on viewer access |
+
+### taxonomy
+
+| Element | Type | Disposition | Purpose |
+|---------|------|-------------|---------|
+| `TaxonomyPermissions` | final class | public | Generates canonical vocabulary permission ids and catalogue definitions |
 
 ## Layer 3: Services
 
@@ -884,6 +897,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
 | `Event\WorkflowEvents` | enum | public | — |
+| `WorkflowPermissions` | final class | public | Generates canonical workflow transition permission ids and catalogue definitions |
 
 ## Layer 4: API
 

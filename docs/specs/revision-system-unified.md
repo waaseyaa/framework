@@ -1,3 +1,5 @@
+<!-- Spec reviewed 2026-09-21 - permission catalogue ownership (#3119): node access and protected-read policy checks use `NodePermissions` constants/helpers for canonical administer/access/ownership and bundle-scoped operation ids; the node package manifest owns the static catalogue entries, and invalid bundle ids fail closed at the helper boundary. -->
+
 # Revision system (unified, with an optional translation axis)
 
 <!-- Spec reviewed 2026-09-08 - #3034: EntityRepository reads and writes the base-row revision pointer through the entity type's configured `revision` key (default `revision_id`). Revision-history tables retain their repository-owned internal `revision_id` column. References below to a base `revision_id` pointer describe the default key; they do not require entity types to use that name. -->

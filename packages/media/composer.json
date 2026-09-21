@@ -65,6 +65,20 @@
     },
     "extra": {
         "waaseyaa": {
+            "permissions": {
+                "access media": {
+                    "title": "Access published media",
+                    "description": "View published media governed by the media access policy."
+                },
+                "administer media": {
+                    "title": "Administer media",
+                    "description": "Bypass ordinary media-type and ownership access checks."
+                },
+                "view own unpublished media": {
+                    "title": "View own unpublished media",
+                    "description": "View unpublished media owned by the acting account."
+                }
+            },
             "policies": [
                 "Waaseyaa\\Media\\MediaAccessPolicy"
             ],

@@ -1,3 +1,4 @@
+<!-- Spec reviewed 2026-09-21 - permission catalogue ownership (#3119): media owns its canonical permission family in `MediaPermissions`, including validated bundle/type helpers and deterministic `forTypes()` definitions; `MediaAccessPolicy` consumes those helpers, while static catalogue entries remain package manifest metadata. -->
 <!-- Spec reviewed 2026-08-25 - protected-inline-media-20260825 (#2564): the
 media entity-gated byte router also serves the explicit /media/{id}/view route.
 It reuses the existing authorized source and confined path; no MediaVersion/CAS,
