@@ -10,5 +10,6 @@ return [
     'entries' => [
         ['fqcn' => 'Waaseyaa\\Media\\FileRepositoryInterface', 'disposition' => 'public', 'purpose' => 'CRUD operations for file value objects keyed by URI'],
         ['fqcn' => 'Waaseyaa\\Media\\Http\\MediaDownloadSourceReaderInterface', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\Media\\MediaPermissions', 'disposition' => 'public', 'purpose' => 'Generates canonical media-type permission ids and catalogue definitions', 'ref' => '#3119'],
     ],
 ];

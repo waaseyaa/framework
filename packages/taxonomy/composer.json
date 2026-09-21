@@ -53,6 +53,12 @@
     },
     "extra": {
         "waaseyaa": {
+            "permissions": {
+                "administer taxonomy": {
+                    "title": "Administer taxonomy",
+                    "description": "Bypass ordinary vocabulary-specific taxonomy access checks."
+                }
+            },
             "policies": [
                 "Waaseyaa\\Taxonomy\\TermAccessPolicy",
                 "Waaseyaa\\Taxonomy\\VocabularyAccessPolicy"

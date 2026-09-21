@@ -13,6 +13,7 @@ use Waaseyaa\CLI\Handler\PermissionListHandler;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Tests\Integration\PermissionCatalogue\Fixtures\CataloguedRolesProvider;
+use Waaseyaa\Tests\Integration\PermissionCatalogue\Fixtures\FrameworkPermissionRolesProvider;
 use Waaseyaa\Tests\Integration\PermissionCatalogue\Fixtures\UncataloguedRolesProvider;
 use Waaseyaa\User\RoleRepository;
 
@@ -102,6 +103,25 @@ final class PermissionCatalogueBootTest extends TestCase
         self::assertInstanceOf(PermissionListHandler::class, $container->get(PermissionListHandler::class));
     }
 
+    #[Test]
+    public function installed_framework_definitions_and_application_dynamic_families_boot_a_least_privilege_role(): void
+    {
+        $this->writeInstalledFrameworkPermissionManifests();
+        $this->writeRootComposer([
+            \Waaseyaa\AI\Tools\AiToolsServiceProvider::class,
+            FrameworkPermissionRolesProvider::class,
+        ]);
+
+        $kernel = $this->newKernel();
+        $kernel->publicBoot();
+
+        $role = $kernel->roleRepository()->get('editor');
+        self::assertNotNull($role);
+        foreach ($role->permissions as $permission) {
+            self::assertTrue($kernel->permissionCatalogue()->hasPermission($permission), $permission);
+        }
+    }
+
     /** @param list<class-string> $providers @param array<string, array{title: string}> $permissions */
     private function writeRootComposer(array $providers, array $permissions = []): void
     {
@@ -113,6 +133,24 @@ final class PermissionCatalogueBootTest extends TestCase
             'name' => 'waaseyaa/permission-catalogue-boot',
             'extra' => ['waaseyaa' => $extra],
         ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+    }
+
+    private function writeInstalledFrameworkPermissionManifests(): void
+    {
+        mkdir($this->projectRoot . '/vendor/composer', 0o755, true);
+        $repoRoot = dirname(__DIR__, 3);
+        $packages = [];
+        foreach (['node', 'media', 'menu', 'taxonomy', 'workflows'] as $package) {
+            $composer = json_decode((string) file_get_contents("$repoRoot/packages/$package/composer.json"), true, 512, JSON_THROW_ON_ERROR);
+            $packages[] = [
+                'name' => $composer['name'],
+                'extra' => ['waaseyaa' => ['permissions' => $composer['extra']['waaseyaa']['permissions']]],
+            ];
+        }
+        file_put_contents(
+            $this->projectRoot . '/vendor/composer/installed.json',
+            json_encode(['packages' => $packages], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
     }
 
     private function newKernel(): AbstractKernel

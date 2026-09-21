@@ -238,6 +238,14 @@ Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by imp
 
 `ProvidesRolesInterface::roles()` returns an untyped `iterable` rather than a typed return, exactly as `HasNativeCommandsInterface::nativeCommands()` yields Layer-6 `CommandDefinition`s without importing them. Keeping the return untyped lets the Foundation (Layer 0) interface yield `Waaseyaa\User\Role` (Layer 1) without Foundation importing the User package; the concrete element type is resolved by the Layer-1 collector (`RoleRepository::fromProviders()`) at runtime. `ProvidesPermissionsInterface::permissions()` returns a plain array for the same reason: Foundation cannot import the Access package, so the Layer-1 collector (`PermissionHandler::fromProviders()`) validates the shape. It composes one catalogue from these contributions plus every package's and the root application's `extra.waaseyaa.permissions` (the manifest key documented above), and the kernel refuses to boot when a `ProvidesRolesInterface` role grants a permission that catalogue does not declare — a provider that contributes roles therefore declares their permissions through this capability or the Composer manifest. The full kernel-call-site table lives in `docs/specs/infrastructure.md`.
 
+Catalogue composition runs after every provider's `register()` and before any
+provider's `boot()` hook. Contributions must therefore be deterministic and
+side-effect free. Framework packages with dynamic permission grammars expose
+pure definition helpers; an application contributes the concrete definitions
+from its canonical registered subject inventory and derives role grants through
+the same helpers. Duplicate ids remain invalid even when their definitions are
+byte-identical, preserving one accountable catalogue owner.
+
 Agent-tool contribution uses the same cross-layer pattern. Application providers implement the Layer-5 `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`; the kernel detects that contract by string FQCN, sorts contributors by provider class, and hands them to the Foundation-owned `AcceptsAgentToolProvidersInterface` receiver before provider boot. `AiToolsServiceProvider` invokes each contributor once when the canonical registry singleton is first constructed. This keeps Foundation free of a compile-time Layer-5 dependency and keeps application tools independent of route registration.
 
 API-catalog contribution stays entirely within Foundation-owned contracts. Installed providers implement `ProvidesApiCatalogEntriesInterface`; the kernel sorts contributors by provider class and hands them to each `AcceptsApiCatalogEntryProvidersInterface` receiver before provider boot. The API package validates, normalizes, and publishes the resulting public entries. Uninstalled packages cannot contribute, and providers must omit authenticated, administrative, write, or otherwise non-public surfaces.

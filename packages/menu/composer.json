@@ -38,6 +38,12 @@
     },
     "extra": {
         "waaseyaa": {
+            "permissions": {
+                "administer menu": {
+                    "title": "Administer menus",
+                    "description": "Create and modify menus and menu links subject to locked-menu invariants."
+                }
+            },
             "policies": [
                 "Waaseyaa\\Menu\\MenuAccessPolicy"
             ],

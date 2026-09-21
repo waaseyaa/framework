@@ -315,9 +315,7 @@ final class Workflow extends ConfigEntityBase
      */
     public function permissionFor(WorkflowTransition $transition): string
     {
-        return $transition->permission !== ''
-            ? $transition->permission
-            : \sprintf('use %s transition %s', (string) $this->id(), $transition->id);
+        return WorkflowPermissions::transition((string) $this->id(), $transition->id, $transition->permission);
     }
 
     private function syncStatesToValues(): void

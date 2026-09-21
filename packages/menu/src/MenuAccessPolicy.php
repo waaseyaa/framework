@@ -13,6 +13,8 @@ use Waaseyaa\Entity\EntityInterface;
 #[PolicyAttribute(entityType: ['menu', 'menu_link'])]
 final class MenuAccessPolicy implements AccessPolicyInterface
 {
+    public const string ADMIN_PERMISSION = 'administer menu';
+
     public function appliesTo(string $entityTypeId): bool
     {
         return in_array($entityTypeId, ['menu', 'menu_link'], true);
@@ -28,7 +30,7 @@ final class MenuAccessPolicy implements AccessPolicyInterface
             return AccessResult::forbidden('Locked menus cannot be deleted.');
         }
 
-        if ($account->hasPermission('administer menu')) {
+        if ($account->hasPermission(self::ADMIN_PERMISSION)) {
             return AccessResult::allowed('User has administer menu permission.');
         }
 
@@ -42,7 +44,7 @@ final class MenuAccessPolicy implements AccessPolicyInterface
 
     public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
-        if ($account->hasPermission('administer menu')) {
+        if ($account->hasPermission(self::ADMIN_PERMISSION)) {
             return AccessResult::allowed('User has administer menu permission.');
         }
 

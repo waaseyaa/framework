@@ -5,25 +5,29 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Tools\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Capability\AgentCapabilities;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\AiToolsServiceProvider;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
 use Waaseyaa\AI\Tools\Entity\EntityReadTool;
+use Waaseyaa\AI\Tools\ProvidesAgentToolsInterface;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
-use Waaseyaa\AI\Tools\ProvidesAgentToolsInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 /**
@@ -40,6 +44,58 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 final class AiToolsServiceProviderWiringTest extends TestCase
 {
     #[Test]
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function absent_search_package_does_not_publish_search_permissions_tools_or_resources(): void
+    {
+        $this->disableSearchAutoload();
+
+        self::assertFalse(interface_exists('Waaseyaa\\Search\\SearchProviderInterface', autoload: false));
+
+        $provider = new AiToolsServiceProvider();
+        self::assertSame([], $provider->permissions());
+
+        $provider->setKernelServices($this->bus(new PackageManifest(), $this->container([]), new EntityAccessHandler([])));
+        $provider->register();
+
+        $registry = $provider->resolve(ToolRegistryInterface::class);
+        $resources = $provider->resolve(\Waaseyaa\AI\Tools\Resource\ContentResourceRegistry::class);
+
+        self::assertFalse($registry->has('content.search'));
+        self::assertFalse($resources->hasProviders());
+    }
+
+    #[Test]
+    public function installed_content_search_contributes_its_shared_permission_descriptor(): void
+    {
+        $provider = new AiToolsServiceProvider();
+
+        self::assertInstanceOf(ProvidesPermissionsInterface::class, $provider);
+        self::assertSame(
+            [AgentCapabilities::PERMISSION_TOOL_CONTENT_SEARCH => AgentCapabilities::seed()[AgentCapabilities::PERMISSION_TOOL_CONTENT_SEARCH]],
+            $provider->permissions(),
+        );
+    }
+
+    private function disableSearchAutoload(): void
+    {
+        foreach (spl_autoload_functions() ?: [] as $autoload) {
+            if (is_array($autoload) && isset($autoload[0]) && $autoload[0] instanceof \Composer\Autoload\ClassLoader) {
+                $autoload[0]->setPsr4('Waaseyaa\\Search\\', []);
+                $autoload[0]->setPsr4('Waaseyaa\\Search\\Tests\\', []);
+            }
+        }
+
+        // Keep a no-op loader ahead of Composer so an accidental Search probe
+        // cannot fall through to another loader in this process.
+        spl_autoload_register(static function (string $class): void {
+            if (str_starts_with($class, 'Waaseyaa\\Search\\')) {
+                return;
+            }
+        }, prepend: true);
+    }
+
+    #[Test]
     public function application_providers_contribute_tools_before_first_registry_use(): void
     {
         $provider = new AiToolsServiceProvider();
@@ -55,9 +111,18 @@ final class AiToolsServiceProviderWiringTest extends TestCase
                         category: 'application',
                         inputSchema: ['type' => 'object'],
                         impl: new class implements \Waaseyaa\AI\Tools\AgentToolInterface {
-                            public function description(): string { return 'Example application tool.'; }
-                            public function inputSchema(): array { return ['type' => 'object']; }
-                            public function argumentsForAudit(array $arguments): array { return $arguments; }
+                            public function description(): string
+                            {
+                                return 'Example application tool.';
+                            }
+                            public function inputSchema(): array
+                            {
+                                return ['type' => 'object'];
+                            }
+                            public function argumentsForAudit(array $arguments): array
+                            {
+                                return $arguments;
+                            }
                             public function execute(array $arguments, AccountInterface $account): \Waaseyaa\AI\Tools\AgentToolResult
                             {
                                 return \Waaseyaa\AI\Tools\AgentToolResult::success([['type' => 'text', 'text' => 'ok']]);
@@ -88,7 +153,7 @@ final class AiToolsServiceProviderWiringTest extends TestCase
         $container = $this->container([]);
         $handler = new EntityAccessHandler([]);
         $base = $this->bus($manifest, $container, $handler);
-        $bus = new class($base, $searchResolutions, $catalogueResolutions) implements KernelServicesInterface {
+        $bus = new class ($base, $searchResolutions, $catalogueResolutions) implements KernelServicesInterface {
             public function __construct(
                 private readonly KernelServicesInterface $base,
                 private int &$searchResolutions,
@@ -180,7 +245,7 @@ final class AiToolsServiceProviderWiringTest extends TestCase
 
     private function bus(PackageManifest $manifest, ContainerInterface $container, EntityAccessHandler $handler): KernelServicesInterface
     {
-        return new class($manifest, $container, $handler) implements KernelServicesInterface {
+        return new class ($manifest, $container, $handler) implements KernelServicesInterface {
             public function __construct(
                 private readonly PackageManifest $manifest,
                 private readonly ContainerInterface $container,
@@ -202,7 +267,7 @@ final class AiToolsServiceProviderWiringTest extends TestCase
 
     private function forbiddingViewPolicy(string $entityTypeId): AccessPolicyInterface
     {
-        return new class($entityTypeId) implements AccessPolicyInterface {
+        return new class ($entityTypeId) implements AccessPolicyInterface {
             public function __construct(private readonly string $entityTypeId) {}
 
             public function appliesTo(string $entityTypeId): bool
@@ -225,7 +290,7 @@ final class AiToolsServiceProviderWiringTest extends TestCase
     /** @param array<class-string, object> $bindings */
     private function container(array $bindings): ContainerInterface
     {
-        return new class($bindings) implements ContainerInterface {
+        return new class ($bindings) implements ContainerInterface {
             /** @param array<class-string, object> $bindings */
             public function __construct(private readonly array $bindings) {}
 
@@ -248,7 +313,7 @@ final class AiToolsServiceProviderWiringTest extends TestCase
     /** @param list<string> $permissions */
     private function account(array $permissions): AccountInterface
     {
-        return new class($permissions) implements AccountInterface {
+        return new class ($permissions) implements AccountInterface {
             /** @param list<string> $permissions */
             public function __construct(private readonly array $permissions) {}
 

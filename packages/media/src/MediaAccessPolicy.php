@@ -53,7 +53,7 @@ final class MediaAccessPolicy implements AccessPolicyInterface, ProtectedReadPol
 
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
-        if ($account->hasPermission('administer media')) {
+        if ($account->hasPermission(MediaPermissions::ADMINISTER)) {
             return AccessResult::allowed('User has "administer media" permission.');
         }
 
@@ -73,11 +73,11 @@ final class MediaAccessPolicy implements AccessPolicyInterface, ProtectedReadPol
 
     public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
-        if ($account->hasPermission('administer media')) {
+        if ($account->hasPermission(MediaPermissions::ADMINISTER)) {
             return AccessResult::allowed('User has "administer media" permission.');
         }
 
-        if ($account->hasPermission("create $bundle media")) {
+        if ($account->hasPermission(MediaPermissions::create($bundle))) {
             return AccessResult::allowed("User has 'create $bundle media' permission.");
         }
 
@@ -87,14 +87,14 @@ final class MediaAccessPolicy implements AccessPolicyInterface, ProtectedReadPol
     private function viewAccess(Media $media, AccountInterface $account, bool $isOwner): AccessResult
     {
         if ($media->isPublished()) {
-            if ($account->hasPermission('access media')) {
+            if ($account->hasPermission(MediaPermissions::ACCESS)) {
                 return AccessResult::allowed('Published media and user has "access media" permission.');
             }
 
             return AccessResult::neutral('User lacks "access media" permission.');
         }
 
-        if ($isOwner && $account->hasPermission('view own unpublished media')) {
+        if ($isOwner && $account->hasPermission(MediaPermissions::VIEW_OWN_UNPUBLISHED)) {
             return AccessResult::allowed('Owner viewing own unpublished media.');
         }
 
@@ -103,11 +103,11 @@ final class MediaAccessPolicy implements AccessPolicyInterface, ProtectedReadPol
 
     private function editAccess(string $bundle, AccountInterface $account, bool $isOwner): AccessResult
     {
-        if ($account->hasPermission("edit any $bundle media")) {
+        if ($account->hasPermission(MediaPermissions::editAny($bundle))) {
             return AccessResult::allowed("User has 'edit any $bundle media' permission.");
         }
 
-        if ($isOwner && $account->hasPermission("edit own $bundle media")) {
+        if ($isOwner && $account->hasPermission(MediaPermissions::editOwn($bundle))) {
             return AccessResult::allowed("Owner has 'edit own $bundle media' permission.");
         }
 
@@ -116,11 +116,11 @@ final class MediaAccessPolicy implements AccessPolicyInterface, ProtectedReadPol
 
     private function deleteAccess(string $bundle, AccountInterface $account, bool $isOwner): AccessResult
     {
-        if ($account->hasPermission("delete any $bundle media")) {
+        if ($account->hasPermission(MediaPermissions::deleteAny($bundle))) {
             return AccessResult::allowed("User has 'delete any $bundle media' permission.");
         }
 
-        if ($isOwner && $account->hasPermission("delete own $bundle media")) {
+        if ($isOwner && $account->hasPermission(MediaPermissions::deleteOwn($bundle))) {
             return AccessResult::allowed("Owner has 'delete own $bundle media' permission.");
         }
 

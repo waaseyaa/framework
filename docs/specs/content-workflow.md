@@ -323,7 +323,7 @@ None of this is re-litigated here — see `.superpowers/sdd/wp2-rework-plan.md` 
 
 ## Permissions
 
-One permission string per transition, registered through the standard permission surface, named `use <workflow_id> transition <transition_id>`. Roles grant permissions as usual. `getAvailableTransitions()` is the only sanctioned way for UIs to decide what to offer.
+One permission string per transition, registered through the standard permission surface, named `use <workflow_id> transition <transition_id>`. `WorkflowPermissions` is the canonical id/definition factory for derived and explicit transition permissions. The workflows package manifest owns the seven fixed permissions shipped by `DefaultWorkflows::EDITORIAL`; applications contribute permissions for their own workflow definitions through `ProvidesPermissionsInterface`. Roles and catalogue definitions use the same helper rather than separately interpolating ids. Roles grant permissions as usual. `getAvailableTransitions()` is the only sanctioned way for UIs to decide what to offer.
 
 **WP-0 interim gate** (ships first, on the R16 timeline): `NodeAccessPolicy::fieldAccess()` returns Forbidden for `status` and `workflow_state` writes unless the account holds `use editorial transition publish` (exact engine-compatible name — nothing renames when the engine lands), and node create forces `status = 0` for accounts lacking it. The save-path guard supersedes this gate for workflow-bound types in WP-1/2; the field gate remains as defense-in-depth for unbound types. This changes the documented "editorial booleans intentionally NOT gated" stance in `NodeAccessPolicy` — that docblock is updated as part of WP-0.
 

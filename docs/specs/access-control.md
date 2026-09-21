@@ -567,8 +567,8 @@ Permissions are declared in `composer.json` under `extra.waaseyaa.permissions` a
 }
 ```
 
-**Boot-time catalogue authority (#2788):** the kernel composes ONE permission
-catalogue after providers boot — `PermissionHandler::fromProviders($providers, $manifest->permissions)`
+**Boot-time catalogue authority (#2788, #3119):** the kernel composes ONE permission
+catalogue after provider registration and before any provider `boot()` hook — `PermissionHandler::fromProviders($providers, $manifest->permissions)`
 unions the compiled manifest's `extra.waaseyaa.permissions` entries with every
 provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface`
 (`permissions(): array<string, array{title, description}>`, the sibling of
@@ -586,14 +586,32 @@ handler read the same instance the validation ran against. Enforcement is
 unchanged: `AccountInterface::hasPermission()` still decides over opaque
 strings; the catalogue governs which strings may be granted.
 
-**Static capability seeds** (`packages/access/src/Capability/`): classes that are the single source of truth for a surface's permission identifiers, offering `all(): list<string>`, `seed(): array<string, {title, description}>` and `register(PermissionHandler): void` for apps that keep a registry. `AgentCapabilities` seeds the eleven agent-executor permissions (`agent.run`, `tool.entity.*`, …); `McpApprovalCapabilities` (#2177 F1 C1b) seeds the MCP approval decision surface — `mcp.approval.view` (read the pending queue, `GET /api/mcp/approvals`) and `mcp.approval.decide` (durably approve/deny, `POST /api/mcp/approvals/{id}/decision`), deliberately distinct so a read-only triage audience is expressible. Enforcement is via the route-level `_permission` option (`AccountInterface::hasPermission()`); the registry is discovery/UI-only.
+The ordering is an authorization boundary. A provider's `permissions()` may
+use immutable inputs established during `register()` or already-authoritative
+read-only configuration, but it performs no durable writes, network discovery,
+or inference from the roles being validated. An invalid role therefore stops
+the process before a provider boot hook can seed or mutate durable state.
+
+**Framework-owned permission families (#3119):** node, media, taxonomy, and
+workflow packages expose public pure helpers that generate the exact permission
+ids their policies consume and complete id-keyed catalogue definitions for
+application-supplied bundle, media-type, vocabulary, and workflow inputs. An
+application provider that contributes concrete roles implements
+`ProvidesPermissionsInterface` and builds its grants and definitions through
+the same helpers. Applications supply the authoritative subject inventory;
+they do not copy string templates. Fixed policy ids live in the enforcing
+package's Composer manifest. Optional tool capabilities are contributed by the
+installed feature provider, so installing `waaseyaa/access` alone does not
+advertise tools that are absent.
+
+**Static capability seeds** (`packages/access/src/Capability/`): classes that are the single source of truth for a surface's permission identifiers, offering `all(): list<string>`, `seed(): array<string, {title, description}>` and `register(PermissionHandler): void` for apps that keep a registry. `AgentCapabilities` seeds the thirteen agent-executor permissions (`agent.run`, `tool.entity.*`, …); `McpApprovalCapabilities` (#2177 F1 C1b) seeds the MCP approval decision surface — `mcp.approval.view` (read the pending queue, `GET /api/mcp/approvals`) and `mcp.approval.decide` (durably approve/deny, `POST /api/mcp/approvals/{id}/decision`), deliberately distinct so a read-only triage audience is expressible. Enforcement is via the route-level `_permission` option (`AccountInterface::hasPermission()`); the registry is discovery/UI-only.
 
 ## Roles
 
 **Files:** `packages/user/src/Role.php`, `packages/user/src/RoleRepository.php`
 **Namespace:** `Waaseyaa\User`
 
-A role groups a set of permissions under a single machine name. `Role` is a `final readonly` value object with four fields: `id` (machine name), `label` (human-readable), `permissions` (string[], the permissions the role grants), and `weight` (ordering). Roles are contributed by service providers implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and collected into `RoleRepository`, an id-keyed registry built via `RoleRepository::fromProviders($providers)` (later providers win on duplicate ids). See `docs/specs/package-discovery.md` for the discovery contract.
+A role groups a set of permissions under a single machine name. `Role` is a `final readonly` value object with four fields: `id` (machine name), `label` (human-readable), `permissions` (string[], the permissions the role grants), and `weight` (ordering). Roles are contributed by service providers implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and collected into `RoleRepository`, an id-keyed registry built via `RoleRepository::fromProviders($providers)`. Duplicate role ids fail closed so authorization-bearing definitions never depend on provider order. See `docs/specs/package-discovery.md` for the discovery contract.
 
 Two CLI commands attach roles to a user, and they differ in what they write:
 

@@ -33,7 +33,7 @@ final class TermAccessPolicy implements AccessPolicyInterface
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         // 'administer taxonomy' grants full access for any operation.
-        if ($account->hasPermission('administer taxonomy')) {
+        if ($account->hasPermission(TaxonomyPermissions::ADMINISTER)) {
             return AccessResult::allowed('User has "administer taxonomy" permission.');
         }
 
@@ -50,11 +50,11 @@ final class TermAccessPolicy implements AccessPolicyInterface
      */
     public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
-        if ($account->hasPermission('administer taxonomy')) {
+        if ($account->hasPermission(TaxonomyPermissions::ADMINISTER)) {
             return AccessResult::allowed('User has "administer taxonomy" permission.');
         }
 
-        if ($account->hasPermission("create terms in {$bundle}")) {
+        if ($account->hasPermission(TaxonomyPermissions::create($bundle))) {
             return AccessResult::allowed("User has \"create terms in {$bundle}\" permission.");
         }
 
@@ -89,7 +89,7 @@ final class TermAccessPolicy implements AccessPolicyInterface
 
         // Unpublished term: visible only to an editor of its vocabulary.
         $vid = $entity->bundle();
-        if ($account->hasPermission("edit terms in {$vid}")) {
+        if ($account->hasPermission(TaxonomyPermissions::edit($vid))) {
             return AccessResult::allowed("Editor with \"edit terms in {$vid}\" may view its unpublished terms.");
         }
 
@@ -103,7 +103,7 @@ final class TermAccessPolicy implements AccessPolicyInterface
     {
         $vid = $entity->bundle();
 
-        if ($account->hasPermission("edit terms in {$vid}")) {
+        if ($account->hasPermission(TaxonomyPermissions::edit($vid))) {
             return AccessResult::allowed("User has \"edit terms in {$vid}\" permission.");
         }
 
@@ -117,7 +117,7 @@ final class TermAccessPolicy implements AccessPolicyInterface
     {
         $vid = $entity->bundle();
 
-        if ($account->hasPermission("delete terms in {$vid}")) {
+        if ($account->hasPermission(TaxonomyPermissions::delete($vid))) {
             return AccessResult::allowed("User has \"delete terms in {$vid}\" permission.");
         }
 

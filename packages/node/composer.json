@@ -53,6 +53,20 @@
     },
     "extra": {
         "waaseyaa": {
+            "permissions": {
+                "access content": {
+                    "title": "Access published content",
+                    "description": "View published content governed by the node access policy."
+                },
+                "administer nodes": {
+                    "title": "Administer nodes",
+                    "description": "Bypass ordinary node bundle and ownership access checks."
+                },
+                "view own unpublished content": {
+                    "title": "View own unpublished content",
+                    "description": "View unpublished content owned by the acting account."
+                }
+            },
             "policies": [
                 "Waaseyaa\\Node\\NodeAccessPolicy"
             ],

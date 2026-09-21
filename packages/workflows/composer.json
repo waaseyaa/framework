@@ -88,6 +88,36 @@
     },
     "extra": {
         "waaseyaa": {
+            "permissions": {
+                "use editorial transition archive": {
+                    "title": "Archive transition",
+                    "description": "Use the archive transition on the editorial workflow."
+                },
+                "use editorial transition publish": {
+                    "title": "Publish transition",
+                    "description": "Use the publish transition on the editorial workflow."
+                },
+                "use editorial transition reject": {
+                    "title": "Send back transition",
+                    "description": "Use the reject transition on the editorial workflow."
+                },
+                "use editorial transition restore": {
+                    "title": "Restore to draft transition",
+                    "description": "Use the restore transition on the editorial workflow."
+                },
+                "use editorial transition restore_to_published": {
+                    "title": "Restore transition",
+                    "description": "Use the restore_to_published transition on the editorial workflow."
+                },
+                "use editorial transition revise": {
+                    "title": "Create new draft transition",
+                    "description": "Use the revise transition on the editorial workflow."
+                },
+                "use editorial transition submit_for_review": {
+                    "title": "Submit for review transition",
+                    "description": "Use the submit_for_review transition on the editorial workflow."
+                }
+            },
             "config-contract": {
                 "schema-provider": "Waaseyaa\\Workflows\\WorkflowServiceProvider",
                 "version": 1,

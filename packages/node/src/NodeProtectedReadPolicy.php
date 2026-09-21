@@ -27,12 +27,12 @@ final class NodeProtectedReadPolicy implements ProtectedEntityReadPolicyInterfac
         }
 
         if (in_array($operationOrField, self::PROTECTED_FIELDS, true)) {
-            return $principal->hasPermission('administer nodes')
+            return $principal->hasPermission(NodePermissions::ADMINISTER)
                 ? AccessResult::allowed('Node administrators may read protected node fields.')
                 : AccessResult::forbidden('Protected node fields require node administration.');
         }
 
-        if ($principal->hasPermission('administer nodes')) {
+        if ($principal->hasPermission(NodePermissions::ADMINISTER)) {
             return AccessResult::allowed('User has administer nodes permission.');
         }
 
@@ -42,17 +42,17 @@ final class NodeProtectedReadPolicy implements ProtectedEntityReadPolicyInterfac
         $type = $structure->bundleId;
 
         return match ($operationOrField) {
-            'view' => $status === true && $principal->hasPermission('access content')
+            'view' => $status === true && $principal->hasPermission(NodePermissions::ACCESS_CONTENT)
                 ? AccessResult::allowed('Published node view allowed.')
-                : ($isOwner && $principal->hasPermission('view own unpublished content')
+                : ($isOwner && $principal->hasPermission(NodePermissions::VIEW_OWN_UNPUBLISHED)
                     ? AccessResult::allowed('Author may view own unpublished node.')
                     : AccessResult::neutral('Node view not granted.')),
-            'update' => $principal->hasPermission("edit any $type content")
-                || ($isOwner && $principal->hasPermission("edit own $type content"))
+            'update' => $principal->hasPermission(NodePermissions::editAny($type))
+                || ($isOwner && $principal->hasPermission(NodePermissions::editOwn($type)))
                 ? AccessResult::allowed('Node update allowed.')
                 : AccessResult::neutral('Node update not granted.'),
-            'delete' => $principal->hasPermission("delete any $type content")
-                || ($isOwner && $principal->hasPermission("delete own $type content"))
+            'delete' => $principal->hasPermission(NodePermissions::deleteAny($type))
+                || ($isOwner && $principal->hasPermission(NodePermissions::deleteOwn($type)))
                 ? AccessResult::allowed('Node delete allowed.')
                 : AccessResult::neutral('Node delete not granted.'),
             default => AccessResult::neutral('Node operation not recognized.'),
