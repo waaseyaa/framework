@@ -3137,7 +3137,7 @@ application artifact while preserving or merging the serving runtime tables
 according to that catalogue. Applications declare only their artifact-owned
 tables; unknown tables in either input fail closed.
 
-**Completeness is the load-bearing property (#2547, catalogue version 2).**
+**Completeness is the load-bearing property (#2547, catalogue version 3).**
 Fail-closed rejection only helps if the catalogue actually covers what Framework
 migrations install. It did not: 22 Framework-owned tables were unclassified, so
 a serving database built on the same commit as the artifact was rejected before
@@ -3206,6 +3206,12 @@ a migration keeps its original creator's text because the migration's
 structural part (`Incompatible runtime schema for auth_tokens
 (columns.1.not_null)`). Constraint names, comments, and column type spelling
 beyond affinity are the only DDL facts deliberately not compared.
+
+The `user` table is the sole declared schema-evolution exception: an artifact
+may add the nullable canonical identity columns and their named unique indexes
+to a six-column serving table. The stable `uuid` identity must agree before a
+serving row replaces its matching artifact row; remaps and unrelated unique
+collisions fail atomically.
 
 ## Implementation gotchas
 

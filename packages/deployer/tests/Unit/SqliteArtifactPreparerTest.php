@@ -551,6 +551,310 @@ final class SqliteArtifactPreparerTest extends TestCase
     }
 
     #[Test]
+    public function legacy_user_schema_is_promoted_only_by_the_declared_additive_transition(): void
+    {
+        $current = $this->database('current.sqlite', [
+            ...$this->legacyUserSchema(),
+            'CREATE TABLE auth_tokens (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, token_hash TEXT NOT NULL)',
+        ], [
+            "INSERT INTO user VALUES (1, 'user-one', 'user', 'Serving user', 'en', '{\"credential\":\"serving\"}')",
+            "INSERT INTO auth_tokens VALUES ('live-token', 1, 'serving-hash')",
+        ]);
+        $artifact = $this->database('artifact.sqlite', [
+            ...$this->currentUserSchema(),
+            'CREATE TABLE auth_tokens (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, token_hash TEXT NOT NULL)',
+        ], [
+            "INSERT INTO user VALUES (1, 'user-one', 'user', 'Artifact user', 'en', '{\"credential\":\"artifact\"}', 'serving.user', 'serving@example.test')",
+            "INSERT INTO user VALUES (2, 'user-two', 'user', 'Artifact only', 'en', '{}', 'artifact.only', 'artifact@example.test')",
+        ]);
+        $currentHash = hash_file('sha256', $current);
+        $artifactHash = hash_file('sha256', $artifact);
+
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+
+        $candidate = $this->open($this->directory . '/candidate.sqlite');
+        self::assertSame([
+            [1, 'user-one', 'user', 'Serving user', 'en', '{"credential":"serving"}', null, null],
+            [2, 'user-two', 'user', 'Artifact only', 'en', '{}', 'artifact.only', 'artifact@example.test'],
+        ], $candidate->query('SELECT * FROM user ORDER BY uid')->fetchAll(\PDO::FETCH_NUM));
+        self::assertSame([['live-token', 1, 'serving-hash']], $candidate->query('SELECT * FROM auth_tokens')->fetchAll(\PDO::FETCH_NUM));
+        self::assertSame('user-one', $candidate->query("SELECT uuid FROM user WHERE uid = (SELECT user_id FROM auth_tokens WHERE id = 'live-token')")->fetchColumn());
+        self::assertSame(2, (int) $candidate->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('user_identity_name_key_unique', 'user_identity_mail_key_unique')")->fetchColumn());
+        self::assertSame($currentHash, hash_file('sha256', $current));
+        self::assertSame($artifactHash, hash_file('sha256', $artifact));
+        self::assertSame('ok', $candidate->query('PRAGMA integrity_check')->fetchColumn());
+        self::assertSame([], $candidate->query('PRAGMA foreign_key_check')->fetchAll());
+    }
+
+    #[Test]
+    public function reverse_and_undeclared_user_schema_drift_is_rejected(): void
+    {
+        $current = $this->database('current.sqlite', $this->currentUserSchema(), [
+            "INSERT INTO user VALUES (1, 'user-one', 'user', 'Serving', 'en', '{}', 'serving', 'serving@example.test')",
+        ]);
+        $artifact = $this->database('artifact.sqlite', $this->legacyUserSchema(), [
+            "INSERT INTO user VALUES (1, 'user-one', 'user', 'Artifact', 'en', '{}')",
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for user');
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+    }
+
+    #[Test]
+    public function undeclared_user_column_is_rejected_even_when_the_two_identity_indexes_are_present(): void
+    {
+        $current = $this->database('current.sqlite', $this->legacyUserSchema());
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, identity_name_key TEXT, identity_mail_key TEXT, unexpected TEXT)',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key)',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for user');
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+    }
+
+    #[Test]
+    public function matching_extra_pre_existing_user_columns_are_not_part_of_the_declared_transition(): void
+    {
+        $legacyWithExtra = [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, legacy_extra TEXT)',
+        ];
+        $current = $this->database('current-extra.sqlite', $legacyWithExtra);
+        $artifact = $this->database('artifact-extra.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, legacy_extra TEXT, identity_name_key TEXT, identity_mail_key TEXT)',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key)',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for user');
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate-extra.sqlite',
+            [],
+        );
+    }
+
+    #[Test]
+    public function wrong_shape_identity_additions_are_rejected(): void
+    {
+        $current = $this->database('current.sqlite', $this->legacyUserSchema());
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, identity_name_key INTEGER NOT NULL, identity_mail_key TEXT)',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key)',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for user');
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+    }
+
+    #[Test]
+    public function wrong_identity_index_collation_is_rejected(): void
+    {
+        $current = $this->database('current.sqlite', $this->legacyUserSchema());
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, identity_name_key TEXT, identity_mail_key TEXT)',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key COLLATE NOCASE)',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for user');
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+    }
+
+    #[Test]
+    public function defaulted_nullable_identity_addition_is_rejected(): void
+    {
+        $current = $this->database('current.sqlite', $this->legacyUserSchema());
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, identity_name_key TEXT, identity_mail_key TEXT DEFAULT \'\')',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key)',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for user');
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+    }
+
+    #[Test]
+    public function identity_addition_indexes_must_be_named_unique_and_non_partial(): void
+    {
+        $variants = [
+            [
+                'CREATE INDEX user_identity_name_key_unique ON user (identity_name_key)',
+                'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+            ],
+            [
+                'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key) WHERE identity_name_key IS NOT NULL',
+                'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+            ],
+            [
+                'CREATE UNIQUE INDEX wrong_identity_name_key ON user (identity_name_key)',
+                'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+            ],
+        ];
+        foreach ($variants as $index => $indexes) {
+            $current = $this->database('current-index-' . $index . '.sqlite', $this->legacyUserSchema());
+            $artifact = $this->database('artifact-index-' . $index . '.sqlite', [
+                'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, identity_name_key TEXT, identity_mail_key TEXT)',
+                ...$indexes,
+            ]);
+
+            try {
+                new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                    $current,
+                    $artifact,
+                    $this->directory . '/candidate-index-' . $index . '.sqlite',
+                    [],
+                );
+                self::fail('An invalid declared identity index shape was accepted.');
+            } catch (\RuntimeException $error) {
+                self::assertStringContainsString('Incompatible runtime schema for user', $error->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function stable_identity_remaps_by_uid_or_uuid_are_rejected_before_rows_are_accepted(): void
+    {
+        foreach ([
+            ["INSERT INTO user VALUES (1, 'serving-uuid', 'user', 'Serving', 'en', '{}', 'serving', 'serving@example.test')", "INSERT INTO user VALUES (1, 'artifact-uuid', 'user', 'Artifact', 'en', '{}', 'artifact', 'artifact@example.test')"],
+            ["INSERT INTO user VALUES (1, 'same-uuid', 'user', 'Serving', 'en', '{}', 'serving', 'serving@example.test')", "INSERT INTO user VALUES (2, 'same-uuid', 'user', 'Artifact', 'en', '{}', 'artifact', 'artifact@example.test')"],
+        ] as $index => [$servingRow, $artifactRow]) {
+            $current = $this->database('current-' . $index . '.sqlite', $this->currentUserSchema(), [$servingRow]);
+            $artifact = $this->database('artifact-' . $index . '.sqlite', $this->currentUserSchema(), [$artifactRow]);
+            $artifactHash = hash_file('sha256', $artifact);
+
+            try {
+                new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                    $current,
+                    $artifact,
+                    $this->directory . '/candidate-' . $index . '.sqlite',
+                    [],
+                );
+                self::fail('A stable identity remap was accepted.');
+            } catch (\RuntimeException $error) {
+                self::assertStringContainsString('Identity merge refuses', $error->getMessage());
+            }
+            self::assertSame($artifactHash, hash_file('sha256', $artifact));
+            self::assertFileDoesNotExist($this->directory . '/candidate-' . $index . '.sqlite');
+        }
+    }
+
+    #[Test]
+    public function stable_identity_remaps_are_rejected_when_column_identifiers_use_mixed_case(): void
+    {
+        foreach ([
+            ["INSERT INTO user VALUES (1, 'serving-uuid', 'user', 'Serving', 'en', '{}', 'serving', 'serving@example.test')", "INSERT INTO user VALUES (1, 'artifact-uuid', 'user', 'Artifact', 'en', '{}', 'artifact', 'artifact@example.test')"],
+            ["INSERT INTO user VALUES (1, 'same-uuid', 'user', 'Serving', 'en', '{}', 'serving', 'serving@example.test')", "INSERT INTO user VALUES (2, 'same-uuid', 'user', 'Artifact', 'en', '{}', 'artifact', 'artifact@example.test')"],
+        ] as $index => [$servingRow, $artifactRow]) {
+            $current = $this->database('current-case-' . $index . '.sqlite', $this->mixedCaseCurrentUserSchema(), [$servingRow]);
+            $artifact = $this->database('artifact-case-' . $index . '.sqlite', $this->mixedCaseCurrentUserSchema(), [$artifactRow]);
+
+            try {
+                new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                    $current,
+                    $artifact,
+                    $this->directory . '/candidate-case-' . $index . '.sqlite',
+                    [],
+                );
+                self::fail('A mixed-case stable identity remap was accepted.');
+            } catch (\RuntimeException $error) {
+                self::assertStringContainsString('Identity merge refuses', $error->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function canonical_identity_collision_fails_without_replacing_an_unrelated_artifact_user(): void
+    {
+        $current = $this->database('current.sqlite', $this->currentUserSchema(), [
+            "INSERT INTO user VALUES (1, 'serving-uuid', 'user', 'Serving', 'en', '{\"credential\":\"serving\"}', 'duplicate-key', 'serving@example.test')",
+        ]);
+        $artifact = $this->database('artifact.sqlite', $this->currentUserSchema(), [
+            "INSERT INTO user VALUES (2, 'artifact-uuid', 'user', 'Artifact only', 'en', '{}', 'duplicate-key', 'artifact@example.test')",
+        ]);
+        $artifactHash = hash_file('sha256', $artifact);
+
+        try {
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                $current,
+                $artifact,
+                $this->directory . '/candidate.sqlite',
+                [],
+            );
+            self::fail('A canonical identity collision was accepted.');
+        } catch (\PDOException) {
+            self::assertFileDoesNotExist($this->directory . '/candidate.sqlite');
+        }
+        self::assertSame($artifactHash, hash_file('sha256', $artifact));
+    }
+
+    /** @return list<string> */
+    private function legacyUserSchema(): array
+    {
+        return ['CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL)'];
+    }
+
+    /** @return list<string> */
+    private function currentUserSchema(): array
+    {
+        return [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY, uuid TEXT NOT NULL, bundle TEXT NOT NULL, name TEXT NOT NULL, langcode TEXT NOT NULL, _data TEXT NOT NULL, identity_name_key TEXT, identity_mail_key TEXT)',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user (identity_name_key)',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user (identity_mail_key)',
+        ];
+    }
+
+    /** @return list<string> */
+    private function mixedCaseCurrentUserSchema(): array
+    {
+        return [
+            'CREATE TABLE user ("UID" INTEGER PRIMARY KEY, "UUID" TEXT NOT NULL, "BUNDLE" TEXT NOT NULL, "NAME" TEXT NOT NULL, "LANGCODE" TEXT NOT NULL, "_DATA" TEXT NOT NULL, "IDENTITY_NAME_KEY" TEXT, "IDENTITY_MAIL_KEY" TEXT)',
+            'CREATE UNIQUE INDEX user_identity_name_key_unique ON user ("IDENTITY_NAME_KEY")',
+            'CREATE UNIQUE INDEX user_identity_mail_key_unique ON user ("IDENTITY_MAIL_KEY")',
+        ];
+    }
+
+    #[Test]
     public function an_incompatible_runtime_schema_names_its_first_differing_part(): void
     {
         $current = $this->database('current.sqlite', [

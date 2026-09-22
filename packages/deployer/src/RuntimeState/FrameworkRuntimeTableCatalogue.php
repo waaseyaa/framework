@@ -21,8 +21,10 @@ final class FrameworkRuntimeTableCatalogue
      * `cache_items`. Until they were classified, a legitimate serving
      * database built on this very commit was rejected by
      * {@see SqliteArtifactPreparer} before a single row was copied.
+     * Version 3 (#3127) adds the declared legacy-to-current user schema
+     * transition and stable-uuid identity merge semantics.
      */
-    public const int VERSION = 2;
+    public const int VERSION = 3;
 
     /** @return array<string, RuntimeTableDefinition> */
     public function definitions(): array
@@ -44,7 +46,21 @@ final class FrameworkRuntimeTableCatalogue
             new RuntimeTableDefinition('migration_run_state', RuntimeTablePolicy::Artifact),
             new RuntimeTableDefinition('waaseyaa_migrations', RuntimeTablePolicy::Artifact),
             new RuntimeTableDefinition('audit_retention_policy', RuntimeTablePolicy::Preserve),
-            new RuntimeTableDefinition('user', RuntimeTablePolicy::IdentityMerge),
+            // User identity is stable on uuid. A serving database may still
+            // carry the six-column schema from before canonical login keys
+            // were introduced; only this declared, one-way additive update is
+            // accepted during artifact preparation.
+            new RuntimeTableDefinition(
+                'user',
+                RuntimeTablePolicy::IdentityMerge,
+                legacyBaseColumns: ['uid', 'uuid', 'bundle', 'name', 'langcode', '_data'],
+                stableIdentityColumn: 'uuid',
+                additiveNullableTextColumns: ['identity_name_key', 'identity_mail_key'],
+                additiveUniqueIndexes: [
+                    'user_identity_name_key_unique' => 'identity_name_key',
+                    'user_identity_mail_key_unique' => 'identity_mail_key',
+                ],
+            ),
             new RuntimeTableDefinition('user_block', RuntimeTablePolicy::Preserve, ['blocker_id', 'blocked_id']),
             new RuntimeTableDefinition('auth_tokens', RuntimeTablePolicy::Preserve, ['user_id', 'created_by']),
             new RuntimeTableDefinition('auth_bearer_token', RuntimeTablePolicy::Preserve, ['account_uid']),
