@@ -99,22 +99,20 @@ final readonly class SqliteArtifactPreparer
                     // TEXT, an explicit DEFAULT NULL, an inline primary key)
                     // is the same schema. A real column, constraint, index,
                     // or trigger difference names its first differing part.
-                    $difference = SqliteSchemaSignature::firstDifference(
-                        SqliteSchemaSignature::describe($current, $definition->name),
-                        SqliteSchemaSignature::describe($candidate, $definition->name),
-                    );
-                    if ($difference !== null) {
-                        throw new \RuntimeException('Incompatible runtime schema for ' . $definition->name . ' (' . $difference . ')');
-                    }
+                    $this->assertCompatibleSchema($current, $candidate, $definition);
                 }
 
                 $before = $this->profile($current, $definition->name);
-                $this->copyRows(
-                    source: $current,
-                    target: $candidate,
-                    table: $definition->name,
-                    replace: $definition->policy === RuntimeTablePolicy::IdentityMerge,
-                );
+                if ($definition->policy === RuntimeTablePolicy::IdentityMerge && $this->hasStableIdentity($current, $candidate, $definition)) {
+                    $this->mergeIdentityRows($current, $candidate, $definition);
+                } else {
+                    $this->copyRows(
+                        source: $current,
+                        target: $candidate,
+                        table: $definition->name,
+                        replace: $definition->policy === RuntimeTablePolicy::IdentityMerge,
+                    );
+                }
                 $after = $this->profile($candidate, $definition->name);
                 if ($definition->policy !== RuntimeTablePolicy::IdentityMerge && $before !== $after) {
                     throw new \RuntimeException('Runtime preservation verification failed for ' . $definition->name);
@@ -268,6 +266,217 @@ final readonly class SqliteArtifactPreparer
         if (!$created) {
             throw new \RuntimeException('Could not clone serving-only runtime schema for ' . $table);
         }
+    }
+
+    private function assertCompatibleSchema(\PDO $current, \PDO $candidate, RuntimeTableDefinition $definition): void
+    {
+        $currentSignature = SqliteSchemaSignature::describe($current, $definition->name);
+        $candidateSignature = SqliteSchemaSignature::describe($candidate, $definition->name);
+        $difference = SqliteSchemaSignature::firstDifference($currentSignature, $candidateSignature);
+        if ($difference === null) {
+            return;
+        }
+        if (!$this->isDeclaredAdditiveTransition($currentSignature, $candidateSignature, $definition)) {
+            throw new \RuntimeException('Incompatible runtime schema for ' . $definition->name . ' (' . $difference . ')');
+        }
+    }
+
+    /**
+     * Accept only the declared serving-legacy to artifact-current transition.
+     * The signatures are compared after removing exactly the declared columns
+     * and indexes, so all existing structure remains covered by the normal
+     * fail-closed comparison.
+     *
+     * @param array<string, mixed> $current
+     * @param array<string, mixed> $candidate
+     */
+    private function isDeclaredAdditiveTransition(array $current, array $candidate, RuntimeTableDefinition $definition): bool
+    {
+        if ($definition->legacyBaseColumns === [] || $definition->stableIdentityColumn === null || $definition->additiveNullableTextColumns === [] || $definition->additiveUniqueIndexes === []) {
+            return false;
+        }
+
+        $currentColumns = $current['columns'] ?? [];
+        $candidateColumns = $candidate['columns'] ?? [];
+        if (!is_array($currentColumns) || !is_array($candidateColumns) || count($candidateColumns) !== count($currentColumns) + count($definition->additiveNullableTextColumns)) {
+            return false;
+        }
+        if (array_column($currentColumns, 'name') !== array_map('strtoupper', $definition->legacyBaseColumns)) {
+            return false;
+        }
+        foreach ($currentColumns as $index => $column) {
+            if (($candidateColumns[$index]['name'] ?? null) !== ($column['name'] ?? null)) {
+                return false;
+            }
+        }
+        $addedColumns = array_slice($candidateColumns, count($currentColumns));
+        $expectedColumns = array_map('strtoupper', $definition->additiveNullableTextColumns);
+        if (array_column($addedColumns, 'name') !== $expectedColumns) {
+            return false;
+        }
+        foreach ($addedColumns as $column) {
+            if (($column['type'] ?? null) !== 'TEXT'
+                || ($column['not_null'] ?? null) !== false
+                || ($column['default'] ?? null) !== null
+                || ($column['primary_key'] ?? null) !== 0
+                || ($column['hidden'] ?? null) !== 0
+                || ($column['collate'] ?? null) !== null
+                || ($column['generated'] ?? null) !== null
+                || ($column['not_null_conflict'] ?? null) !== null
+            ) {
+                return false;
+            }
+        }
+
+        $currentIndexes = $current['indexes'] ?? [];
+        $candidateIndexes = $candidate['indexes'] ?? [];
+        if (!is_array($currentIndexes) || !is_array($candidateIndexes)) {
+            return false;
+        }
+        $expectedIndexes = [];
+        foreach ($definition->additiveUniqueIndexes as $name => $column) {
+            $expectedIndexes[strtoupper($name)] = strtoupper($column);
+        }
+        $candidateAdded = [];
+        foreach ($candidateIndexes as $index) {
+            $name = $index['name'] ?? null;
+            if (is_string($name) && isset($expectedIndexes[$name])) {
+                $candidateAdded[$name] = $index;
+            }
+        }
+        if (count($candidateAdded) !== count($expectedIndexes)) {
+            return false;
+        }
+        foreach ($expectedIndexes as $name => $column) {
+            $index = $candidateAdded[$name];
+            $indexColumns = $index['columns'] ?? [];
+            if (($index['origin'] ?? null) !== 'c'
+                || ($index['unique'] ?? null) !== true
+                || ($index['partial'] ?? null) !== false
+                || count($indexColumns) !== 1
+                || ($indexColumns[0]['name'] ?? null) !== $column
+                || ($indexColumns[0]['desc'] ?? null) !== false
+                || ($indexColumns[0]['collate'] ?? null) !== 'BINARY'
+                || ($index['expressions'] ?? []) !== [$column]
+                || ($index['where'] ?? null) !== null
+            ) {
+                return false;
+            }
+        }
+        $candidateBaseIndexes = array_values(array_filter(
+            $candidateIndexes,
+            static fn(array $index): bool => !is_string($index['name'] ?? null) || !isset($expectedIndexes[$index['name']]),
+        ));
+        foreach ($currentIndexes as $index) {
+            if (is_string($index['name'] ?? null) && isset($expectedIndexes[$index['name']])) {
+                return false;
+            }
+        }
+        $candidateBase = $candidate;
+        $candidateBase['columns'] = array_slice($candidateColumns, 0, count($currentColumns));
+        $candidateBase['indexes'] = $candidateBaseIndexes;
+        $currentBase = $current;
+        $currentBase['columns'] = $currentColumns;
+
+        return SqliteSchemaSignature::firstDifference($currentBase, $candidateBase) === null;
+    }
+
+    private function hasStableIdentity(\PDO $source, \PDO $target, RuntimeTableDefinition $definition): bool
+    {
+        if ($definition->stableIdentityColumn === null) {
+            return false;
+        }
+
+        $sourceColumns = $source->query('PRAGMA table_info(' . $this->quoteIdentifier($definition->name) . ')')->fetchAll();
+        $targetColumns = $target->query('PRAGMA table_info(' . $this->quoteIdentifier($definition->name) . ')')->fetchAll();
+
+        return $this->resolveColumnName($sourceColumns, $definition->stableIdentityColumn) !== null
+            && $this->resolveColumnName($targetColumns, $definition->stableIdentityColumn) !== null;
+    }
+
+    private function mergeIdentityRows(\PDO $source, \PDO $target, RuntimeTableDefinition $definition): void
+    {
+        $table = $this->quoteIdentifier($definition->name);
+        $sourceInfo = $source->query('PRAGMA table_info(' . $table . ')')->fetchAll();
+        $primaryKeys = array_values(array_filter($sourceInfo, static fn(array $column): bool => (int) ($column['pk'] ?? 0) > 0));
+        if (count($primaryKeys) !== 1 || $definition->stableIdentityColumn === null) {
+            throw new \RuntimeException('Stable identity merge requires one primary key and a declared identity column for ' . $definition->name);
+        }
+        $primaryKey = (string) $primaryKeys[0]['name'];
+        $identityColumn = $this->resolveColumnName($sourceInfo, $definition->stableIdentityColumn);
+        $targetInfo = $target->query('PRAGMA table_info(' . $table . ')')->fetchAll();
+        $targetPrimaryKey = $this->resolveColumnName($targetInfo, $primaryKey);
+        $targetIdentityColumn = $this->resolveColumnName($targetInfo, $definition->stableIdentityColumn);
+        if ($identityColumn === null || $targetPrimaryKey === null || $targetIdentityColumn === null) {
+            throw new \RuntimeException('Stable identity merge could not resolve its declared columns for ' . $definition->name);
+        }
+        $columns = array_values(array_map(static fn(array $column): string => (string) $column['name'], $sourceInfo));
+        $quotedColumns = implode(', ', array_map($this->quoteIdentifier(...), $columns));
+        $rows = $source->query("SELECT $quotedColumns FROM $table")->fetchAll();
+        $targetRows = $target->query(
+            "SELECT {$this->quoteIdentifier($targetPrimaryKey)} AS \"__merge_primary\", {$this->quoteIdentifier($targetIdentityColumn)} AS \"__merge_identity\" FROM $table",
+        )->fetchAll();
+
+        $seenPrimary = [];
+        $seenIdentity = [];
+        foreach ($rows as $row) {
+            $primaryValue = $row[$primaryKey];
+            $identityValue = $row[$identityColumn];
+            if ($identityValue === null) {
+                throw new \RuntimeException('Identity merge requires a non-null stable identity in ' . $definition->name);
+            }
+            $primaryKeyValue = $this->identityValueKey($primaryValue);
+            $identityKeyValue = $this->identityValueKey($identityValue);
+            if (array_key_exists($primaryKeyValue, $seenPrimary) && !$this->sameIdentityValue($seenPrimary[$primaryKeyValue], $identityValue)) {
+                throw new \RuntimeException('Identity merge refuses duplicate primary identity in ' . $definition->name);
+            }
+            if (array_key_exists($identityKeyValue, $seenIdentity) && !$this->sameIdentityValue($seenIdentity[$identityKeyValue], $primaryValue)) {
+                throw new \RuntimeException('Identity merge refuses duplicate stable identity in ' . $definition->name);
+            }
+            $seenPrimary[$primaryKeyValue] = $identityValue;
+            $seenIdentity[$identityKeyValue] = $primaryValue;
+            foreach ($targetRows as $targetRow) {
+                $samePrimary = $this->sameIdentityValue($targetRow['__merge_primary'], $primaryValue);
+                $sameIdentity = $this->sameIdentityValue($targetRow['__merge_identity'], $identityValue);
+                if ($samePrimary && !$sameIdentity) {
+                    throw new \RuntimeException('Identity merge refuses same uid with different uuid in ' . $definition->name);
+                }
+                if ($sameIdentity && !$samePrimary) {
+                    throw new \RuntimeException('Identity merge refuses same uuid with different uid in ' . $definition->name);
+                }
+            }
+        }
+
+        $delete = $this->prepareStatement($target, "DELETE FROM $table WHERE {$this->quoteIdentifier($targetPrimaryKey)} = ? AND {$this->quoteIdentifier($targetIdentityColumn)} IS ?");
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $insert = $this->prepareStatement($target, "INSERT INTO $table ($quotedColumns) VALUES ($placeholders)");
+        foreach ($rows as $row) {
+            $delete->execute([$row[$primaryKey], $row[$identityColumn]]);
+            $insert->execute(array_map(static fn(string $column): mixed => $row[$column], $columns));
+        }
+    }
+
+    private function identityValueKey(mixed $value): string
+    {
+        return serialize($value);
+    }
+
+    private function sameIdentityValue(mixed $left, mixed $right): bool
+    {
+        return $left === $right;
+    }
+
+    /** @param list<array<string, mixed>> $columns */
+    private function resolveColumnName(array $columns, string $requested): ?string
+    {
+        foreach ($columns as $column) {
+            $name = $column['name'] ?? null;
+            if (is_string($name) && strcasecmp($name, $requested) === 0) {
+                return $name;
+            }
+        }
+
+        return null;
     }
 
     private function copyRows(\PDO $source, \PDO $target, string $table, bool $replace): void

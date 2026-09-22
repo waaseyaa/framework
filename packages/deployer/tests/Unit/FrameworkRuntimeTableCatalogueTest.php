@@ -97,6 +97,21 @@ final class FrameworkRuntimeTableCatalogueTest extends TestCase
     }
 
     #[Test]
+    public function the_3127_user_transition_is_declared_exactly(): void
+    {
+        $user = new FrameworkRuntimeTableCatalogue()->definitions()['user'];
+
+        self::assertGreaterThanOrEqual(3, FrameworkRuntimeTableCatalogue::VERSION);
+        self::assertSame('uuid', $user->stableIdentityColumn);
+        self::assertSame(['uid', 'uuid', 'bundle', 'name', 'langcode', '_data'], $user->legacyBaseColumns);
+        self::assertSame(['identity_name_key', 'identity_mail_key'], $user->additiveNullableTextColumns);
+        self::assertSame([
+            'user_identity_name_key_unique' => 'identity_name_key',
+            'user_identity_mail_key_unique' => 'identity_mail_key',
+        ], $user->additiveUniqueIndexes);
+    }
+
+    #[Test]
     public function definitions_are_unique_and_ordered_by_name(): void
     {
         $definitions = new FrameworkRuntimeTableCatalogue()->definitions();

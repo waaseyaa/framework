@@ -60,6 +60,18 @@ It writes a new candidate; it never mutates either input.
 3. When a runtime table exists in both inputs, its complete table definition,
    columns, primary key, checks, foreign keys, complete index SQL (including
    partial-index predicates), and triggers must be compatible before rows move.
+   The `user` table has one explicit, one-way compatibility transition: a
+   serving six-column schema (`uid`, `uuid`, `bundle`, `name`, `langcode`,
+   `_data` in that order) may be paired with the current artifact schema
+   when the artifact adds only nullable TEXT-affinity
+   `identity_name_key` and `identity_mail_key` columns and the named unique,
+   non-partial indexes `user_identity_name_key_unique` and
+   `user_identity_mail_key_unique`. Every pre-existing schema component must
+   still match; reverse, reordered, defaulted, partial, renamed, or otherwise
+   undeclared changes fail closed. User identity merging uses the declared
+   stable `uuid`: a uid/uuid remap is refused, a matching uid+uuid artifact
+   row is removed before inserting the serving row, and all other unique
+   collisions abort the transaction.
 4. A serving-only runtime table is copied with its schema, indexes, and
    triggers. This supports lazily provisioned runtime stores without asking a
    content build to boot them. An artifact-only runtime table must be empty.
