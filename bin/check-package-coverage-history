@@ -1,0 +1,111 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Verify the package coverage index against full Git history (#3118,
+ * FW-PACKAGE-CONVERGENCE-01). Fails closed: a shallow clone, a missing base
+ * commit, a dependency identity that doesn't match composer.lock at its base,
+ * or a captured evidence copy that differs from its source commit all fail.
+ *
+ * The shallow-safe PackageConvergenceCoverageIndexTest checks everything that
+ * doesn't need history. This gate runs where full history exists: ci/verify-gates
+ * (fetch-depth: 0) and local preflight.
+ *
+ * Usage: php bin/check-package-coverage-history [--root=DIR]
+ */
+
+require_once __DIR__ . '/lib/repository-files.php';
+require_once __DIR__ . '/lib/package-coverage.php';
+
+$root = dirname(__DIR__);
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (str_starts_with($argument, '--root=') && strlen($argument) > 7) {
+        $root = rtrim(str_replace('\\', '/', substr($argument, 7)), '/');
+    } else {
+        fwrite(STDERR, "check-package-coverage-history: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+
+$failures = [];
+try {
+    [$exitCode, $shallow, $error] = repositoryGit($root, ['rev-parse', '--is-shallow-repository']);
+    if ($exitCode !== 0) {
+        throw new RuntimeException('cannot inspect the repository: ' . $error);
+    }
+    if (trim($shallow) !== 'false') {
+        throw new RuntimeException('this clone is shallow; the gate needs full history (fetch-depth: 0)');
+    }
+
+    $rows = 0;
+    $copies = 0;
+    foreach (packageCoverageIndex($root)['packages'] as $row) {
+        if ($row['audit_state'] === 'not assessed') {
+            continue;
+        }
+        ++$rows;
+        $label = $row['package'];
+        $base = (string) $row['audit_base'];
+        [$exitCode] = repositoryGit($root, ['cat-file', '-e', $base . '^{commit}']);
+        if ($exitCode !== 0) {
+            $failures[] = sprintf('%s: audit base %s is not in the repository history', $label, $base);
+            continue;
+        }
+        [$exitCode] = repositoryGit($root, ['merge-base', '--is-ancestor', $base, 'HEAD']);
+        if ($exitCode !== 0) {
+            $failures[] = sprintf('%s: audit base %s is not an ancestor of HEAD', $label, $base);
+            continue;
+        }
+        [$exitCode, $lock] = repositoryGit($root, ['show', $base . ':composer.lock']);
+        $actual = $exitCode === 0 ? 'composer.lock sha256:' . hash('sha256', $lock) : 'no composer.lock at the base';
+        if ($actual !== $row['dependency_identity']) {
+            $failures[] = sprintf('%s: dependency identity %s does not match %s at %s', $label, $row['dependency_identity'], $actual, $base);
+        }
+        foreach ($row['evidence'] as $evidence) {
+            $path = (string) ($evidence['path'] ?? '');
+            if (!str_starts_with($path, PACKAGE_COVERAGE_EVIDENCE)) {
+                continue;
+            }
+            $bytes = @file_get_contents($root . '/' . $path);
+            if ($bytes === false) {
+                $failures[] = sprintf('%s: evidence %s is missing', $label, $path);
+                continue;
+            }
+            try {
+                $captured = packageCoverageEvidence($bytes);
+            } catch (RuntimeException $invalid) {
+                $failures[] = sprintf('%s: %s: %s', $label, $path, $invalid->getMessage());
+                continue;
+            }
+            if ($captured['source_kind'] !== 'commit') {
+                continue;
+            }
+            // Only commits on the checked-out history qualify: a branch-only
+            // commit becomes unreachable once that branch is squashed and deleted.
+            [$ancestorExit] = repositoryGit($root, ['merge-base', '--is-ancestor', $captured['commit'], 'HEAD']);
+            [$exitCode, $original] = repositoryGit($root, ['show', $captured['commit'] . ':' . $captured['path']]);
+            if ($ancestorExit !== 0) {
+                $failures[] = sprintf('%s: %s cites %s, which is not an ancestor of HEAD', $label, $path, $captured['commit']);
+            } elseif ($exitCode !== 0) {
+                $failures[] = sprintf('%s: %s cites %s:%s, which is not in the repository history', $label, $path, $captured['commit'], $captured['path']);
+            } elseif ($original !== $captured['body']) {
+                $failures[] = sprintf('%s: %s differs from %s:%s', $label, $path, $captured['commit'], $captured['path']);
+            } else {
+                ++$copies;
+            }
+        }
+    }
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'check-package-coverage-history: ' . $exception->getMessage() . "\n");
+    exit(1);
+}
+
+if ($failures !== []) {
+    fwrite(STDERR, implode("\n", $failures) . "\n");
+    fwrite(STDERR, "Repair: correct the index row or recapture the evidence from its exact source (FW-PACKAGE-CONVERGENCE-01).\n");
+    exit(1);
+}
+printf("package-coverage-history: %d audited rows and %d commit-sourced evidence copies verified against history.\n", $rows, $copies);
+exit(0);

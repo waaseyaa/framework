@@ -43,6 +43,10 @@
 *.xml     text eol=lf whitespace=blank-at-eol,-blank-at-eof,-space-before-tab,tab-in-indent,tabwidth=2
 *.yml     text eol=lf whitespace=blank-at-eol,-blank-at-eof,-space-before-tab,tab-in-indent,tabwidth=2
 
+# Package audit evidence is captured byte-for-byte (issue bodies may carry CR)
+# and pinned by SHA-256, so no line-ending or whitespace normalization applies.
+/docs/audits/packages/evidence/** -text -whitespace
+
 # Maintainer skills are installed by content hash (bin/maintainer-skills), so
 # their bytes must be identical on every host.
 /.agents/skills/** text eol=lf

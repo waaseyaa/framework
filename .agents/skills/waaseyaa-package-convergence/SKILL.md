@@ -205,10 +205,11 @@ The repository is the record; GitHub mirrors it.
   [template](references/audit-record-template.md), and update the package's
   row in `docs/audits/packages/coverage-index.json` (FW-PACKAGE-CONVERGENCE-01)
   in the same change: state, base, audit date, dependency identity, owner and
-  evidence. Cite only immutable evidence there (a tracked repository path, a
-  file at an exact commit, a merged pull request pinned to its merge commit,
-  or a hash-pinned issue snapshot). An Architecture test enforces this and
-  keeps the index in step with the real package set.
+  evidence. Evidence is only ever a file committed in this repository. Capture
+  a historical file (from a commit on `main`) or an issue body byte-for-byte
+  into `docs/audits/packages/evidence/<package>/` with its provenance header
+  rather than linking to something that can change or disappear. The index
+  test and `bin/check-package-coverage-history` enforce this.
 - Keep probes that reproduce a finding. Commit them with the audit record, or
   turn them into the failing regression test that opens the repair PR. Don't
   leave evidence only in a scratch folder or an issue comment.

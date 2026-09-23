@@ -12,12 +12,15 @@ below; this file points to them instead of copying them.
 - **Evidence freshness:** current for source at `66e750444b1578ef1d5c4c823ac7fbc83e70863b`. The only later commit touching the package, `e24673de4` (release alpha.301), changed `packages/admin-surface/composer.json` version constraints and no source.
 - **Owner issue:** `waaseyaa/framework#3074` (closed); program #3118
 
-## Authoritative evidence (immutable)
+## Authoritative evidence
+
+Captured byte-for-byte under `docs/audits/packages/evidence/admin-surface/`
+and verified against history by `bin/check-package-coverage-history`.
 
 | What | Where |
 | --- | --- |
-| Change record: scope, work packages, finding ledger AS-ARCH-001 … AS-CLIENT-001, evidence | `docs/change-records/FW-ADMIN-SURFACE-CONVERGENCE-01.md` at `2718edc02f8a47167db1b31b2192690bff773cfd` |
-| Package charter and full production-file inventory (30 of 30 files classified) | `packages/admin-surface/README.md` at `2718edc02f8a47167db1b31b2192690bff773cfd` |
+| Change record: scope, work packages, finding ledger AS-ARCH-001 … AS-CLIENT-001, evidence | `evidence/admin-surface/FW-ADMIN-SURFACE-CONVERGENCE-01-at-2718edc02.txt` (from `docs/change-records/FW-ADMIN-SURFACE-CONVERGENCE-01.md` at `2718edc02f8a47167db1b31b2192690bff773cfd`) |
+| Package charter and full production-file inventory (30 of 30 files classified) | `evidence/admin-surface/README-at-2718edc02.txt` (from `packages/admin-surface/README.md` at `2718edc02f8a47167db1b31b2192690bff773cfd`) |
 | Scoped Deptrac authority | `packages/admin-surface/deptrac.yaml` at `2718edc02f8a47167db1b31b2192690bff773cfd` |
 | Landed change | PR #3086, merge commit `2718edc02f8a47167db1b31b2192690bff773cfd` |
 

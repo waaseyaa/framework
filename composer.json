@@ -498,6 +498,7 @@
         "check-governed-secret-access": "php bin/check-governed-secret-access",
         "check-runtime-policy-custody": "php bin/check-runtime-policy-custody",
         "check-admin-surface-deptrac": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered",
+        "check-package-coverage-history": "php bin/check-package-coverage-history",
         "report-admin-surface-deptrac": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered --formatter=json",
         "admin-surface-dependency-view": "php vendor/bin/deptrac --config-file=packages/admin-surface/deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered --formatter=mermaidjs --output=packages/admin-surface/dependency-graph.mmd",
         "check-package-layers": "php bin/check-package-layers",
@@ -571,6 +572,7 @@
             "@check-composer-policy",
             "@check-package-layers",
             "@check-admin-surface-deptrac",
+            "@check-package-coverage-history",
             "@check-package-layers-pl008-self-test",
             "@check-distribution-extensions",
             "@check-local-operator-tool-profile",
@@ -594,6 +596,7 @@
         "check-package-layers-pl008-self-test": "php bin/check-package-layers-pl008-self-test"
     },
     "scripts-descriptions": {
+        "check-package-coverage-history": "FW-PACKAGE-CONVERGENCE-01 (#3118): verify the package coverage index against full history. Fails closed on a shallow clone, an audit base or evidence source commit off the checked-out history, a dependency identity that does not match composer.lock at its base, or a captured evidence copy that differs from its source.",
         "check-admin-surface-deptrac": "Deptrac 4 authority for the internal waaseyaa/admin-surface architecture. Fails on forbidden and uncovered dependencies; the repository-wide check-package-layers gate remains active during #3075 migration.",
         "report-admin-surface-deptrac": "Emit deterministic JSON results for the scoped admin-surface Deptrac analysis.",
         "admin-surface-dependency-view": "Regenerate packages/admin-surface/dependency-graph.mmd with Deptrac's Mermaid formatter.",
