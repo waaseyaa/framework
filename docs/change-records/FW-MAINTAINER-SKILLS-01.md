@@ -28,8 +28,15 @@ method.
 
 ## Installer contract
 
-- **States:** `current`, `stale`, `drifted`, `missing`, `unmanaged`,
-  `invalid-manifest`. `verify` exits 0 only when every copy is `current`.
+- **States:** `current`, `provenance-stale`, `stale`, `drifted`, `missing`,
+  `unmanaged`, `invalid-manifest`. `current` requires identical bytes AND the
+  same source commit and clean flag. `verify` exits 0 only when every copy is
+  `current`.
+- **Provenance refresh:** identical bytes from another commit (for example a
+  squash merge) are `provenance-stale`; `install` rewrites only the manifest
+  and reports `refreshed`, leaving the skill files untouched.
+- **Strict source reads:** a source file that can't be read stops `validate`,
+  `verify` and `install` before anything is written.
 - **Refusal before writing:** `install` plans every target first and writes
   nothing if any target is drifted, unmanaged (unless `--adopt` and
   content-equal apart from CRLF), has an untrustworthy manifest, or the source
@@ -39,11 +46,13 @@ method.
   with SHA-256 digests. Otherwise the directory is `invalid-manifest`, so a
   tampered manifest can never direct deletions outside the skill.
 - **Fail closed:** every delete, directory creation, write and rename is
-  checked. Files and the manifest are written through a temporary file and a
-  rename. A failed first install removes exactly what it created. A failed
-  update keeps the old manifest, so the copy verifies as drifted. Any failure
-  exits 1 and reports how many directories completed; success is never
-  printed after a failure.
+  checked, and any `Throwable` is handled. Files and the manifest are written
+  through a temporary file and a rename. A failed first install removes what
+  it created and checks each removal; the report says `Rolled back` only when
+  nothing is left, otherwise `ROLLBACK INCOMPLETE` with the leftover paths. A
+  failed update or adoption is not rolled back. After any failure the command
+  re-inspects the directory and prints its actual state (and, if unmanaged,
+  whether it is still adoptable). It exits 1 and never prints success.
 - **Validation** is deliberately narrower than skill-creator's
   `quick_validate.py`: flat single-line frontmatter scalars only, allowed keys
   `name`, `description`, `license`, `allowed-tools`; no `TODO` markers, CR line
@@ -57,6 +66,8 @@ method.
 | Repair candidate | `tests/Architecture/MaintainerSkillsTest.php`, native Windows, PHP 8.5.5 | 13 tests, 198 assertions pass |
 | Repair candidate | Mutations: accept unsafe paths, skip source check, drop rollback, continue after failure, allow `TODO` | Each fails at least one test |
 | Repair candidate | Mutation: non-atomic manifest write | Not detected; atomicity is only observable under a crash. Accepted residual. |
+| `9dad52d3b` | Hosted checks | All 56 pass; Codex review then found three blockers (source reads, provenance, rollback truthfulness) |
+| Second repair (Codex review of `9dad52d3b`) | 17 tests, 249 assertions; mutations: lenient source read, ignored provenance, unchecked rollback, assumed post-failure state, refresh rewriting files, catching only `RuntimeException` | Each mutation fails at least one test |
 | Repair candidate | `RecursiveRemoverContractTest` allowlist check | Found set equals the allowlist; locally it still fails on a Windows path-prefix mismatch and three symlink controls, all owned by hosted Linux |
 | Install on the maintainer's host | `install --adopt`, then `verify` | Existing Codex copies adopted unchanged; Claude Code copies installed; all four `current` |
 | Discovery, Claude Code | A running session whose working directory is outside Framework | Both skills listed after install |
@@ -64,6 +75,9 @@ method.
 
 ## Residuals
 
-- After merge, reinstall from `main` so installed manifests point to a commit
-  on `main`. Copies installed from a PR branch are previews.
+- After merge, run `install` from `main`: identical bytes are `refreshed`, so
+  every manifest then points at a commit on `main`. Copies installed from a PR
+  branch are previews until then.
+- Fault injection (`WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT`) is a documented
+  test-only seam in the maintainer tool.
 - Restructuring the convergence method is separate (PR #3133, #3118).

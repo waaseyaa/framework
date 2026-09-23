@@ -297,7 +297,7 @@ final class MaintainerSkillsTest extends TestCase
 
         self::assertSame(1, $exitCode, $report);
         self::assertStringContainsString('failed ' . $blocked . '/demo-skill: maintainer-skills: cannot create', $report);
-        self::assertStringContainsString('INCOMPLETE: 1 of 2 skill directories were written before the failure.', $report);
+        self::assertStringContainsString('INCOMPLETE: 1 of 2 skill directories completed before the failure.', $report);
         self::assertStringNotContainsString('source ', $report);
         self::assertSame("a file where a directory is needed\n", file_get_contents($blocked));
         [, $verifyExit] = $this->runCommand('verify', '--root=' . $this->source, '--target=' . $this->target);
@@ -309,23 +309,124 @@ final class MaintainerSkillsTest extends TestCase
     public function a_failure_part_way_through_a_first_install_removes_what_it_created(): void
     {
         $this->commitSource();
-        putenv('WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT_AFTER_FILES=2');
-        try {
-            [$output, $exitCode] = $this->install();
-        } finally {
-            putenv('WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT_AFTER_FILES');
-        }
+
+        [$output, $exitCode] = $this->withFault('write-after:2', fn(): array => $this->install());
         $report = implode("\n", $output);
 
         self::assertSame(1, $exitCode, $report);
-        self::assertStringContainsString('injected fault after 2 new files', $report);
+        self::assertStringContainsString('injected fault after 2 written files.', $report);
+        self::assertStringContainsString('Rolled back: removed 2 files and 2 directories.', $report);
+        self::assertStringContainsString('state now: missing', $report);
         self::assertStringContainsString('INCOMPLETE: 0 of 1 skill directories', $report);
-        self::assertStringContainsString('The failed new directory was rolled back.', $report);
         self::assertDirectoryDoesNotExist($this->target . '/demo-skill');
 
         [$retry, $retryExit] = $this->install();
         self::assertSame(0, $retryExit, implode("\n", $retry));
         self::assertContains('installed ' . $this->target . '/demo-skill', $retry);
+    }
+
+    #[Test]
+    public function a_rollback_that_cannot_finish_says_so_and_lists_what_it_left(): void
+    {
+        $this->commitSource();
+
+        [$output, $exitCode] = $this->withFault('write-after:2,rollback', fn(): array => $this->install());
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('ROLLBACK INCOMPLETE, left behind: ' . $this->target . '/demo-skill/agents/openai.yaml', $report);
+        self::assertStringNotContainsString('Rolled back', $report);
+        self::assertStringContainsString('state now: unmanaged', $report);
+        self::assertStringContainsString('not adoptable, move it aside', $report);
+        self::assertFileExists($this->target . '/demo-skill/SKILL.md');
+        self::assertFileDoesNotExist($this->target . '/demo-skill/.waaseyaa-skill.json');
+    }
+
+    #[Test]
+    public function a_failed_adoption_is_reported_as_still_unmanaged_and_can_be_retried(): void
+    {
+        $this->commitSource();
+        $this->writeCrlfCopy();
+
+        [$output, $exitCode] = $this->withFault('write-after:1', fn(): array => $this->install('--adopt'));
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('No rollback for an existing directory.', $report);
+        self::assertStringContainsString('state now: unmanaged; still adoptable with --adopt', $report);
+        self::assertStringNotContainsString('adopted ', $report);
+        self::assertFileDoesNotExist($this->target . '/demo-skill/.waaseyaa-skill.json');
+
+        [$retry, $retryExit] = $this->install('--adopt');
+        self::assertSame(0, $retryExit, implode("\n", $retry));
+        self::assertContains('adopted ' . $this->target . '/demo-skill', $retry);
+    }
+
+    #[Test]
+    public function an_unreadable_source_file_stops_every_command_before_anything_is_written(): void
+    {
+        $this->commitSource();
+
+        foreach (['validate', 'verify', 'install'] as $command) {
+            [$output, $exitCode] = $this->withFault(
+                'read:demo-skill/references/checklist.md',
+                fn(): array => $this->runCommand($command, '--root=' . $this->source, '--target=' . $this->target),
+            );
+
+            self::assertSame(1, $exitCode, $command);
+            self::assertStringContainsString('cannot read skill source .agents/skills/demo-skill/references/checklist.md', implode("\n", $output), $command);
+            self::assertDirectoryDoesNotExist($this->target . '/demo-skill', $command);
+        }
+    }
+
+    #[Test]
+    public function identical_bytes_from_a_new_commit_refresh_only_the_manifest(): void
+    {
+        $first = $this->commitSource();
+        $this->install();
+        $skillPath = $this->target . '/demo-skill/SKILL.md';
+        touch($skillPath, 1_000_000_000);
+        file_put_contents($this->source . '/unrelated.txt', "squash merge stand-in\n");
+        $second = $this->commitSource('unrelated change');
+        self::assertNotSame($first, $second);
+
+        [$verify, $verifyExit] = $this->runCommand('verify', '--root=' . $this->source, '--target=' . $this->target);
+        self::assertSame(1, $verifyExit);
+        self::assertContains(sprintf('provenance-stale %s/demo-skill: installed from %s, source is %s', $this->target, substr($first, 0, 12), substr($second, 0, 12)), $verify);
+
+        [$output, $exitCode] = $this->install();
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertContains('refreshed ' . $this->target . '/demo-skill', $output);
+        $manifest = json_decode((string) file_get_contents($this->target . '/demo-skill/.waaseyaa-skill.json'), true, 16, JSON_THROW_ON_ERROR);
+        self::assertSame($second, $manifest['source_commit']);
+        clearstatcache();
+        self::assertSame(1_000_000_000, filemtime($skillPath));
+        [, $currentExit] = $this->runCommand('verify', '--root=' . $this->source, '--target=' . $this->target);
+        self::assertSame(0, $currentExit);
+    }
+
+    /**
+     * @param callable(): array{0: list<string>, 1: int} $run
+     * @return array{0: list<string>, 1: int}
+     */
+    private function withFault(string $faults, callable $run): array
+    {
+        putenv('WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT=' . $faults);
+        try {
+            return $run();
+        } finally {
+            putenv('WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT');
+        }
+    }
+
+    private function writeCrlfCopy(): void
+    {
+        mkdir($this->target . '/demo-skill/references', 0o755, true);
+        mkdir($this->target . '/demo-skill/agents', 0o755, true);
+        file_put_contents($this->target . '/demo-skill/SKILL.md', str_replace("\n", "\r\n", self::VALID_SKILL));
+        file_put_contents($this->target . '/demo-skill/references/checklist.md', "# Checklist\r\n");
+        file_put_contents($this->target . '/demo-skill/agents/openai.yaml', "interface:\r\n  display_name: \"Demo\"\r\n");
     }
 
     private function writeSource(string $name, string $skill): void

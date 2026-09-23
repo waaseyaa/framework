@@ -40,8 +40,9 @@ skill into:
 Pass `--target=DIR` (repeatable) to choose other directories.
 
 Each installed skill gets a `.waaseyaa-skill.json` manifest with the source
-commit and a SHA-256 for every file. `verify` reports each copy as `current`,
-`stale` (the source changed), `drifted` (someone edited the copy), `missing`,
+commit and a SHA-256 for every file. `verify` reports each copy as `current` (same bytes and same source commit),
+`provenance-stale` (same bytes, but installed from a different commit, for
+example before a squash merge), `stale` (the source changed), `drifted` (someone edited the copy), `missing`,
 `unmanaged` (a directory the installer did not create), or `invalid-manifest`
 (the manifest names the wrong skill or source, or lists unsafe paths or
 malformed digests).
@@ -58,9 +59,16 @@ than overwriting:
 - a source directory with **uncommitted changes**, unless you pass
   `--allow-dirty-source`. The manifest then records `source_clean: false`.
 
-If an install fails part-way, it exits non-zero and says how many directories
-completed. A new directory is rolled back; an updated one keeps its old
-manifest and verifies as `drifted` until you delete it and install again.
+`install` fixes a `provenance-stale` copy by rewriting only its manifest
+(reported as `refreshed`), so after a merge you can reinstall from `main` and
+every copy points at a commit on `main`.
+
+If an install fails part-way, it exits non-zero, says how many directories
+completed, and reports the failed directory's actual state after the failure.
+A new directory is rolled back and the result is checked: anything that
+couldn't be removed is listed. An updated or adopted directory isn't rolled
+back; it keeps its old manifest (or stays unmanaged), and the report says
+whether it can be adopted again.
 
 ## Validation
 

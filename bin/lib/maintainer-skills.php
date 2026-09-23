@@ -27,8 +27,13 @@ require_once __DIR__ . '/repository-files.php';
 const MAINTAINER_SKILLS_SOURCE = '.agents/skills';
 const MAINTAINER_SKILLS_MANIFEST = '.waaseyaa-skill.json';
 const MAINTAINER_SKILLS_MANIFEST_SCHEMA = 1;
-/** Test-only fault injection: fail after this many new files are written. Never set it outside tests. */
-const MAINTAINER_SKILLS_TEST_FAULT = "WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT_AFTER_FILES";
+/**
+ * Test-only fault injection. A comma-separated list of fault points:
+ * `read:<skill>/<path>` fails that source read, `write-after:<n>` fails after
+ * n files are written, and `rollback` makes rollback deletions fail. Never set
+ * it outside tests.
+ */
+const MAINTAINER_SKILLS_TEST_FAULT = "WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT";
 const MAINTAINER_SKILLS_FRONTMATTER_KEYS = ['name', 'description', 'license', 'allowed-tools'];
 
 /**
@@ -47,7 +52,11 @@ function maintainerSkillsSource(string $root): array
         if (is_link($absolute)) {
             throw new RuntimeException(sprintf('maintainer-skills: %s is a symbolic link; skill sources must be regular files.', $file));
         }
-        $skills[substr($relative, 0, $separator)][substr($relative, $separator + 1)] = (string) file_get_contents($absolute);
+        $bytes = maintainerSkillsFault('read:' . $relative) ? false : @file_get_contents($absolute);
+        if ($bytes === false) {
+            throw new RuntimeException(sprintf('maintainer-skills: cannot read skill source %s: %s', $file, error_get_last()['message'] ?? 'read failed'));
+        }
+        $skills[substr($relative, 0, $separator)][substr($relative, $separator + 1)] = $bytes;
     }
     ksort($skills);
     foreach ($skills as &$files) {
@@ -316,12 +325,17 @@ function maintainerSkillsReadManifest(string $directory, string $name): array
 /**
  * Classify one target skill directory against the source.
  *
- * States: missing, unmanaged, invalid-manifest, drifted, current, stale.
+ * States: missing, unmanaged, invalid-manifest, drifted, stale,
+ * provenance-stale, current. `current` needs the installed bytes to match the
+ * source AND the manifest to record the same source commit and clean flag.
+ * Identical bytes from another commit are `provenance-stale`, which install
+ * repairs by rewriting only the manifest.
  *
  * @param array<string, string> $sourceFiles
- * @return array{state: string, detail: list<string>, manifest: array{files: array<string, string>}|null}
+ * @param array{commit: string, clean: bool}|null $provenance current source identity; null skips the provenance comparison
+ * @return array{state: string, detail: list<string>, manifest: array{source_commit: string, source_clean: bool, files: array<string, string>}|null}
  */
-function maintainerSkillsInspect(string $directory, string $name, array $sourceFiles): array
+function maintainerSkillsInspect(string $directory, string $name, array $sourceFiles, ?array $provenance = null): array
 {
     if (!is_dir($directory) || is_link($directory)) {
         $occupied = file_exists($directory) || is_link($directory);
@@ -356,7 +370,13 @@ function maintainerSkillsInspect(string $directory, string $name, array $sourceF
     }
 
     ksort($recorded);
-    $state = $recorded === maintainerSkillsHashes($sourceFiles) ? 'current' : 'stale';
+    if ($recorded !== maintainerSkillsHashes($sourceFiles)) {
+        return ['state' => 'stale', 'detail' => [], 'manifest' => $manifest];
+    }
+    if ($provenance !== null && ($manifest['source_commit'] !== $provenance['commit'] || $manifest['source_clean'] !== $provenance['clean'])) {
+        return ['state' => 'provenance-stale', 'detail' => [sprintf('installed from %s%s, source is %s%s', substr($manifest['source_commit'], 0, 12), $manifest['source_clean'] ? '' : ' (dirty)', substr($provenance['commit'], 0, 12), $provenance['clean'] ? '' : ' (dirty)')], 'manifest' => $manifest];
+    }
+    $state = 'current';
 
     return ['state' => $state, 'detail' => [], 'manifest' => $manifest];
 }
@@ -400,14 +420,37 @@ function maintainerSkillsWriteFileAtomically(string $target, string $bytes): voi
 }
 
 /**
- * Install or update one skill directory. Obsolete owned files are deleted,
- * every file is written atomically, and the manifest is written last, also
- * atomically, so it only ever describes a completed installation.
+ * Write the manifest atomically. It is always the last write, so it only
+ * ever describes a completed installation.
  *
- * A failed first installation removes exactly the files and directories it
- * created. A failed update cannot restore overwritten bytes, so it keeps the
- * old manifest: the directory then verifies as drifted, and later installs
- * refuse it until the owner resolves it.
+ * @param array<string, string> $sourceFiles
+ * @param array{commit: string, clean: bool} $provenance
+ */
+function maintainerSkillsWriteManifest(string $directory, string $name, array $sourceFiles, array $provenance): void
+{
+    $manifest = [
+        'schema_version' => MAINTAINER_SKILLS_MANIFEST_SCHEMA,
+        'skill' => $name,
+        'source' => maintainerSkillsCanonicalSource($name),
+        'source_commit' => $provenance['commit'],
+        'source_clean' => $provenance['clean'],
+        'files' => maintainerSkillsHashes($sourceFiles),
+    ];
+    maintainerSkillsWriteFileAtomically(
+        $directory . '/' . MAINTAINER_SKILLS_MANIFEST,
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+    );
+}
+
+/**
+ * Install, update or adopt one skill directory. Obsolete owned files are
+ * deleted, every file is written atomically, and the manifest is written last.
+ *
+ * On failure nothing is assumed. A first installation tries to remove exactly
+ * the files and directories it created and checks each removal; the thrown
+ * message states whether rollback completed and lists anything left behind.
+ * An update or adoption cannot restore overwritten bytes, so it is not rolled
+ * back; the caller re-inspects the directory and reports its actual state.
  *
  * @param array<string, string> $sourceFiles
  * @param list<string> $previouslyOwned relative paths from the old, validated manifest
@@ -417,6 +460,8 @@ function maintainerSkillsWrite(string $directory, string $name, array $sourceFil
 {
     $createdDirectories = [];
     $createdFiles = [];
+    $written = 0;
+    $faultAfter = maintainerSkillsFaultAfterWrites();
     try {
         foreach (array_diff($previouslyOwned, array_keys($sourceFiles)) as $obsolete) {
             $path = $directory . '/' . $obsolete;
@@ -436,38 +481,42 @@ function maintainerSkillsWrite(string $directory, string $name, array $sourceFil
                 }
                 $createdDirectories[] = $parent;
             }
-            $existed = file_exists($target);
+            $existed = file_exists($target) || is_link($target);
             maintainerSkillsWriteFileAtomically($target, $bytes);
             if (!$existed) {
                 $createdFiles[] = $target;
             }
-            $faultAfter = maintainerSkillsEnvironment(MAINTAINER_SKILLS_TEST_FAULT);
-            if ($faultAfter !== null && count($createdFiles) >= (int) $faultAfter) {
-                throw new RuntimeException(sprintf("maintainer-skills: injected fault after %d new files (%s).", count($createdFiles), MAINTAINER_SKILLS_TEST_FAULT));
+            ++$written;
+            if ($faultAfter !== null && $written >= $faultAfter) {
+                // A LogicException, so tests prove recovery handles any Throwable.
+                throw new LogicException(sprintf('maintainer-skills: injected fault after %d written files.', $written));
             }
         }
-        $manifest = [
-            'schema_version' => MAINTAINER_SKILLS_MANIFEST_SCHEMA,
-            'skill' => $name,
-            'source' => maintainerSkillsCanonicalSource($name),
-            'source_commit' => $provenance['commit'],
-            'source_clean' => $provenance['clean'],
-            'files' => maintainerSkillsHashes($sourceFiles),
-        ];
-        maintainerSkillsWriteFileAtomically(
-            $directory . '/' . MAINTAINER_SKILLS_MANIFEST,
-            json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        maintainerSkillsWriteManifest($directory, $name, $sourceFiles, $provenance);
+    } catch (Throwable $failure) {
+        $message = $failure->getMessage();
+        if (!$firstInstall) {
+            throw new RuntimeException($message . ' No rollback for an existing directory.', 0, $failure);
+        }
+        $leftBehind = [];
+        foreach (array_reverse($createdFiles) as $file) {
+            if (maintainerSkillsFault('rollback') || !@unlink($file)) {
+                $leftBehind[] = $file;
+            }
+        }
+        foreach (array_reverse($createdDirectories) as $created) {
+            if (maintainerSkillsFault('rollback') || !@rmdir($created)) {
+                $leftBehind[] = $created;
+            }
+        }
+        $leftBehind = array_values(array_filter($leftBehind, static fn(string $path): bool => file_exists($path) || is_link($path)));
+        throw new RuntimeException(
+            $leftBehind === []
+                ? sprintf('%s Rolled back: removed %d files and %d directories.', $message, count($createdFiles), count($createdDirectories))
+                : sprintf('%s ROLLBACK INCOMPLETE, left behind: %s', $message, implode(', ', $leftBehind)),
+            0,
+            $failure,
         );
-    } catch (RuntimeException $failure) {
-        if ($firstInstall) {
-            foreach (array_reverse($createdFiles) as $file) {
-                @unlink($file);
-            }
-            foreach (array_reverse($createdDirectories) as $created) {
-                @rmdir($created);
-            }
-        }
-        throw $failure;
     }
 }
 
@@ -497,4 +546,25 @@ function maintainerSkillsEnvironment(string $name): ?string
     $value = getenv($name);
 
     return is_string($value) && $value !== '' ? $value : null;
+}
+
+function maintainerSkillsFault(string $point): bool
+{
+    $faults = maintainerSkillsEnvironment(MAINTAINER_SKILLS_TEST_FAULT);
+
+    return $faults !== null && in_array($point, explode(',', $faults), true);
+}
+
+/**
+ * The configured `write-after:<n>` fault threshold, if any.
+ */
+function maintainerSkillsFaultAfterWrites(): ?int
+{
+    foreach (explode(',', maintainerSkillsEnvironment(MAINTAINER_SKILLS_TEST_FAULT) ?? '') as $point) {
+        if (str_starts_with($point, 'write-after:')) {
+            return (int) substr($point, 12);
+        }
+    }
+
+    return null;
 }
