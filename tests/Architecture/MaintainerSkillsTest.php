@@ -52,8 +52,29 @@ final class MaintainerSkillsTest extends TestCase
         [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->root);
 
         self::assertSame(0, $exitCode, implode("\n", $output));
-        self::assertContains('valid waaseyaa-delivery (2 files)', $output);
-        self::assertContains('valid waaseyaa-package-convergence (5 files)', $output);
+        self::assertSame(['valid waaseyaa-delivery (2 files)', 'valid waaseyaa-package-convergence (11 files)'], $output);
+    }
+
+    #[Test]
+    public function the_repository_skills_contain_exactly_the_reviewed_files(): void
+    {
+        // A file added to, or dropped from, a skill must be a reviewed change to this list.
+        self::assertSame([
+            '.agents/skills/README.md',
+            '.agents/skills/waaseyaa-delivery/SKILL.md',
+            '.agents/skills/waaseyaa-delivery/references/ci-repair.md',
+            '.agents/skills/waaseyaa-package-convergence/SKILL.md',
+            '.agents/skills/waaseyaa-package-convergence/agents/openai.yaml',
+            '.agents/skills/waaseyaa-package-convergence/references/audit-record-template.md',
+            '.agents/skills/waaseyaa-package-convergence/references/package-audit-checklist.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/distribution.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/domain-contracts.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/generation-build.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/http-ui-contracts.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/introspection-cli.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/kernel-runtime.md',
+            '.agents/skills/waaseyaa-package-convergence/references/profiles/persistence-execution.md',
+        ], \repositoryFiles($this->root, ['.agents/skills']));
     }
 
     #[Test]

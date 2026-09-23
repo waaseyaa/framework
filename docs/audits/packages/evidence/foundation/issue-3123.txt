@@ -1,0 +1,126 @@
+source: issue waaseyaa/framework#3123
+captured: 2026-09-23
+body-sha256: b1aa5cdd44bceb07fc56817b1d212ff796426dc59c6268a8eac4360fb2afe6c9
+---
+## Purpose and ownership
+
+Audit and converge `waaseyaa/foundation` as the first package audit under #3122. The immediate consumer concern is trustworthy route composition for #3121; the audit must also inventory and disposition the whole package rather than treating one repaired path as package convergence.
+
+Parent: #3122. Framework-wide audit program: #3118.
+
+Existing defect owners remain authoritative:
+- #3121: packaged graph:dump route-service failure.
+- #3007: incomplete route:list composition.
+- #2859: kernel composition authority, boot profiles, failed boot/retry and sequential execution.
+- #2985: framework-wide duplication/orphan adjudication.
+- #3117: broader CLI convergence.
+
+This issue owns the Foundation charter, review roster, audit evidence and finding dispositions. Link repairs to their existing owners rather than duplicating those issues.
+
+## Initial audit baseline
+
+Source: `5196f173b06bac698f14d292c7b827f2ddac388f`.
+Method: `waaseyaa-package-convergence` skill and its checklist, with a mechanical inventory worker, bounded dependency/public-contract review, and independently executed kernel probes.
+
+Inventory: 586 tracked package files, including 345 production PHP files and 232 PHP test files. Mechanical extraction found 91 entries in public-surface.php (88 public, 3 internal) and 152 source files with @api markers. These are inventory counts, not evidence that every symbol or behavior has been reviewed. Shipped resources include three .claude/rules files, resources/upgrade/s1-v1.json, and two migration files.
+
+The initial pass substantively reviewed kernel boot/profile ordering, provider registry/bus lifetime, route composition, resolver roles, documented provider laziness, manifest/public-surface policy, and dependency/distribution boundaries. No source implementation, release or production operation was performed.
+
+## Working charter
+
+Foundation owns shared provider/capability and discovery contracts, the manifest read model, common infrastructure primitives, and application composition entrypoints. Reusable contracts are Layer 0; kernels and explicitly allowlisted diagnostics/HTTP/Mercure adapters compose higher layers. Existing exceptions need explicit ownership and installation-profile evidence, not automatic removal or mechanical additions to Composer require.
+
+Foundation does not own application business routes or higher-layer entity, access, API and CLI policies merely because it composes them. Distinguish primitive-only split-package use from full kernel/metapackage composition.
+
+## Evidence-backed finding ledger
+
+| ID | Finding and evidence | Disposition / owner |
+| --- | --- | --- |
+| FND-001 | No kernel-owned completed route collection is available to Bimaaji. HttpKernel builds routes locally with providers; route:list omits providers. | Required for #3121; shared composition contract under #3122, CLI portion #3007. |
+| FND-002 | Failed-boot retry retains a frozen SecretResolverRegistry. A synthetic provider declaration followed by a one-time post-registration fault produces the intended fault on attempt 1, then `LogicException: The secret resolver registry is frozen.` on attempt 2 on the same kernel. | Confirmed existing #2859 concern. Define clean retry or explicitly terminal failed instances; preserve frozen-state enforcement. |
+| FND-003 | `bootForSchemaSync()` followed by `bootForCli()` on the same instance returns without runtime finalization; `getAccessHandler()` then raises an uninitialized typed-property Error. Both paths share one booted boolean. | #2859 profile/transition contract. Current one-command CLI dispatch does not establish production reachability of this reuse; support the transition or refuse it explicitly. |
+| FND-004 | The live spec promises deferred providers load on first service resolution. A provider advertising an unused service nevertheless registers and boots once during actual kernel boot. | Reconcile public lifecycle promise with implementation. Laziness need not be implemented to unblock #3121. |
+| FND-005 | Manifest/discovery contracts drift: a separately public ProviderDiscovery has no in-repository production caller found; docs still describe discarded commands/routes metadata. The stability charter promises a stable manifest read API, but PackageManifest lacks a reviewed entry in public-surface.php despite cross-package consumers. | Choose canonical read/discovery contracts and classify real consumers. Omission is unclassified, not implicitly internal. External usage must be checked before deprecation/removal; coordinate #2985. |
+| FND-006 | Supported installation profiles and exceptional dependency closure are under-specified. Architectural allowlists permit higher-layer adapters but do not alone qualify primitive-only and full-kernel installed consumers. | Dependency/profile evidence gap, not a demonstrated standalone install failure. Qualify supported profiles separately with maintained architecture tooling. |
+| FND-007 | Native Windows focused tests encounter an SQLite WAL teardown error. | Preserve runner/resource-lifetime evidence; do not turn it into a claimed production regression or waive the check. |
+
+Primary source anchors: AbstractKernel.php boot(), bootForRestrictedDiscovery(), discoverAndRegisterProviders(); Bootstrap/ProviderRegistry.php; Bootstrap/ProviderRegistryKernelServices.php; HttpKernel.php matchRoute(); ServiceProvider/ServiceProvider.php; Discovery/PackageManifest.php; package public-surface.php; docs/specs/package-discovery.md and stability-charter.md.
+
+## Validation already performed
+
+On a clean detached worktree at the exact baseline, using its own locked dependencies, PHP 8.5.5 and PHPUnit 13.1.14:
+
+- Focused kernel/provider/container selection: 66 tests, 133 assertions, 32.090 seconds, exit 1 with one teardown error. `AbstractKernelTest::production_boot_requires_preflight_after_compiling_manifest_inventory` could not unlink `production.sqlite-wal` on Windows. This is not an all-green baseline.
+- Separate PHP-process probes reproduced FND-002, FND-003 and FND-004 using disposable projects/SQLite and synthetic declarations. They are audit discriminators, not committed regression tests or split-package qualification.
+- Earlier #3121 tests at the same unchanged source remain evidence for their limited boundaries; their counts overlap and must not be summed into unique coverage.
+- Lock SHA256: `0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164`.
+
+Local working artifacts: `foundation-audit.md`, `foundation-boundaries.md`, `foundation-inventory/inventory.{md,json}`, and three `foundation-*-probe.php` files under `C:/Users/jones/.codex/visualizations/2026/09/21/01a0c1df-9ce7-75c2-afef-038f1212eea1/`. These local paths are not portable evidence; the facts above are preserved here, and committed portable evidence is an acceptance item below.
+
+## Route table contract: pure metadata
+
+Agreed design direction for the #3122 shared-contract checkpoint: declarative route contributions, deterministic composition, and an immutable completed snapshot. This is a target contract to audit and qualify, not a claim that current routes() hooks already satisfy it.
+
+The table describes route names, paths, methods, matching constraints, defaults, priority/order, handler identifiers, declared access requirements, and rendering/API metadata. Request matching context and execution services remain separate. Handler references identify execution targets without constructing controllers or capturing live service instances in the published snapshot.
+
+Route contribution collection, composition and inspection must not instantiate execution services, resolve credentials, open sessions, query application data, perform durable writes, or invoke handlers. Composition may use explicit application configuration and finalized declarative definitions; record those inputs and their lifetime rather than assuming all configuration is request-independent. This contract concerns route production/inspection: separately identify any broader kernel boot prerequisites so a metadata-only table is not mistaken for proof that the entire current CLI bootstrap is side-effect-free.
+
+Completeness still requires a lifecycle: collect all applicable Framework and application-provider contributions, validate duplicates and priority, then publish the completed snapshot. Early, recursive, failed or unsupported-profile access must receive explicit refusal or availability status rather than an empty or partially cached table. HTTP, CLI and Bimaaji must consume the same canonical definitions; request-specific matching and handler resolution happen afterward.
+
+Declared route access is not a claim of effective access to every resource. Downstream entity/field policies, middleware and handler checks can impose further restrictions. Introspection must preserve this distinction and describe its coverage limits.
+
+- [ ] Audit existing provider routes() hooks and BuiltinRouteRegistrar against metadata purity. Record service resolution, runtime reads, side effects, captured objects/callables and inputs whose readiness depends on boot. Give each incompatibility an owner and migration/compatibility disposition before changing the extension contract.
+- [ ] Specify the canonical contribution/metadata shape, supported handler-reference forms, complete phase, immutable snapshot ownership, cache identity/lifetime, and early/recursive/failure refusal. Reconcile Foundation ownership with routing, Bimaaji and CLI at #3122's shared-contract checkpoint.
+- [ ] Prove route composition and inspection with discriminating fixtures whose execution-service factories, credential resolvers, session starts, application-data queries and handlers fail or record a call if invoked. Assert they remain uninvoked while a nonempty application route is described accurately. Keep these controls separate from intentional kernel boot activity.
+- [ ] Prove deterministic composition for equivalent declared inputs, duplicate/priority behavior, and that consumers cannot mutate the shared published snapshot or retain request-specific state in it.
+- [ ] Prove HTTP matching, route:list and graph inspection agree on the same completed definitions, while access descriptions retain layered-enforcement limitations. Include real installed-package composition as required by #3121.
+
+This adds a required design/audit checkpoint for the bounded route repair. It does not make unrelated Foundation convergence a prerequisite for unblocking the consumer.
+
+## Remaining audit and acceptance
+
+- [ ] Commit a package charter and stable change record matching observed ownership and supported installation profiles.
+- [ ] Persist the complete review roster, exact source/dependency identities, discriminators and evidence in repository-portable form.
+- [ ] Classify all production dependencies with scoped Deptrac and existing architecture authorities, including reviewed exceptions and allowed/forbidden/uncovered controls. Do not introduce a custom dependency parser.
+- [ ] Disposition every public surface and duplicated contract against real consumers, including manifest read shape/defaults and provider lifecycle promises.
+- [ ] Establish the complete route-service contract needed by #3121: phase readiness, provider inclusion, ordering, request-context separation, cache lifetime and explicit refusal in unsupported boot profiles.
+- [ ] Record which #2859 guarantees the bounded route repair requires; retain separate ownership of broader lifecycle repairs.
+- [ ] Complete substantive review of remaining schema/migration/upgrade machinery, audit stores, secret/rekey contracts, logging, inbound HTTP/middleware, tenant/community state, rate limiting, ingestion, assets, runtime epoch, maintenance and diagnostics. Inventory alone does not satisfy this item.
+- [ ] For each finding, record impact, reproduction or uncertainty, owner, repair/retain/document/move/deprecate disposition and required acceptance. Distinguish consumer-unblock requirements from independent residuals.
+- [ ] Qualify supported source, primitive-only split, kernel-composition and generated-application forms with nonempty real consumers and absence/failure controls. Preserve shipped rule-resource parity.
+- [ ] Resolve or explicitly track Windows test cleanup limitations and obtain supported-runner evidence where required.
+- [ ] Record evidence-backed convergence-skill improvements, especially boot-profile transitions, retained failed-attempt state, installation profiles and unclassified/public contract distinctions.
+- [ ] Link reviewed implementation and exact-candidate qualification when changes are made; report audit completion separately from the #3121 consumer unblock.
+
+## Closure
+
+Keep this issue open until Foundation has the charter, exhaustive review/dispositions, real-boundary qualification and bounded residual ownership required by the convergence skill. The initial findings do not establish package convergence, and unrelated Foundation cleanup does not automatically block FETDER. This tracking issue does not authorize release or deployment.
+
+
+
+## Completed design/test checkpoint: ROUTE-METADATA-01
+
+[Complete hook audit, independently reviewed migration proposal, executable first-RED test source and exact evidence](https://github.com/waaseyaa/framework/issues/3123#issuecomment-5755177075).
+
+The source hook roster and concrete migration design are complete for the declared Framework baseline, generated provider, and skeleton boundary. #3122 now records the 14 expected production packages and ten additional full-package audit entries before implementation. HTTP positive passes; source-consumer inspection fails at execution-service construction (actual 1, expected 0). Combined: 2 tests, 22 assertions, 1 intended failure.
+
+This completes the requested pre-remediation design/test checkpoint, not all purity controls, installed-package/CLI parity, downstream FETDER acceptance, Foundation convergence, or implementation. The reviewed eight-file candidate is preserved uncommitted in its isolated worktree; its full design and PHP test source are also preserved in the linked comment. No production source remediation or release has begun. Other Foundation/package findings retain their existing separate owners.
+
+
+## CS-01 provider-eligibility clarification
+
+[Reviewed eligibility amendment and updated document identities](https://github.com/waaseyaa/framework/issues/3123#issuecomment-5755238324) resolves [coupling finding CS-01](https://github.com/waaseyaa/framework/issues/3122#issuecomment-5755224083). The compiled roster distinguishes no-route, declarative, and actual legacy contributors. Inherited Foundation no-op providers do not block canonical inspection or require migration. Classification binds transitive source provenance; missing/stale/unknown records refuse without reflection, autoload, hook invocation, or refresh during inspection. Same 14-package change roster; test files/evidence unchanged. Mixed-provider and source-drift controls are required future acceptance, not claimed executed. Original checkpoint is preserved; no runtime remediation began.
+
+
+## Preserved local checkpoint and implementation slices
+
+[Exact commits, gate outcomes, reviewed evidence reuse, full portable plan and dependency map](https://github.com/waaseyaa/framework/issues/3123#issuecomment-5755346673).
+
+- Design/test checkpoint: `401a571cf081db3d940898bac2ffe2d4a0ec22aa` (eight files; two reviewed formatter-only fixture deltas).
+- Plan: `d2c47f5d493c4b98018d50de5ac2870cc03ea20f` (one new planning document).
+- Isolated branch is clean; commits are local only, not pushed. No runtime remediation, PR, merge, release or deployment.
+- Next ready: **A0 read-only audit readiness**. Then I1 Foundation values/participation/lifecycle → I2 Routing compiler/resolver → I3 canonical/mixed HTTP composition → I4 Bimaaji/CLI consumers, with I5 required provider cohorts and I6 generated applications/fixtures before complete installed qualification. I4 is not an accepted consumer fix if its actual cohort remains legacy.
+- Ten added package audits remain pending. Per-slice substantive prerequisite evidence is required; unrelated convergence findings remain separate. Runtime implementation needs its own authorization.
+
+Native canonical pre-commit gates passed before both normal commits without bypass or hook/toolchain changes. For the PHP checkpoint, `files: []` means zero fixer findings, not zero selected PHP files: the unchanged root-tests Finder covered all three staged PHP files. Existing behavioral evidence is reused after independent formatting-equivalence review; no claim of rerunning the red test on these commits.
+

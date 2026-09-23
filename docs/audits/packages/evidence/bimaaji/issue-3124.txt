@@ -1,0 +1,132 @@
+source: issue waaseyaa/framework#3124
+captured: 2026-09-23
+body-sha256: d828d08083ee8c631f04a92b647d843589cdb8ee3a25b9556ecc511a3e280974
+---
+> **Current target contract:** #3123 now requires a pure-metadata route table shared by HTTP, CLI and Bimaaji, with immutable completed snapshots and no execution-service construction during contribution/inspection. This supersedes the initial candidate suggestion of inspecting a cached completed live router. Existing source findings below describe current behavior, not accepted architecture. Hook incompatibilities and expanded scope are recorded at https://github.com/waaseyaa/framework/issues/3123#issuecomment-5754988282. Bounded controller descriptors alone do not prove side-effect-free route production.
+Parent: #3122. Framework audit program: #3118. Existing blocker #3121 retains ownership. This issue owns package audit evidence, remaining scope and finding dispositions; it does not authorize implementation/release or duplicate existing install work.
+
+Mechanical inventory: 120 tracked files, 57 source files, 48 tests, 11 resource files. Counts are inventory, not proof every branch is reviewed.
+# Bimaaji substantive audit, bounded pass
+
+Source reviewed: `waaseyaa/framework` commit `5196f173b06bac698f14d292c7b827f2ddac388f` (verified exact `HEAD`). Parent program: #3122. Immediate consumer blocker: #3121. This is read-only audit evidence, not a convergence claim. No source edit, install, broad test, GitHub mutation, or release was performed.
+
+## Working charter
+
+`waaseyaa/bimaaji` owns a read model over a booted application's entity, route, public-access, JSON:API, admin and sovereignty shape; a validated intent-to-reviewable-patch protocol; package-shipped Agent Skills and their contained installation/verification lifecycle; and optional CLI command exports. It does not own kernel route composition, runtime authorization semantics, CLI transport behavior, or applying generated patches. Those producer/consumer boundaries must remain explicit: Foundation produces the completed application services, Routing/Access define route and enforcement semantics, CLI transports command output, and AI Agent/MCP consumes Bimaaji under capabilities.
+
+The package is Layer 4 in the live architecture map, despite `docs/specs/bimaaji.md:61` still calling it Layer 5. Its runtime manifest directly requires `entity`, `foundation`, `routing`, Symfony Routing, and `nikic/php-parser`; CLI is optional in `suggest`/`require-dev`. The provider nevertheless contains inline CLI class references and constructs CLI command objects only through `consoleCommands()` (`packages/bimaaji/src/BimaajiServiceProvider.php:256-339`). This is an intentional optional integration seam that needs installed-package absence and presence qualification, not an automatic runtime CLI dependency.
+
+## Substantive review roster
+
+Reviewed in this pass:
+
+- graph envelope/generation, strict and tolerant error behavior, section identity and selection;
+- default provider construction and kernel-service resolution;
+- admin, entity, JSON:API, routing, public-surface, sovereignty and spec-index introspection;
+- mutation validation, sovereignty guardrails, patch generation and in-memory serialization;
+- command registration and `graph:dump` boundary;
+- install/verification architecture, containment contract, client capability model, packaged skill source, manifest ownership, relevant implementation searches and issue ownership;
+- Composer dependencies, optional CLI coupling, package README/spec claims, `@api` markers and package-local public-surface declarations;
+- AI Agent/MCP consumer references at the contract level.
+
+Not exhaustively reviewed: every branch of all seven client transformers, every byte-level golden output, every manifest/pruning recovery branch, and every shipped skill's domain advice. Existing #2656/#2660/#2664/#2686/#2693 evidence was used to bound those areas; this pass does not re-certify them. Mechanical inventory counts are deliberately omitted because another worker owns that evidence.
+
+## Finding ledger
+
+### BJM-001, required for #3121: default graph construction requires a route service ConsoleKernel does not provide
+
+`defaultSectionProviders()` eagerly resolves all six providers (`packages/bimaaji/src/BimaajiServiceProvider.php:369-378`). Three provider factories immediately request `resolveRouteCollection()` (`:85-103`), which accepts only a bus-bound `RouteCollection` or `WaaseyaaRouter` and otherwise throws (`:398-412`). Thus even a caller interested only in `entities` cannot construct `GraphDumpHandler` or the generator when the route service is absent. Section selection happens later, after full generation (`packages/bimaaji/src/Command/GraphDumpHandler.php:65-105`).
+
+Disposition: unblock #3121 through the kernel-owned complete route-composition contract coordinated by #3122/#3123. Do not bind an empty collection. Preserve application-provider routes, ordering, lifecycle readiness and repeated-resolution behavior. Bimaaji should consume the authoritative completed collection, not reconstruct it.
+
+Focused acceptance probe recommended: boot an installed-package consumer through the real `ConsoleKernel`, register one application route, resolve the real handler, and assert nonempty `routing` and `public_surface` output plus parity of route names/options with HTTP composition. Include an absence control and an early-resolution/repeated-resolution discriminator.
+
+### BJM-002, required alongside #3121: declared access classification can contradict runtime enforcement
+
+`PublicSurfaceProvider::classifyAuth()` returns `public` before inspecting `_authenticated` or `_session` (`packages/bimaaji/src/Introspection/PublicSurface/PublicSurfaceProvider.php:50-70`). The parent investigation reproduced `_public=true` plus `_authenticated=true` being described as public while `AccessChecker` denies anonymous access. Permission/role/gate happen to take precedence, but other conflicting combinations remain an unexpressed precedence policy. `RoutingIntrospectionProvider` only copies raw flags (`packages/bimaaji/src/Introspection/Routing/RoutingIntrospectionProvider.php:39-52`) and does not repair the semantic mismatch.
+
+Disposition: required truthful-introspection repair under #3122/#3121, using the runtime AccessChecker restriction precedence as authority without changing enforcement. Exercise all conflicting flag combinations, including false-valued keys, and keep raw routing metadata separately available.
+
+### BJM-003, required graph contract for the unblock: tolerant output can look complete when sections failed
+
+The generator catches `provide()` failures, logs, and omits the section in tolerant mode (`packages/bimaaji/src/Graph/ApplicationGraphGenerator.php:23-42`). `ApplicationGraph::toArray()` contains only `version` and `sections` (`packages/bimaaji/src/Graph/ApplicationGraph.php:32-43`), so consumers cannot distinguish a complete graph from omitted sections. Constructor/factory failures are outside this tolerance boundary because providers are eagerly resolved before `generate()`. `graph:dump --section` reports a failed/omitted requested section as merely unknown and lists whatever survived (`packages/bimaaji/src/Command/GraphDumpHandler.php:90-99`).
+
+Disposition: #3122 acceptance requirement. Define an explicit completeness/error envelope and consistent behavior for provider construction versus `provide()` failures. Strict must remain nonzero. A requested section should not require unrelated providers unless the contract deliberately says it does. This is directly relevant to trustworthy downstream qualification, while a broader extension model can follow separately.
+
+Focused probes: one provider fails during construction; one fails in `provide()`; request an unrelated healthy section in strict and tolerant modes; assert machine-readable incompleteness rather than inferring it from missing keys.
+
+### BJM-004, independent follow-up: duplicate/mismatched section identities silently overwrite
+
+`ApplicationGraph` keys sections by `GraphSection::$key` with last-write-wins behavior (`packages/bimaaji/src/Graph/ApplicationGraph.php:20-24`). The generator never checks that a provider's `getKey()` matches the returned section key (`packages/bimaaji/src/Graph/ApplicationGraphGenerator.php:27-30`). Although the default list is fixed, the public `GraphSectionProviderInterface` and documented third-party extension contract make collisions externally relevant.
+
+Disposition: independently tracked Bimaaji contract follow-up under the future extension/tagged-collection work; it need not block #3121 if the repair retains the fixed defaults. Reject duplicate section keys and provider/section key mismatch with explicit diagnostics before generic tagged providers become executable.
+
+### BJM-005, independent high-priority follow-up: mutation success does not mean a supported, patchable mutation
+
+`MutationValidator` validates identifiers and entity existence but has no supported-operation allowlist (`packages/bimaaji/src/Mutation/MutationValidator.php:41-64`). Any arbitrary operation against an existing entity succeeds. `add_field` with a null field also succeeds. `PatchGenerator` implements only `add_field`; every other successful operation returns an empty `PatchSet`, and null-field `add_field` also returns empty (`packages/bimaaji/src/Patch/PatchGenerator.php:20-38`). Existing tests explicitly bless empty output for an unknown operation (`packages/bimaaji/tests/Unit/Patch/PatchGeneratorTest.php:41-52`). This makes the agent-facing result semantically misleading even though it performs no filesystem write.
+
+The risk compounds with tolerant graph generation: the provider binds a singleton `MutationValidator` to a snapshot created by tolerant `ApplicationGraphGenerator::generate()` (`packages/bimaaji/src/BimaajiServiceProvider.php:167-178`). A missing `entities` section is not represented as incomplete; mutation decisions are then made against an indistinguishable partial snapshot.
+
+Disposition: new focused Bimaaji issue, coordinated with AI Agent tool contracts. Define supported operation schemas, required target fields/parameters, and whether validation means policy acceptance or patchability. Unsupported operations should fail explicitly; a successful result should not silently become an empty patch. This does not need to delay the route-only #3121 repair unless touched by that patch.
+
+### BJM-006, independent follow-up: public API declarations are far narrower than shipped `@api` and cross-package use
+
+The package-local authority declares only nine public FQCNs (`packages/bimaaji/public-surface.php:11-21`), while source marks many additional types `@api`, including `ApplicationGraph`, `ApplicationGraphGenerator`, `PatchSet`, `SovereigntyGuardrails`, command handlers, manifest/verifier and capability objects. AI Agent directly imports generator, validator, request, patch generator and spec provider. The README also presents the generator/container binding as a consumer API. These types are absent from the declaration map, while abstract transformer bases are declared public. Under the public-surface governance spec, omission is unclassified rather than implicitly internal.
+
+Disposition: public-contract audit under #3118/#3122, coordinated with #2660/#2664 and real external-consumer search. Classify each cross-package and documented type as public or internal, then align docs and `@api`. Do not mechanically broaden every marker.
+
+### BJM-007, independent documentation/architecture follow-up: extension and layer claims drift from executable behavior
+
+The README tells third parties to tag section providers, but `defaultSectionProviders()` is a hardcoded six-element list and the provider comments admit tags are informational (`packages/bimaaji/src/BimaajiServiceProvider.php:113-133,246-250,369-378`). Earlier class prose instead says third parties must compose providers through their own provider (`:52-56`). The spec places Bimaaji at Layer 5 (`docs/specs/bimaaji.md:61`), while the live architecture table places it at Layer 4. The source also justifies upward CLI coupling by exploiting an import-only scanner (`packages/bimaaji/src/Command/GraphDumpHandler.php:12-15`, `BimaajiServiceProvider.php:261-265`), which is a tooling limitation, not a semantic dependency exemption.
+
+Disposition: documentation and boundary follow-up linked to #3118 and broader CLI convergence #3117. State the currently executable extension path, decide whether tagged aggregation is actually supported, align layer documentation, and qualify optional CLI absence. No need to expand #3121 solely for this drift.
+
+### BJM-008, retained existing ownership: install/skill lifecycle residuals
+
+The install subsystem has a strong explicit containment and ownership contract in `docs/specs/bimaaji-install.md:85-182`, with packaged-resource and marker-bounded behavior already owned by closed #2656. Remaining work already has owners: shared root `AGENTS.md` ownership #2686, Windows file-level link proof #2693, generated-state/update orchestration #2664, equivalent client guidance #2660, and packaged AI journey #2665. No duplicate issue is recommended.
+
+The audit did not find evidence that these residuals block #3121. Retain their separate qualification, especially symlink/junction behavior on a capable runner and exact generated-byte parity after skill changes.
+
+## Manifest and distribution assessment
+
+The declared runtime dependency direction is coherent for the current implementation: Entity backs entity/admin inspection, Foundation supplies provider/log/sovereignty contracts, Routing supplies router fallback, Symfony Routing supplies `RouteCollection`, and PHP Parser builds patch content. CLI is optional but executable provider code references its classes; an installed consumer with Bimaaji and no CLI must therefore prove ordinary provider registration and non-CLI service resolution remain safe. Conversely, the real CLI consumer must prove command discovery from split packages, not only root-monorepo autoload.
+
+The package resources are part of its delivered product surface. Skill correctness is not implied by PHP unit coverage. The existing packaged-resource architecture test and lifecycle issues should remain release evidence, including an exact resource identity and a post-`--no-dev` absence check where the AI development plane is removed.
+
+## Priority and acceptance split
+
+For #3121 unblock: BJM-001, BJM-002, and the bounded completeness/error behavior in BJM-003. Required evidence is a real installed consumer, real `ConsoleKernel`, a real application-provider route, HTTP/CLI composition parity, conflicting access flags, construction and `provide()` failure controls, strict nonzero behavior, and JSON fidelity at the actual CLI boundary. The candidate should also confirm no Bimaaji MCP capability or route exposure changed.
+
+Independent follow-ups: BJM-004 duplicate section identity, BJM-005 mutation semantic honesty, BJM-006 public contract classification, and BJM-007 documentation/layer/optional-CLI convergence. BJM-008 stays with existing issues. These findings prevent a package-convergence claim but do not automatically block the consumer route repair.
+
+## Remaining uncertainty
+
+This pass did not execute the proposed probes because the parent owns candidate execution. It did not exhaustively validate every install transformer or skill body, inspect external Packagist consumers, or prove native Windows link containment. Entity introspection returns field-definition objects directly (`packages/bimaaji/src/Introspection/Entity/EntityIntrospectionProvider.php:26-36`); the audit did not establish JSON round-trip fidelity for real field definitions at the CLI boundary, so the parent should include a real entity with nontrivial fields in the installed-consumer graph probe. Until that passes, the documented claim that graph serialization is JSON-safe remains an uncertainty rather than a confirmed defect.
+
+## Parent validation and additional finding
+
+Independent parent probes at the same baseline reproduced:
+
+- Unsupported mutation `nonsense` against a known node entity: validation success, zero patches.
+- `add_field` with no field: validation success, zero patches.
+- Duplicate graph section key: later data silently replaces earlier data.
+- Actual GraphDumpHandler + RoutingIntrospectionProvider + SymfonyCommandIO: controller string `<info>literal</info>` becomes `literal`, exit0.
+- Synthetic invokable controller with a public marker serializes its object state into routing JSON. Production AuthOidcRouteServiceProvider stores live controller objects in route defaults, so controller representation must be bounded explicitly. This proves arbitrary object serialization, not disclosure of a real credential.
+
+BJM-009: define bounded controller descriptions at the graph boundary; retain executable controller values for HTTP. Cloned routes still share nested live objects. Required contract decision for truthful #3121 output, with no process-static caching of populated runtime routes. Existing writeRaw offers a lossless output path; broader CLI repair need not be imposed on this unblock.
+
+The earlier exact-baseline 60 focused tests/182 assertions and six graph-command tests/18 assertions passed, but injected services/stubs do not qualify actual kernel wiring. The broader 342-test run had ten Windows symlink/path-related failures and three warnings; do not count it as passing or sum overlapping runs into unique coverage. New probes are synthetic/in-process, not installed-package acceptance.
+
+## Remaining acceptance
+
+- [ ] Persist charter, complete review roster and evidence in repository-portable governed records.
+- [ ] Complete unreviewed transformer, manifest/pruning and shipped-skill advice areas; distinguish their owners from #3121.
+- [ ] Classify public surfaces and maintained dependency boundaries with real consumers and installation-profile controls.
+- [ ] Reconcile the shared Foundation/routing/CLI contract before choosing source changes.
+- [ ] Qualify real installed ConsoleKernel app routes, construction/provide failures, strict/incomplete behavior, access descriptions and bounded lossless JSON.
+- [ ] Assign explicit dispositions to BJM-004..007; retain install owners for BJM-008. No silent unsupported mutation or extension success claims.
+- [ ] Obtain changed-candidate independent review and required qualification when remediation is authorized.
+
+Audit state: substantive bounded pass with explicit residuals. Implementation, package convergence and downstream qualification remain incomplete.
+
+

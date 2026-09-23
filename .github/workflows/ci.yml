@@ -2237,6 +2237,7 @@ jobs:
           run_gate check-phpunit-skip-policy
           run_gate check-s1-configuration-authority
           run_gate check-admin-surface-deptrac
+          run_gate check-package-coverage-history
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
           run_gate check-distribution-exclusion
