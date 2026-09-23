@@ -285,6 +285,43 @@ POSIX only a leading `/` qualifies (a `TMPDIR=C:\Temp` on Linux/WSL is a *relati
 current-drive-rooted `\foo` — and the proof exercises both semantics on every OS,
 the mechanism fails loudly before the first write instead of silently.
 
+### 8. Host-portable gate execution (#3096)
+
+`bin/check-pr-preflight` runs each manifest command through the host shell: `sh` on POSIX,
+`cmd.exe` on native Windows. A Git pre-push hook on Git for Windows starts it from Git's `sh`, so
+`bash`, `grep` and `find` resolve to Git for Windows tools, while `php`, `git` and `python3` are
+native Windows programs. A gate failure on that host must mean a repository finding, never an
+unstartable child process or an untranslated path. Gates therefore follow these rules:
+
+- **Child processes start from argument arrays**, not shell strings. A POSIX `VAR=value cmd
+  2>/dev/null` line does not run under `cmd.exe`, and a child that never starts can read as a
+  detection failure (the PL008 self-test) or a silently lost value (the runner's own
+  `git config waaseyaa.driftBase` lookup). Environment overrides go in the `proc_open`
+  environment array; discarded stderr uses the `['null']` descriptor.
+- **PHP gates start Git through `bin/lib/repository-git.php`.** On POSIX hosts that is the
+  stash-refusing `bin/git` adapter. On native Windows, where `bin/git` is a POSIX-only Bash
+  entrypoint that CreateProcess cannot start, it is the Windows Git executable
+  (`WAASEYAA_SYSTEM_GIT` when a harness pins one, otherwise `git` from PATH). This is the host rule
+  in `docs/governance/agent-contract.md`. A Git that cannot start fails the gate closed.
+- **Bash gates use only what Git for Windows Bash provides.** Patterns use `grep -E`, because
+  that `grep` rejects `-P` in its default locale. Native interpreters receive relative paths or
+  argv data, never MSYS paths such as `/c/...` interpolated into program source.
+- **Self-tests count only a genuine detection.** A negative control passes only when the gate
+  exits with its violation status *and* reports the planted violator; a scan error, launch
+  failure or crash fails the self-test.
+
+No gate in the default profile currently needs a `not-run-here` outcome. If a gate ever depends on
+a capability that genuinely cannot run on a host, it must report a distinct `not-run-here` result
+that the runner never counts as `ok` and that never lowers its exit status. Fixture proofs:
+`tests/Architecture/PackageLayersPl008SelfTestTest.php`,
+`tests/Architecture/AdminCoercionPatternsGateTest.php`,
+`tests/Architecture/RepositoryGitEntrypointTest.php`,
+`tests/Architecture/CoversNothingCompanionDiagnosticTest.php`,
+`tests/Architecture/CheckIngestionDefaultsGateTest.php`, and the host-quoted fixtures in
+`tests/Architecture/PreflightParityTest.php`. The native-host classification of these entrypoints
+remains owned by `docs/specs/native-host-support.md`; passing locally on Windows is not a support
+claim until a native Windows CI job executes them.
+
 ## Invariants
 
 1. Every gate hosted CI blocks merge on is in `tools/preflight-gates.json` (enforced by
@@ -315,6 +352,7 @@ the mechanism fails loudly before the first write instead of silently.
 | Manifest/CI parity test | `tests/Architecture/PreflightParityTest.php` |
 | S1 verifiers (schema v2) | `bin/check-s1-{configuration-activation,configuration-authority,schema-authority,sqlite-contract}` |
 | Scanner file enumeration | `bin/lib/repository-files.php` (`repositoryFiles()`), shared by `bin/lib/s1-roster.php` and `bin/check-access-hardening` |
+| Host-aware Git entrypoint (§8) | `bin/lib/repository-git.php` (`repository_git_command()`), used by `bin/check-delivery-agent-events` and `bin/check-covers-nothing-companions`; proof `tests/Architecture/RepositoryGitEntrypointTest.php` |
 | Recorded rosters | `support/s1-*-roster.json` |
 | Hook integration | `bin/project-hooks` (`pre_push`) |
 | CI ordering | `.github/workflows/ci.yml` (`needs: [support-contract, spec-drift]` on the three long jobs) |
