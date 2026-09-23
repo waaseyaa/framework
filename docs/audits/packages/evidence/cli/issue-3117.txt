@@ -1,0 +1,98 @@
+source: issue waaseyaa/framework#3117
+captured: 2026-09-23
+body-sha256: ba11b3809dcb425b0097f6a2d43bdf3368d352f865a1570b6c0c7d795eaae263
+---
+## Outcome
+
+Converge `waaseyaa/cli` around an explicit package charter, intentional dependencies, truthful public APIs, consistent command and machine-output contracts, and real source/installed-consumer evidence. Apply the package-convergence method exercised by admin-surface #3074 / PR #3086, adapting the boundary checks to CLI behavior.
+
+This is a coordination umbrella. Existing issues retain ownership, acceptance, and current status. It does not replace the application-generation program #2844, authorize releases/deployment, or make every CLI residual a Studio MVP blocker.
+
+Stable change-record identity for implementation: `FW-CLI-CONVERGENCE-01`. Create the repository-portable record before implementation; this issue is its discovery/coordination mirror, not a substitute for that record.
+
+## Audited baseline and charter
+
+Initial audit: Framework `5196f173b06bac698f14d292c7b827f2ddac388f`, PHP 8.5.5, native Windows, isolated worktree with candidate-local locked dependencies. No product code changed.
+
+Observed inventory: 276 production PHP files; 28 declared providers (including the empty root provider); 30 direct Waaseyaa runtime requirements; 41 public-surface declaration entries; 146 class-level `@api` annotations without a corresponding declaration. The latter is a compatibility-disposition gap, not proof that the existing shape-based parity gate fails. A syntax inventory located 129 literal HandlerCommand declarations, not an authoritative runtime command count.
+
+Proposed charter: CLI owns operator command presentation, parsing, discovery, transport, and composition of lower-layer operations. Storage/schema authority, authorization, lifecycle rules, and durable mutation semantics remain with their domain packages. Generation and repository-build utilities currently housed here need explicit ownership and consumer contracts rather than assumed extraction.
+
+Inventory must include: boot-free and restricted-boot commands; normal provider discovery; optional integrations; interactive/non-interactive input; stdout/stderr and machine protocols; process exit and signal behavior; generated PHP/runtime dependencies; public extension helpers; source, split, and no-dev consumption.
+
+## Existing work, preserved under its current owner
+
+| Owner | CLI relationship | Initial disposition |
+| --- | --- | --- |
+| #2821 | Core CLI dependency closure and optional command families | Primary dependency-boundary work |
+| #2844 | Application generation and scaffolding program | Compose this program; do not duplicate it |
+| #2847, #2848, #2849, #2850 | Entity fields, governance, ingestion/search/seed, and packaged generation acceptance | Remain children of #2844 |
+| #2984 | Ingestion ownership and duplication, including CLI-local implementation | Required predecessor for the affected #2849 work |
+| #3007 | Actual composed routes and access posture in route:list | Operator truthfulness |
+| #3025 | Configured cache-bin inventory and clearing | Main already contains configured-bin logic and 10 passing focused tests; reconcile remaining acceptance instead of blindly reimplementing the old finding |
+| #3029 | Dormant revision migration generators and documentation | Preserve its reachability caveat; this is not proof every storage generator is dead |
+| #3035 | Committed/uncertain mutation outcomes in CLI/MCP | Cross-package qualification, not a claim of reproduced failure in every caller |
+| #2961 | Packaged public conformance/IO helpers | CLI StdinSource now lives under src/Io and has a packaged CI gate; reconcile the repaired CLI slice separately from remaining cross-package scope |
+| #3110 | Programmatic schema adoption outside CLI | Foundation owns schema authority; do not solve by forcing applications to install CLI |
+| #2676, #2679, #2681 | Native-host and packaged-consumer parity | Shared acceptance owners |
+| #3085 | Host-aware qualification and evidence reuse | Shared delivery tooling owner |
+| #3075 | Framework-wide Deptrac adoption | Reuse its authority; scope the CLI model without replacing global gates |
+
+## Newly reproduced boundary findings
+
+All probes below used real classes from the exact baseline and the locked Symfony Console dependency. Provider/container fixtures are local test doubles; these are in-process boundary probes, not fresh installed-consumer or full kernel acceptance.
+
+### CLI-IO-001: machine JSON passes through presentation normalization
+
+- `packages/cli/src/Command/SymfonyCommandIO.php::writeln()` applies `plainText()`, which removes console-style tags.
+- The real `MiscAServiceProvider` debug:context descriptor and `DebugContextHandler`, driven through CommandTester with `--entity-id=<info>literal</info>`, return JSON containing `entity_id: "literal"`, exit 0.
+- A `writeRaw()` control preserves the same bytes. Several other JSON handlers use writeln; each must be traced and tested rather than assuming identical impact.
+- Acceptance: preserve literal values through stdout JSON and file output where both are supported; exercise nested/non-empty values and console-tag-looking text; keep human styling separate and diagnostics on stderr.
+
+### CLI-EXIT-001: usage status differs at handler and application boundaries
+
+- `debug:context --relationship-counts=bad` returns 2 through CommandTester, but 1 through WaaseyaaConsoleApplication with real ArgvInput.
+- `normalizeExitCode()` collapses every nonzero result except 130 to 1. The spec both promises usage/input code 2 and documents this normalization; command-level validation prose is also inconsistent with handlers returning 2.
+- Acceptance: select and document one backward-compatible process contract, reconcile affected handlers/tests, prove process/application behavior for success, parser and handler validation, domain failure, exception, and interruption. Do not blindly widen all historical codes 3/4 into a new public contract.
+
+### CLI-REG-001: rebinding a HandlerCommand loses Symfony metadata
+
+- `HandlerCommand::withContainer()` reconstructs only constructor metadata.
+- An instance with alias `audit:alias`, hidden=true, and help `Extended help` loses all three when bound. ConsoleApplicationFactory calls this on provider-returned HandlerCommand instances.
+- Acceptance: preserve supported aliases, hidden/help and other explicitly supported Symfony metadata through registration, with actual list/help/invocation discriminators. Reconcile the supported extension contract before promising every mutable Symfony property.
+
+### CLI-REG-002: service-ID HandlerCommand registration misses container binding
+
+- The factory binds a directly supplied HandlerCommand, but returns container-resolved Command objects without equivalent binding.
+- A provider yielding a service ID resolving to an unbound HandlerCommand advertises the command; invocation exits 1 with `requires a handler container` despite the handler being available in that same container.
+- Acceptance: define uniform behavior for instance/service-ID/FQCN discovery, or explicitly require prebound service descriptors with early validation. Test success and missing-service refusal, and avoid false command availability.
+
+## Structural convergence work
+
+- [ ] Establish and commit the package charter, complete command/public-surface/consumer roster, and bounded finding ledger.
+- [ ] Model CLI internal dependencies with scoped Deptrac, JSON reports, allowed/forbidden/uncovered controls, and existing global gates retained.
+- [ ] Reconcile 146 source-annotated public classes against explicit declarations and actual consumers; no blanket public promotion or annotation removal.
+- [ ] Classify Foundation ConsoleKernel composition as an explicit boundary exception. Existing package-layer tooling exempts `/src/Kernel/`; do not report its imports as a newly discovered gate violation.
+- [ ] Classify the 25 AdminBuild files, 36 Site files, 10 ProjectInit files, and 8 Ingestion files by actual responsibility. File count alone is not an extraction argument.
+- [ ] Review generated migration runtime coupling: StorageMigrationTemplate emits an import and call to CLI BackfillHelper. Preserve historical generated files and public compatibility when selecting ownership.
+- [ ] Repair or explicitly resolve the four new boundary findings above in bounded review candidates.
+- [ ] Reconcile README, CLI spec, public lifecycle descriptions, and stale source paths in CLAUDE.md.
+- [ ] Qualify source and installed/no-dev consumers, optional-package absence/presence, supported native hosts, and generated-artifact execution.
+- [ ] Reconcile existing issue progress against actual merged code and evidence; partial repair does not close a cross-package parent.
+
+## Evidence and limits
+
+Focused baseline: 29 unique tests / 125 assertions passed across SymfonyConsoleRuntimeTest, OptionalPackageConsoleCommandsTest, DebugContextHandlerTest, HealthReportHandlerTest, and CacheClearHandlerTest. The independent boundary probes reproduce all four findings above despite that green baseline.
+
+The initial audit supplies a complete syntax-level file inventory and focused semantic review. It does not claim exhaustive command-by-command behavioral qualification, an accepted CLI Deptrac model, fresh split-package acceptance, hosted checks for a repair candidate, or completed package convergence.
+
+## Suggested delivery order
+
+1. Charter, authoritative inventory, public dispositions, and dependency design.
+2. Focused I/O and registration repairs with real application-boundary tests.
+3. Dependency-closure work under #2821, coordinated with generation/domain owners.
+4. Public/documentation and generated-runtime compatibility reconciliation.
+5. Source + installed/no-dev/native-host qualification and independent review.
+
+Codex coordinates and independently reviews. Implementation workers receive isolated worktrees, exact file ownership, and a bounded candidate. Keep persistence/execution/isolation changes independently reviewed and preserve required hooks/hosted checks. Umbrella closure requires completed acceptance or explicit, owned deferrals with evidence, not a green selected unit suite.
+

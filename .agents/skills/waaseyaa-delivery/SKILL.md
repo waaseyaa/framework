@@ -17,9 +17,9 @@ Use this workflow only within the established user-authorized scope for Waaseyaa
 
 ## Route work deliberately
 
-Read `C:/Users/jones/Documents/Codex/Hermes/integrations/coding-agents/ROUTING.md` immediately before selecting or dispatching a coding model. It is the sole authority for current model roles, settings, exceptions, and fallback policy. Do not duplicate its volatile roster in this skill or silently substitute models.
+If the host has a coding-agent routing file (on the maintainer's machine: Hermes `integrations/coding-agents/ROUTING.md` under the Codex documents folder), read it immediately before selecting or dispatching a coding model. It is the sole authority for current model roles, settings, exceptions, and fallback policy. Without one, use the current harness model and say so. Do not duplicate its volatile roster in this skill or silently substitute models.
 
-For Claude audits and independent reviews, also load [the Claude Code skill](C:/Users/jones/.codex/skills/claude-code/SKILL.md). Follow its qualified invocation and evidence rules.
+For Claude audits and independent reviews from Codex, also load the `claude-code` skill when it is installed, and follow its qualified invocation and evidence rules.
 
 Run independent implementation or review lanes in parallel only when the user authorized multi-agent delivery and the lanes have disjoint ownership or an explicit integration boundary. An independent-review requirement does not itself authorize parallel implementation or multi-agent delivery. Assign one accountable integration owner. Run independent hosted checks in parallel. Serialize shared-file integration, heavy full qualification, and merges so evidence and failures remain attributable.
 
@@ -72,6 +72,8 @@ Treat recurring delivery friction as bounded technical debt with an owner, repro
 After a landed or materially changed checkpoint, read the live issue and project item again. Update only the fields and notes supported by evidence. Preserve independent axes such as priority, readiness, roadmap stage, release, and delivery status. Prefer editing a current progress note over adding duplicate comments, and retain dependencies and remaining acceptance explicitly.
 
 ## Permissions
+
+In a Waaseyaa repository, `docs/governance/agent-contract.md` is the authority for authorization; this section summarizes it and never widens it.
 
 This skill records process; it grants no authority to push, merge, release, edit GitHub issues or boards, send messages, change account settings, or mutate other external systems. Use only authorization the user has established for the current work, including authorization that persists from earlier turns.
 

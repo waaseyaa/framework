@@ -1,0 +1,57 @@
+source: issue waaseyaa/framework#3125
+captured: 2026-09-23
+body-sha256: 590db6d44c2665ea3e5bdd1917493d1b438a6990d8e66ae3869eed8f3029eb11
+---
+> **Current target contract:** #3123 now requires a pure-metadata route table shared by HTTP, CLI and Bimaaji, with immutable completed snapshots and no execution-service construction during contribution/inspection. This supersedes the initial candidate suggestion of inspecting a cached completed live router. Existing source findings below describe current behavior, not accepted architecture. Hook incompatibilities and expanded scope are recorded at https://github.com/waaseyaa/framework/issues/3123#issuecomment-5754988282. Bounded controller descriptors alone do not prove side-effect-free route production.
+Parent: #3122. This issue owns the routing charter, audit evidence and finding dispositions. Existing #3004, #3013, #1866 and #3121 retain their respective defect/contract ownership.
+
+# Routing audit for application graph convergence
+
+Baseline: Framework 5196f173b06bac698f14d292c7b827f2ddac388f. Full mechanical inventory: 41 tracked files, 19 source files, 18 test files (inventory.md). Read-only audit; no production changes or distribution qualification. Parent #3122.
+
+## Charter and reviewed roster
+
+Routing owns Symfony-backed route definitions/builders, matching and generation, Waaseyaa match exceptions, local redirect helpers, entity parameter conversion, language negotiation and the existing auth/OIDC route adapter. Foundation owns application composition; Access owns runtime restriction decisions; Auth/OIDC own controller policies. The adapter role is an intentional dependency/profile question, not a reason to relocate it automatically.
+
+All 19 production files were substantively read. Reviewed groups: WaaseyaaRouter lifecycle and priority; RouteBuilder and EntityDeepLinkRouteBuilder; RouteMatch and RouteFingerprint; Controller/Redirector/RedirectResponse; EntityParamConverter; four Language files; GateAttribute; two match exceptions; CacheConfigResolver; AuthOidcRouteServiceProvider/OidcHttpRoutes. Reviewed manifest, two-entry public-surface authority, README, relevant api-layer spec, unit controls and live existing issue ownership. This is not exhaustive downstream-consumer or public-contract qualification.
+
+## Ledger
+
+| ID | Evidence and consequence | Disposition |
+| --- | --- | --- |
+| RT-001 | WaaseyaaRouter::getRouteCollection() returns a cloned collection. A probe confirms later route additions do not appear in the earlier snapshot. RouteCollection clones each Route, but nested controller objects remain shared; probe identity confirmed. AuthOidcRouteServiceProvider::registerAuthRoutes resolves dependencies and constructs live controller objects during registration. | Required design constraint for #3121/#3123: publish only completed definitions, and specify per-kernel/request lifetime. Do not equate cloning routes with isolating controller state or globally cache populated routers. Current snapshot behavior itself is not a demonstrated defect. |
+| RT-002 | RoutingIntrospectionProvider copies _controller without converting it to a descriptive representation. A synthetic invokable controller with a public marker serializes as {marker: synthetic-public-state}; closures/private-state controller objects may instead appear as {}. | Bimaaji owns the graph representation. Define safe supported controller descriptions before qualifying a graph of real routes. Probe demonstrates arbitrary object serialization, not exposure of a real secret. |
+| RT-003 | allowAll() sets _public but does not erase _authenticated or other restrictions. AccessChecker combines restrictions; existing #3004 owns declared posture qualification. Deprecated GateAttribute explicitly does not enforce policy. | Keep runtime semantics unchanged. Bimaaji must report restrictions correctly; no inference of unrestricted entity access from a route flag. Preserve #3004 ownership. |
+| RT-004 | AuthOidcRouteServiceProvider skips OIDC entirely if its controller class is absent, and logs then omits selected endpoints when controller resolution fails. OidcHttpRoutes always adds discovery/JWKS once invoked. Registration has no structured completeness result. | Decide what a complete graph promises: actual registered routes versus all configured/advertised capabilities. Strict graph generation cannot automatically detect errors already swallowed during composition. Optional absence is not itself a defect. Required scope decision; broader adapter qualification can follow separately. |
+| RT-005 | AcceptHeaderNegotiator loops entries after sorting but does not exclude quality zero. Synthetic header fr;q=0 with available fr/en selects fr. Case comparison is strict. | Independent language-negotiation follow-up under this audit; characterize intended matching/quality behavior and downstream effects. Does not block the route service. |
+| RT-006 | public-surface.php declares Controller and LanguageNegotiatorInterface only, while RouteBuilder, WaaseyaaRouter, Redirector, RouteMatch and other concrete types have @api and actual consumers. README names nonexistent Router and misplaced AccessChecker, and calls negotiators middleware. | Independent public-contract/documentation convergence. Missing declarations are unclassified, not automatically internal. Review compatibility and consumers before changing exports. |
+| RT-007 | Route definitions are not the whole HTTP dispatch contract: domain-router first-match ownership is separately tracked in #3013; ServiceProvider routes signature coupling is #1866. | Preserve these owners. Limit parity claims to defined route composition unless effective dispatcher coverage has been independently proven. |
+
+Other reviewed behavior: duplicate route names explicitly throw; remove/add and priority sorting invalidate matcher/generator caches; priority ties retain registration order. EntityParamConverter uses canonical repositories and throws when entities are absent; authorization remains the downstream access boundary. Redirector validates local targets and named URLs; CacheConfigResolver emits private/no-store for authenticated accounts. No new confirmed defect was identified in those helpers during this bounded pass.
+
+## Evidence
+
+Prepared isolated checkout C:/dev/waaseyaa/worktrees/fw-cli-audit-20260920 has this exact source and its own locked dependencies. PHP8.5.5, PHPUnit13.1.14; lock SHA256 0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164. Command: php vendor/bin/phpunit --no-coverage packages/routing/tests. Result exit0, 166 tests, 364 assertions, PHPUnit0.492s, tool wall1.201s. All tests under the named package directory passed; this does not prove installed consumer/kernel parity.
+
+route-cli-probe.php and route-cli-probe.json record RT-001/002/005 plus the real graph handler/output-adapter data-loss discriminator. Exact source class resolves inside the prepared checkout. Probes use synthetic routes/controller state and in-process consumers, not production requests.
+
+The api-layer spec structural-template rule (~1785) prohibits retaining runtime controllers, providers, request/account state or mutable collections in process-wide templates. Any shared-route design must preserve this invariant.
+
+## Remaining acceptance
+
+Complete explicit public-surface dispositions and scoped maintained dependency analysis; supported split/no-OIDC installation controls; real application provider/HTTP and ConsoleKernel parity; controller identity and snapshot lifetime contract; optional-resolution/completeness policy; real downstream redirect/language/parameter journeys where claimed. Inventory and static review are complete for this package's source, but convergence and installed qualification are not. No release or deployment.
+
+## Completion checklist
+
+- [ ] Persist charter and portable reviewed roster with exact source/lock/runner evidence.
+- [ ] Disposition every public surface and dependency exception using actual consumers and maintained architecture tooling.
+- [ ] Settle completed-definition ownership, clone/object lifetime, request-context and readiness guarantees needed by #3121.
+- [ ] Qualify nonempty application routes through real HTTP/ConsoleKernel and supported installed profiles, including optional OIDC absence/failure.
+- [ ] Record the declared-route versus effective-dispatch and access coverage limits, preserving #3004/#3013.
+- [ ] Disposition the language quality-zero finding independently of the consumer unblock.
+- [ ] Reconcile package README/public declarations and complete downstream helper qualification where claimed.
+- [ ] Link independent review and exact-candidate checks for any authorized remediation.
+
+This audit is not a release/deployment authorization. A passing package test directory does not establish package convergence or installed application parity.
+
+

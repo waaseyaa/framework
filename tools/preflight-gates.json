@@ -43,6 +43,14 @@
             "enforced_by": "workflow:ci.yml#run_gate check-admin-surface-deptrac"
         },
         {
+            "id": "check-package-coverage-history",
+            "alias": "check-package-coverage-history",
+            "run": "php bin/check-package-coverage-history",
+            "repair": "correct the coverage-index row or recapture the evidence byte-for-byte from a commit already on main; run from a full-history clone with origin/main fetched",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-package-coverage-history"
+        },
+        {
             "id": "check-symfony-imports",
             "alias": "check-symfony-imports",
             "run": "php bin/check-symfony-imports",

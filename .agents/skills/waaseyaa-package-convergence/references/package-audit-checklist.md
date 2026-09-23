@@ -1,6 +1,8 @@
 # Package audit checklist
 
-Use the sections that apply to the package. Record evidence paths and consumers, not just counts.
+The general checklist for every package. Use the sections that apply, and the
+role profiles in `profiles/` for depth. Record evidence paths and consumers,
+not just counts.
 
 ## Identity and ownership
 
@@ -47,7 +49,6 @@ For PHP, prefer a scoped Deptrac configuration with uncovered dependencies repor
 - Authentication, authorization, field access, CSRF, and information-oracle behavior
 - Validation order and stable refusal mapping
 - Refusal stack: route options, real middleware, handler non-invocation, HTTP status, and response shape
-- Kernel malformed-body refusal versus host valid-but-wrong-shape refusal
 - Concurrency, revision, mutation-token, replay, and idempotency contracts
 - Optional capability discovery versus actual route or service availability
 - Malformed input, unavailable dependency, partial failure, and recovery behavior
@@ -97,25 +98,11 @@ Keep an unverified candidate separate from a demonstrated replacement opportunit
 - Source and split-package installation
 - Generated-application consumption
 - Frontend build and committed distribution freshness where applicable
-- Static distribution exact bytes, MIME types, application override precedence, vendor fallback, index fallback, and runtime HTML rewriting
-- Early freshness check, canonical rebuild after source settles, committed artifact, and clean exact-head split acceptance
+- Distribution form details: see `profiles/distribution.md`
 - Refreshed dependency views after production behavior changes
 - Upgrade and deprecation guidance
 - Changelog fragment and stable change record
 
-## Finding ledger fields
+## Recording
 
-For every actionable finding record:
-
-- stable identifier and package area;
-- observed evidence and reproduction;
-- evidence boundary and status: inventoried, substantively reviewed, reproduced/exercised, or qualified in a named installation profile;
-- expected charter or contract;
-- consequence and affected consumers;
-- disposition: repair, move, document, deprecate, remove, or retain;
-- owning issue and dependencies;
-- acceptance and regression evidence;
-- residual risk or follow-up.
-- consumer priority: required for the unblock, independent follow-up, or accepted limitation with rationale.
-
-Record unreviewed areas in the roster separately from confirmed findings. Source inspection, a synthetic probe, an injected-service integration test, and a real installed-consumer test prove different boundaries. Tie reused evidence to its original source, dependency identity and runner; do not sum overlapping runs into unique coverage.
+Record results in the [audit record](audit-record-template.md); see the skill's "Record findings" step for the fields and evidence levels. List unreviewed areas separately from confirmed findings.
