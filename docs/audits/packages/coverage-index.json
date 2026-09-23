@@ -1,5 +1,5 @@
 {
-    "schema_version": 1,
+    "schema_version": 2,
     "record": "FW-PACKAGE-CONVERGENCE-01",
     "program_issue": "#3118",
     "implementation_authority_dimension": "docs/audits/FW-IMPLEMENTATION-AUTHORITY-2026-09/ (#2985)",
@@ -26,6 +26,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -37,6 +39,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -48,10 +52,29 @@
             "audit_state": "assessed",
             "remediation_state": "planned",
             "audit_base": "2718edc02f8a47167db1b31b2192690bff773cfd",
+            "audit_date": "2026-09-17",
+            "dependency_identity": "composer.lock sha256:4d1aef005a77f239e4a577c6a2379677b7fd275cd95ff9cbae02fedfbfd3a4e4",
             "owner_issue": "#3074",
             "evidence": [
-                "PR #3086",
-                "docs/change-records/FW-ADMIN-SURFACE-CONVERGENCE-01.md"
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/admin-surface.md"
+                },
+                {
+                    "kind": "pull-request",
+                    "number": 3086,
+                    "merge_commit": "2718edc02f8a47167db1b31b2192690bff773cfd"
+                },
+                {
+                    "kind": "commit-path",
+                    "commit": "2718edc02f8a47167db1b31b2192690bff773cfd",
+                    "path": "docs/change-records/FW-ADMIN-SURFACE-CONVERGENCE-01.md"
+                },
+                {
+                    "kind": "commit-path",
+                    "commit": "2718edc02f8a47167db1b31b2192690bff773cfd",
+                    "path": "packages/admin-surface/README.md"
+                }
             ],
             "notes": "Reference convergence. Residuals owned by #3078, #3079, #3082, #3083, #3084. Revalidate only material changes."
         },
@@ -62,6 +85,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -73,6 +98,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -84,6 +111,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -95,6 +124,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -106,6 +137,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -117,6 +150,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -128,6 +163,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": "Next audit (persistence calibration). Known lead: runtime-created embeddings table outside schema authority (#3110; docs/specs/s1-schema-authority.md)."
@@ -139,6 +176,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -150,6 +189,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -161,6 +202,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -172,6 +215,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -183,6 +228,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -194,6 +241,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -205,11 +254,18 @@
             "audit_state": "in progress",
             "remediation_state": "planned",
             "audit_base": "5196f173b06bac698f14d292c7b827f2ddac388f",
+            "audit_date": "2026-09-21",
+            "dependency_identity": "composer.lock sha256:0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164",
             "owner_issue": "#3124",
             "evidence": [
-                "https://github.com/waaseyaa/framework/issues/3124"
+                {
+                    "kind": "issue-snapshot",
+                    "number": 3124,
+                    "captured": "2026-09-23",
+                    "body_sha256": "d828d08083ee8c631f04a92b647d843589cdb8ee3a25b9556ecc511a3e280974"
+                }
             ],
-            "notes": "Bounded substantive pass under #3122; evidence currently only in the issue."
+            "notes": "Bounded substantive pass under #3122. Evidence is a pinned issue snapshot until the audit record is committed."
         },
         {
             "package": "waaseyaa/cache",
@@ -218,6 +274,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -229,10 +287,21 @@
             "audit_state": "in progress",
             "remediation_state": "planned",
             "audit_base": "5196f173b06bac698f14d292c7b827f2ddac388f",
+            "audit_date": "2026-09-21",
+            "dependency_identity": "composer.lock sha256:0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164",
             "owner_issue": "#3117",
             "evidence": [
-                "https://github.com/waaseyaa/framework/issues/3117",
-                "docs/change-records/FW-CLI-CONVERGENCE-01.md (branch claude/fw-cli-convergence-3117)"
+                {
+                    "kind": "issue-snapshot",
+                    "number": 3117,
+                    "captured": "2026-09-23",
+                    "body_sha256": "ba11b3809dcb425b0097f6a2d43bdf3368d352f865a1570b6c0c7d795eaae263"
+                },
+                {
+                    "kind": "commit-path",
+                    "commit": "446938b8473963577ab9e22e1485da5c7ad88ec2",
+                    "path": "docs/change-records/FW-CLI-CONVERGENCE-01.md"
+                }
             ],
             "notes": "Pilot. Complete inventory; site/project, most handlers, admin build and MCP not yet reviewed."
         },
@@ -243,6 +312,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -254,6 +325,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -265,6 +338,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -276,6 +351,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -287,6 +364,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -298,6 +377,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -309,6 +390,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -320,6 +403,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -331,6 +416,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -342,6 +429,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -353,6 +442,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -364,10 +455,26 @@
             "audit_state": "in progress",
             "remediation_state": "planned",
             "audit_base": "5196f173b06bac698f14d292c7b827f2ddac388f",
+            "audit_date": "2026-09-21",
+            "dependency_identity": "composer.lock sha256:0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164",
             "owner_issue": "#3123",
             "evidence": [
-                "https://github.com/waaseyaa/framework/issues/3123",
-                "docs/change-records/ROUTE-METADATA-01.md (branch codex/route-metadata-design-3123)"
+                {
+                    "kind": "issue-snapshot",
+                    "number": 3123,
+                    "captured": "2026-09-23",
+                    "body_sha256": "b1aa5cdd44bceb07fc56817b1d212ff796426dc59c6268a8eac4360fb2afe6c9"
+                },
+                {
+                    "kind": "commit-path",
+                    "commit": "d2c47f5d493c4b98018d50de5ac2870cc03ea20f",
+                    "path": "docs/change-records/ROUTE-METADATA-01.md"
+                },
+                {
+                    "kind": "commit-path",
+                    "commit": "d2c47f5d493c4b98018d50de5ac2870cc03ea20f",
+                    "path": "docs/audits/route-hooks-3123.md"
+                }
             ],
             "notes": "Route-composition and lifecycle slice under #3122; other subsystems not reviewed."
         },
@@ -378,6 +485,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -389,6 +498,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -400,6 +511,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -411,6 +524,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -422,6 +537,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -433,6 +550,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -444,6 +563,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -455,6 +576,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -466,6 +589,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -477,6 +602,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -488,6 +615,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -499,6 +628,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -510,6 +641,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -521,6 +654,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -532,6 +667,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -543,6 +680,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -554,6 +693,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -565,6 +706,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -576,6 +719,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -587,6 +732,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -598,6 +745,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -609,6 +758,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -620,6 +771,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -631,6 +784,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -642,6 +797,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -653,6 +810,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -664,6 +823,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -675,6 +836,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -686,6 +849,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -697,6 +862,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -708,6 +875,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -719,11 +888,18 @@
             "audit_state": "in progress",
             "remediation_state": "planned",
             "audit_base": "5196f173b06bac698f14d292c7b827f2ddac388f",
+            "audit_date": "2026-09-21",
+            "dependency_identity": "composer.lock sha256:0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164",
             "owner_issue": "#3125",
             "evidence": [
-                "https://github.com/waaseyaa/framework/issues/3125"
+                {
+                    "kind": "issue-snapshot",
+                    "number": 3125,
+                    "captured": "2026-09-23",
+                    "body_sha256": "590db6d44c2665ea3e5bdd1917493d1b438a6990d8e66ae3869eed8f3029eb11"
+                }
             ],
-            "notes": "Bounded audit under #3122; evidence currently only in the issue."
+            "notes": "Bounded audit under #3122. Evidence is a pinned issue snapshot until the audit record is committed."
         },
         {
             "package": "waaseyaa/scheduler",
@@ -732,6 +908,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -743,6 +921,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -754,6 +934,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -765,6 +947,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -776,6 +960,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -787,6 +973,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -798,6 +986,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -809,6 +999,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -820,6 +1012,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -831,6 +1025,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -842,6 +1038,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -853,6 +1051,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -864,6 +1064,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -875,6 +1077,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -886,6 +1090,8 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
@@ -897,9 +1103,17 @@
             "audit_state": "not assessed",
             "remediation_state": "not triaged",
             "audit_base": null,
+            "audit_date": null,
+            "dependency_identity": null,
             "owner_issue": null,
             "evidence": [],
             "notes": ""
         }
-    ]
+    ],
+    "evidence_kinds": {
+        "repository-path": "a file tracked in this repository now",
+        "commit-path": "a file at an exact commit",
+        "pull-request": "a merged pull request pinned to its merge commit",
+        "issue-snapshot": "an issue body pinned by the SHA-256 of `gh issue view <n> --json body --jq .body` on the capture date; provisional until the audit record is committed"
+    }
 }

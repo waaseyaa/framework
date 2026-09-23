@@ -155,8 +155,11 @@ expresses real ownership and makes invalid dependencies fail mechanically.
 Keep one ledger using the fields in the
 [audit record template](references/audit-record-template.md): stable ID,
 evidence and reproduction, evidence level, expected contract, consequence and
-consumers, disposition, owner issue, acceptance evidence, residual risk.
-One finding per row.
+affected consumers, severity and confidence, refutation, disposition and owner
+issue, dependencies, discriminating acceptance, residual risk and next action.
+One entry per finding. Keep refuted leads in the ledger with their refutation.
+State the audit's evidence freshness: current at a named commit, or needing a
+delta review because the package changed since the base.
 
 **Evidence levels** prove different things; never count one as another:
 
@@ -187,7 +190,8 @@ A package is **assessed** when:
 - every production file appears in the roster with a classification;
 - the charter is written and every question is answered or recorded as a finding;
 - each selected profile's checklist is answered with evidence, or marked "does not apply" with a reason;
-- every finding has a disposition and an owner (an issue, or "accepted residual" with a rationale);
+- every finding has severity, confidence, a disposition, an owner (an issue, or "accepted residual" with a rationale) and a next action, and every refuted lead records its refutation;
+- the base, audit date, dependency identity and evidence freshness are recorded;
 - unreviewed areas and untested installation profiles are listed explicitly;
 - host limitations are recorded with the hosted runner that owns the missing evidence.
 
@@ -200,14 +204,17 @@ The repository is the record; GitHub mirrors it.
 - Write the audit to `docs/audits/packages/<package>.md` from the
   [template](references/audit-record-template.md), and update the package's
   row in `docs/audits/packages/coverage-index.json` (FW-PACKAGE-CONVERGENCE-01)
-  in the same change. An Architecture test keeps the index in step with the
-  real package set.
+  in the same change: state, base, audit date, dependency identity, owner and
+  evidence. Cite only immutable evidence there (a tracked repository path, a
+  file at an exact commit, a merged pull request pinned to its merge commit,
+  or a hash-pinned issue snapshot). An Architecture test enforces this and
+  keeps the index in step with the real package set.
 - Keep probes that reproduce a finding. Commit them with the audit record, or
   turn them into the failing regression test that opens the repair PR. Don't
   leave evidence only in a scratch folder or an issue comment.
 - Post a short summary with a link on the owning issue.
 
-Write plainly: short sentences, one finding per row, no hedging stacks.
+Write plainly: short sentences, one entry per finding, no hedging stacks.
 Reviewers will read dozens of these.
 
 ## Turn findings into work

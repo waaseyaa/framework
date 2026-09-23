@@ -1,7 +1,7 @@
 # Package audit record template
 
 Copy to `docs/audits/packages/<package>.md` and fill in. Delete the guidance
-lines in italics. Keep it plain: short sentences, one finding per row.
+lines in italics. Keep it plain: short sentences, one entry per finding.
 
 ---
 
@@ -10,7 +10,8 @@ lines in italics. Keep it plain: short sentences, one finding per row.
 - **Audit state:** not assessed | inventory only | in progress | assessed | needs delta review
 - **Remediation state:** not triaged | no action required | planned | in progress | resolved | accepted residual
 - **Base:** `<full SHA>`, audited `<YYYY-MM-DD>`
-- **Lock / runtime:** `composer.lock` SHA-256 `<hash>`, PHP `<version>`, host `<OS>`
+- **Dependency identity:** `composer.lock` SHA-256 `<hash>` at the base; PHP `<version>`, host `<OS>`
+- **Evidence freshness:** *current at `<SHA>`* | *needs delta review: package source changed since the base in `<commits>`*
 - **Owner issue:** `waaseyaa/framework#<n>`; program #3118
 - **Profiles applied:** *e.g.* persistence-execution, distribution. **Not applied:** *each with a one-line reason*
 
@@ -40,11 +41,26 @@ installation profile).
 
 ## Findings
 
-| ID | Finding and evidence | Level | Expected contract | Consequence and consumers | Disposition | Owner | Acceptance | Residual risk |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `<PKG>-<AREA>-001` | *what happens, with file:line and how to reproduce* | reproduced | *what the charter or contract says should happen* | *what breaks, and for which consumers* | repair / move / document / deprecate / remove / retain | #n | *the test or check that proves it's fixed* | *what stays true even after the fix, or "none"* |
+*Summary first, then one detail block per finding. Include refuted leads: a
+lead you investigated and disproved stays in the ledger with its refutation, so
+nobody re-investigates it.*
 
-*For consumer-driven audits add a column: required for unblock / independent / accepted limitation (with rationale).*
+| ID | Title | Severity | Confidence | Level | Disposition | Owner | Next action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `<PKG>-<AREA>-001` | *one line* | critical / high / medium / low | confirmed / likely / suspected / refuted | reproduced | repair / move / document / deprecate / remove / retain / refuted | #n | *the next concrete step, or "none"* |
+
+### `<PKG>-<AREA>-001`: *title*
+
+- **Observed, with evidence:** *what happens, file:line, how to reproduce*
+- **Expected contract:** *what the charter or contract says should happen*
+- **Consequence and consumers:** *what breaks, for which runtime, generated or installed consumers*
+- **Severity and confidence:** *why this severity; what would raise or lower the confidence*
+- **Refutation:** *evidence considered against the finding, and why it does or doesn't hold; "none considered" is not acceptable for a refuted row*
+- **Disposition and owner:** *disposition, owning issue, and for consumer-driven audits: required for unblock / independent / accepted limitation, with rationale*
+- **Dependencies:** *findings, issues or contracts that must land first, or "none"*
+- **Acceptance:** *the discriminating test or check that proves it's resolved*
+- **Residual risk:** *what stays true after the fix, or "none"*
+- **Next action:** *the next concrete step and who takes it*
 
 ## Profile checklists
 
