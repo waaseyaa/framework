@@ -560,7 +560,7 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         $target = $directory . '/symlink-probe-target';
         $link = $directory . '/symlink-probe-link';
         mkdir($target);
-        set_error_handler(static fn (): bool => true);
+        set_error_handler(static fn(): bool => true);
         try {
             $created = symlink($target, $link);
         } finally {

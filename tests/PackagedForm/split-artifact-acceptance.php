@@ -1353,8 +1353,8 @@ function evaluate_negative_controls(array $controls, string $osFamily): void
 
     if ($notRunHere !== [] && $osFamily !== 'Windows') {
         fail(sprintf(
-            "A seeded negative control could not be constructed on this %s host. Only native Windows may report"
-            . " a control as not-run-here; every other host, hosted Linux CI included, must execute every seeded"
+            'A seeded negative control could not be constructed on this %s host. Only native Windows may report'
+            . ' a control as not-run-here; every other host, hosted Linux CI included, must execute every seeded'
             . " negative control.\n  not run here: %s",
             $osFamily,
             implode(', ', $notRunHere),
@@ -1363,7 +1363,7 @@ function evaluate_negative_controls(array $controls, string $osFamily): void
 
     if ($notRunHere !== []) {
         throw new AcceptanceIncomplete(sprintf(
-            "%d of %d seeded negative controls were detected; %d could not be seeded on this native Windows host"
+            '%d of %d seeded negative controls were detected; %d could not be seeded on this native Windows host'
             . " and did not run.\n  not run here: %s\n"
             . '  This run is not a pass. Hosted Linux ci/split-artifact-acceptance executes these controls and owns'
             . ' their evidence.',
