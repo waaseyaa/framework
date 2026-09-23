@@ -51,7 +51,22 @@ if ($command === null) {
 }
 
 try {
-    $skills = maintainerSkillsSource($root);
+    // validate checks the working tree, so authors can validate before committing.
+    // verify and install bind the source to one commit: when the source is clean
+    // its bytes are read from Git objects at that commit, never the working tree.
+    $provenance = null;
+    if ($command === 'validate') {
+        $skills = maintainerSkillsSource($root);
+    } else {
+        $provenance = maintainerSkillsProvenance($root);
+        $skills = $provenance['clean']
+            ? maintainerSkillsSourceAtCommit($root, $provenance['commit'])
+            : maintainerSkillsSource($root);
+        if (maintainerSkillsProvenance($root) !== $provenance) {
+            fwrite(STDERR, "maintainer-skills: the source changed while it was being read; run the command again.\n");
+            exit(1);
+        }
+    }
     if ($skills === []) {
         fwrite(STDERR, 'maintainer-skills: no skills found under ' . MAINTAINER_SKILLS_SOURCE . "\n");
         exit(1);
@@ -67,7 +82,7 @@ try {
     if ($invalid) {
         exit(1);
     }
-    if ($command === 'validate') {
+    if ($command === 'validate' || $provenance === null) {
         foreach ($skills as $name => $files) {
             printf("valid %s (%d files)\n", $name, count($files));
         }
@@ -77,8 +92,6 @@ try {
     if ($targets === []) {
         $targets = maintainerSkillsDefaultTargets();
     }
-
-    $provenance = maintainerSkillsProvenance($root);
 
     if ($command === 'verify') {
         $failed = false;
@@ -97,30 +110,33 @@ try {
         exit(1);
     }
 
-    // Decide every target before writing anything.
+    // Decide every target before writing anything. Each step records a
+    // fingerprint of its target, rechecked immediately before mutation.
     $plan = [];
     $refusals = [];
     foreach ($targets as $target) {
         foreach ($skills as $name => $files) {
             $directory = $target . '/' . $name;
+            $fingerprint = maintainerSkillsFingerprint($directory);
             $inspection = maintainerSkillsInspect($directory, $name, $files, $provenance);
             $owned = $inspection['manifest'] === null ? [] : array_keys($inspection['manifest']['files']);
+            $step = ['directory' => $directory, 'name' => $name, 'fingerprint' => $fingerprint];
             switch ($inspection['state']) {
                 case 'missing':
-                    $plan[] = ['action' => 'installed', 'directory' => $directory, 'name' => $name, 'owned' => []];
+                    $plan[] = $step + ['action' => 'installed', 'owned' => []];
                     break;
                 case 'stale':
-                    $plan[] = ['action' => 'updated', 'directory' => $directory, 'name' => $name, 'owned' => $owned];
+                    $plan[] = $step + ['action' => 'updated', 'owned' => $owned];
                     break;
                 case 'provenance-stale':
-                    $plan[] = ['action' => 'refreshed', 'directory' => $directory, 'name' => $name, 'owned' => null];
+                    $plan[] = $step + ['action' => 'refreshed', 'owned' => null];
                     break;
                 case 'current':
-                    $plan[] = ['action' => 'unchanged', 'directory' => $directory, 'name' => $name, 'owned' => null];
+                    $plan[] = $step + ['action' => 'unchanged', 'owned' => null];
                     break;
                 case 'unmanaged':
                     if ($adopt && is_dir($directory) && !is_link($directory) && maintainerSkillsEqualIgnoringCrlf($files, maintainerSkillsReadInstalled($directory))) {
-                        $plan[] = ['action' => 'adopted', 'directory' => $directory, 'name' => $name, 'owned' => array_keys($files)];
+                        $plan[] = $step + ['action' => 'adopted', 'owned' => array_keys($files)];
                     } else {
                         $refusals[] = sprintf(
                             'refused %s: existing directory is not managed by this installer%s',
@@ -143,29 +159,47 @@ try {
     }
 
     $completed = [];
-    foreach ($plan as $step) {
-        ['action' => $action, 'directory' => $directory, 'name' => $name, 'owned' => $owned] = $step;
+    foreach ($plan as ['action' => $action, 'directory' => $directory, 'name' => $name, 'owned' => $owned, 'fingerprint' => $fingerprint]) {
         try {
+            if ($action !== 'unchanged') {
+                if (maintainerSkillsFault('race:' . $name)) {
+                    maintainerSkillsSimulateConcurrentWriter($directory);
+                }
+                // Custody: the target must be exactly as planned. A small window
+                // remains between this check and the first write.
+                if (maintainerSkillsFingerprint($directory) !== $fingerprint) {
+                    throw new RuntimeException('maintainer-skills: the target changed after planning; nothing was written to it.');
+                }
+            }
             if ($action === 'refreshed') {
                 maintainerSkillsWriteManifest($directory, $name, $skills[$name], $provenance);
             } elseif ($owned !== null) {
                 maintainerSkillsWrite($directory, $name, $skills[$name], $owned, $provenance, $action === 'installed');
             }
         } catch (Throwable $failure) {
-            // Report what is actually on disk now, never an assumed outcome.
-            $after = maintainerSkillsInspect($directory, $name, $skills[$name], $provenance);
-            $adoptable = $after['state'] === 'unmanaged' && is_dir($directory) && !is_link($directory)
-                && maintainerSkillsEqualIgnoringCrlf($skills[$name], maintainerSkillsReadInstalled($directory));
+            // Report what is actually on disk now, never an assumed outcome. If
+            // that inspection fails too, the original failure is still reported.
+            try {
+                if (maintainerSkillsFault('reinspect')) {
+                    throw new RuntimeException('injected reinspection fault');
+                }
+                $after = maintainerSkillsInspect($directory, $name, $skills[$name], $provenance);
+                $adoptable = $after['state'] === 'unmanaged' && is_dir($directory) && !is_link($directory)
+                    && maintainerSkillsEqualIgnoringCrlf($skills[$name], maintainerSkillsReadInstalled($directory));
+                $stateNow = $after['state']
+                    . ($after['detail'] === [] ? '' : ' (' . implode(', ', $after['detail']) . ')')
+                    . ($after['state'] === 'unmanaged' ? ($adoptable ? '; still adoptable with --adopt' : '; not adoptable, move it aside') : '');
+            } catch (Throwable $inspectionFailure) {
+                $stateNow = 'unknown (reinspection failed: ' . $inspectionFailure->getMessage() . ')';
+            }
             foreach ($completed as $line) {
                 fwrite(STDERR, $line . "\n");
             }
             fwrite(STDERR, sprintf(
-                "failed %s: %s\nstate now: %s%s%s\nINCOMPLETE: %d of %d skill directories completed before the failure.\n",
+                "failed %s: %s\nstate now: %s\nINCOMPLETE: %d of %d skill directories completed before the failure.\n",
                 $directory,
                 $failure->getMessage(),
-                $after['state'],
-                $after['detail'] === [] ? '' : ' (' . implode(', ', $after['detail']) . ')',
-                $after['state'] === 'unmanaged' ? ($adoptable ? '; still adoptable with --adopt' : '; not adoptable, move it aside') : '',
+                $stateNow,
                 count($completed),
                 count($plan),
             ));

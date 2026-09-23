@@ -406,6 +406,72 @@ final class MaintainerSkillsTest extends TestCase
         self::assertSame(0, $currentExit);
     }
 
+    #[Test]
+    public function installed_bytes_come_from_the_recorded_commit_not_the_working_tree(): void
+    {
+        $commit = $this->commitSource();
+        // Git reports the tree clean, but the working-tree file differs from the commit.
+        $this->git('update-index', '--assume-unchanged', '.agents/skills/demo-skill/references/checklist.md');
+        file_put_contents($this->source . '/.agents/skills/demo-skill/references/checklist.md', "# Uncommitted edit\n");
+
+        [$output, $exitCode] = $this->install();
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertContains('source ' . $commit, $output);
+        self::assertSame("# Checklist\n", file_get_contents($this->target . '/demo-skill/references/checklist.md'));
+        $manifest = json_decode((string) file_get_contents($this->target . '/demo-skill/.waaseyaa-skill.json'), true, 16, JSON_THROW_ON_ERROR);
+        self::assertSame($commit, $manifest['source_commit']);
+        self::assertSame(hash('sha256', "# Checklist\n"), $manifest['files']['references/checklist.md']);
+    }
+
+    #[Test]
+    public function a_target_that_changes_after_planning_is_not_written(): void
+    {
+        $this->commitSource();
+
+        [$output, $exitCode] = $this->withFault('race:demo-skill', fn(): array => $this->install());
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('the target changed after planning; nothing was written to it.', $report);
+        self::assertStringContainsString('state now: unmanaged', $report);
+        self::assertSame("written after planning\n", file_get_contents($this->target . '/demo-skill/concurrent-writer.txt'));
+        self::assertFileDoesNotExist($this->target . '/demo-skill/SKILL.md');
+        self::assertFileDoesNotExist($this->target . '/demo-skill/.waaseyaa-skill.json');
+    }
+
+    #[Test]
+    public function the_original_failure_survives_a_failed_reinspection(): void
+    {
+        $this->commitSource();
+
+        [$output, $exitCode] = $this->withFault('write-after:1,reinspect', fn(): array => $this->install());
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('failed ' . $this->target . '/demo-skill: maintainer-skills: injected fault after 1 written files.', $report);
+        self::assertStringContainsString('state now: unknown (reinspection failed: injected reinspection fault)', $report);
+        self::assertStringContainsString('INCOMPLETE: 0 of 1', $report);
+    }
+
+    #[Test]
+    public function temporary_files_are_removed_or_reported_after_a_failed_write(): void
+    {
+        $this->commitSource();
+
+        [$output, $exitCode] = $this->withFault('rename', fn(): array => $this->install());
+        self::assertSame(1, $exitCode, implode("\n", $output));
+        self::assertStringContainsString('cannot replace ' . $this->target . '/demo-skill/SKILL.md: injected rename fault.', implode("\n", $output));
+        self::assertStringNotContainsString('Temporary file left at', implode("\n", $output));
+        self::assertDirectoryDoesNotExist($this->target . '/demo-skill');
+
+        [$output, $exitCode] = $this->withFault('rename,temp-cleanup', fn(): array => $this->install());
+        $report = implode("\n", $output);
+        self::assertSame(1, $exitCode, $report);
+        self::assertMatchesRegularExpression('#Temporary file left at ' . preg_quote($this->target, '#') . '/demo-skill/SKILL\.md\.tmp-[0-9a-f]{8}\.#', $report);
+        self::assertCount(1, glob($this->target . '/demo-skill/SKILL.md.tmp-*') ?: []);
+    }
+
     /**
      * @param callable(): array{0: list<string>, 1: int} $run
      * @return array{0: list<string>, 1: int}

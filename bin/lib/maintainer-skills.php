@@ -29,9 +29,11 @@ const MAINTAINER_SKILLS_MANIFEST = '.waaseyaa-skill.json';
 const MAINTAINER_SKILLS_MANIFEST_SCHEMA = 1;
 /**
  * Test-only fault injection. A comma-separated list of fault points:
- * `read:<skill>/<path>` fails that source read, `write-after:<n>` fails after
- * n files are written, and `rollback` makes rollback deletions fail. Never set
- * it outside tests.
+ * `read:<skill>/<path>` fails that source read; `write-after:<n>` fails after
+ * n files are written; `rename` fails every atomic rename; `temp-cleanup`
+ * fails removal of a temporary file; `rollback` fails rollback deletions;
+ * `race:<skill>` adds a file to that target between planning and mutation;
+ * `reinspect` fails the post-failure inspection. Never set it outside tests.
  */
 const MAINTAINER_SKILLS_TEST_FAULT = "WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT";
 const MAINTAINER_SKILLS_FRONTMATTER_KEYS = ['name', 'description', 'license', 'allowed-tools'];
@@ -409,13 +411,11 @@ function maintainerSkillsWriteFileAtomically(string $target, string $bytes): voi
     $written = @file_put_contents($temporary, $bytes);
     if ($written !== strlen($bytes)) {
         $reason = error_get_last()['message'] ?? 'short write';
-        @unlink($temporary);
-        throw new RuntimeException(sprintf('maintainer-skills: cannot write %s: %s', $target, $reason));
+        throw new RuntimeException(sprintf('maintainer-skills: cannot write %s: %s.%s', $target, $reason, maintainerSkillsDiscardTemporary($temporary)));
     }
-    if (!@rename($temporary, $target)) {
-        $reason = error_get_last()['message'] ?? 'rename failed';
-        @unlink($temporary);
-        throw new RuntimeException(sprintf('maintainer-skills: cannot replace %s: %s', $target, $reason));
+    if (maintainerSkillsFault('rename') || !@rename($temporary, $target)) {
+        $reason = maintainerSkillsFault('rename') ? 'injected rename fault' : (error_get_last()['message'] ?? 'rename failed');
+        throw new RuntimeException(sprintf('maintainer-skills: cannot replace %s: %s.%s', $target, $reason, maintainerSkillsDiscardTemporary($temporary)));
     }
 }
 
@@ -567,4 +567,114 @@ function maintainerSkillsFaultAfterWrites(): ?int
     }
 
     return null;
+}
+
+/**
+ * Skill sources exactly as committed at $commit, read from Git objects rather
+ * than the working tree, so the installed bytes and the recorded commit can
+ * never disagree (for example through an assume-unchanged edit, or a file
+ * changing between the status check and the read).
+ *
+ * @return array<string, array<string, string>> skill name => relative path => file bytes
+ */
+function maintainerSkillsSourceAtCommit(string $root, string $commit): array
+{
+    [$exitCode, $listing, $error] = repositoryGit($root, ['ls-tree', '-r', '-z', '--full-tree', $commit, '--', MAINTAINER_SKILLS_SOURCE]);
+    if ($exitCode !== 0) {
+        throw new RuntimeException(sprintf('maintainer-skills: cannot list %s at %s: %s', MAINTAINER_SKILLS_SOURCE, $commit, $error));
+    }
+    $skills = [];
+    foreach (explode("\0", $listing) as $entry) {
+        if ($entry === '') {
+            continue;
+        }
+        if (preg_match('/^(\d{6}) (\w+) ([0-9a-f]+)\t(.+)$/s', $entry, $match) !== 1) {
+            throw new RuntimeException(sprintf('maintainer-skills: unexpected git ls-tree entry "%s".', $entry));
+        }
+        [, $mode, $type, $object, $file] = $match;
+        $relative = substr($file, strlen(MAINTAINER_SKILLS_SOURCE) + 1);
+        $separator = strpos($relative, '/');
+        if ($separator === false) {
+            continue;
+        }
+        if ($type !== 'blob' || $mode === '120000') {
+            throw new RuntimeException(sprintf('maintainer-skills: %s is not a regular file at %s; skill sources must be regular files.', $file, $commit));
+        }
+        [$exitCode, $bytes, $error] = maintainerSkillsFault('read:' . $relative)
+            ? [1, '', 'injected read fault']
+            : repositoryGit($root, ['cat-file', 'blob', $object]);
+        if ($exitCode !== 0) {
+            throw new RuntimeException(sprintf('maintainer-skills: cannot read skill source %s at %s: %s', $file, $commit, $error));
+        }
+        $skills[substr($relative, 0, $separator)][substr($relative, $separator + 1)] = $bytes;
+    }
+    ksort($skills);
+    foreach ($skills as &$files) {
+        ksort($files);
+    }
+
+    return $skills;
+}
+
+/**
+ * A digest of everything at $directory: every entry's path, type, and file
+ * digest or link target, including the manifest. Two equal fingerprints mean
+ * nothing in the target changed in between.
+ */
+function maintainerSkillsFingerprint(string $directory): string
+{
+    if (is_link($directory)) {
+        return 'link:' . (string) readlink($directory);
+    }
+    if (!file_exists($directory)) {
+        return 'absent';
+    }
+    if (!is_dir($directory)) {
+        return 'file:' . (string) hash_file('sha256', $directory);
+    }
+    $entries = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST,
+    );
+    foreach ($iterator as $entry) {
+        /** @var SplFileInfo $entry */
+        $relative = str_replace('\\', '/', substr($entry->getPathname(), strlen($directory) + 1));
+        $entries[$relative] = match (true) {
+            $entry->isLink() => 'link:' . (string) readlink($entry->getPathname()),
+            $entry->isDir() => 'dir',
+            default => 'file:' . (string) hash_file('sha256', $entry->getPathname()),
+        };
+    }
+    ksort($entries);
+
+    return hash('sha256', json_encode($entries, JSON_THROW_ON_ERROR));
+}
+
+/**
+ * Test-only stand-in for a concurrent writer: adds a file to the target
+ * between planning and mutation (fault point `race:<skill>`).
+ */
+function maintainerSkillsSimulateConcurrentWriter(string $directory): void
+{
+    if (!is_dir($directory)) {
+        mkdir($directory, 0o755, true);
+    }
+    file_put_contents($directory . '/concurrent-writer.txt', "written after planning\n");
+}
+
+/**
+ * Remove a temporary file after a failed write. Returns an empty string when
+ * it is gone, or a sentence naming the file that was left behind.
+ */
+function maintainerSkillsDiscardTemporary(string $temporary): string
+{
+    if (!file_exists($temporary)) {
+        return '';
+    }
+    if (!maintainerSkillsFault('temp-cleanup') && @unlink($temporary)) {
+        return '';
+    }
+
+    return sprintf(' Temporary file left at %s.', $temporary);
 }

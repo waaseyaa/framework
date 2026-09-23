@@ -70,6 +70,13 @@ couldn't be removed is listed. An updated or adopted directory isn't rolled
 back; it keeps its old manifest (or stays unmanaged), and the report says
 whether it can be adopted again.
 
+## Guarantees
+
+- `install` and `verify` read a clean source from Git at the recorded commit,
+  so the manifest's commit is exactly what produced the installed bytes.
+- Each target is rechecked immediately before it is written; if anything
+  changed since planning, it is refused and left alone.
+
 ## Validation
 
 `validate` is deliberately stricter and narrower than skill-creator's

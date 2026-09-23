@@ -35,8 +35,19 @@ method.
 - **Provenance refresh:** identical bytes from another commit (for example a
   squash merge) are `provenance-stale`; `install` rewrites only the manifest
   and reports `refreshed`, leaving the skill files untouched.
+- **Source bound to one commit:** when the source is clean, `verify` and
+  `install` read skill bytes from Git objects at the recorded commit, never
+  the working tree, and fail if HEAD or cleanliness changes while reading. A
+  dirty source (only with `--allow-dirty-source`) is read from the working
+  tree and recorded as `source_clean: false`. `validate` checks the working
+  tree so authors can validate before committing.
 - **Strict source reads:** a source file that can't be read stops `validate`,
   `verify` and `install` before anything is written.
+- **Custody:** each target is fingerprinted (every path, type, digest and
+  link target, including the manifest) during planning and rechecked
+  immediately before its first mutation. A changed target is refused and
+  nothing is written to it. A small window remains between that check and
+  the first write; there is no cross-process lock.
 - **Refusal before writing:** `install` plans every target first and writes
   nothing if any target is drifted, unmanaged (unless `--adopt` and
   content-equal apart from CRLF), has an untrustworthy manifest, or the source
@@ -45,14 +56,17 @@ method.
   source, a full commit id, a boolean clean flag, and only safe relative paths
   with SHA-256 digests. Otherwise the directory is `invalid-manifest`, so a
   tampered manifest can never direct deletions outside the skill.
-- **Fail closed:** every delete, directory creation, write and rename is
-  checked, and any `Throwable` is handled. Files and the manifest are written
+- **Fail closed:** every delete (including temporary-file cleanup), directory
+  creation, write and rename is checked, and any `Throwable` is handled. A
+  temporary file that can't be removed is named in the failure. Files and the manifest are written
   through a temporary file and a rename. A failed first install removes what
   it created and checks each removal; the report says `Rolled back` only when
   nothing is left, otherwise `ROLLBACK INCOMPLETE` with the leftover paths. A
   failed update or adoption is not rolled back. After any failure the command
   re-inspects the directory and prints its actual state (and, if unmanaged,
-  whether it is still adoptable). It exits 1 and never prints success.
+  whether it is still adoptable); if that inspection itself fails, the
+  original failure is still reported with the state as `unknown`. It exits 1
+  and never prints success.
 - **Validation** is deliberately narrower than skill-creator's
   `quick_validate.py`: flat single-line frontmatter scalars only, allowed keys
   `name`, `description`, `license`, `allowed-tools`; no `TODO` markers, CR line
@@ -68,6 +82,8 @@ method.
 | Repair candidate | Mutation: non-atomic manifest write | Not detected; atomicity is only observable under a crash. Accepted residual. |
 | `9dad52d3b` | Hosted checks | All 56 pass; Codex review then found three blockers (source reads, provenance, rollback truthfulness) |
 | Second repair (Codex review of `9dad52d3b`) | 17 tests, 249 assertions; mutations: lenient source read, ignored provenance, unchecked rollback, assumed post-failure state, refresh rewriting files, catching only `RuntimeException` | Each mutation fails at least one test |
+| `18849fa8e` | Hosted checks | All 56 pass; Codex review then found: bytes not bound to the commit, no custody recheck before mutation, failure report lost if reinspection fails, unchecked temp cleanup |
+| Third repair | 21 tests, 288 assertions; mutations: read the working tree, skip the custody check, unguarded reinspection, unchecked temp cleanup | Each mutation fails at least one test |
 | Repair candidate | `RecursiveRemoverContractTest` allowlist check | Found set equals the allowlist; locally it still fails on a Windows path-prefix mismatch and three symlink controls, all owned by hosted Linux |
 | Install on the maintainer's host | `install --adopt`, then `verify` | Existing Codex copies adopted unchanged; Claude Code copies installed; all four `current` |
 | Discovery, Claude Code | A running session whose working directory is outside Framework | Both skills listed after install |
