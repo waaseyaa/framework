@@ -44,9 +44,10 @@ method.
 - **Strict source reads:** a source file that can't be read stops `validate`,
   `verify` and `install` before anything is written.
 - **Custody:** each target is fingerprinted (every path, type, digest and
-  link target, including the manifest) during planning and rechecked
-  immediately before its first mutation. A changed target is refused and
-  nothing is written to it. A small window remains between that check and
+  link target, including the manifest) during planning and rechecked for
+  every plan entry, including targets planned as `unchanged`, immediately
+  before it is written or reported. A changed target is refused and nothing
+  is written to it. A small window remains between that check and
   the first write; there is no cross-process lock.
 - **Refusal before writing:** `install` plans every target first and writes
   nothing if any target is drifted, unmanaged (unless `--adopt` and
@@ -83,7 +84,9 @@ method.
 | `9dad52d3b` | Hosted checks | All 56 pass; Codex review then found three blockers (source reads, provenance, rollback truthfulness) |
 | Second repair (Codex review of `9dad52d3b`) | 17 tests, 249 assertions; mutations: lenient source read, ignored provenance, unchecked rollback, assumed post-failure state, refresh rewriting files, catching only `RuntimeException` | Each mutation fails at least one test |
 | `18849fa8e` | Hosted checks | All 56 pass; Codex review then found: bytes not bound to the commit, no custody recheck before mutation, failure report lost if reinspection fails, unchecked temp cleanup |
-| Third repair | 21 tests, 288 assertions; mutations: read the working tree, skip the custody check, unguarded reinspection, unchecked temp cleanup | Each mutation fails at least one test |
+| `e61faa9f4` (third repair) | 21 tests, 288 assertions; mutations: read the working tree, skip the custody check, unguarded reinspection, unchecked temp cleanup | Each mutation fails at least one test |
+| `e61faa9f4748c969c33dfbc4c19ce859d1f9f4c4` | Hosted checks | All 56 pass; Codex review found one P2: targets planned as `unchanged` skipped the custody recheck |
+| Fourth repair (the commit after `e61faa9f4`) | 22 tests, 297 assertions; mutation: skip the recheck for `unchanged` targets | Caught by the new already-current custody test |
 | Repair candidate | `RecursiveRemoverContractTest` allowlist check | Found set equals the allowlist; locally it still fails on a Windows path-prefix mismatch and three symlink controls, all owned by hosted Linux |
 | Install on the maintainer's host | `install --adopt`, then `verify` | Existing Codex copies adopted unchanged; Claude Code copies installed; all four `current` |
 | Discovery, Claude Code | A running session whose working directory is outside Framework | Both skills listed after install |

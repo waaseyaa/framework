@@ -441,6 +441,22 @@ final class MaintainerSkillsTest extends TestCase
     }
 
     #[Test]
+    public function a_current_target_that_changes_after_planning_is_not_reported_unchanged(): void
+    {
+        $this->commitSource();
+        $this->install();
+
+        [$output, $exitCode] = $this->withFault('race:demo-skill', fn(): array => $this->install());
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('the target changed after planning; nothing was written to it.', $report);
+        self::assertStringNotContainsString('unchanged ' . $this->target . '/demo-skill', $report);
+        self::assertStringContainsString('state now: drifted (concurrent-writer.txt (unexpected file))', $report);
+        self::assertSame("written after planning\n", file_get_contents($this->target . '/demo-skill/concurrent-writer.txt'));
+    }
+
+    #[Test]
     public function the_original_failure_survives_a_failed_reinspection(): void
     {
         $this->commitSource();

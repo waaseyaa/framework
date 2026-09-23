@@ -161,15 +161,14 @@ try {
     $completed = [];
     foreach ($plan as ['action' => $action, 'directory' => $directory, 'name' => $name, 'owned' => $owned, 'fingerprint' => $fingerprint]) {
         try {
-            if ($action !== 'unchanged') {
-                if (maintainerSkillsFault('race:' . $name)) {
-                    maintainerSkillsSimulateConcurrentWriter($directory);
-                }
-                // Custody: the target must be exactly as planned. A small window
-                // remains between this check and the first write.
-                if (maintainerSkillsFingerprint($directory) !== $fingerprint) {
-                    throw new RuntimeException('maintainer-skills: the target changed after planning; nothing was written to it.');
-                }
+            if (maintainerSkillsFault('race:' . $name)) {
+                maintainerSkillsSimulateConcurrentWriter($directory);
+            }
+            // Custody, for every plan entry including "unchanged": the target must
+            // be exactly as planned before it is written or reported as current.
+            // A small window remains between this check and the first write.
+            if (maintainerSkillsFingerprint($directory) !== $fingerprint) {
+                throw new RuntimeException('maintainer-skills: the target changed after planning; nothing was written to it.');
             }
             if ($action === 'refreshed') {
                 maintainerSkillsWriteManifest($directory, $name, $skills[$name], $provenance);
