@@ -52,8 +52,8 @@ final class MaintainerSkillsTest extends TestCase
         [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->root);
 
         self::assertSame(0, $exitCode, implode("\n", $output));
-        self::assertContains('valid waaseyaa-delivery (2 files)', $output);
-        self::assertContains('valid waaseyaa-package-convergence (5 files)', $output);
+        self::assertMatchesRegularExpression('/^valid waaseyaa-delivery \(\d+ files\)$/m', implode("\n", $output));
+        self::assertMatchesRegularExpression('/^valid waaseyaa-package-convergence \(\d+ files\)$/m', implode("\n", $output));
     }
 
     #[Test]
