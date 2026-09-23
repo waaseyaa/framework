@@ -254,8 +254,33 @@ final class PreflightParityTest extends TestCase
     #[DataProvider('driftBaseSources')]
     public function preflight_resolves_the_drift_base_in_documented_precedence(array $arguments, array $environment, string $expected): void
     {
-        // Command-scoped git config (appended after any existing entries) sets
-        // waaseyaa.driftBase for the runner's own `git config` lookup.
+        $this->assertResolvedBase($expected, $arguments, $environment);
+    }
+
+    #[Test]
+    public function preflight_drift_base_lookup_starts_the_repository_git_entrypoint(): void
+    {
+        // The lookup must start repository_git_command(): the bin/git adapter
+        // on POSIX, which honours WAASEYAA_SYSTEM_GIT, and that pinned
+        // executable directly on native Windows. Pinning one that cannot start
+        // must therefore lose the configured base on both hosts; a bare `git`
+        // would ignore the pin and still read it.
+        $this->assertResolvedBase('origin/main', [], [
+            'WAASEYAA_DRIFT_BASE' => false,
+            'WAASEYAA_SYSTEM_GIT' => sys_get_temp_dir() . '/waaseyaa-missing-git-' . bin2hex(random_bytes(6)),
+        ]);
+    }
+
+    /**
+     * Runs the preflight on a one-gate manifest that prints its {base} and
+     * asserts the resolved value. Command-scoped git config (appended after
+     * any existing entries) sets waaseyaa.driftBase for the runner's lookup.
+     *
+     * @param list<string> $arguments
+     * @param array<string, string|false> $environment
+     */
+    private function assertResolvedBase(string $expected, array $arguments, array $environment): void
+    {
         $index = (int) (getenv('GIT_CONFIG_COUNT') ?: 0);
         $environment += [
             'GIT_CONFIG_COUNT' => (string) ($index + 1),
