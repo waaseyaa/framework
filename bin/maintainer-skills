@@ -1,0 +1,149 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Validate, install, and verify the Waaseyaa maintainer skills (#3080).
+ *
+ * The repository's `.agents/skills/` directory is the only authority. Local
+ * client copies are generated from it and carry a provenance manifest; see
+ * bin/lib/maintainer-skills.php and .agents/skills/README.md.
+ *
+ * Usage:
+ *   php bin/maintainer-skills validate
+ *   php bin/maintainer-skills install [--target=DIR]... [--adopt] [--allow-dirty-source]
+ *   php bin/maintainer-skills verify  [--target=DIR]...
+ *
+ * Without --target, installs into and verifies the Codex and Claude Code user
+ * skill directories. --adopt takes ownership of an existing unmanaged copy
+ * only when its content already equals the source apart from CRLF line
+ * endings. Exit codes: 0 success, 1 refusal or failed check, 2 usage error.
+ */
+
+require_once __DIR__ . '/lib/maintainer-skills.php';
+
+$root = dirname(__DIR__);
+$command = null;
+$targets = [];
+$adopt = false;
+$allowDirty = false;
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (in_array($argument, ['validate', 'install', 'verify'], true) && $command === null) {
+        $command = $argument;
+    } elseif (str_starts_with($argument, '--target=') && strlen($argument) > 9) {
+        $targets[] = rtrim(str_replace('\\', '/', substr($argument, 9)), '/');
+    } elseif (str_starts_with($argument, '--root=') && strlen($argument) > 7) {
+        $root = rtrim(str_replace('\\', '/', substr($argument, 7)), '/');
+    } elseif ($argument === '--adopt') {
+        $adopt = true;
+    } elseif ($argument === '--allow-dirty-source') {
+        $allowDirty = true;
+    } else {
+        fwrite(STDERR, "maintainer-skills: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+if ($command === null) {
+    fwrite(STDERR, "usage: php bin/maintainer-skills validate|install|verify [--target=DIR]... [--adopt] [--allow-dirty-source]\n");
+    exit(2);
+}
+
+try {
+    $skills = maintainerSkillsSource($root);
+    if ($skills === []) {
+        fwrite(STDERR, 'maintainer-skills: no skills found under ' . MAINTAINER_SKILLS_SOURCE . "\n");
+        exit(1);
+    }
+
+    $invalid = false;
+    foreach ($skills as $name => $files) {
+        foreach (maintainerSkillProblems($name, $files) as $problem) {
+            fwrite(STDERR, "invalid {$name}: {$problem}\n");
+            $invalid = true;
+        }
+    }
+    if ($invalid) {
+        exit(1);
+    }
+    if ($command === 'validate') {
+        foreach ($skills as $name => $files) {
+            printf("valid %s (%d files)\n", $name, count($files));
+        }
+        exit(0);
+    }
+
+    if ($targets === []) {
+        $targets = maintainerSkillsDefaultTargets();
+    }
+
+    if ($command === 'verify') {
+        $failed = false;
+        foreach ($targets as $target) {
+            foreach ($skills as $name => $files) {
+                $inspection = maintainerSkillsInspect($target . '/' . $name, $files);
+                $failed = $failed || $inspection['state'] !== 'current';
+                printf("%s %s/%s%s\n", $inspection['state'], $target, $name, $inspection['detail'] === [] ? '' : ': ' . implode(', ', $inspection['detail']));
+            }
+        }
+        exit($failed ? 1 : 0);
+    }
+
+    $provenance = maintainerSkillsProvenance($root);
+    if (!$provenance['clean'] && !$allowDirty) {
+        fwrite(STDERR, 'maintainer-skills: ' . MAINTAINER_SKILLS_SOURCE . " has uncommitted changes; commit them or pass --allow-dirty-source.\n");
+        exit(1);
+    }
+
+    // Decide every target before writing anything.
+    $plan = [];
+    $refusals = [];
+    foreach ($targets as $target) {
+        foreach ($skills as $name => $files) {
+            $directory = $target . '/' . $name;
+            $inspection = maintainerSkillsInspect($directory, $files);
+            $owned = $inspection['manifest'] === null ? [] : array_keys($inspection['manifest']['files']);
+            switch ($inspection['state']) {
+                case 'missing':
+                    $plan[] = ['installed', $directory, $name, []];
+                    break;
+                case 'stale':
+                    $plan[] = ['updated', $directory, $name, $owned];
+                    break;
+                case 'current':
+                    $plan[] = ['unchanged', $directory, $name, null];
+                    break;
+                case 'unmanaged':
+                    if ($adopt && maintainerSkillsEqualIgnoringCrlf($files, maintainerSkillsReadInstalled($directory))) {
+                        $plan[] = ['adopted', $directory, $name, array_keys($files)];
+                    } else {
+                        $refusals[] = sprintf(
+                            'refused %s: existing directory is not managed by this installer%s',
+                            $directory,
+                            $adopt ? ' and its content differs from the source' : '; move it aside, or pass --adopt if it is an unmodified copy',
+                        );
+                    }
+                    break;
+                default:
+                    $refusals[] = sprintf('refused %s: local drift from its manifest: %s', $directory, implode(', ', $inspection['detail']));
+            }
+        }
+    }
+    if ($refusals !== []) {
+        fwrite(STDERR, implode("\n", $refusals) . "\nNo files were written.\n");
+        exit(1);
+    }
+
+    foreach ($plan as [$action, $directory, $name, $owned]) {
+        if ($owned !== null) {
+            maintainerSkillsWrite($directory, $name, $skills[$name], $owned, $provenance);
+        }
+        printf("%s %s\n", $action, $directory);
+    }
+    printf("source %s%s\n", $provenance['commit'], $provenance['clean'] ? '' : ' (with uncommitted changes)');
+    exit(0);
+} catch (Throwable $exception) {
+    fwrite(STDERR, $exception->getMessage() . "\n");
+    exit(1);
+}
