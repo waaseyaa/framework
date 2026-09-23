@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Pins the host rule for starting the repository Git entrypoint from PHP
@@ -67,19 +68,16 @@ final class RepositoryGitEntrypointTest extends TestCase
     #[Test]
     public function the_host_entrypoint_reads_repository_history_on_this_host(): void
     {
-        $pipes = [];
-        $process = proc_open(
+        $process = new Process(
             [...repository_git_command($this->root), '-C', $this->root, 'rev-parse', '--verify', 'HEAD^{commit}'],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
         );
-        self::assertIsResource($process, sprintf('The repository Git entrypoint must start on %s.', PHP_OS_FAMILY));
-        $output = trim((string) stream_get_contents($pipes[1]));
-        $error = (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        $exitCode = $process->run();
 
-        self::assertSame(0, proc_close($process), $error);
-        self::assertMatchesRegularExpression('/^[0-9a-f]{40}$/D', $output);
+        self::assertSame(
+            0,
+            $exitCode,
+            sprintf('The repository Git entrypoint must start and read history on %s: %s', PHP_OS_FAMILY, $process->getErrorOutput()),
+        );
+        self::assertMatchesRegularExpression('/^[0-9a-f]{40}$/D', trim($process->getOutput()));
     }
 }
