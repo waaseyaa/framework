@@ -371,6 +371,7 @@ final class DeliveryAgentEventBranchCustodyTest extends TestCase
         self::assertTrue(copy($this->root . '/ops/observability/delivery-agent-events-v1.jsonl', $repo . '/ops/observability/delivery-agent-events-v1.jsonl'));
         self::assertTrue(copy($this->root . '/bin/check-delivery-agent-events', $repo . '/bin/check-delivery-agent-events'));
         self::assertTrue(copy($this->root . '/bin/lib/delivery-agent-event-set.php', $repo . '/bin/lib/delivery-agent-event-set.php'));
+        self::assertTrue(copy($this->root . '/bin/lib/repository-git.php', $repo . '/bin/lib/repository-git.php'));
         self::assertTrue(copy($this->root . '/bin/lib/vendor-freshness.php', $repo . '/bin/lib/vendor-freshness.php'));
         self::assertTrue(copy($this->root . '/bin/git', $repo . '/bin/git'));
         // Candidate-local generated Composer metadata below is checked against

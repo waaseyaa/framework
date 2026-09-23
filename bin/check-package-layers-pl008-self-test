@@ -54,23 +54,38 @@ $cleanup = static function () use ($work): void {
     }
 };
 
-$env = 'WAASEYAA_LAYER_ROOT=' . escapeshellarg($work)
-    . ' WAASEYAA_LAYER_STRING_LITERAL_BASELINE=' . escapeshellarg($work . '/tools/package-layers-string-literal-baseline.txt')
-    . ' WAASEYAA_OUTPUT=json';
-
-/** @return bool True when the gate reports at least one string-literal (PL008) violation. */
-$gateFires = static function () use ($env, $php, $checkScript): bool {
-    $output = shell_exec("{$env} {$php} {$checkScript} 2>/dev/null");
-    $result = is_string($output) ? json_decode($output, true) : null;
-
-    return is_array($result) && isset($result['violations'])
-        && count(array_filter($result['violations'], static fn($v) => ($v['edge'] ?? '') === 'string-literal')) > 0;
-};
-
 $fail = static function (string $message) use ($cleanup): never {
     fwrite(STDERR, "FAIL [PL008-self-test] {$message}\n");
     $cleanup();
     exit(1);
+};
+
+// The child inherits this environment plus the three overrides. It is started
+// from an argument array, never a shell string: a POSIX `VAR=value cmd
+// 2>/dev/null` line does not run under cmd.exe, and a child that never starts
+// would read as "gate did NOT fire" (#3096).
+$gateEnv = getenv();
+$gateEnv['WAASEYAA_LAYER_ROOT'] = $work;
+$gateEnv['WAASEYAA_LAYER_STRING_LITERAL_BASELINE'] = $work . '/tools/package-layers-string-literal-baseline.txt';
+$gateEnv['WAASEYAA_OUTPUT'] = 'json';
+
+/** @return bool True when the gate reports at least one string-literal (PL008) violation. */
+$gateFires = static function () use ($gateEnv, $php, $checkScript, $fail): bool {
+    $pipes = [];
+    $process = proc_open([$php, $checkScript], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $gateEnv);
+    if (!is_resource($process)) {
+        $fail("unable to start {$checkScript}.");
+    }
+    $output = stream_get_contents($pipes[1]);
+    // JSON mode writes nothing to stderr; drain and discard it.
+    stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($process);
+    $result = is_string($output) ? json_decode($output, true) : null;
+
+    return is_array($result) && isset($result['violations'])
+        && count(array_filter($result['violations'], static fn($v) => ($v['edge'] ?? '') === 'string-literal')) > 0;
 };
 
 // foundation composer.json (Layer 0)

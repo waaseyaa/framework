@@ -35,12 +35,15 @@ if [[ "${1:-}" == "--self-test" ]]; then
     trap 'rm -f "$TEMP_VIOLATOR"' EXIT
     printf 'const x = something === "1"\n' > "$TEMP_VIOLATOR"
     exit_code=0
-    bash "${BASH_SOURCE[0]}" > /dev/null 2>&1 || exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
+    gate_output=$(bash "${BASH_SOURCE[0]}" 2>&1) || exit_code=$?
+    # Only exit 1 naming the planted file is a detection; exit 2 is a scan
+    # error and must never pass the self-test.
+    if [[ $exit_code -eq 1 && "$gate_output" == *"${TEMP_VIOLATOR}:1:"* ]]; then
         echo "check-admin-coercion-patterns --self-test: PASSED (gate correctly exits $exit_code on synthetic violation)"
         exit 0
     else
-        echo "check-admin-coercion-patterns --self-test: FAILED (gate returned 0 on synthetic violation — gate is broken)" >&2
+        echo "check-admin-coercion-patterns --self-test: FAILED (gate returned $exit_code without reporting the synthetic violation — gate is broken)" >&2
+        printf '%s\n' "$gate_output" >&2
         exit 1
     fi
 fi
@@ -48,7 +51,10 @@ fi
 # Patterns that indicate raw coercion bypassing useAdminConfig()
 # We look for comparisons directly against '1' or '0' that are NOT in
 # coercion helpers, test files, or explicitly exempted lines.
-# Uses -P (Perl-compatible regex) only — combining -E and -P is not supported.
+# Uses -E (POSIX extended regex): every construct here (alternation, escaped
+# parentheses, a negated bracket) is ERE, so no PCRE build or UTF-8 locale is
+# required. -P is avoided because Git for Windows grep rejects it in its
+# default locale ("-P supports only unibyte and UTF-8 locales").
 COMBINED_PATTERN="(=== '1'|=== '0'|=== \"1\"|=== \"0\"|String\([^)]*\) === '1'|String\([^)]*\) === '0')"
 
 found_violations=0
@@ -65,11 +71,11 @@ while IFS= read -r -d '' file; do
         continue
     fi
 
-    # Grep for patterns using -P (Perl regex); suppress only "no match" (exit 1),
+    # Grep for patterns using -E (extended regex); suppress only "no match" (exit 1),
     # let real errors (exit 2+) surface so CI does not silently skip files.
     grep_output=""
     grep_exit=0
-    grep_output=$(grep -nP "$COMBINED_PATTERN" "$file") || grep_exit=$?
+    grep_output=$(grep -nE "$COMBINED_PATTERN" "$file") || grep_exit=$?
     if [[ $grep_exit -ge 2 ]]; then
         echo "check-admin-coercion-patterns: grep error scanning $file (exit $grep_exit)" >&2
         exit 2

@@ -401,6 +401,7 @@ final class DeliveryAgentEventTimingCompletenessTest extends TestCase
             'ops/observability/delivery-agent-v1-freeze.json',
             'bin/check-delivery-agent-events',
             'bin/lib/delivery-agent-event-set.php',
+            'bin/lib/repository-git.php',
             'bin/lib/vendor-freshness.php',
             'bin/git',
             'composer.json',

@@ -12,6 +12,7 @@ use SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser;
 
 $toolRoot = dirname(__DIR__);
 require $toolRoot . '/vendor/autoload.php';
+require_once __DIR__ . '/lib/repository-git.php';
 
 $options = getopt('', ['base::', 'diff-file::', 'root::']);
 $root = realpath((string) ($options['root'] ?? dirname(__DIR__)));
@@ -31,7 +32,7 @@ if ($diffFile !== '') {
     }
 } else {
     $process = proc_open(
-        [$root . '/bin/git', '-C', $root, 'diff', '--unified=0', $base . '...HEAD', '--', 'packages', 'tests'],
+        [...repository_git_command($root), '-C', $root, 'diff', '--unified=0', $base . '...HEAD', '--', 'packages', 'tests'],
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
     );

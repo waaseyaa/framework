@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Binds tools/preflight-gates.json to the surfaces it mirrors
@@ -201,15 +203,17 @@ final class PreflightParityTest extends TestCase
     public function preflight_failure_output_names_the_repair_command(): void
     {
         // A guaranteed-failing synthetic gate proves the accumulator reports
-        // the failure, echoes the repair line, and still exits non-zero.
+        // the failure, echoes the repair line, and still exits non-zero. The
+        // gates are PHP one-liners quoted for the host shell (sh or cmd.exe),
+        // because the runner executes manifest commands through that shell.
         $manifestPath = tempnam(sys_get_temp_dir(), 'preflight-manifest-');
         self::assertNotFalse($manifestPath);
         try {
             file_put_contents($manifestPath, json_encode([
                 'schema_version' => 1,
                 'gates' => [
-                    ['id' => 'always-green', 'run' => 'true', 'repair' => 'n/a', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
-                    ['id' => 'always-red', 'run' => 'echo broken; false', 'repair' => 'run the-exact-repair-command', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
+                    ['id' => 'always-green', 'run' => self::phpCommand('exit(0);'), 'repair' => 'n/a', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
+                    ['id' => 'always-red', 'run' => self::phpCommand("echo 'broken'; exit(1);"), 'repair' => 'run the-exact-repair-command', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
                 ],
             ], JSON_THROW_ON_ERROR));
 
@@ -224,8 +228,96 @@ final class PreflightParityTest extends TestCase
             $this->assertStringContainsString('always-red', $joined);
             $this->assertStringContainsString('the-exact-repair-command', $joined);
             $this->assertStringContainsString('always-green', $joined);
+            // Each gate's verdict must come from its own exit status.
+            $this->assertMatchesRegularExpression('/^ok\s+always-green\s/m', $joined);
+            $this->assertMatchesRegularExpression('/^FAIL\s+always-red\s.*exit 1\)$/m', $joined);
+            $this->assertMatchesRegularExpression('/^\s+broken$/m', $joined);
+            $this->assertMatchesRegularExpression('/^failed: always-red$/m', $joined);
         } finally {
             @unlink($manifestPath);
         }
+    }
+
+    /** @return iterable<string, array{list<string>, array<string, string|false>, string}> */
+    public static function driftBaseSources(): iterable
+    {
+        yield 'git config waaseyaa.driftBase' => [[], ['WAASEYAA_DRIFT_BASE' => false], 'refs/preflight/configured-base'];
+        yield 'WAASEYAA_DRIFT_BASE beats git config' => [[], ['WAASEYAA_DRIFT_BASE' => 'refs/preflight/env-base'], 'refs/preflight/env-base'];
+        yield '--base beats WAASEYAA_DRIFT_BASE' => [['--base=refs/preflight/explicit-base'], ['WAASEYAA_DRIFT_BASE' => 'refs/preflight/env-base'], 'refs/preflight/explicit-base'];
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @param array<string, string|false> $environment
+     */
+    #[Test]
+    #[DataProvider('driftBaseSources')]
+    public function preflight_resolves_the_drift_base_in_documented_precedence(array $arguments, array $environment, string $expected): void
+    {
+        $this->assertResolvedBase($expected, $arguments, $environment);
+    }
+
+    #[Test]
+    public function preflight_drift_base_lookup_starts_the_repository_git_entrypoint(): void
+    {
+        // The lookup must start repository_git_command(): the bin/git adapter
+        // on POSIX, which honours WAASEYAA_SYSTEM_GIT, and that pinned
+        // executable directly on native Windows. Pinning one that cannot start
+        // must therefore lose the configured base on both hosts; a bare `git`
+        // would ignore the pin and still read it.
+        $this->assertResolvedBase('origin/main', [], [
+            'WAASEYAA_DRIFT_BASE' => false,
+            'WAASEYAA_SYSTEM_GIT' => sys_get_temp_dir() . '/waaseyaa-missing-git-' . bin2hex(random_bytes(6)),
+        ]);
+    }
+
+    /**
+     * Runs the preflight on a one-gate manifest that prints its {base} and
+     * asserts the resolved value. Command-scoped git config (appended after
+     * any existing entries) sets waaseyaa.driftBase for the runner's lookup.
+     *
+     * @param list<string> $arguments
+     * @param array<string, string|false> $environment
+     */
+    private function assertResolvedBase(string $expected, array $arguments, array $environment): void
+    {
+        $index = (int) (getenv('GIT_CONFIG_COUNT') ?: 0);
+        $environment += [
+            'GIT_CONFIG_COUNT' => (string) ($index + 1),
+            'GIT_CONFIG_KEY_' . $index => 'waaseyaa.driftBase',
+            'GIT_CONFIG_VALUE_' . $index => 'refs/preflight/configured-base',
+        ];
+
+        $manifestPath = tempnam(sys_get_temp_dir(), 'preflight-manifest-');
+        self::assertNotFalse($manifestPath);
+        try {
+            file_put_contents($manifestPath, json_encode([
+                'schema_version' => 1,
+                'gates' => [
+                    ['id' => 'echo-base', 'base' => true, 'run' => self::phpCommand("echo 'base=', \$argv[1]; exit(1);", '{base}'), 'repair' => 'n/a', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $process = new Process(
+                [PHP_BINARY, $this->root . '/bin/check-pr-preflight', '--manifest=' . $manifestPath, ...$arguments],
+                $this->root,
+                $environment,
+                null,
+                120,
+            );
+            $exitCode = $process->run();
+            $stdout = $process->getOutput();
+
+            $this->assertSame(1, $exitCode, $stdout . $process->getErrorOutput());
+            $this->assertMatchesRegularExpression('/^\s+base=' . preg_quote($expected, '/') . '$/m', $stdout, $process->getErrorOutput());
+        } finally {
+            @unlink($manifestPath);
+        }
+    }
+
+    /** Host-quoted `php -r` command; $code must not contain double quotes, % or ! (cmd.exe escaping). */
+    private static function phpCommand(string $code, string $arguments = ''): string
+    {
+        return rtrim(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($code) . ' ' . $arguments);
     }
 }

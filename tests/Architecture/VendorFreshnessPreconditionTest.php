@@ -826,6 +826,7 @@ final class VendorFreshnessPreconditionTest extends TestCase
         foreach ([
             'bin/check-delivery-agent-events',
             'bin/lib/delivery-agent-event-set.php',
+            'bin/lib/repository-git.php',
             'bin/lib/vendor-freshness.php',
             'bin/git',
             'ops/observability/delivery-agent-event-v1.schema.json',
@@ -840,7 +841,7 @@ final class VendorFreshnessPreconditionTest extends TestCase
     {
         $fs = new Filesystem();
         $fs->mkdir($root . '/bin/lib');
-        foreach (['bin/check-pr-preflight', 'bin/lib/vendor-freshness.php'] as $path) {
+        foreach (['bin/check-pr-preflight', 'bin/lib/vendor-freshness.php', 'bin/lib/repository-git.php'] as $path) {
             $fs->copy($this->root . '/' . $path, $root . '/' . $path);
         }
         chmod($root . '/bin/check-pr-preflight', 0o755);

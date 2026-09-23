@@ -79,6 +79,20 @@ final class DeliveryAgentEventLedgerContractTest extends TestCase
     }
 
     #[Test]
+    public function base_mode_reads_accepted_history_through_the_host_git_entrypoint(): void
+    {
+        // --base reads committed bytes at HEAD and has no shallow-history
+        // refusal, so it exercises the gate's git reads on every checkout,
+        // including a depth-1 CI test shard (#3096).
+        $process = new Process([PHP_BINARY, $this->root . '/bin/check-delivery-agent-events', '--base=HEAD']);
+
+        self::assertSame(0, $process->run(), $process->getErrorOutput());
+        self::assertStringContainsString('delivery agent event contract: PASS', $process->getOutput());
+        self::assertStringNotContainsString('could not read the base', $process->getErrorOutput());
+        self::assertStringNotContainsString('could not start git', $process->getErrorOutput());
+    }
+
+    #[Test]
     public function misspelled_base_option_cannot_silently_disable_custody_enforcement(): void
     {
         $process = new Process([PHP_BINARY, $this->root . '/bin/check-delivery-agent-events', '--bsae=HEAD']);

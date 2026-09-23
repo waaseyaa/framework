@@ -73,7 +73,16 @@ if ($list) {
     exit(0);
 }
 
-/** Resolve the diff base the same way bin/project-hooks does. */
+/**
+ * Resolve the diff base: --base, then WAASEYAA_DRIFT_BASE, then
+ * `git config waaseyaa.driftBase`, then origin/main.
+ *
+ * The git lookup starts the host's repository Git entrypoint
+ * (repository_git_command(): bin/git on POSIX, the Windows Git executable on
+ * native Windows) from an argument array with a null stderr descriptor, not a
+ * shell string: under cmd.exe a `2>/dev/null` redirect cannot open, so git
+ * never ran and a configured base was silently replaced (#3096).
+ */
 function preflightResolveBase(string $root, ?string $explicit): string
 {
     if ($explicit !== null && $explicit !== '') {
@@ -83,10 +92,18 @@ function preflightResolveBase(string $root, ?string $explicit): string
     if (is_string($env) && $env !== '') {
         return $env;
     }
-    exec(sprintf('git -C %s config --get waaseyaa.driftBase 2>/dev/null', escapeshellarg($root)), $output, $exitCode);
-    $configured = trim(implode("\n", $output));
-    if ($exitCode === 0 && $configured !== '') {
-        return $configured;
+    $pipes = [];
+    $process = @proc_open(
+        [...repository_git_command($root), '-C', $root, 'config', '--get', 'waaseyaa.driftBase'],
+        [1 => ['pipe', 'w'], 2 => ['null']],
+        $pipes,
+    );
+    if (is_resource($process)) {
+        $configured = trim((string) stream_get_contents($pipes[1]));
+        fclose($pipes[1]);
+        if (proc_close($process) === 0 && $configured !== '') {
+            return $configured;
+        }
     }
 
     return 'origin/main';
@@ -100,6 +117,7 @@ function preflightResolveBase(string $root, ?string $explicit): string
 // is ever reported as a repository defect. Not a manifest gate: hosted CI
 // installs fresh and never observes this state (docs/specs/governed-gates.md §1).
 require $root . '/bin/lib/vendor-freshness.php';
+require $root . '/bin/lib/repository-git.php';
 $vendorProblem = vendor_freshness_problem($root);
 if ($vendorProblem !== null) {
     fwrite(STDERR, vendor_freshness_message($vendorProblem, 'check-pr-preflight'));
