@@ -153,14 +153,23 @@
             "package": "waaseyaa/ai-vector",
             "path": "packages/ai-vector",
             "form": "library",
-            "audit_state": "not assessed",
+            "audit_state": "in progress",
             "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": "Next audit (persistence calibration). Known lead: runtime-created embeddings table outside schema authority (#3110; docs/specs/s1-schema-authority.md)."
+            "audit_base": "bfba7f27d7a27a2228649bc75967fb1d261856c0",
+            "audit_date": "2026-09-23",
+            "dependency_identity": "composer.lock sha256:1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-vector.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/probes/ai-vector/EmbeddingsSchemaDriftProbeTest.php"
+                }
+            ],
+            "notes": "Persistence calibration audit. Review complete: 12 findings, 4 refuted leads; assessed once the remediation split has owners. AIV-SEC-001 handled privately."
         },
         {
             "package": "waaseyaa/analytics",
