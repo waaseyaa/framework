@@ -1,6 +1,9 @@
 # `waaseyaa/ai-vector` audit
 
-- **Audit state:** in progress. Review is complete; the audit becomes "assessed" once each finding has an owner issue, which waits on the remediation split below.
+- **Audit state:** in progress. It isn't assessed yet, for three reasons:
+  1. the findings have no owner issues yet (that waits on the remediation split below);
+  2. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
+  3. the AIV-SEC-001 private report hasn't been filed.
 - **Remediation state:** not triaged
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
 - **Dependency identity:** `composer.lock` SHA-256 `1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48` at the base; PHP 8.5.5, native Windows 11
@@ -26,7 +29,7 @@
 
 ## Roster
 
-All 22 production PHP files, plus the manifest, README and public-surface declaration.
+All 21 PHP files under `src/`, plus `public-surface.php` (22 PHP files), the manifest and the README.
 
 | File | Role | Classification | Evidence level | Notes |
 | --- | --- | --- | --- | --- |
@@ -70,6 +73,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 | `AIV-HTTP-001` | Every semantic search loads all relationship entities | medium | confirmed | reviewed | repair | pending split (WP-SEC) | Bound or index the rerank query |
 | `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reviewed | repair or document | pending split (WP-C) | Decide an explicit indexability policy |
 | `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reviewed | repair or remove | pending split (WP-C) | Wire async indexing or remove the dead path |
+| `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reviewed | repair | pending split (WP-A) | Make post-commit storage failures best-effort, and test through a real repository |
 | `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | reviewed | document, deprecate or remove | pending split (WP-C) | Choose the canonical contract |
 | `AIV-DIST-001` | ai-vector is installed by default through `waaseyaa/cli`; a test helper ships in production | medium | confirmed | reviewed | repair | pending split (WP-B) | Make the capability opt-in |
 | `AIV-SYMFONY-001` | Hand-rolled HTTP client in both providers | low | likely | reviewed | defer | pending split (WP-C) | Evaluate `waaseyaa/http-client` |
@@ -80,7 +84,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 ### `AIV-PERSIST-001`: lifecycle listeners create `embeddings` outside schema authority
 
-- **Observed, with evidence:** `SqliteEmbeddingStorage::ensureSchema()` (`src/SqliteEmbeddingStorage.php:104`) runs `CREATE TABLE IF NOT EXISTS embeddings` before any store, delete or search. `HttpKernel` (`packages/foundation/src/Kernel/HttpKernel.php:211`) hands it the application's own database connection. Reproduced by `docs/audits/packages/probes/ai-vector/EmbeddingsSchemaDriftProbeTest.php` on a throwaway SQLite file (4 tests, 19 assertions):
+- **Observed, with evidence:** `SqliteEmbeddingStorage::ensureSchema()` (`src/SqliteEmbeddingStorage.php:104`) runs `CREATE TABLE IF NOT EXISTS embeddings` before any store, delete or search. `HttpKernel` (`packages/foundation/src/Kernel/HttpKernel.php:211`) hands it the application's own database connection. Reproduced by `tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php`, a standalone script. It uses a throwaway SQLite file from the `TemporarySqliteDatabase` test utility, and the framework's own `EntitySchemaSyncRunner` for both coordinated transitions, the path #3110 describes. All 4 cases behave as recorded:
   - after a coordinated transition, `EntityEmbeddingCleanupListener::onPostDelete()` creates the table and the next transition fails with `[S1-DB109]`;
   - with no embedding provider configured, `EntityEmbeddingListener::onPostSave()` on a node that isn't publicly served does the same;
   - saving a non-node entity with no provider doesn't (see AIV-R-001);
@@ -157,14 +161,14 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 - **Observed, with evidence (safe summary):** under a specific configuration, the public search endpoint's response metadata can include identifiers and ranking data for entities that the visibility or access filters removed from the result list. Reproduced with a synthetic unit-level probe. The probe and details are withheld from this public record.
 - **Expected contract:** a search response reveals nothing about entities the caller can't see.
-- **Consequence and consumers:** applications that enable semantic search. Scope and severity are assessed in the private report.
-- **Severity and confidence:** withheld; confirmed.
+- **Consequence and consumers:** applications that enable semantic search. Scope and severity will be assessed in a private report. **That report hasn't been filed**; filing waits on the maintainer's authorization.
+- **Severity and confidence:** withheld from this record; confirmed. Maintainer-side triage (2026-09-23): high static confidence, first in the exploitability queue.
 - **Refutation:** none found.
 - **Disposition and owner:** repair through the private reporting route (`SECURITY.md`).
 - **Dependencies:** none.
-- **Acceptance:** defined in the private report.
-- **Residual risk:** defined in the private report.
-- **Next action:** maintainer decides on the private report.
+- **Acceptance:** to be defined in the private report once it is filed.
+- **Residual risk:** to be defined in the private report once it is filed.
+- **Next action:** the maintainer authorizes and files the private report.
 
 ### `AIV-HTTP-001`: every semantic search loads all relationship entities
 
@@ -195,7 +199,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 ### `AIV-EXEC-001`: synchronous embedding on save; the queue message has no handler
 
 - **Observed, with evidence:**
-  - The listener calls the provider's HTTP endpoint inline during the save, with a 15–20 s timeout. Failures are logged and swallowed.
+  - The listener calls the provider's HTTP endpoint inline during the save, with a 15–20 s timeout. Failures of this embed-and-store step are logged and swallowed. The delete paths aren't; see AIV-EXEC-002.
   - It can also dispatch a `GenericMessage` of type `ai_vector.embed_entity`, but every production construction passes `queue: null`, and no handler for that type exists in the repository.
 - **Expected contract:** remote work on the save path is bounded or asynchronous, and no dead dispatch path is left in place.
 - **Consequence and consumers:** entity saves over HTTP wait on the embedding provider when one is configured. The queue path is dead code.
@@ -206,6 +210,27 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Acceptance:** saves don't block on the provider, or the synchronous behavior is documented, and the message either has a handler with tests or is removed.
 - **Residual risk:** none.
 - **Next action:** WP-C.
+
+### `AIV-EXEC-002`: storage failures on the delete paths fail an already-committed entity mutation
+
+- **Observed, with evidence:**
+  - `EntityEmbeddingCleanupListener::onPostDelete()` calls `storage->delete()` with no `try` (`src/EntityEmbeddingCleanupListener.php`).
+  - In `EntityEmbeddingListener`, only the embed-and-store block is inside `try` (`src/EntityEmbeddingListener.php:121-132`). The non-indexable branch's `storage->delete()` (lines 111-114) and the `repository->find()` re-sourcing (line 102) are outside it.
+  - POST_SAVE and POST_DELETE are notification events, buffered and dispatched only after the entity mutation commits (`packages/entity-storage/src/EntityRepository.php`, `dispatchEvent()` and its delete path at lines 1539-1543).
+  - A listener exception there becomes `EntityMutationCommittedSideEffectsFailedException` (`EntityRepository.php:832`).
+  - Traced in source; not reproduced end to end through a real repository.
+- **Expected contract:** a best-effort side effect of a committed mutation logs its failure and doesn't turn the committed mutation into a reported failure (repository guidance on best-effort side effects), or the failure contract is documented.
+- **Consequence and consumers:** if the vector storage fails after an entity delete or save (a locked or read-only database, the lazy DDL failing, a table with the wrong shape):
+  - the entity change is committed, but the caller, such as the HTTP API, is told the mutation's side effects failed;
+  - the entity's vector may remain;
+  - POST_* listeners registered after these for the same event don't run, because the dispatcher stops at the exception.
+- **Severity and confidence:** high; confirmed by source trace.
+- **Refutation:** considered "`EntityEmbeddingListener` catches failures". It does, but only around embed-and-store, not the delete branch or the re-sourcing read. The cleanup listener catches nothing.
+- **Disposition and owner:** repair; WP-A, because it touches the same storage calls as AIV-PERSIST-001.
+- **Dependencies:** none; it can land with WP-A.
+- **Acceptance:** with a storage that fails on delete, an entity delete and a non-indexable save through a real repository report success, log the failure, and let later listeners run.
+- **Residual risk:** a vector left behind after a failed cleanup until `semantic:refresh` runs.
+- **Next action:** include in WP-A with an end-to-end regression test.
 
 ### `AIV-PUBLIC-001`: two storage contracts; declarations don't match
 
@@ -270,17 +295,19 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - Transactions: store, delete and search are single statements.
   - Counted limits: none.
   - Retries and idempotency: `INSERT OR REPLACE` is idempotent per entity.
-  - Reported versus durable outcome: failures are logged and swallowed (AIV-EXEC-001).
+  - Reported versus durable outcome: embed-and-store failures are logged and swallowed (AIV-EXEC-001). Delete-path failures aren't; they surface as a committed-side-effects failure of the entity mutation (AIV-EXEC-002).
   - Restart and recovery: `semantic:refresh` reconciles.
 - **Kernel and runtime:**
   - Composition: AIV-COMP-001. Profile differences: AIV-COMP-002.
   - Early resolution: the provider binding resolves config once at register time.
-  - Boot failure: a misconfigured OpenAI credential throws at register time and fails closed (reviewed, acceptable).
+  - Boot failure: a misconfigured OpenAI credential throws at register time, from the provider and again from `HttpKernel`'s listener wiring, and fails closed (reviewed, acceptable).
+  - Boot retry and state: ai-vector keeps no state between attempts, because its bindings are closures. A retry with the same config fails the same way. Kernel-level retry state belongs to Foundation (#3123).
   - Repeated execution: the storage caches its schema check per instance, and `SearchRouter` creates a new instance per request.
 - **Domain contracts:**
   - Invariants and lifecycle: indexing follows served content (CW-v1 option 1) for HTTP saves, pointer moves and reverts (reviewed).
   - Indexability: AIV-DOMAIN-001.
-  - Events: POST_SAVE, POST_DELETE, `RevisionPointerMovedEvent` and REVISION_REVERTED, HTTP only.
+  - Events: POST_SAVE, POST_DELETE, `RevisionPointerMovedEvent` and REVISION_REVERTED, registered only by `HttpKernel` (AIV-COMP-002), after the discovery and MCP read-cache listeners.
+  - Ordering and veto: these are notification events dispatched after commit, so they can't veto a mutation. A listener exception stops later listeners for the same event (AIV-EXEC-002).
   - Extension seams: AIV-PUBLIC-001.
 - **HTTP, UI and wire contracts:**
   - The route is `allowAll()`.
@@ -289,6 +316,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - Access filtering applies to `data`: AIV-SEC-001.
   - Cost: AIV-HTTP-001.
   - Wire contract declaration: AIV-PUBLIC-001.
+  - Contract conformance: `SearchController` states a "stable" v1.0 contract, but there's no declared schema and no conformance test, so conformance can't be checked. Only the unit tests' response shapes were reviewed. This remains open.
   - No CSRF concern: the route is GET only.
 - **Distribution:**
   - Installation profiles: AIV-DIST-001.
@@ -312,15 +340,15 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 
 | Command or probe | Base | Dependency identity | Runner | Proves | Result |
 | --- | --- | --- | --- | --- | --- |
-| `php vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php docs/audits/packages/probes/ai-vector/EmbeddingsSchemaDriftProbeTest.php` | `bfba7f27d7a27a2228649bc75967fb1d261856c0` | lock `1c0df008…fcfe7a48` | local, native Windows, PHP 8.5.5 | real classes on a throwaway SQLite file | 4 tests, 19 assertions pass; the drift cases show `[S1-DB109]` |
+| `php tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php` | `bfba7f27d7a27a2228649bc75967fb1d261856c0` | lock `1c0df008…fcfe7a48` | local, native Windows, PHP 8.5.5 | real classes and `EntitySchemaSyncRunner` on a throwaway SQLite file | 4 cases, all as recorded: the two drift cases are refused with `[S1-DB109]`; the control and the non-node save succeed |
 | `php vendor/bin/phpunit packages/ai-vector/tests --no-coverage` | same | same | same | source read (unit, mocked) | 89 tests, 306 assertions pass |
 | `php vendor/bin/phpunit tests/Integration/Phase8/VectorSearchIntegrationTest.php tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php --no-coverage` | same | same | same | injected integration | 12 tests, 62 assertions pass |
 | `php bin/check-package-layers` | same | same | same | declared dependency layers | pass |
-| Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; see the private report |
+| Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept for the private report, which hasn't been filed |
 
 ## Proposed remediation split (for maintainer approval; no issues opened)
 
-- **WP-A, persistence and FETDER unblock:** AIV-PERSIST-001 and AIV-PERSIST-002. Decide migration-owned versus dedicated projection storage, move off raw PDO, remove serving-path DDL, prove save/delete/search can't cause drift. Coordinates with #3110.
+- **WP-A, persistence and FETDER unblock:** AIV-PERSIST-001, AIV-PERSIST-002 and AIV-EXEC-002. Decide migration-owned versus dedicated projection storage, move off raw PDO, remove serving-path DDL, prove save/delete/search can't cause drift. Coordinates with #3110.
 - **WP-B, composition, backends and installation:** AIV-COMP-001, AIV-COMP-002, AIV-BACKEND-001 and AIV-DIST-001. One storage and provider composition path for every entry point; implement or stop advertising pgvector; make the capability opt-in.
 - **WP-C, public API, indexing policy and execution:** AIV-PUBLIC-001, AIV-DOMAIN-001, AIV-EXEC-001 and AIV-SYMFONY-001.
 - **WP-SEC, private:** AIV-SEC-001, with AIV-HTTP-001 on the same code path.

@@ -166,10 +166,10 @@
                 },
                 {
                     "kind": "repository-path",
-                    "path": "docs/audits/packages/probes/ai-vector/EmbeddingsSchemaDriftProbeTest.php"
+                    "path": "tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php"
                 }
             ],
-            "notes": "Persistence calibration audit. Review complete: 12 findings, 4 refuted leads; assessed once the remediation split has owners. AIV-SEC-001 handled privately."
+            "notes": "Persistence calibration audit: 13 findings and 4 refuted leads. In progress until the remediation split has owner issues, the open profile items are closed or qualified, and the AIV-SEC-001 private report is filed."
         },
         {
             "package": "waaseyaa/analytics",
