@@ -171,7 +171,10 @@ grep -Fq 'split-artifact entity round-trip OK' "$work/boot-nodev.out"
 
 # A harness that has only ever passed is not evidence. Every live assertion is
 # re-run against deliberately corrupted overlays and must fail; if any survives,
-# this run fails even though everything above was green.
+# this run fails even though everything above was green. A control this host
+# cannot seed (the source symlink, on native Windows without the symlink
+# privilege) exits 3, INCOMPLETE: `set -e` stops here, so the pass line below is
+# never printed. Every other host fails that case closed with 1 (#3081).
 echo "== Seeded negative controls"
 php "$engine" self-test "$seal" "$consumer" "$nodev" "$work/negative-controls"
 
