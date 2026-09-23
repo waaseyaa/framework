@@ -9,7 +9,8 @@ declare(strict_types=1);
  * SQLite file from the packages/testing TemporarySqliteDatabase utility; no
  * real application database is touched. Schema transitions go through the
  * framework's own coordinated path (EntitySchemaSyncRunner), the same path
- * #3110 describes, so the only DDL involved is ai-vector's own.
+ * #3110 describes. That runner performs coordinated entity-table DDL; the
+ * only uncoordinated DDL is ai-vector's own.
  *
  * Run from the repository root:
  *

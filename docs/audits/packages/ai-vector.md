@@ -97,7 +97,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Refutation:** considered "the deployer catalogue classifies `embeddings` as a runtime artifact table, so it's intended". Not a refutation: `FrameworkRuntimeTableCatalogue` governs deploy handoff, not schema authority, and the spec requires migration ownership or a separate file.
 - **Disposition and owner:** repair; WP-A (pending split). Required to unblock FETDER without a manual manifest re-record.
 - **Dependencies:** #3110 (Foundation schema adoption) and AIV-PERSIST-002.
-- **Acceptance:** the probe's three drift cases flip; save, delete and search leave the manifest fingerprint unchanged; strict verification and the next coordinated transition stay green on a real SQLite file.
+- **Acceptance:** the probe's two drift cases (the delete and the draft-node save) flip; save, delete and search leave the manifest fingerprint unchanged (search is source-reviewed here, not reproduced by the probe, so the repair needs its own search case); strict verification and the next coordinated transition stay green on a real SQLite file.
 - **Residual risk:** databases already drifted need a supported adoption path (#3110).
 - **Next action:** decide between a migration-owned table on the authoritative database and a dedicated rebuildable projection file.
 
