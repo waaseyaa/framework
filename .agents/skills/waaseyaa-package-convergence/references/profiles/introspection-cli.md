@@ -20,6 +20,9 @@ Use for packages describing application behavior or adapting it to commands and 
 
 ## CLI process contract
 
+- Test argv parsing through the real application, not only a handler: required and optional arguments, too few and too many arguments, and the documented defaults actually applied.
+- Test option forms: `--opt=value`, `--opt value`, short options, flags, negatable flags, repeated options, and a value that itself starts with `-`. Unknown options, missing option values and stray arguments must be refused with the documented usage exit code and a message on stderr.
+- Check the `--` separator, empty-string and non-ASCII values, and values containing console markup, all round-tripped without change.
 - Map each command to its boot mode (no boot, pre-runtime, restricted, schema, full) and check it doesn't build services the mode forbids.
 - Register commands in every supported form (instance, service ID, class name) and prove each is bound to its container. A command that lists but can't run is a finding.
 - Check that aliases, hidden status and help survive registration and container rebinding, through `list`, `help` and alias invocation.

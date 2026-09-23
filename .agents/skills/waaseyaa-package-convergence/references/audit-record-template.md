@@ -40,11 +40,11 @@ installation profile).
 
 ## Findings
 
-| ID | Finding and evidence | Level | Consequence | Disposition | Owner | Acceptance |
-| --- | --- | --- | --- | --- | --- | --- |
-| `<PKG>-<AREA>-001` | *what happens, with file:line and how to reproduce* | reproduced | *who is affected* | repair / move / document / deprecate / remove / retain | #n | *the test or check that proves it's fixed* |
+| ID | Finding and evidence | Level | Expected contract | Consequence and consumers | Disposition | Owner | Acceptance | Residual risk |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `<PKG>-<AREA>-001` | *what happens, with file:line and how to reproduce* | reproduced | *what the charter or contract says should happen* | *what breaks, and for which consumers* | repair / move / document / deprecate / remove / retain | #n | *the test or check that proves it's fixed* | *what stays true even after the fix, or "none"* |
 
-*For consumer-driven audits add a column: required for unblock / independent / accepted limitation.*
+*For consumer-driven audits add a column: required for unblock / independent / accepted limitation (with rationale).*
 
 ## Profile checklists
 
@@ -61,6 +61,9 @@ or a finding ID) or "does not apply" (with a reason).*
 
 ## Evidence
 
-| Command or probe | Base | Result |
-| --- | --- | --- |
-| | | |
+*One row per run. Reused evidence keeps its original base, dependency identity
+and runner; don't merge overlapping runs into one "unique" count.*
+
+| Command or probe | Base | Dependency identity | Runner | Proves | Result |
+| --- | --- | --- | --- | --- | --- |
+| | *full SHA* | *lock SHA-256, or package versions* | *host, OS, PHP; local or hosted run ID* | *source read / synthetic probe / injected integration / installed consumer* | |

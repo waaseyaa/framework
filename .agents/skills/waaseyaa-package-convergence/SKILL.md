@@ -50,8 +50,9 @@ cleaner architecture as if it were current fact.
 
 ### 3. Inventory everything
 
-Classify **every production file** in the package before judging, moving or
-deleting anything. Apply the relevant rows of the
+Classify **every production file** in the package before judging, moving,
+sealing or deleting anything. Include frontend and generated artifacts when the
+package ships them. Apply the relevant rows of the
 [package audit checklist](references/package-audit-checklist.md). Trace
 declared public surfaces to real callers and composition roots, and runtime
 entrypoints back to contracts, dependencies, failure behavior and tests.
@@ -73,7 +74,8 @@ repositories first.
 
 ### 4. Pick the profiles
 
-Profiles are focused checklists selected by what the package does. Most
+Profiles are focused checklists selected by what the package does. They
+extend this shared method; they are not separate per-package workflows. Most
 packages need more than one. Record which you applied and why the others don't apply.
 
 | Profile | Use when the package… |
@@ -93,24 +95,45 @@ internals, initialization order, shared mutable state, provider callbacks,
 service-locator lookups, and changes that force coordinated edits across
 owners. Trace one real producer/consumer interaction and what happens when it
 fails or changes. Use lifecycle and consumer probes for coupling static tools
-can't see.
+can't see. Separate necessary composition from accidental coupling; extra
+interfaces or wrappers do not by themselves reduce coupling.
 
 For PHP, Deptrac is the dependency authority; don't write another parser.
-Coordinate the configuration shape with #3075 before adding a new per-package
-`deptrac.yaml` (admin-surface has the only one today). Classify from the
-charter, fail on uncovered dependencies, and seed allowed, forbidden and
-uncovered controls. Assert on Deptrac's JSON report, not its console output.
+Adopt it incrementally when repository-wide migration isn't part of the task,
+and coordinate the configuration shape with #3075 before adding a new
+per-package `deptrac.yaml` (admin-surface has the only one today). Classify
+layers from the charter, fail on uncovered dependencies, and seed allowed,
+forbidden and uncovered controls plus the clean zero-uncovered case.
+
+Tests assert on Deptrac's JSON report, so terminal detection in CI can't
+change the evidence shape. Console output is for human diagnosis only; Mermaid
+output is for a committed architecture view. Generated reports and diagrams
+are evidence views, never the architectural authority.
+
 Keep existing checks such as `bin/check-package-layers` until a replacement is
-accepted. Every exception names the dependency, reason and owner, with a
-removal condition or a maintained invariant. Refresh generated architecture
-views after any production change.
+accepted. Every exception names the dependency, reason and owner: a removal
+condition for a transitional exception, or a maintained invariant and a review
+trigger for an intentional long-lived adapter. Refresh generated architecture
+views after any production change, including behavioral repairs; a new edge
+can change counts or topology even when the intended layering doesn't.
+
+For non-PHP surfaces, use the ecosystem's own mechanical compatibility and
+import checks. Prefer exact structural compatibility, schema validation, build
+exports and real package installation over prose comparisons or
+hand-maintained symbol lists.
 
 **Symfony reuse.** For substantial custom infrastructure, check whether an
 installed Symfony component already owns the generic mechanism while Waaseyaa
-keeps its domain policy. Verify against the component's source, tests and
-official docs. Record retain, simplify around Symfony, replace, or defer, with
-evidence and an owner. Similar names or fewer lines are not evidence. Audit
-findings don't authorize replacement work.
+keeps its domain policy. Start with installed components and supported
+versions, and verify against the component's source, tests and official docs.
+Compare semantics, public compatibility, failure behavior, installation
+profiles, dependency weight and migration cost; name the Waaseyaa behavior
+that remains, the smallest adapter, and the equivalence tests. Record retain,
+simplify around Symfony, replace, or defer, with evidence and an owner.
+Similar names or fewer lines are not evidence. Don't introduce Symfony just to
+remove working code, don't replace authorization or sovereignty policy with a
+generic mechanism, and don't make unrelated replacement a consumer-unblock
+prerequisite. Audit findings don't authorize replacement work.
 
 **Behavior.** Ask of the package:
 
@@ -142,14 +165,18 @@ One finding per row.
 - **reproduced:** demonstrated by a probe or test (label synthetic fixtures as synthetic);
 - **qualified:** exercised in a named installation profile (source, split, no-dev, generated app, native host).
 
-Tie reused evidence to its source commit, dependency identity and runner. Don't
-add overlapping runs together into "unique coverage".
+A source read, a synthetic probe, an injected-service integration test and a
+real installed-consumer test each prove a different boundary. Tie reused
+evidence to its source commit, dependency identity and runner. Don't add
+overlapping runs together into "unique coverage".
 
 For a consumer-driven, multi-package audit, mark each finding as required for
 the consumer unblock, an independent follow-up, or an accepted limitation with a
 rationale. Reconcile the producers and consumers of the shared contract
 (ownership, readiness, lifetime, failure and completeness semantics, effective
-access, installation profiles) before choosing a repair. Unrelated whole-package
+access, installation profiles) before choosing a repair. Record conflicting
+contracts and unresolved evidence, and name which uncertainties actually block
+a safe repair. Unrelated whole-package
 convergence is not a prerequisite for the consumer fix. Add a roster entry for
 any extra package the repair touches.
 
@@ -171,8 +198,10 @@ Anything short of that is **in progress**. Say so.
 The repository is the record; GitHub mirrors it.
 
 - Write the audit to `docs/audits/packages/<package>.md` from the
-  [template](references/audit-record-template.md). Update the package's row in
-  the program coverage index when one exists (`FW-PACKAGE-CONVERGENCE-01`).
+  [template](references/audit-record-template.md), and update the package's
+  row in `docs/audits/packages/coverage-index.json` (FW-PACKAGE-CONVERGENCE-01)
+  in the same change. An Architecture test keeps the index in step with the
+  real package set.
 - Keep probes that reproduce a finding. Commit them with the audit record, or
   turn them into the failing regression test that opens the repair PR. Don't
   leave evidence only in a scratch folder or an issue comment.
@@ -197,7 +226,9 @@ authorized, sequence it so later work builds on settled contracts:
 
 This is a dependency order, not one large PR. Split where review, ownership or
 risk improves. Run governance scanners after changing test harnesses as well
-as production code; a scanner finding is an ownership signal, not permission
+as production code: test-only database construction, service composition,
+generated manifests and dependency setup can still enter construction rosters
+or other governed authorities. A scanner finding is an ownership signal, not permission
 to suppress it. Keep the parent issue open until its full acceptance is proven.
 
 ## Convergence standard
