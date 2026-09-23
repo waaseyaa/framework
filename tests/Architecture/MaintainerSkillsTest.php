@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 require_once dirname(__DIR__, 2) . '/bin/lib/repository-files.php';
 
@@ -37,7 +38,12 @@ final class MaintainerSkillsTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->remove(dirname($this->source));
+        $scratch = dirname($this->source);
+        if (PHP_OS_FAMILY === 'Windows' && is_dir($scratch)) {
+            // Git for Windows marks loose objects read-only, which unlink() refuses.
+            exec(sprintf('attrib -R %s /S /D', escapeshellarg(str_replace('/', '\\', $scratch) . '\\*')));
+        }
+        new Filesystem()->remove($scratch);
     }
 
     #[Test]
@@ -203,6 +209,125 @@ final class MaintainerSkillsTest extends TestCase
         self::assertSame(1, $installExit);
     }
 
+    #[Test]
+    public function an_untrustworthy_manifest_is_refused_and_nothing_outside_the_skill_is_touched(): void
+    {
+        $this->commitSource();
+        $this->install();
+        $manifestPath = $this->target . '/demo-skill/.waaseyaa-skill.json';
+        $valid = json_decode((string) file_get_contents($manifestPath), true, 16, JSON_THROW_ON_ERROR);
+        $outside = dirname($this->target) . '/outside.txt';
+        file_put_contents($outside, "not the installer's\n");
+        $digest = str_repeat('a', 64);
+
+        $cases = [
+            'wrong skill' => [['skill' => 'other-skill'], 'skill is not "demo-skill"'],
+            'wrong source' => [['source' => 'someone/else:.agents/skills/demo-skill'], 'source is not "waaseyaa/framework:.agents/skills/demo-skill"'],
+            'parent traversal' => [['files' => $valid['files'] + ['../../outside.txt' => $digest]], 'unsafe path "../../outside.txt"'],
+            'absolute path' => [['files' => $valid['files'] + ['/etc/passwd' => $digest]], 'unsafe path "/etc/passwd"'],
+            'drive path' => [['files' => $valid['files'] + ['C:/outside.txt' => $digest]], 'unsafe path "C:/outside.txt"'],
+            'manifest as owned file' => [['files' => $valid['files'] + ['.waaseyaa-skill.json' => $digest]], 'unsafe path ".waaseyaa-skill.json"'],
+            'bad digest' => [['files' => ['SKILL.md' => 'not-a-digest'] + $valid['files']], 'files["SKILL.md"] is not a SHA-256 digest'],
+            'bad commit' => [['source_commit' => 'main'], 'source_commit is not a full commit id'],
+        ];
+        // Make the source drop a file, so a trusted manifest would lead to deletions.
+        unlink($this->source . '/.agents/skills/demo-skill/agents/openai.yaml');
+        $this->commitSource('drop file');
+
+        foreach ($cases as $label => [$override, $expected]) {
+            file_put_contents($manifestPath, json_encode(array_replace($valid, $override), JSON_THROW_ON_ERROR));
+
+            [$verify, $verifyExit] = $this->runCommand('verify', '--root=' . $this->source, '--target=' . $this->target);
+            self::assertSame(1, $verifyExit, $label);
+            self::assertStringContainsString('invalid-manifest ' . $this->target . '/demo-skill', implode("\n", $verify), $label);
+            self::assertStringContainsString($expected, implode("\n", $verify), $label);
+
+            [$output, $exitCode] = $this->install();
+            self::assertSame(1, $exitCode, $label);
+            self::assertStringContainsString('its manifest cannot be trusted', implode("\n", $output), $label);
+            self::assertStringContainsString('No files were written.', implode("\n", $output), $label);
+            self::assertFileExists($this->target . '/demo-skill/agents/openai.yaml', $label);
+            self::assertSame("not the installer's\n", file_get_contents($outside), $label);
+        }
+
+        file_put_contents($manifestPath, 'not json');
+        [$verify] = $this->runCommand('verify', '--root=' . $this->source, '--target=' . $this->target);
+        self::assertStringContainsString('manifest is not valid JSON', implode("\n", $verify));
+    }
+
+    #[Test]
+    public function malformed_frontmatter_and_unfinished_markers_are_refused(): void
+    {
+        $cases = [
+            'nested value' => ["---\nname: demo-skill\ndescription: Demo.\nmetadata:\n  owner: someone\n---\n", 'frontmatter line 4 is not a flat "key: value" pair'],
+            'unbalanced quote' => ["---\nname: demo-skill\ndescription: \"Demo.\n---\n", 'frontmatter key "description" must have a plain single-line value'],
+            'flow sequence' => ["---\nname: demo-skill\ndescription: [a, b]\n---\n", 'frontmatter key "description" must have a plain single-line value'],
+            'block scalar' => ["---\nname: demo-skill\ndescription: >\n  Demo.\n---\n", 'frontmatter key "description" must have a plain single-line value'],
+            'duplicate key' => ["---\nname: demo-skill\nname: demo-skill\ndescription: Demo.\n---\n", 'frontmatter key "name" appears more than once'],
+            'blank line' => ["---\nname: demo-skill\n\ndescription: Demo.\n---\n", 'frontmatter line 2 is not a flat "key: value" pair'],
+            'todo marker' => ["---\nname: demo-skill\ndescription: Demo.\n---\n\nTODO: write this section.\n", 'SKILL.md contains an unfinished TODO marker'],
+        ];
+
+        foreach ($cases as $label => [$skill, $expected]) {
+            $directory = $this->source . '/.agents/skills/demo-skill';
+            new Filesystem()->remove($directory);
+            $this->writeSource('demo-skill', $skill);
+
+            [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->source);
+
+            self::assertSame(1, $exitCode, $label);
+            self::assertStringContainsString($expected, implode("\n", $output), $label);
+        }
+
+        new Filesystem()->remove($this->source . '/.agents/skills/demo-skill');
+        $this->writeSource('demo-skill', "---\nname: demo-skill\ndescription: \"Quoted: with a colon.\"\nlicense: MIT\n---\n\n# Demo\n");
+        [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->source);
+        self::assertSame(0, $exitCode, implode("\n", $output));
+    }
+
+    #[Test]
+    public function a_filesystem_failure_rolls_back_the_new_directory_and_never_reports_success(): void
+    {
+        $this->commitSource();
+        $blocked = dirname($this->target) . '/blocked';
+        file_put_contents($blocked, "a file where a directory is needed\n");
+
+        [$output, $exitCode] = $this->runCommand('install', '--root=' . $this->source, '--target=' . $this->target, '--target=' . $blocked);
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('failed ' . $blocked . '/demo-skill: maintainer-skills: cannot create', $report);
+        self::assertStringContainsString('INCOMPLETE: 1 of 2 skill directories were written before the failure.', $report);
+        self::assertStringNotContainsString('source ', $report);
+        self::assertSame("a file where a directory is needed\n", file_get_contents($blocked));
+        [, $verifyExit] = $this->runCommand('verify', '--root=' . $this->source, '--target=' . $this->target);
+        self::assertSame(0, $verifyExit);
+        self::assertSame([], glob($this->target . '/demo-skill/{,*/}*.tmp-*', GLOB_BRACE) ?: []);
+    }
+
+    #[Test]
+    public function a_failure_part_way_through_a_first_install_removes_what_it_created(): void
+    {
+        $this->commitSource();
+        putenv('WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT_AFTER_FILES=2');
+        try {
+            [$output, $exitCode] = $this->install();
+        } finally {
+            putenv('WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT_AFTER_FILES');
+        }
+        $report = implode("\n", $output);
+
+        self::assertSame(1, $exitCode, $report);
+        self::assertStringContainsString('injected fault after 2 new files', $report);
+        self::assertStringContainsString('INCOMPLETE: 0 of 1 skill directories', $report);
+        self::assertStringContainsString('The failed new directory was rolled back.', $report);
+        self::assertDirectoryDoesNotExist($this->target . '/demo-skill');
+
+        [$retry, $retryExit] = $this->install();
+        self::assertSame(0, $retryExit, implode("\n", $retry));
+        self::assertContains('installed ' . $this->target . '/demo-skill', $retry);
+    }
+
     private function writeSource(string $name, string $skill): void
     {
         $directory = $this->source . '/.agents/skills/' . $name;
@@ -251,26 +376,5 @@ final class MaintainerSkillsTest extends TestCase
         self::assertSame(0, $exitCode, $stderr);
 
         return $stdout;
-    }
-
-    private function remove(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            /** @var \SplFileInfo $entry */
-            if ($entry->isDir() && !$entry->isLink()) {
-                rmdir($entry->getPathname());
-            } else {
-                @chmod($entry->getPathname(), 0o666);
-                unlink($entry->getPathname());
-            }
-        }
-        rmdir($directory);
     }
 }

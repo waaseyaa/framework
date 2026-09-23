@@ -82,7 +82,7 @@ try {
         $failed = false;
         foreach ($targets as $target) {
             foreach ($skills as $name => $files) {
-                $inspection = maintainerSkillsInspect($target . '/' . $name, $files);
+                $inspection = maintainerSkillsInspect($target . '/' . $name, $name, $files);
                 $failed = $failed || $inspection['state'] !== 'current';
                 printf("%s %s/%s%s\n", $inspection['state'], $target, $name, $inspection['detail'] === [] ? '' : ': ' . implode(', ', $inspection['detail']));
             }
@@ -102,7 +102,7 @@ try {
     foreach ($targets as $target) {
         foreach ($skills as $name => $files) {
             $directory = $target . '/' . $name;
-            $inspection = maintainerSkillsInspect($directory, $files);
+            $inspection = maintainerSkillsInspect($directory, $name, $files);
             $owned = $inspection['manifest'] === null ? [] : array_keys($inspection['manifest']['files']);
             switch ($inspection['state']) {
                 case 'missing':
@@ -115,7 +115,7 @@ try {
                     $plan[] = ['unchanged', $directory, $name, null];
                     break;
                 case 'unmanaged':
-                    if ($adopt && maintainerSkillsEqualIgnoringCrlf($files, maintainerSkillsReadInstalled($directory))) {
+                    if ($adopt && is_dir($directory) && !is_link($directory) && maintainerSkillsEqualIgnoringCrlf($files, maintainerSkillsReadInstalled($directory))) {
                         $plan[] = ['adopted', $directory, $name, array_keys($files)];
                     } else {
                         $refusals[] = sprintf(
@@ -124,6 +124,9 @@ try {
                             $adopt ? ' and its content differs from the source' : '; move it aside, or pass --adopt if it is an unmodified copy',
                         );
                     }
+                    break;
+                case 'invalid-manifest':
+                    $refusals[] = sprintf('refused %s: its manifest cannot be trusted: %s', $directory, implode('; ', $inspection['detail']));
                     break;
                 default:
                     $refusals[] = sprintf('refused %s: local drift from its manifest: %s', $directory, implode(', ', $inspection['detail']));
@@ -135,12 +138,29 @@ try {
         exit(1);
     }
 
+    $completed = [];
     foreach ($plan as [$action, $directory, $name, $owned]) {
         if ($owned !== null) {
-            maintainerSkillsWrite($directory, $name, $skills[$name], $owned, $provenance);
+            try {
+                maintainerSkillsWrite($directory, $name, $skills[$name], $owned, $provenance, $action === 'installed');
+            } catch (RuntimeException $failure) {
+                foreach ($completed as $line) {
+                    fwrite(STDERR, $line . "\n");
+                }
+                fwrite(STDERR, sprintf(
+                    "failed %s: %s\nINCOMPLETE: %d of %d skill directories were written before the failure. %s\nRun verify to see the state of every target.\n",
+                    $directory,
+                    $failure->getMessage(),
+                    count($completed),
+                    count($plan),
+                    $action === 'installed' ? 'The failed new directory was rolled back.' : 'The failed directory keeps its old manifest and now verifies as drifted.',
+                ));
+                exit(1);
+            }
         }
-        printf("%s %s\n", $action, $directory);
+        $completed[] = sprintf('%s %s', $action, $directory);
     }
+    echo implode("\n", $completed), "\n";
     printf("source %s%s\n", $provenance['commit'], $provenance['clean'] ? '' : ' (with uncommitted changes)');
     exit(0);
 } catch (Throwable $exception) {

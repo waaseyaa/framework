@@ -27,7 +27,9 @@ require_once __DIR__ . '/repository-files.php';
 const MAINTAINER_SKILLS_SOURCE = '.agents/skills';
 const MAINTAINER_SKILLS_MANIFEST = '.waaseyaa-skill.json';
 const MAINTAINER_SKILLS_MANIFEST_SCHEMA = 1;
-const MAINTAINER_SKILLS_FRONTMATTER_KEYS = ['name', 'description', 'license', 'allowed-tools', 'metadata'];
+/** Test-only fault injection: fail after this many new files are written. Never set it outside tests. */
+const MAINTAINER_SKILLS_TEST_FAULT = "WAASEYAA_MAINTAINER_SKILLS_TEST_FAULT_AFTER_FILES";
+const MAINTAINER_SKILLS_FRONTMATTER_KEYS = ['name', 'description', 'license', 'allowed-tools'];
 
 /**
  * @return array<string, array<string, string>> skill name => relative path => file bytes
@@ -56,8 +58,15 @@ function maintainerSkillsSource(string $root): array
 }
 
 /**
- * Structural checks equivalent to the skill-creator `quick_validate.py`
- * contract, plus local link resolution.
+ * Validate one skill source.
+ *
+ * This is deliberately NARROWER than skill-creator's `quick_validate.py`,
+ * which parses frontmatter as full YAML. Here frontmatter must be a flat
+ * mapping of single-line scalar values (optionally wrapped in one pair of
+ * matching quotes), with no duplicate keys, comments, nesting or blank lines.
+ * Anything else is refused rather than guessed at, so a malformed block can
+ * never pass. It also refuses unfinished `TODO` markers in any file, CR line
+ * endings, and relative Markdown links that don't resolve inside the skill.
  *
  * @param array<string, string> $files
  * @return list<string> problems; empty when valid
@@ -77,12 +86,24 @@ function maintainerSkillProblems(string $name, array $files): array
         return [...$problems, 'SKILL.md must start with a --- frontmatter block'];
     }
     $frontmatter = [];
-    foreach (explode("\n", $match[1]) as $line) {
-        if ($line === '' || str_starts_with($line, ' ') || str_starts_with($line, "\t")) {
+    foreach (explode("\n", $match[1]) as $number => $line) {
+        if (preg_match('/^([a-z][a-z-]*): (.*)$/', $line, $pair) !== 1) {
+            $problems[] = sprintf('frontmatter line %d is not a flat "key: value" pair', $number + 1);
             continue;
         }
-        [$key, $value] = array_pad(explode(':', $line, 2), 2, '');
-        $frontmatter[trim($key)] = trim($value);
+        [, $key, $value] = $pair;
+        if (array_key_exists($key, $frontmatter)) {
+            $problems[] = sprintf('frontmatter key "%s" appears more than once', $key);
+            continue;
+        }
+        $value = trim($value);
+        if (preg_match('/^(["\']).*\1$/s', $value) === 1) {
+            $value = substr($value, 1, -1);
+        } elseif ($value === '' || str_starts_with($value, '"') || str_starts_with($value, "'") || preg_match('/^[\[{>|&*!%@`#]/', $value) === 1 || str_contains($value, ' #')) {
+            $problems[] = sprintf('frontmatter key "%s" must have a plain single-line value', $key);
+            continue;
+        }
+        $frontmatter[$key] = $value;
     }
     foreach (array_diff(array_keys($frontmatter), MAINTAINER_SKILLS_FRONTMATTER_KEYS) as $unexpected) {
         $problems[] = sprintf('unexpected frontmatter key "%s"', $unexpected);
@@ -100,6 +121,9 @@ function maintainerSkillProblems(string $name, array $files): array
     foreach ($files as $relative => $content) {
         if (str_contains($content, "\r")) {
             $problems[] = sprintf('%s contains CR line endings', $relative);
+        }
+        if (preg_match('/\bTODO\b/', $content) === 1) {
+            $problems[] = sprintf('%s contains an unfinished TODO marker', $relative);
         }
         if (!str_ends_with($relative, '.md')) {
             continue;
@@ -166,7 +190,9 @@ function maintainerSkillsHashes(array $files): array
 }
 
 /**
- * Regular files under an installed skill directory, excluding the manifest.
+ * Files under an installed skill directory, excluding the manifest. A
+ * symbolic link is never followed; it is reported with a sentinel value so
+ * it always shows up as drift.
  *
  * @return array<string, string> relative path => file bytes
  */
@@ -175,57 +201,142 @@ function maintainerSkillsReadInstalled(string $directory): array
     $files = [];
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST,
     );
     foreach ($iterator as $entry) {
         /** @var SplFileInfo $entry */
         $relative = str_replace('\\', '/', substr($entry->getPathname(), strlen($directory) + 1));
-        if ($relative === MAINTAINER_SKILLS_MANIFEST || !$entry->isFile()) {
+        if ($relative === MAINTAINER_SKILLS_MANIFEST) {
             continue;
         }
-        $files[$relative] = (string) file_get_contents($entry->getPathname());
+        if ($entry->isLink()) {
+            $files[$relative] = "\0symbolic link\0";
+            continue;
+        }
+        if (!$entry->isFile()) {
+            continue;
+        }
+        $bytes = file_get_contents($entry->getPathname());
+        if ($bytes === false) {
+            throw new RuntimeException(sprintf('maintainer-skills: cannot read %s.', $entry->getPathname()));
+        }
+        $files[$relative] = $bytes;
     }
     ksort($files);
 
     return $files;
 }
 
-/**
- * @return array<string, mixed>|null
- */
-function maintainerSkillsReadManifest(string $directory): ?array
+function maintainerSkillsCanonicalSource(string $name): string
 {
-    $path = $directory . '/' . MAINTAINER_SKILLS_MANIFEST;
-    if (!is_file($path)) {
-        return null;
+    return 'waaseyaa/framework:' . MAINTAINER_SKILLS_SOURCE . '/' . $name;
+}
+
+/**
+ * A relative path the installer may write or delete: forward slashes, no
+ * empty, `.` or `..` segments, no drive or absolute prefix, and never the
+ * manifest itself.
+ */
+function maintainerSkillsIsSafeRelativePath(string $relative): bool
+{
+    if ($relative === MAINTAINER_SKILLS_MANIFEST || preg_match('#^[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*)*$#', $relative) !== 1) {
+        return false;
     }
-    $manifest = json_decode((string) file_get_contents($path), true, 16, JSON_THROW_ON_ERROR);
-    if (!is_array($manifest) || ($manifest['schema_version'] ?? null) !== MAINTAINER_SKILLS_MANIFEST_SCHEMA || !is_array($manifest['files'] ?? null)) {
-        throw new RuntimeException(sprintf('maintainer-skills: %s is not a schema %d manifest.', $path, MAINTAINER_SKILLS_MANIFEST_SCHEMA));
+    foreach (explode('/', $relative) as $segment) {
+        if ($segment === '.' || $segment === '..') {
+            return false;
+        }
     }
 
-    return $manifest;
+    return true;
+}
+
+/**
+ * Read and validate a skill manifest.
+ *
+ * @return array{manifest: array{schema_version: int, skill: string, source: string, source_commit: string, source_clean: bool, files: array<string, string>}|null, problems: list<string>}
+ *   A null manifest with no problems means the directory has no manifest.
+ */
+function maintainerSkillsReadManifest(string $directory, string $name): array
+{
+    $path = $directory . '/' . MAINTAINER_SKILLS_MANIFEST;
+    if (is_link($path)) {
+        return ['manifest' => null, 'problems' => ['manifest is a symbolic link']];
+    }
+    if (!is_file($path)) {
+        return ['manifest' => null, 'problems' => []];
+    }
+    try {
+        $manifest = json_decode((string) file_get_contents($path), true, 16, JSON_THROW_ON_ERROR);
+    } catch (JsonException) {
+        return ['manifest' => null, 'problems' => ['manifest is not valid JSON']];
+    }
+    if (!is_array($manifest)) {
+        return ['manifest' => null, 'problems' => ['manifest is not a JSON object']];
+    }
+
+    $problems = [];
+    if (($manifest['schema_version'] ?? null) !== MAINTAINER_SKILLS_MANIFEST_SCHEMA) {
+        $problems[] = sprintf('schema_version is not %d', MAINTAINER_SKILLS_MANIFEST_SCHEMA);
+    }
+    if (($manifest['skill'] ?? null) !== $name) {
+        $problems[] = sprintf('skill is not "%s"', $name);
+    }
+    if (($manifest['source'] ?? null) !== maintainerSkillsCanonicalSource($name)) {
+        $problems[] = sprintf('source is not "%s"', maintainerSkillsCanonicalSource($name));
+    }
+    $commit = $manifest['source_commit'] ?? null;
+    if (!is_string($commit) || preg_match('/^([0-9a-f]{40}|[0-9a-f]{64})$/', $commit) !== 1) {
+        $problems[] = 'source_commit is not a full commit id';
+    }
+    if (!is_bool($manifest['source_clean'] ?? null)) {
+        $problems[] = 'source_clean is not a boolean';
+    }
+    $files = $manifest['files'] ?? null;
+    if (!is_array($files) || $files === [] || array_is_list($files)) {
+        $problems[] = 'files is not a non-empty object';
+    } else {
+        foreach ($files as $relative => $digest) {
+            if (!maintainerSkillsIsSafeRelativePath((string) $relative)) {
+                $problems[] = sprintf('files lists an unsafe path "%s"', $relative);
+            }
+            if (!is_string($digest) || preg_match('/^[0-9a-f]{64}$/', $digest) !== 1) {
+                $problems[] = sprintf('files["%s"] is not a SHA-256 digest', $relative);
+            }
+        }
+    }
+    if ($problems !== []) {
+        return ['manifest' => null, 'problems' => $problems];
+    }
+
+    /** @var array{schema_version: int, skill: string, source: string, source_commit: string, source_clean: bool, files: array<string, string>} $manifest */
+    return ['manifest' => $manifest, 'problems' => []];
 }
 
 /**
  * Classify one target skill directory against the source.
  *
- * States: missing, unmanaged, drifted, current, stale.
+ * States: missing, unmanaged, invalid-manifest, drifted, current, stale.
  *
  * @param array<string, string> $sourceFiles
- * @return array{state: string, detail: list<string>, manifest: array<string, mixed>|null}
+ * @return array{state: string, detail: list<string>, manifest: array{files: array<string, string>}|null}
  */
-function maintainerSkillsInspect(string $directory, array $sourceFiles): array
+function maintainerSkillsInspect(string $directory, string $name, array $sourceFiles): array
 {
-    if (!is_dir($directory)) {
-        return ['state' => 'missing', 'detail' => [], 'manifest' => null];
+    if (!is_dir($directory) || is_link($directory)) {
+        $occupied = file_exists($directory) || is_link($directory);
+
+        return ['state' => $occupied ? 'unmanaged' : 'missing', 'detail' => [], 'manifest' => null];
     }
-    $installed = maintainerSkillsHashes(maintainerSkillsReadInstalled($directory));
-    $manifest = maintainerSkillsReadManifest($directory);
+    ['manifest' => $manifest, 'problems' => $problems] = maintainerSkillsReadManifest($directory, $name);
+    if ($problems !== []) {
+        return ['state' => 'invalid-manifest', 'detail' => $problems, 'manifest' => null];
+    }
     if ($manifest === null) {
         return ['state' => 'unmanaged', 'detail' => [], 'manifest' => null];
     }
 
-    /** @var array<string, string> $recorded */
+    $installed = maintainerSkillsHashes(maintainerSkillsReadInstalled($directory));
     $recorded = $manifest['files'];
     $drift = [];
     foreach (array_unique([...array_keys($recorded), ...array_keys($installed)]) as $relative) {
@@ -269,36 +380,95 @@ function maintainerSkillsEqualIgnoringCrlf(array $sourceFiles, array $installedF
 }
 
 /**
+ * Write bytes to $target through a sibling temporary file and a rename, so a
+ * reader never sees a partial file. Throws on any failure.
+ */
+function maintainerSkillsWriteFileAtomically(string $target, string $bytes): void
+{
+    $temporary = $target . '.tmp-' . bin2hex(random_bytes(4));
+    $written = @file_put_contents($temporary, $bytes);
+    if ($written !== strlen($bytes)) {
+        $reason = error_get_last()['message'] ?? 'short write';
+        @unlink($temporary);
+        throw new RuntimeException(sprintf('maintainer-skills: cannot write %s: %s', $target, $reason));
+    }
+    if (!@rename($temporary, $target)) {
+        $reason = error_get_last()['message'] ?? 'rename failed';
+        @unlink($temporary);
+        throw new RuntimeException(sprintf('maintainer-skills: cannot replace %s: %s', $target, $reason));
+    }
+}
+
+/**
+ * Install or update one skill directory. Obsolete owned files are deleted,
+ * every file is written atomically, and the manifest is written last, also
+ * atomically, so it only ever describes a completed installation.
+ *
+ * A failed first installation removes exactly the files and directories it
+ * created. A failed update cannot restore overwritten bytes, so it keeps the
+ * old manifest: the directory then verifies as drifted, and later installs
+ * refuse it until the owner resolves it.
+ *
  * @param array<string, string> $sourceFiles
- * @param list<string> $previouslyOwned relative paths recorded by the old manifest
+ * @param list<string> $previouslyOwned relative paths from the old, validated manifest
  * @param array{commit: string, clean: bool} $provenance
  */
-function maintainerSkillsWrite(string $directory, string $name, array $sourceFiles, array $previouslyOwned, array $provenance): void
+function maintainerSkillsWrite(string $directory, string $name, array $sourceFiles, array $previouslyOwned, array $provenance, bool $firstInstall): void
 {
-    foreach (array_diff($previouslyOwned, array_keys($sourceFiles)) as $obsolete) {
-        @unlink($directory . '/' . $obsolete);
-    }
-    foreach ($sourceFiles as $relative => $bytes) {
-        $target = $directory . '/' . $relative;
-        if (!is_dir(dirname($target)) && !mkdir(dirname($target), 0o755, true) && !is_dir(dirname($target))) {
-            throw new RuntimeException(sprintf('maintainer-skills: cannot create %s.', dirname($target)));
+    $createdDirectories = [];
+    $createdFiles = [];
+    try {
+        foreach (array_diff($previouslyOwned, array_keys($sourceFiles)) as $obsolete) {
+            $path = $directory . '/' . $obsolete;
+            if ((file_exists($path) || is_link($path)) && !@unlink($path)) {
+                throw new RuntimeException(sprintf('maintainer-skills: cannot delete %s: %s', $path, error_get_last()['message'] ?? 'unlink failed'));
+            }
         }
-        $temporary = $target . '.tmp-' . bin2hex(random_bytes(4));
-        file_put_contents($temporary, $bytes);
-        rename($temporary, $target);
+        foreach ($sourceFiles as $relative => $bytes) {
+            $target = $directory . '/' . $relative;
+            $missing = [];
+            for ($parent = dirname($target); !is_dir($parent) && $parent !== dirname($parent); $parent = dirname($parent)) {
+                array_unshift($missing, $parent);
+            }
+            foreach ($missing as $parent) {
+                if (!@mkdir($parent, 0o755)) {
+                    throw new RuntimeException(sprintf('maintainer-skills: cannot create %s: %s', $parent, error_get_last()['message'] ?? 'mkdir failed'));
+                }
+                $createdDirectories[] = $parent;
+            }
+            $existed = file_exists($target);
+            maintainerSkillsWriteFileAtomically($target, $bytes);
+            if (!$existed) {
+                $createdFiles[] = $target;
+            }
+            $faultAfter = maintainerSkillsEnvironment(MAINTAINER_SKILLS_TEST_FAULT);
+            if ($faultAfter !== null && count($createdFiles) >= (int) $faultAfter) {
+                throw new RuntimeException(sprintf("maintainer-skills: injected fault after %d new files (%s).", count($createdFiles), MAINTAINER_SKILLS_TEST_FAULT));
+            }
+        }
+        $manifest = [
+            'schema_version' => MAINTAINER_SKILLS_MANIFEST_SCHEMA,
+            'skill' => $name,
+            'source' => maintainerSkillsCanonicalSource($name),
+            'source_commit' => $provenance['commit'],
+            'source_clean' => $provenance['clean'],
+            'files' => maintainerSkillsHashes($sourceFiles),
+        ];
+        maintainerSkillsWriteFileAtomically(
+            $directory . '/' . MAINTAINER_SKILLS_MANIFEST,
+            json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+    } catch (RuntimeException $failure) {
+        if ($firstInstall) {
+            foreach (array_reverse($createdFiles) as $file) {
+                @unlink($file);
+            }
+            foreach (array_reverse($createdDirectories) as $created) {
+                @rmdir($created);
+            }
+        }
+        throw $failure;
     }
-    $manifest = [
-        'schema_version' => MAINTAINER_SKILLS_MANIFEST_SCHEMA,
-        'skill' => $name,
-        'source' => 'waaseyaa/framework:' . MAINTAINER_SKILLS_SOURCE . '/' . $name,
-        'source_commit' => $provenance['commit'],
-        'source_clean' => $provenance['clean'],
-        'files' => maintainerSkillsHashes($sourceFiles),
-    ];
-    file_put_contents(
-        $directory . '/' . MAINTAINER_SKILLS_MANIFEST,
-        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
-    );
 }
 
 /**

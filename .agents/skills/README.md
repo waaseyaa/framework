@@ -42,11 +42,14 @@ Pass `--target=DIR` (repeatable) to choose other directories.
 Each installed skill gets a `.waaseyaa-skill.json` manifest with the source
 commit and a SHA-256 for every file. `verify` reports each copy as `current`,
 `stale` (the source changed), `drifted` (someone edited the copy), `missing`,
-or `unmanaged` (a directory the installer did not create).
+`unmanaged` (a directory the installer did not create), or `invalid-manifest`
+(the manifest names the wrong skill or source, or lists unsafe paths or
+malformed digests).
 
 `install` decides every target before writing anything, and it refuses rather
 than overwriting:
 
+- a copy with an **invalid manifest**. Delete it and install again;
 - a **drifted** copy. Move the local edit into a pull request, or delete the
   copy, then install again;
 - an **unmanaged** directory. If it is an unmodified older copy, `--adopt`
@@ -54,3 +57,16 @@ than overwriting:
   endings. Otherwise move it aside;
 - a source directory with **uncommitted changes**, unless you pass
   `--allow-dirty-source`. The manifest then records `source_clean: false`.
+
+If an install fails part-way, it exits non-zero and says how many directories
+completed. A new directory is rolled back; an updated one keeps its old
+manifest and verifies as `drifted` until you delete it and install again.
+
+## Validation
+
+`validate` is deliberately stricter and narrower than skill-creator's
+`quick_validate.py`: frontmatter must be flat `key: value` lines with
+single-line values (keys `name`, `description`, `license`, `allowed-tools`),
+and files may not contain `TODO` markers, CR line endings, or relative links
+that don't resolve inside the skill. The full contract is in
+`docs/change-records/FW-MAINTAINER-SKILLS-01.md`.
