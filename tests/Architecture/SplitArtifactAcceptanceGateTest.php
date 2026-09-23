@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 
 /**
  * #2649. Release Gate 2 must build the exact candidate into split-shaped
@@ -31,11 +34,23 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
     private const string PROBE = 'tests/SplitArtifactAcceptance/boot.php';
     private const string FIXTURE = 'tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json';
 
+    /** The engine's only success line for the negative-control phase. */
+    private const string PASSED_LINE = '/^All \d+ seeded negative controls were detected\.$/m';
+
     private string $repoRoot;
+
+    private ?string $scratch = null;
 
     protected function setUp(): void
     {
         $this->repoRoot = dirname(__DIR__, 2);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->scratch !== null) {
+            new Filesystem()->remove($this->scratch);
+        }
     }
 
     #[Test]
@@ -246,6 +261,108 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         );
     }
 
+    /**
+     * #3081. A seeded negative control the host cannot construct proves
+     * nothing either way, so it is `not-run-here` (docs/specs/governed-gates.md
+     * §8): never counted as caught, never lowering the exit status of a control
+     * that genuinely went undetected, and never a pass. Native Windows reports
+     * the run INCOMPLETE (exit 3); every other host fails closed, because hosted
+     * Linux CI must execute every control.
+     *
+     * @param list<string> $controls
+     * @param list<string> $expected
+     */
+    #[Test]
+    #[DataProvider('negativeControlVerdicts')]
+    public function a_negative_control_this_host_cannot_seed_is_never_counted_as_detected(
+        string $osFamily,
+        array $controls,
+        int $expectedExit,
+        array $expected,
+    ): void {
+        $process = $this->negativeControlVerdict($osFamily, $controls);
+        $output = $process->getOutput() . $process->getErrorOutput();
+
+        self::assertSame($expectedExit, $process->getExitCode(), $output);
+        foreach ($expected as $fragment) {
+            self::assertStringContainsString($fragment, $output);
+        }
+        if ($expectedExit !== 0) {
+            self::assertDoesNotMatchRegularExpression(self::PASSED_LINE, $process->getOutput());
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string, list<string>, int, list<string>}>
+     */
+    public static function negativeControlVerdicts(): iterable
+    {
+        yield 'every control caught passes on Linux' => [
+            'Linux', ['caught', 'caught'], 0, ['All 2 seeded negative controls were detected.'],
+        ];
+        yield 'every control caught passes on native Windows' => [
+            'Windows', ['caught', 'caught'], 0, ['All 2 seeded negative controls were detected.'],
+        ];
+        yield 'an undetected control fails on Linux' => [
+            'Linux', ['caught', 'undetected'], 1, ['undetected: 2-undetected'],
+        ];
+        yield 'an undetected control fails on native Windows' => [
+            'Windows', ['caught', 'undetected'], 1, ['undetected: 2-undetected'],
+        ];
+        yield 'an unseedable control is incomplete, not passed, on native Windows' => [
+            'Windows',
+            ['caught', 'not-run-here'],
+            3,
+            ['2-not-run-here', 'not-run-here: synthetic', '1 of 2 seeded negative controls were detected', 'not a pass'],
+        ];
+        yield 'an unseedable control fails closed on Linux' => [
+            'Linux', ['caught', 'not-run-here'], 1, ['must execute every seeded negative control', '2-not-run-here'],
+        ];
+        yield 'an unseedable control fails closed on macOS' => [
+            'Darwin', ['caught', 'not-run-here'], 1, ['must execute every seeded negative control', '2-not-run-here'],
+        ];
+        yield 'an unseedable control never lowers an undetected failure' => [
+            'Windows', ['not-run-here', 'undetected', 'caught'], 1, ['undetected: 2-undetected'],
+        ];
+    }
+
+    /**
+     * #3081. The real `source-symlink-installed` control, against a throwaway
+     * project. Where the host can create a symbolic link (hosted Linux CI
+     * always can), it must execute and be caught by the installed-source
+     * refusal itself, not by an incidental error, whatever family the verdict
+     * is evaluated under. Where it cannot, native Windows reports it
+     * not-run-here and the run incomplete, and a host that must execute every
+     * control fails closed.
+     */
+    #[Test]
+    public function the_symlink_control_executes_wherever_the_host_can_create_a_link(): void
+    {
+        $hostCanLink = self::hostCanCreateSymlinks($this->scratch());
+
+        foreach ([PHP_OS_FAMILY, 'Linux'] as $osFamily) {
+            $process = $this->negativeControlVerdict($osFamily, ['source-symlink-installed']);
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            if ($hostCanLink) {
+                self::assertSame(0, $process->getExitCode(), $output);
+                self::assertMatchesRegularExpression(
+                    '/negative control 1-source-symlink-installed\s+caught: A packaged install must extract bytes, but .+ is a symbolic link to /',
+                    $output,
+                );
+
+                continue;
+            }
+
+            self::assertSame('Windows', PHP_OS_FAMILY, 'Only native Windows may lack symlink creation: ' . $output);
+            self::assertStringContainsString('1-source-symlink-installed', $output);
+            self::assertStringContainsString('not-run-here: this host cannot create a symbolic link', $output);
+            self::assertStringNotContainsString('caught:', $output);
+            self::assertDoesNotMatchRegularExpression(self::PASSED_LINE, $process->getOutput());
+            self::assertSame($osFamily === 'Windows' ? 3 : 1, $process->getExitCode(), $output);
+        }
+    }
+
     #[Test]
     public function exported_file_digest_fallback_is_case_insensitive_only_and_collision_safe(): void
     {
@@ -401,6 +518,56 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         $decoded = json_decode($this->read(self::FIXTURE), true, flags: JSON_THROW_ON_ERROR);
 
         return $decoded;
+    }
+
+    /**
+     * Run the engine's verdict over synthetic controls (and optionally the
+     * real symlink control) as if on $osFamily, without minutes of Composer work.
+     *
+     * @param list<string> $controls
+     */
+    private function negativeControlVerdict(string $osFamily, array $controls): Process
+    {
+        $process = new Process(
+            [
+                PHP_BINARY,
+                $this->repoRoot . '/' . self::ENGINE,
+                'negative-control-verdict',
+                $this->scratch() . '/' . uniqid('verdict-', true),
+                $osFamily,
+                ...$controls,
+            ],
+            $this->repoRoot,
+        );
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process;
+    }
+
+    private function scratch(): string
+    {
+        if ($this->scratch === null) {
+            $this->scratch = sys_get_temp_dir() . '/waaseyaa_split_artifact_verdict_' . uniqid('', true);
+            mkdir($this->scratch, 0o755, true);
+        }
+
+        return $this->scratch;
+    }
+
+    private static function hostCanCreateSymlinks(string $directory): bool
+    {
+        $target = $directory . '/symlink-probe-target';
+        $link = $directory . '/symlink-probe-link';
+        mkdir($target);
+        set_error_handler(static fn (): bool => true);
+        try {
+            $created = symlink($target, $link);
+        } finally {
+            restore_error_handler();
+        }
+
+        return $created && is_link($link);
     }
 
     private function read(string $relative): string
