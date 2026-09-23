@@ -1,7 +1,7 @@
 # FW-CLI-CONVERGENCE-01 — cli package convergence
 
 - Audit baseline: `5196f173b06bac698f14d292c7b827f2ddac388f`
-- Current base: `fa276b52ae9ba1a2e5cd1ba4f4289e1e12f5a0fd` (no `packages/cli`
+- Current base: `fa276b52a4785dfe40d16acd7c5197054592b4a0` (no `packages/cli`
   or `packages/foundation/src/Kernel` change since the audit baseline)
 - Forge mirror: `waaseyaa/framework#3117`
 - Parent program: `waaseyaa/framework#3118`; consumer-driven slice
