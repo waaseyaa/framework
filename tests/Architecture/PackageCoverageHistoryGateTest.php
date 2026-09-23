@@ -14,9 +14,10 @@ require_once dirname(__DIR__, 2) . '/bin/lib/repository-files.php';
 /**
  * bin/check-package-coverage-history (FW-PACKAGE-CONVERGENCE-01) against a
  * fixture repository with real history: it passes a consistent index and
- * fails closed on a shallow clone, a wrong dependency identity, an altered
- * evidence copy, a source commit off the checked-out history, and a missing
- * audit base.
+ * fails closed on a shallow clone, an unresolvable trusted main ref, a wrong
+ * dependency identity, an altered evidence copy, a source commit or audit base
+ * that is not on main (including one on the checked-out feature branch, which
+ * a HEAD-ancestry check would wrongly accept), and a missing audit base.
  */
 #[CoversNothing]
 final class PackageCoverageHistoryGateTest extends TestCase
@@ -30,7 +31,7 @@ final class PackageCoverageHistoryGateTest extends TestCase
         $this->scratch = str_replace('\\', '/', sys_get_temp_dir()) . '/waaseyaa_coverage_history_' . uniqid('', true);
         $this->fixture = $this->scratch . '/repo';
         mkdir($this->fixture . '/docs', 0o755, true);
-        $this->git($this->fixture, 'init', '--quiet');
+        $this->git($this->fixture, '-c', 'init.defaultBranch=main', 'init', '--quiet');
         file_put_contents($this->fixture . '/composer.lock', "lock v1\n");
         file_put_contents($this->fixture . '/docs/record.md', "original record\r\n");
         $this->base = $this->commit('audit base');
@@ -103,7 +104,53 @@ final class PackageCoverageHistoryGateTest extends TestCase
         [$output, $exitCode] = $this->gate($this->fixture);
 
         self::assertSame(1, $exitCode, $output);
-        self::assertStringContainsString('cites ' . $branchOnly . ', which is not an ancestor of HEAD', $output);
+        self::assertStringContainsString('cites ' . $branchOnly . ', which is not an ancestor of refs/heads/main', $output);
+    }
+
+    #[Test]
+    public function a_source_commit_only_on_the_checked_out_feature_branch_fails(): void
+    {
+        // The squash-risk topology: the cited commit IS an ancestor of HEAD,
+        // but not of main, so it would vanish from main after a squash merge.
+        $this->git($this->fixture, 'checkout', '--quiet', '-b', 'feature');
+        file_put_contents($this->fixture . '/docs/record.md', "feature record\n");
+        $featureCommit = $this->commit('feature-only record');
+        $this->writeIndex(source: $featureCommit, copied: "feature record\n");
+
+        [$output, $exitCode] = $this->gate($this->fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('cites ' . $featureCommit . ', which is not an ancestor of refs/heads/main', $output);
+
+        // The discriminator: judged against HEAD, the same index passes.
+        [$headOutput, $headExit] = $this->gate($this->fixture, 'HEAD');
+        self::assertSame(0, $headExit, $headOutput);
+    }
+
+    #[Test]
+    public function an_audit_base_only_on_the_checked_out_feature_branch_fails(): void
+    {
+        $this->git($this->fixture, 'checkout', '--quiet', '-b', 'feature');
+        file_put_contents($this->fixture . '/composer.lock', "lock v2\n");
+        $featureBase = $this->commit('feature-only base');
+        $this->writeIndex(base: $featureBase, lock: 'composer.lock sha256:' . hash('sha256', "lock v2\n"));
+
+        [$output, $exitCode] = $this->gate($this->fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('audit base ' . $featureBase . ' is not an ancestor of refs/heads/main', $output);
+    }
+
+    #[Test]
+    public function an_unresolvable_trusted_main_ref_is_refused(): void
+    {
+        $this->writeIndex();
+
+        // The fixture has no origin remote, so the default ref doesn't exist.
+        [$output, $exitCode] = $this->gate($this->fixture, null);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('cannot resolve the trusted main ref refs/remotes/origin/main', $output);
     }
 
     #[Test]
@@ -153,13 +200,14 @@ final class PackageCoverageHistoryGateTest extends TestCase
     }
 
     /** @return array{0: string, 1: int} */
-    private function gate(string $root): array
+    private function gate(string $root, ?string $mainRef = 'refs/heads/main'): array
     {
         exec(sprintf(
-            '%s %s %s 2>&1',
+            '%s %s %s%s 2>&1',
             escapeshellarg(PHP_BINARY),
             escapeshellarg(dirname(__DIR__, 2) . '/bin/check-package-coverage-history'),
             escapeshellarg('--root=' . $root),
+            $mainRef === null ? '' : ' ' . escapeshellarg('--main-ref=' . $mainRef),
         ), $output, $exitCode);
 
         return [implode("\n", $output), $exitCode];

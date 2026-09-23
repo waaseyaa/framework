@@ -596,7 +596,7 @@
         "check-package-layers-pl008-self-test": "php bin/check-package-layers-pl008-self-test"
     },
     "scripts-descriptions": {
-        "check-package-coverage-history": "FW-PACKAGE-CONVERGENCE-01 (#3118): verify the package coverage index against full history. Fails closed on a shallow clone, an audit base or evidence source commit off the checked-out history, a dependency identity that does not match composer.lock at its base, or a captured evidence copy that differs from its source.",
+        "check-package-coverage-history": "FW-PACKAGE-CONVERGENCE-01 (#3118): verify the package coverage index against full history. Fails closed on a shallow clone, an unresolvable trusted main ref (default refs/remotes/origin/main), an audit base or evidence source commit that is not an ancestor of that main ref (never HEAD, so feature-branch commits a squash would drop are refused), a dependency identity that does not match composer.lock at its base, or a captured evidence copy that differs from its source.",
         "check-admin-surface-deptrac": "Deptrac 4 authority for the internal waaseyaa/admin-surface architecture. Fails on forbidden and uncovered dependencies; the repository-wide check-package-layers gate remains active during #3075 migration.",
         "report-admin-surface-deptrac": "Emit deterministic JSON results for the scoped admin-surface Deptrac analysis.",
         "admin-surface-dependency-view": "Regenerate packages/admin-surface/dependency-graph.mmd with Deptrac's Mermaid formatter.",

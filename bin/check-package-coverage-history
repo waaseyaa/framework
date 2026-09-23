@@ -5,24 +5,37 @@ declare(strict_types=1);
 
 /**
  * Verify the package coverage index against full Git history (#3118,
- * FW-PACKAGE-CONVERGENCE-01). Fails closed: a shallow clone, a missing base
- * commit, a dependency identity that doesn't match composer.lock at its base,
- * or a captured evidence copy that differs from its source commit all fail.
+ * FW-PACKAGE-CONVERGENCE-01). Fails closed: a shallow clone, an unresolvable
+ * trusted main ref, an audit base or captured source commit that is not an
+ * ancestor of that main ref, a dependency identity that doesn't match
+ * composer.lock at its base, or a captured evidence copy that differs from its
+ * source commit all fail.
+ *
+ * Ancestry is checked against the trusted main ref, never HEAD: on a pull
+ * request, feature-branch commits are ancestors of HEAD but disappear from
+ * main when the branch is squash-merged, so citing one would break this gate
+ * on main after landing.
  *
  * The shallow-safe PackageConvergenceCoverageIndexTest checks everything that
  * doesn't need history. This gate runs where full history exists: ci/verify-gates
  * (fetch-depth: 0) and local preflight.
  *
- * Usage: php bin/check-package-coverage-history [--root=DIR]
+ * Usage: php bin/check-package-coverage-history [--root=DIR] [--main-ref=REF]
+ *
+ * --main-ref defaults to refs/remotes/origin/main, which ci/verify-gates (full
+ * history, all remote branches) and ordinary local clones have.
  */
 
 require_once __DIR__ . '/lib/repository-files.php';
 require_once __DIR__ . '/lib/package-coverage.php';
 
 $root = dirname(__DIR__);
+$mainRef = 'refs/remotes/origin/main';
 foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
     if (str_starts_with($argument, '--root=') && strlen($argument) > 7) {
         $root = rtrim(str_replace('\\', '/', substr($argument, 7)), '/');
+    } elseif (str_starts_with($argument, '--main-ref=') && strlen($argument) > 11) {
+        $mainRef = substr($argument, 11);
     } else {
         fwrite(STDERR, "check-package-coverage-history: unknown argument {$argument}\n");
         exit(2);
@@ -38,6 +51,11 @@ try {
     if (trim($shallow) !== 'false') {
         throw new RuntimeException('this clone is shallow; the gate needs full history (fetch-depth: 0)');
     }
+    [$exitCode, $mainCommit] = repositoryGit($root, ['rev-parse', '--verify', '--quiet', $mainRef . '^{commit}']);
+    if ($exitCode !== 0) {
+        throw new RuntimeException(sprintf('cannot resolve the trusted main ref %s; fetch it or pass --main-ref', $mainRef));
+    }
+    $mainCommit = trim($mainCommit);
 
     $rows = 0;
     $copies = 0;
@@ -53,9 +71,9 @@ try {
             $failures[] = sprintf('%s: audit base %s is not in the repository history', $label, $base);
             continue;
         }
-        [$exitCode] = repositoryGit($root, ['merge-base', '--is-ancestor', $base, 'HEAD']);
+        [$exitCode] = repositoryGit($root, ['merge-base', '--is-ancestor', $base, $mainCommit]);
         if ($exitCode !== 0) {
-            $failures[] = sprintf('%s: audit base %s is not an ancestor of HEAD', $label, $base);
+            $failures[] = sprintf('%s: audit base %s is not an ancestor of %s', $label, $base, $mainRef);
             continue;
         }
         [$exitCode, $lock] = repositoryGit($root, ['show', $base . ':composer.lock']);
@@ -82,12 +100,12 @@ try {
             if ($captured['source_kind'] !== 'commit') {
                 continue;
             }
-            // Only commits on the checked-out history qualify: a branch-only
-            // commit becomes unreachable once that branch is squashed and deleted.
-            [$ancestorExit] = repositoryGit($root, ['merge-base', '--is-ancestor', $captured['commit'], 'HEAD']);
+            // Only commits already on main qualify: a feature-branch commit is an
+            // ancestor of HEAD but vanishes from main when the branch is squashed.
+            [$ancestorExit] = repositoryGit($root, ['merge-base', '--is-ancestor', $captured['commit'], $mainCommit]);
             [$exitCode, $original] = repositoryGit($root, ['show', $captured['commit'] . ':' . $captured['path']]);
             if ($ancestorExit !== 0) {
-                $failures[] = sprintf('%s: %s cites %s, which is not an ancestor of HEAD', $label, $path, $captured['commit']);
+                $failures[] = sprintf('%s: %s cites %s, which is not an ancestor of %s', $label, $path, $captured['commit'], $mainRef);
             } elseif ($exitCode !== 0) {
                 $failures[] = sprintf('%s: %s cites %s:%s, which is not in the repository history', $label, $path, $captured['commit'], $captured['path']);
             } elseif ($original !== $captured['body']) {
@@ -107,5 +125,5 @@ if ($failures !== []) {
     fwrite(STDERR, "Repair: correct the index row or recapture the evidence from its exact source (FW-PACKAGE-CONVERGENCE-01).\n");
     exit(1);
 }
-printf("package-coverage-history: %d audited rows and %d commit-sourced evidence copies verified against history.\n", $rows, $copies);
+printf("package-coverage-history: %d audited rows and %d commit-sourced evidence copies verified against %s (%s).\n", $rows, $copies, $mainRef, substr($mainCommit, 0, 12));
 exit(0);

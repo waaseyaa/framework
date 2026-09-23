@@ -69,12 +69,17 @@ Two layers of checks:
   captured file no row cites, or an "assessed" row without
   `docs/audits/packages/<package>.md`.
 - `bin/check-package-coverage-history` needs full history and fails closed. It
-  runs in `ci/verify-gates` (`fetch-depth: 0`) and local preflight. It refuses a
-  shallow clone, an audit base or evidence source commit that isn't an
-  ancestor of HEAD, a dependency identity that doesn't match `composer.lock` at
-  its base, and a commit-sourced copy that differs from its source.
-  `tests/Architecture/PackageCoverageHistoryGateTest.php` proves each refusal on
-  a fixture repository.
+  runs in `ci/verify-gates` (`fetch-depth: 0`, which fetches every branch into
+  `refs/remotes/origin/*`) and local preflight. Ancestry is judged against a
+  trusted main ref, `--main-ref`, defaulting to `refs/remotes/origin/main`;
+  never HEAD, because on a pull request feature-branch commits are ancestors
+  of HEAD but vanish from main after a squash merge. It refuses a shallow
+  clone, an unresolvable main ref, an audit base or evidence source commit that
+  isn't an ancestor of the main ref, a dependency identity that doesn't match
+  `composer.lock` at its base, and a commit-sourced copy that differs from its
+  source. `tests/Architecture/PackageCoverageHistoryGateTest.php` proves each
+  refusal on a fixture repository, including a cited commit that is an
+  ancestor of HEAD on a feature branch but not of main.
 
 ### admin-surface
 
