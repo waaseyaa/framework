@@ -71,8 +71,13 @@ a `dist` installation. One surface #2649 names is still recorded as reserved in
 (#2659). The development metapackage was reserved the same way until #2655
 landed; its fail-closed hatch fired as designed. Sixteen seeded negative
 controls run on every invocation and the run fails if any corruption goes
-undetected. It seals `HEAD` and refuses a dirty worktree unless
-`--allow-dirty` is passed; Composer 2.9+ is required.
+undetected. A control the host cannot seed at all, such as
+`source-symlink-installed` on native Windows without the symlink privilege, is
+reported `not-run-here` (#3081). It is never counted as detected and never
+masks an undetected control. On native Windows the run is then INCOMPLETE
+(exit 3), which is not a pass; every other host fails it closed, so hosted
+Linux CI must execute every control. It seals `HEAD` and refuses a dirty
+worktree unless `--allow-dirty` is passed; Composer 2.9+ is required.
 
 `check-cli-health-report` covers the consumer-DI boundary (#2820). It builds
 one disposable `--no-dev` consumer from the candidate tree with path

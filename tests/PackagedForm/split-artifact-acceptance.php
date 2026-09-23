@@ -38,7 +38,12 @@ declare(strict_types=1);
  *   php split-artifact-acceptance.php assert <surface> <manifest> <consumer> [<nodev-consumer>]
  *   php split-artifact-acceptance.php self-test <manifest> <consumer> <nodev-consumer> <scratch>
  *   php split-artifact-acceptance.php digest-self-test <scratch>
+ *   php split-artifact-acceptance.php negative-control-verdict <scratch> <os-family> <control>...
  *   php split-artifact-acceptance.php surfaces
+ *
+ * Exit status: 0 pass, 1 failure, 2 unknown command, 3 (EXIT_INCOMPLETE)
+ * every executed check passed but a seeded negative control could not run on
+ * this native Windows host. 3 is never a pass (#3081).
  */
 
 const SURFACE_FIXTURE = __DIR__ . '/fixtures/split-artifact-acceptance-surfaces.json';
@@ -71,6 +76,27 @@ const ADMIN_SURFACE_PINNED_FILES = [
 ];
 
 final class AcceptanceFailure extends RuntimeException {}
+
+/**
+ * A seeded negative control this host cannot construct (#3081): native
+ * Windows without the symlink privilege cannot plant `source-symlink-installed`.
+ * An unplanted corruption proves nothing either way, so this is deliberately
+ * NOT an AcceptanceFailure. Counting it as caught would be a false pass;
+ * counting it as undetected reports a host limit as a harness defect. It is
+ * `not-run-here` (docs/specs/governed-gates.md §8), and
+ * evaluate_negative_controls() decides what that means for the run.
+ */
+final class NegativeControlNotRunHere extends RuntimeException {}
+
+/**
+ * Every executable surface passed and every executed negative control was
+ * caught, but at least one control could not run on this host. That is not a
+ * pass, so main() exits EXIT_INCOMPLETE rather than 0.
+ */
+final class AcceptanceIncomplete extends RuntimeException {}
+
+/** Exit status of an incomplete run: distinct from a pass (0) and a failure (1). */
+const EXIT_INCOMPLETE = 3;
 
 /**
  * @return array<string, mixed>
@@ -1255,10 +1281,7 @@ function self_test(array $seal, Installation $dev, Installation $noDev, string $
     };
 
     $controls['source-symlink-installed'] = static function () use ($dev, $scratch): void {
-        $root = $scratch . '/source-symlink';
-        mkdir($root . '/vendor/waaseyaa', 0o777, true);
-        symlink($dev->project, $root . '/vendor/waaseyaa/entity');
-        assert_no_source_symlinks(new Installation($root, $root . '/vendor', $dev->installedJson));
+        source_symlink_installed_control($dev, $scratch);
     };
 
     $controls['dev-package-retained'] = static function () use ($seal, $noDev, $scratch): void {
@@ -1283,12 +1306,38 @@ function self_test(array $seal, Installation $dev, Installation $noDev, string $
         assert_no_dev_exclusion($seal, $overlay);
     };
 
+    evaluate_negative_controls($controls, PHP_OS_FAMILY);
+}
+
+/**
+ * Run every seeded negative control and decide the verdict.
+ *
+ * A control has three outcomes. It is caught when the harness fails on the
+ * corruption, as it must. It is undetected when the corruption survives, which
+ * fails the run: the harness cannot be trusted when it passes. It is
+ * not-run-here when the host cannot plant the corruption at all (#3081).
+ *
+ * not-run-here is never counted as caught and never lowers the status of an
+ * undetected control. Only native Windows may report it, and even there the
+ * run is INCOMPLETE, never passed. Every other host fails closed, because
+ * hosted Linux CI owns the evidence for these controls and must execute every
+ * one of them.
+ *
+ * @param array<string, callable(): void> $controls
+ */
+function evaluate_negative_controls(array $controls, string $osFamily): void
+{
     $failures = [];
+    $notRunHere = [];
     foreach ($controls as $id => $control) {
         try {
             $control();
         } catch (AcceptanceFailure $caught) {
             printf("  negative control %-28s caught: %s\n", $id, first_line($caught->getMessage()));
+            continue;
+        } catch (NegativeControlNotRunHere $unavailable) {
+            printf("  negative control %-28s not-run-here: %s\n", $id, first_line($unavailable->getMessage()));
+            $notRunHere[] = $id;
             continue;
         }
         $failures[] = $id;
@@ -1297,11 +1346,105 @@ function self_test(array $seal, Installation $dev, Installation $noDev, string $
     if ($failures !== []) {
         fail(
             "The acceptance harness did NOT fail on seeded corruption; it cannot be trusted when it passes.\n"
-            . '  undetected: ' . implode(', ', $failures),
+            . '  undetected: ' . implode(', ', $failures)
+            . ($notRunHere === [] ? '' : "\n  not run here: " . implode(', ', $notRunHere)),
         );
     }
 
+    if ($notRunHere !== [] && $osFamily !== 'Windows') {
+        fail(sprintf(
+            "A seeded negative control could not be constructed on this %s host. Only native Windows may report"
+            . " a control as not-run-here; every other host, hosted Linux CI included, must execute every seeded"
+            . " negative control.\n  not run here: %s",
+            $osFamily,
+            implode(', ', $notRunHere),
+        ));
+    }
+
+    if ($notRunHere !== []) {
+        throw new AcceptanceIncomplete(sprintf(
+            "%d of %d seeded negative controls were detected; %d could not be seeded on this native Windows host"
+            . " and did not run.\n  not run here: %s\n"
+            . '  This run is not a pass. Hosted Linux ci/split-artifact-acceptance executes these controls and owns'
+            . ' their evidence.',
+            count($controls) - count($notRunHere),
+            count($controls),
+            count($notRunHere),
+            implode(', ', $notRunHere),
+        ));
+    }
+
     printf("All %d seeded negative controls were detected.\n", count($controls));
+}
+
+/**
+ * "Installation uses no path/source symlinks", seeded: an installed
+ * vendor/waaseyaa entry that is a symbolic link back into the source project.
+ * The refusal can only be proved if the link actually exists, so a host that
+ * cannot create one raises NegativeControlNotRunHere instead of leaving the
+ * corruption unplanted and letting the assertion pass by default.
+ */
+function source_symlink_installed_control(Installation $dev, string $scratch): void
+{
+    $root = $scratch . '/source-symlink';
+    mkdir($root . '/vendor/waaseyaa', 0o777, true);
+    seed_symlink($dev->project, $root . '/vendor/waaseyaa/entity');
+    assert_no_source_symlinks(new Installation($root, $root . '/vendor', $dev->installedJson));
+}
+
+function seed_symlink(string $target, string $link): void
+{
+    $reason = null;
+    set_error_handler(static function (int $severity, string $message) use (&$reason): bool {
+        $reason = $message;
+
+        return true;
+    });
+    try {
+        $created = symlink($target, $link);
+    } finally {
+        restore_error_handler();
+    }
+
+    if (!$created || !is_link($link)) {
+        throw new NegativeControlNotRunHere(sprintf(
+            'this host cannot create a symbolic link (%s)',
+            $reason ?? ($created ? 'symlink() reported success but left no link' : 'symlink() failed'),
+        ));
+    }
+}
+
+/**
+ * The fast half's view of evaluate_negative_controls() (#3081): the same
+ * verdict, driven by synthetic controls and optionally the real
+ * source-symlink-installed control against a throwaway project, as if on
+ * $osFamily. It never inspects a consumer, so it cannot stand in for self-test.
+ *
+ * @param list<string> $kinds caught | undetected | not-run-here | source-symlink-installed
+ */
+function negative_control_verdict(string $scratch, string $osFamily, array $kinds): void
+{
+    $controls = [];
+    foreach ($kinds as $index => $kind) {
+        $id = ($index + 1) . '-' . $kind;
+        $controls[$id] = match ($kind) {
+            'caught' => static function (): void {
+                fail('synthetic corruption detected');
+            },
+            'undetected' => static function (): void {},
+            'not-run-here' => static function (): void {
+                throw new NegativeControlNotRunHere('synthetic capability unavailable');
+            },
+            'source-symlink-installed' => static function () use ($scratch, $id): void {
+                $project = $scratch . '/' . $id . '/project';
+                mkdir($project, 0o777, true);
+                source_symlink_installed_control(Installation::of($project), $scratch . '/' . $id);
+            },
+            default => fail("Unknown synthetic negative control: {$kind}"),
+        };
+    }
+
+    evaluate_negative_controls($controls, $osFamily);
 }
 
 function clone_package(Installation $source, string $package, string $target): Installation
@@ -1427,6 +1570,11 @@ function main(array $argv): int
 
                 return 0;
 
+            case 'negative-control-verdict':
+                negative_control_verdict($argv[2], $argv[3], array_slice($argv, 4));
+
+                return 0;
+
             default:
                 fwrite(STDERR, "Unknown command: {$command}\n");
 
@@ -1436,6 +1584,10 @@ function main(array $argv): int
         fwrite(STDERR, '::error::split-artifact acceptance: ' . $failure->getMessage() . "\n");
 
         return 1;
+    } catch (AcceptanceIncomplete $incomplete) {
+        fwrite(STDERR, '::error::split-artifact acceptance INCOMPLETE: ' . $incomplete->getMessage() . "\n");
+
+        return EXIT_INCOMPLETE;
     }
 }
 
