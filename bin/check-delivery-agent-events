@@ -18,6 +18,7 @@ if ($vendorProblem !== null) {
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/bin/lib/delivery-agent-event-set.php';
+require dirname(__DIR__) . '/bin/lib/repository-git.php';
 
 // Defence in depth: metadata can agree with the lock while the package bytes
 // are gone (a hand-deleted vendor/opis). Every mode below — including
@@ -181,7 +182,7 @@ function gitRun(string $root, array $arguments): array
 {
     $pipes = [];
     $process = proc_open(
-        [$root . '/bin/git', '-C', $root, ...$arguments],
+        [...repository_git_command($root), '-C', $root, ...$arguments],
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
     );

@@ -826,6 +826,7 @@ final class VendorFreshnessPreconditionTest extends TestCase
         foreach ([
             'bin/check-delivery-agent-events',
             'bin/lib/delivery-agent-event-set.php',
+            'bin/lib/repository-git.php',
             'bin/lib/vendor-freshness.php',
             'bin/git',
             'ops/observability/delivery-agent-event-v1.schema.json',

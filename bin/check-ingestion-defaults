@@ -6,58 +6,64 @@ FAIL=0
 
 echo "=== Ingestion defaults check: $DEFAULTS_DIR ==="
 
+# python3 may be a native Windows interpreter that cannot open an MSYS path
+# such as /c/...; validate from inside defaults/ and hand Python bare file
+# names as argv data, never as interpolated source.
+cd "$DEFAULTS_DIR"
+
 # 1. Every *.schema.json must have x-waaseyaa with entity_type + version + compatibility
-for f in "$DEFAULTS_DIR"/*.schema.json; do
+for f in *.schema.json; do
   [ -f "$f" ] || continue
-  basename="$(basename "$f")"
 
   # Check x-waaseyaa block exists
-  if ! python3 -c "
-import json, sys
-data = json.load(open('$f'))
+  if ! python3 - "$f" 2>&1 <<'PY'; then
+import json, re, sys
+name = sys.argv[1]
+with open(name, encoding='utf-8') as handle:
+    data = json.load(handle)
 ext = data.get('x-waaseyaa')
 if not ext:
-    print('FAIL: $basename missing x-waaseyaa block')
+    print(f'FAIL: {name} missing x-waaseyaa block')
     sys.exit(1)
 for key in ['entity_type', 'version', 'compatibility']:
     if key not in ext:
-        print(f'FAIL: $basename x-waaseyaa missing required field: {key}')
+        print(f'FAIL: {name} x-waaseyaa missing required field: {key}')
         sys.exit(1)
 # Validate compatibility is a known value
 compat = ext['compatibility']
 if compat not in ('liberal', 'strict'):
-    print(f'FAIL: $basename x-waaseyaa.compatibility must be liberal or strict, got: {compat}')
+    print(f'FAIL: {name} x-waaseyaa.compatibility must be liberal or strict, got: {compat}')
     sys.exit(1)
 # Validate version looks like semver
-import re
 if not re.match(r'^\d+\.\d+\.\d+$', ext['version']):
-    print(f'FAIL: $basename x-waaseyaa.version must be semver (e.g. 0.1.0), got: {ext[\"version\"]}')
+    print(f'FAIL: {name} x-waaseyaa.version must be semver (e.g. 0.1.0), got: {ext["version"]}')
     sys.exit(1)
 # Validate schema_kind if present
 kind = ext.get('schema_kind', 'entity')
 if kind not in ('entity', 'ingestion_envelope'):
-    print(f'FAIL: $basename x-waaseyaa.schema_kind must be entity or ingestion_envelope, got: {kind}')
+    print(f'FAIL: {name} x-waaseyaa.schema_kind must be entity or ingestion_envelope, got: {kind}')
     sys.exit(1)
 # Validate stability if present
 stab = ext.get('stability', 'stable')
 if stab not in ('experimental', 'stable', 'deprecated'):
-    print(f'FAIL: $basename x-waaseyaa.stability must be experimental, stable, or deprecated, got: {stab}')
+    print(f'FAIL: {name} x-waaseyaa.stability must be experimental, stable, or deprecated, got: {stab}')
     sys.exit(1)
-" 2>&1; then
+PY
     FAIL=1
   fi
 done
 
 # 2. Ingestion envelope schema must exist
-ENVELOPE="$DEFAULTS_DIR/ingestion.envelope.schema.json"
+ENVELOPE="ingestion.envelope.schema.json"
 if [ ! -f "$ENVELOPE" ]; then
   echo "FAIL: ingestion.envelope.schema.json not found in defaults/"
   FAIL=1
 else
   # Validate it has the required envelope fields
-  if ! python3 -c "
+  if ! python3 - "$ENVELOPE" 2>&1 <<'PY'; then
 import json, sys
-data = json.load(open('$ENVELOPE'))
+with open(sys.argv[1], encoding='utf-8') as handle:
+    data = json.load(handle)
 required = data.get('required', [])
 for field in ['source', 'type', 'payload', 'timestamp']:
     if field not in required:
@@ -67,26 +73,26 @@ ext = data.get('x-waaseyaa', {})
 if ext.get('schema_kind') != 'ingestion_envelope':
     print(f'FAIL: ingestion.envelope.schema.json x-waaseyaa.schema_kind must be ingestion_envelope')
     sys.exit(1)
-" 2>&1; then
+PY
     FAIL=1
   fi
 fi
 
 # 3. Entity schemas must have entity_type matching filename convention
-for f in "$DEFAULTS_DIR"/*.schema.json; do
+for f in *.schema.json; do
   [ -f "$f" ] || continue
-  basename="$(basename "$f" .schema.json)"
 
-  if ! python3 -c "
+  if ! python3 - "$f" "${f%.schema.json}" 2>&1 <<'PY'; then
 import json, sys
-data = json.load(open('$f'))
+name, expected = sys.argv[1], sys.argv[2]
+with open(name, encoding='utf-8') as handle:
+    data = json.load(handle)
 ext = data.get('x-waaseyaa', {})
 entity_type = ext.get('entity_type', '')
-expected = '$basename'
 if entity_type != expected:
-    print(f'FAIL: $(basename "$f") x-waaseyaa.entity_type is \"{entity_type}\", expected \"{expected}\"')
+    print(f'FAIL: {name} x-waaseyaa.entity_type is "{entity_type}", expected "{expected}"')
     sys.exit(1)
-" 2>&1; then
+PY
     FAIL=1
   fi
 done
