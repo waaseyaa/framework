@@ -1,0 +1,4 @@
+interface:
+  display_name: "Waaseyaa Package Convergence"
+  short_description: "Audit and converge one Waaseyaa package"
+  default_prompt: "Use $waaseyaa-package-convergence to audit this package, define its charter and dependency model, and turn the findings into a governed cleanup plan."

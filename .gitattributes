@@ -43,6 +43,10 @@
 *.xml     text eol=lf whitespace=blank-at-eol,-blank-at-eof,-space-before-tab,tab-in-indent,tabwidth=2
 *.yml     text eol=lf whitespace=blank-at-eol,-blank-at-eof,-space-before-tab,tab-in-indent,tabwidth=2
 
+# Maintainer skills are installed by content hash (bin/maintainer-skills), so
+# their bytes must be identical on every host.
+/.agents/skills/** text eol=lf
+
 # Extensionless executable gates under bin/ are often invoked through bash.
 # Force LF so Windows checkouts do not leave CRLF in shebang scripts.
 bin/*     text eol=lf whitespace=blank-at-eol,-blank-at-eof,-space-before-tab,tab-in-indent,tabwidth=2
