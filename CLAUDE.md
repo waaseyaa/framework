@@ -227,6 +227,7 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 
 - **Constitution (this file):** Session-hot rules — orchestration table, layer graph, checklists, gotchas.
 - **Specialist skills:** `packages/bimaaji/resources/skills/*` — load on demand for a subsystem; each skill lists related specs. They ship as `waaseyaa/bimaaji` package resources so `bimaaji:install` can push them to a consumer project (#2656).
+- **Maintainer skills:** `.agents/skills/*` (package convergence audits, delivery workflow) — repository source for work on Waaseyaa itself, installed into Claude Code and Codex by `php bin/maintainer-skills install`. Edit the source, never the installed copies. See `.agents/skills/README.md`.
 - **Cold specs:** `docs/specs/*.md` — read directly from disk when you need contracts, file maps, and edge cases (no spec MCP server).
 
 **Workflow precedence:** **Anchor issues** own effort scope and work-package sequencing. **GitHub** owns merge mechanics, CI, releases, and issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.

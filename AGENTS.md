@@ -23,3 +23,9 @@ isolating work"): do not point the harness at a local-only branch name before
 Read [docs/local-testing-policy.md](docs/local-testing-policy.md) before planning
 verification. Use focused development checks, independent discriminators, and
 one integration qualification; retain all required hooks and hosted gates.
+
+## Maintainer skills
+
+`.agents/skills/` holds the reviewed source for the Waaseyaa maintainer skills.
+Edit them there through a pull request; refresh local copies with
+`php bin/maintainer-skills install`. See `.agents/skills/README.md`.
