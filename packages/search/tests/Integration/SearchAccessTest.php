@@ -28,6 +28,7 @@ final class SearchAccessTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($this->database->getConnection());
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->indexDoc('node:1', 'Restricted Label Report', 'secretterm indexed body');
         $this->indexDoc('node:2', 'Denied Report', 'publicterm indexed body');

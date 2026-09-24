@@ -11,6 +11,7 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Search\Fts5\Fts5SearchContentCatalogue;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
+use Waaseyaa\Search\Fts5\Fts5SearchSchema;
 use Waaseyaa\Search\SearchCandidateProjection;
 use Waaseyaa\Search\SearchCandidateReference;
 use Waaseyaa\Search\SearchCandidateResolverInterface;
@@ -31,7 +32,7 @@ final class Fts5SearchContentCatalogueTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->indexer->ensureSchema();
+        Fts5SearchSchema::install($this->database->getConnection());
         $this->index('node:1', '/public', 'Public');
         $this->index('node:2', '/private', 'Private');
     }

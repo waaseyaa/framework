@@ -36,7 +36,8 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\Search\\SearchServiceProvider"
-            ]
+            ],
+            "migrations": "migrations"
         }
     },
     "config": {

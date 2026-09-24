@@ -110,6 +110,8 @@ final class SearchServiceProviderProjectionWiringTest extends TestCase
     {
         $node = $this->nodeEntity(1, 'Booted subscriber');
         $database = DBALDatabase::createSqlite();
+        // The waaseyaa/search migration's effect (FW-SEARCH-PERSIST-01).
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($database->getConnection());
         $dispatcher = new EventDispatcher();
         $provider = $this->registeredProvider($this->kernelServices(
             entityTypeManager: $this->entityTypeManager($node),

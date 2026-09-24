@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### The search projection is migration-owned (Waaseyaa\Search, #3146)
+
+`waaseyaa/search` now ships a package migration for its FTS5 projection
+(`search_index`, `search_metadata` and three indexes), and the indexer never
+creates schema. Run `migrate` (or `install:init`) after upgrading; until then,
+lifecycle indexing logs a warning and does nothing, and `search:reindex`
+refuses with `[SEARCH-DB002]`.
+
+- **A projection the old runtime code created** is adopted in place with its
+  rows. If it was created after the schema manifest was recorded, `migrate`
+  first refuses with `[S1-DB109]`: follow "Adopting a runtime-created search
+  projection" in `docs/specs/search.md`.
+- **A dedicated `search.database` file** is no longer provisioned by the first
+  indexed save. An existing file keeps working. A new one is provisioned by
+  `search:reindex`.
+- `Fts5SearchIndexer::ensureSchema()` is removed. Tests that built the schema
+  through it can call the internal `Fts5SearchSchema::install()` on the DBAL
+  connection, or apply the migration.
+
 ### MCP identity and Registry configuration are now separate
 
 `mcp.server_card` no longer owns `name` or `version`, and no longer accepts

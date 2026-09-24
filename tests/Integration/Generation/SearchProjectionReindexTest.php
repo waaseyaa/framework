@@ -53,6 +53,7 @@ final class SearchProjectionReindexTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($this->database->getConnection());
         $this->indexer = new Fts5SearchIndexer($this->database);
     }
 

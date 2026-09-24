@@ -62,10 +62,80 @@ environments reject in-memory projection databases; only the explicit
 local/development/testing allowlist may use them. Search may not open SQLite
 through an environment-blind DBAL, PDO, or SQLite3 construction path.
 
+## Search projection schema
+
+FW-SEARCH-PERSIST-01 (#3146). The projection is five objects: the FTS5 table
+`search_index` (with the shadow tables FTS5 creates for it), `search_metadata`,
+and the indexes `idx_search_meta_entity_type`, `idx_search_meta_content_type`
+and `idx_search_meta_source`. `Fts5SearchSchema` is their one owner.
+
+- **Application database (no `search.database`):** the `waaseyaa/search`
+  package migration `2026_09_24_000001_search_projection_schema` owns the
+  projection. It runs through the schema coordinator like every package
+  migration (`migrate`, `db:init`, `install:init`).
+- **Dedicated `search.database` file:** the file is outside schema authority
+  and has no manifest. Only `search:reindex` provisions its schema, through
+  `Fts5SearchIndexer::removeAll()`. The migration still creates the (unused)
+  projection on the application database, so the recorded schema does not
+  depend on configuration.
+- **Serving paths perform no DDL.** Lifecycle indexing, removal, batch
+  reindexing, search and the content catalogue never create, alter or drop
+  schema on any connection. When the projection is absent, writes log a warning
+  and do nothing, and reads return no results. On the application database,
+  `removeAll()` refuses a missing projection with `[SEARCH-DB002]` and empties
+  an existing one with row deletes only.
+
+The migration handles the live state as follows:
+
+| Live state | Result |
+| --- | --- |
+| An object is absent | Created. The DDL text is the text the pre-migration runtime code used, so a migrated and a runtime-created projection have the same logical schema fingerprint. |
+| An object has the expected definition (whitespace-insensitive) | Adopted in place with every row. |
+| `search_index` uses the retired `porter unicode61` tokenizer (framework versions before 0.1.0-alpha.263) | Rebuilt with the current tokenizer inside the transition. Every row is carried across and re-tokenized. |
+| Any other definition, a `search_index_retired_porter` leftover, or an FTS5 shadow table without `search_index` | Refused with `[SEARCH-DB001]`, naming each difference. The transition rolls back and nothing changes. |
+
+### Adopting a runtime-created search projection
+
+Before the migration existed, the indexer created the projection at runtime,
+on the first indexed save or delete. If that happened after the schema
+manifest was recorded, `migrate --verify` reports `schema_drift` and every
+coordinated transition, including this migration, refuses with `[S1-DB109]`.
+For the case where the projection is the only drift, use the S1 spec's
+governed re-adoption with these proofs. General adoption tooling belongs to
+#3110.
+
+1. Back up the database (for SQLite: `.backup`, then check the backup's
+   integrity).
+2. Prove the projection is the only drift. On a scratch copy (for example
+   `VACUUM INTO`), drop `search_index` and `search_metadata` (dropping them
+   removes the shadow tables and indexes too) and run `migrate --verify`
+   against the copy. In its `[authority:…]` line, the recorded and live values
+   of both `schema=` and `ledger=` must be equal. The kind must be `match`, or
+   `source_catalog_mismatch` when the release you're running brings pending
+   migrations such as this one; in that case `STATUS` still reads FAIL, which
+   is expected. Any other kind, or any unequal pair, means something else
+   drifted too: stop and don't re-adopt.
+3. Record the row counts of `search_index` and `search_metadata`, then apply
+   the governed re-adoption from `docs/specs/s1-schema-authority.md`
+   ("Governed re-adoption"), which clears the recorded fingerprints.
+4. Run `migrate`. The search migration adopts the projection in place, or
+   refuses with `[SEARCH-DB001]` and changes nothing. Confirm `migrate --verify`
+   reports `STATUS: OK` and the row counts are unchanged.
+
+If the migration refuses, the projection is rebuildable: after a backup, move
+the listed objects aside, re-adopt, run `migrate`, then `search:reindex`.
+
+`packages/search/tests/Integration/SearchProjectionSchemaMigrationTest.php`
+runs this procedure on a drifted SQLite database, along with creation, in-place
+adoption, the tokenizer rebuild and every refusal case.
+`SearchServingPathSchemaAuthorityTest` proves the serving paths leave the
+recorded manifest valid.
+
 ## Index contract
 
 SQLite FTS5 uses Unicode word boundaries without English stemming or diacritic
 folding. ASCII apostrophe, U+2019, and U+02BC remain token characters so the
-index preserves Indigenous orthographies. Changing the tokenizer requires a
-full `search:reindex` because SQLite cannot alter an FTS5 tokenizer in place.
+index preserves Indigenous orthographies. SQLite cannot alter an FTS5 tokenizer
+in place, so a tokenizer change is a new migration that rebuilds `search_index`
+inside the transition, as the retired Porter upgrade does.
 FTS5 operator characters must be stripped before terms are quoted.

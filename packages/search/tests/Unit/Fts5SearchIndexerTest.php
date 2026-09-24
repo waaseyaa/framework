@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
+use Waaseyaa\Search\Fts5\Fts5SearchSchema;
 use Waaseyaa\Search\SearchIndexableInterface;
 
 /**
@@ -18,26 +19,49 @@ use Waaseyaa\Search\SearchIndexableInterface;
 final class Fts5SearchIndexerTest extends TestCase
 {
     #[Test]
-    public function remove_all_recreates_a_legacy_porter_table_with_the_current_tokenizer(): void
+    public function remove_all_on_a_dedicated_projection_file_upgrades_a_legacy_porter_table(): void
     {
         $database = DBALDatabase::createSqlite();
-        $database->query(<<<'SQL'
-            CREATE VIRTUAL TABLE search_index USING fts5(
-                document_id UNINDEXED,
-                title,
-                body,
-                tokenize='porter unicode61'
-            )
-            SQL);
-        $indexer = new Fts5SearchIndexer($database);
+        $database->query(self::LEGACY_PORTER_DDL);
+        $indexer = new Fts5SearchIndexer($database, ownsProjectionFile: true);
 
         $indexer->removeAll();
 
+        $sql = $this->indexDefinition($database);
+        self::assertStringContainsString('remove_diacritics 0', $sql);
+        self::assertStringNotContainsString('porter', $sql);
+    }
+
+    #[Test]
+    public function remove_all_on_the_application_database_changes_no_schema(): void
+    {
+        // FW-SEARCH-PERSIST-01: the migration owns the upgrade there.
+        $database = DBALDatabase::createSqlite();
+        $database->query(self::LEGACY_PORTER_DDL);
+        $database->query('CREATE TABLE search_metadata (document_id TEXT PRIMARY KEY)');
+        $before = iterator_to_array($database->query('SELECT type, name, sql FROM sqlite_master ORDER BY name'));
+
+        new Fts5SearchIndexer($database)->removeAll();
+
+        self::assertSame($before, iterator_to_array($database->query('SELECT type, name, sql FROM sqlite_master ORDER BY name')));
+    }
+
+    private const string LEGACY_PORTER_DDL = <<<'SQL'
+        CREATE VIRTUAL TABLE search_index USING fts5(
+            document_id UNINDEXED,
+            title,
+            body,
+            tokenize='porter unicode61'
+        )
+        SQL;
+
+    private function indexDefinition(DBALDatabase $database): string
+    {
         $rows = iterator_to_array($database->query(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'",
         ));
-        self::assertStringContainsString('remove_diacritics 0', (string) $rows[0]['sql']);
-        self::assertStringNotContainsString('porter', (string) $rows[0]['sql']);
+
+        return (string) $rows[0]['sql'];
     }
 
     private DBALDatabase $database;
@@ -47,7 +71,7 @@ final class Fts5SearchIndexerTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->indexer->ensureSchema();
+        Fts5SearchSchema::install($this->database->getConnection());
     }
 
     #[Test]

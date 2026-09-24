@@ -52,6 +52,7 @@ final class SearchIndexTrustBoundaryTest extends TestCase
             'packages/search/src/Fts5/Fts5SearchContentCatalogue.php',
             'packages/search/src/Fts5/Fts5SearchIndexer.php',
             'packages/search/src/Fts5/Fts5SearchProvider.php',
+            'packages/search/src/Fts5/Fts5SearchSchema.php',
         ], $readers);
     }
 }

@@ -97,9 +97,16 @@ final class SearchServingPathSchemaAuthorityTest extends TestCase
         // The FETDER trigger: an entity delete through the lifecycle subscriber.
         $subscriber->onPostDelete(new EntityEvent(new SearchServingPathProbeEntity(2, 'second note')));
 
-        // search:reindex clears the index, then rebuilds it in batches.
-        $indexer->removeAll();
-        $indexer->reindexBatch([new SearchServingPathProbeEntity(1, 'first note')]);
+        // search:reindex clears the index, then rebuilds it in batches. Without
+        // the migration it refuses instead of creating the projection.
+        try {
+            $indexer->removeAll();
+            $cleared = true;
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('[SEARCH-DB002]', $e->getMessage());
+            $cleared = false;
+        }
+        self::assertSame($cleared ? 1 : 0, $indexer->reindexBatch([new SearchServingPathProbeEntity(1, 'first note')]));
 
         $resolver = new IndexedSearchCandidateResolver($this->database);
         $principal = SearchTestPrincipal::create();
