@@ -65,8 +65,7 @@ unchanged.
   nothing, and `findSimilar()` logs and returns no matches. The check is a
   read-only table lookup. Nothing on the save, delete or search path creates
   schema.
-- `SearchController`'s ranking and response metadata are out of scope and
-  unchanged.
+- `SearchController` is unchanged.
 
 ## Recovery for already-drifted databases
 
@@ -97,6 +96,8 @@ Tracks #3138:
   unchanged.
 - Strict schema verification and the next coordinated transition stay green on
   a real SQLite file after save, delete and search.
+- Store, search and delete pass on SQLite through portable query-builder code.
+  Server-database qualification belongs to #3140.
 - Migration: create, adopt in place with rows preserved, and fail closed on an
   incompatible shape, each with a regression test.
 - The recovery procedure is proven on a drifted SQLite database, and FETDER is
@@ -131,12 +132,12 @@ Tracks #3138:
 | Runtime table created by `alpha.301`, not re-recorded (drifted) | `install:init` refused. The recovery procedure then worked: backup integrity `ok`; on the copy, `source_catalog_mismatch` with equal `schema=` and `ledger=`; `table_info` matched. After re-adoption, `install:init` adopted the table; 2 rows before and after; STATUS OK. |
 
 - **Boot and smoke:** `/health`, `/`, `/create`, `/signup` and `/discover` all returned 200, and the schema stayed verified afterwards.
-- **Out of scope, found during qualification:** dispatching an entity delete through FETDER's booted kernel drifted the schema. The objects created were the search package's FTS5 projection (`search_index*`, `search_metadata`); `embeddings` was untouched. It's the other drift source the S1 spec names, and #2763 covers the same lazy DDL from the observability side.
+- **Out of scope, found during qualification:** dispatching an entity delete through FETDER's booted kernel drifted the schema. The objects created were the search package's FTS5 projection (`search_index*`, `search_metadata`); `embeddings` was untouched. It's the other drift source the S1 spec names, now tracked in #3146 (related: #2763, #3110).
 
 **Host limits:** the full Architecture suite aborts on this host. Its targeted tests fail identically on unmodified `main`. Dead-code reports three findings in `config` and `scheduler` that also occur on unmodified `main`. Hosted Linux CI owns these.
 
-**Open acceptance item:** #3138 asks for store, search and delete on "at least
-one server database". CI has no MySQL or PostgreSQL service, the local host
-has no server database, and `SECURITY.md` lists both as unsupported. The
-storage uses only the portable query builder. The server-database run is left
-for the maintainer to decide.
+**Server databases (moved to #3140, maintainer decision 2026-09-23):** #3138
+qualifies SQLite and FETDER. The storage uses only the portable query builder
+and the migration uses the portable schema builder. Qualifying on MySQL or
+PostgreSQL, which `SECURITY.md` lists as unsupported and CI doesn't
+provision, is an acceptance item of #3140.

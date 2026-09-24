@@ -65,7 +65,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 | ID | Title | Severity | Confidence | Level | Disposition | Owner | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | repair | #3138 (FW-AIV-PERSIST-01) | Migration-owned table; remediation candidate in #3138 |
-| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | #3138 (FW-AIV-PERSIST-01) | `DatabaseEmbeddingStorage` in #3138; server-database run open |
+| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | #3138 (FW-AIV-PERSIST-01) | `DatabaseEmbeddingStorage` in #3138; server-database qualification in #3140 |
 | `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair | pending split (WP-B) | Define one composition path |
 | `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair | pending split (WP-B) | Decide whether CLI and workers keep vectors in step |
 | `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reviewed | repair or document | pending split (WP-B) | Implement and qualify, or stop advertising and refuse clearly |
@@ -112,7 +112,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Dependencies:** AIV-PERSIST-001's storage decision.
 - **Acceptance:** storage uses the framework database layer; the store/search/delete contract passes on SQLite and one server database; the shared connection's attributes are unchanged.
 - **Residual risk:** none after the repair.
-- **Next action:** remediation candidate in #3138. The server-database run is an open acceptance item.
+- **Next action:** remediation candidate in #3138. Server-database qualification moved to #3140.
 
 ### `AIV-COMP-001`: three separately constructed storage and provider instances
 
