@@ -7,29 +7,27 @@ namespace Waaseyaa\Foundation\Http\Router;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
-use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
+use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
+use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\ResourceSerializer;
-use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
-use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 
 final class SearchRouter implements DomainRouterInterface
 {
     use JsonApiResponseTrait;
 
     /**
-     * @param array<string, mixed> $config
+     * @param (\Closure(): (array{0: EmbeddingStorageInterface, 1: ?EmbeddingProviderInterface}|null))|null $embeddingServices
+     *        Resolves the storage and provider bound by ai-vector's provider
+     *        (FW-AIV-COMP-01); null when waaseyaa/ai-vector isn't installed.
      */
     public function __construct(
-        private readonly array $config,
-        private readonly DatabaseInterface $database,
+        private readonly ?\Closure $embeddingServices = null,
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
-        private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
         private readonly ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {}
 
@@ -53,7 +51,8 @@ final class SearchRouter implements DomainRouterInterface
             ]);
         }
 
-        if (!class_exists(DatabaseEmbeddingStorage::class)) {
+        $services = $this->embeddingServices !== null ? ($this->embeddingServices)() : null;
+        if ($services === null) {
             return $this->jsonApiResponse(501, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '501', 'title' => 'Not Implemented', 'detail' => 'Semantic search requires the waaseyaa/ai-vector package.']],
@@ -67,8 +66,7 @@ final class SearchRouter implements DomainRouterInterface
             ]);
         }
 
-        $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config, $this->secretResolverRegistry);
-        $embeddingStorage = new DatabaseEmbeddingStorage($this->database);
+        [$embeddingStorage, $embeddingProvider] = $services;
         $serializer = new ResourceSerializer($this->entityTypeManager, internalFieldVisibility: $this->internalFieldVisibility);
 
         $searchController = new SearchController(

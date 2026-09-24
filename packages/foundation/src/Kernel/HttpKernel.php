@@ -195,7 +195,7 @@ final class HttpKernel extends AbstractKernel
         // (audit R5 residual #1, R7 WP2).
         $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache, $this->accessHandler);
 
-        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger, $this->secretResolverRegistry());
+        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger);
         foreach ($this->providers as $provider) {
             if (!$provider instanceof HasRenderCacheListenersInterface) {
                 continue;
@@ -204,13 +204,8 @@ final class HttpKernel extends AbstractKernel
         }
         $listenerRegistrar->registerDiscoveryCacheListeners($this->discoveryCache);
         $listenerRegistrar->registerMcpReadCacheListeners($this->mcpReadCache);
-        if (class_exists(\Waaseyaa\AI\Vector\DatabaseEmbeddingStorage::class)) {
-            // CW-v1 option-1 (#1920 PR-2): threading entityTypeManager
-            // through lets EntityEmbeddingListener re-source served
-            // content via repository->find() instead of trusting the
-            // in-memory event entity (design §3.3).
-            $listenerRegistrar->registerEmbeddingLifecycleListeners(new \Waaseyaa\AI\Vector\DatabaseEmbeddingStorage($this->database, $this->logger), $this->config, $this->entityTypeManager);
-        }
+        // ai-vector's lifecycle listeners are composed by AiVectorServiceProvider
+        // (boot() and configureHttpKernel()), not here (FW-AIV-COMP-01).
 
         foreach ($this->providers as $provider) {
             if (!$provider instanceof ConfiguresHttpKernelInterface) {
@@ -248,6 +243,29 @@ final class HttpKernel extends AbstractKernel
      * pattern introduced for {@see \Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface}
      * in mission #824 WP02 surface A.
      */
+    /**
+     * The embedding storage and provider bound by ai-vector's provider, the
+     * instances its lifecycle listeners also use (FW-AIV-COMP-01). Null when
+     * waaseyaa/ai-vector isn't installed; the provider is null when none is
+     * configured.
+     *
+     * @return array{0: \Waaseyaa\AI\Vector\EmbeddingStorageInterface, 1: ?\Waaseyaa\AI\Vector\EmbeddingProviderInterface}|null
+     */
+    private function semanticSearchServices(): ?array
+    {
+        if (!interface_exists(\Waaseyaa\AI\Vector\EmbeddingStorageInterface::class)) {
+            return null;
+        }
+        $resolver = $this->getHttpServiceResolver();
+        $storage = $resolver->resolve(\Waaseyaa\AI\Vector\EmbeddingStorageInterface::class);
+        if (!$storage instanceof \Waaseyaa\AI\Vector\EmbeddingStorageInterface) {
+            return null;
+        }
+        $provider = $resolver->resolve(\Waaseyaa\AI\Vector\EmbeddingProviderInterface::class);
+
+        return [$storage, $provider instanceof \Waaseyaa\AI\Vector\EmbeddingProviderInterface ? $provider : null];
+    }
+
     public function getHttpServiceResolver(): HttpServiceResolverInterface
     {
         return $this->httpServiceResolver ??= new HttpKernelServiceResolver(
@@ -409,7 +427,7 @@ final class HttpKernel extends AbstractKernel
         }
 
         $broadcastStorage = new BroadcastStorage($this->database);
-        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger, $this->secretResolverRegistry());
+        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger);
         $listenerRegistrar->registerBroadcastListeners($broadcastStorage);
 
         $path = $this->stripLanguagePrefixForHttpRouting($path);
@@ -753,11 +771,9 @@ final class HttpKernel extends AbstractKernel
             ),
             new HttpRouter\WorkflowDefinitionsApiRouter($activeWorkflows),
             new HttpRouter\SearchRouter(
-                $this->config,
-                $this->database,
-                $this->entityTypeManager,
-                $this->accessHandler,
-                $this->secretResolverRegistry(),
+                embeddingServices: $this->semanticSearchServices(...),
+                entityTypeManager: $this->entityTypeManager,
+                accessHandler: $this->accessHandler,
                 internalFieldVisibility: $internalFieldVisibility,
             ),
         ];

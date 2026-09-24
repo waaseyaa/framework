@@ -6,84 +6,52 @@
 - Branch: `claude/ai-vector-composition-3139`
 - Depends on: #3138 (landed as `4512c0d9a`: `DatabaseEmbeddingStorage` and the migration-owned table)
 - Related: #3140 (backend selection), #3142 (execution model, including asynchronous indexing)
-- Status: **design and failing tests only, for review.** No implementation, push or PR yet.
+- Authority: repository source, tests and PR. No release, publication or
+  deployment. Landing needs the maintainer's approval.
 
 ## Problem, reproduced at the base
 
-Two failing tests pin the current behavior.
+Red tests at `1e3baeb8a` pinned all three defects before the fix.
 
-- **AIV-COMP-001, two compositions.** `HttpKernel::finalizeBoot()` builds its own `DatabaseEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners. So the listeners never use the storage and provider bound by `AiVectorServiceProvider`. `SearchRouter` builds a third pair on every request. Only the CLI warmer uses the bound instances. (Scratch spike: HTTP listener storage was object #180 and the provider-bound storage was #12.)
-- **AIV-COMP-002, no CLI lifecycle.** `ConsoleKernel` registers no ai-vector listeners. Entities deleted or unpublished from the CLI, imports or queue workers keep their vectors until `semantic:refresh` runs.
-- **AIV-EXEC-002, post-commit failure surfaced.** Through a real repository, when vector removal fails during the POST_SAVE of an unpublish, the committed save is reported as `EntityMutationCommittedSideEffectsFailedException` (`TransactionCompletionException`, "vector storage unavailable"). Later listeners for the event don't run.
+- **AIV-COMP-001, two compositions.** `HttpKernel::finalizeBoot()` built its own `DatabaseEmbeddingStorage` and called `EmbeddingProviderFactory::fromConfig()` again for the listeners. So the listeners never used the storage and provider bound by `AiVectorServiceProvider`. `SearchRouter` built a third pair on every request.
+- **AIV-COMP-002, no CLI lifecycle.** `ConsoleKernel` registered no ai-vector listeners. Entities deleted or unpublished from the CLI, imports or queue workers kept their vectors until `semantic:refresh` ran.
+- **AIV-EXEC-002, post-commit failure surfaced.** When vector removal failed during the POST_SAVE of a committed unpublish, the save was reported as `EntityMutationCommittedSideEffectsFailedException`, and later listeners for the event didn't run.
 
-## Decisions for review
+## Decisions (maintainer, 2026-09-24)
 
-### D1. Composition owner, and what "host-bound" means
+- **D1, composition owner, option O1.** The storage and provider bound by `AiVectorServiceProvider` are the instances every entry point uses. Selecting a different storage backend belongs to #3140.
+  - Rejected: a config key now (O2), and changing the kernel bus to "last binding wins" (O3).
+  - #3139's acceptance was reworded from "host-bound" to "provider-bound".
+- **D2, lifecycle outside HTTP, option B with safe invalidation.** Outside HTTP (CLI, imports, workers), a save or delete removes any existing vector, including a save of indexable content, and never calls the embedding provider. `semantic:refresh` re-indexes.
+  - Rejected: embedding on every save everywhere (A), and keeping HTTP-only listeners (C).
+- **D3, post-commit failures are best-effort.** They are logged and never surfaced as a failure of the committed mutation.
 
-`AiVectorServiceProvider` becomes the only composition owner.
+## Implementation
 
-- Its bound `EmbeddingStorageInterface` and `EmbeddingProviderInterface` instances are the ones used by the lifecycle listeners, `SearchRouter`, the warmer, and any host that resolves them from the kernel services bus. This includes a host wiring `vector.search`, whose resolver closures the tool container can't autowire.
-- `HttpKernel` stops constructing storage or a provider for ai-vector, and `EventListenerRegistrar::registerEmbeddingLifecycleListeners()` is removed.
+- **`AiVectorServiceProvider`** implements `ConfiguresHttpKernelInterface`.
+  - `boot()` registers `EntityEmbeddingCleanupListener` and an `invalidateOnly` `EntityEmbeddingListener` in every kernel, using the bound storage and the kernel logger.
+  - `configureHttpKernel()`, which only `HttpKernel` calls, swaps the save listener for the embedding one when a provider is bound. With no provider, HTTP saves invalidate like every other entry point.
+  - Both are idempotent.
+- **`EntityEmbeddingListener`** gains `invalidateOnly`: on a save or pointer move it removes the vector, without reading the entity or calling the provider. Every storage call and the re-sourcing read are best-effort: it catches, logs one error and returns. If the re-sourcing read fails, it removes the vector rather than leave it possibly stale.
+- **`EntityEmbeddingCleanupListener`** gains an optional `?LoggerInterface`, and removal is best-effort.
+- **`HttpKernel`** no longer composes ai-vector. It gives `SearchRouter` a resolver, `semanticSearchServices()`, which returns the bound storage and provider from the kernel services bus. It returns null when ai-vector isn't installed, and search then answers 501, as before.
+- **`EventListenerRegistrar::registerEmbeddingLifecycleListeners()`** and the registrar's now-unused secret-registry parameter are removed.
+- **Unchanged:** `SearchController`, the storage, the schema and the queue message. The queue dispatch stays with #3142.
 
-The open question is how a host replaces the storage. The kernel services bus returns the **first** provider that binds an abstract, and package providers load before application providers. So a host provider binding `EmbeddingStorageInterface` today is shadowed by ai-vector's binding. There is no framework-wide override convention.
+## Evidence (native Windows host)
 
-| Option | Meaning | Cost |
-| --- | --- | --- |
-| **O1 (recommended).** Identity with ai-vector's bindings; host replacement belongs to #3140. | #3139 guarantees every entry point uses the one bound instance. Choosing a different storage backend is #3140's backend-selection work, which already owns "every advertised backend has a composition path". | #3139's first acceptance line is reworded from "a host-bound storage" to "the provider-bound storage". |
-| O2. A config key now. | For example `ai.embedding_storage`, naming a service or class that ai-vector resolves instead of its default. | Introduces backend selection ahead of #3140. |
-| O3. Framework-wide "last binding wins". | Change bus precedence so application providers override package bindings. | A foundation-wide behavior change affecting every package; out of proportion for this issue. |
+**New tests** in `tests/Integration/AiVector/` (root integration tests, since they boot kernels across several packages):
 
-### D2. Lifecycle contract for CLI, imports and workers
+- **`EmbeddingCompositionTest` (4 tests)** boots real `HttpKernel` and `ConsoleKernel` instances from a temp project, with no symlinks. It asserts, by identity, that the HTTP listeners, search, the warmer and the bus use the bound storage and provider. It also covers:
+  - HTTP without a provider invalidates;
+  - the console kernel invalidates and holds no provider;
+  - re-entered boot and HTTP configuration register each listener once.
+- **`ConsoleVectorInvalidationTest` (2 tests):** a console-kernel save of indexable content, and a delete, each remove an existing vector while a provider is configured.
+  - That provider points at a closed port, so a design that embedded on save would keep the old vector.
+  - With the base source swapped in, both tests fail.
+- **`PostCommitVectorFailureTest` (2 tests):** through a real repository and unit of work, with a failing storage, a delete and an unpublish report success, log one error, and let later listeners run.
 
-The listeners must also run outside HTTP, but they differ in cost. De-indexing (deleting a vector) is a local database write. Indexing calls the embedding provider over the network, synchronously, with a 15–20 s timeout (AIV-EXEC-001, #3142).
-
-| Option | Meaning | Cost |
-| --- | --- | --- |
-| A. Full listeners in every kernel. | CLI and worker saves embed synchronously. | Bulk imports make one provider call per save; imports slow down or stall when the provider is slow or down. |
-| **B (recommended).** Removal everywhere, embedding only over HTTP. | Every kernel removes vectors on delete and when an entity stops being indexable. Only HTTP embeds new or changed content. CLI and worker saves that change indexable content require `semantic:refresh`, documented and pinned by a test. | A CLI edit to indexable content leaves the previous vector in place until refresh (stale but not orphaned). |
-| C. HTTP only, as now; document reconcile for everything. | Deletes and unpublishes from the CLI keep their vectors until refresh. | Orphaned and stale vectors persist, the current defect, now documented. |
-
-Under B the indexing listener runs without a provider outside HTTP. It already behaves that way when no provider is configured: it removes vectors for non-indexable entities and stores nothing.
-
-The provider has to know which entry point it's composing for. The proposal is a kernel-context signal the provider reads at `boot()`; the exact mechanism is settled during implementation.
-
-### D3. Post-commit failures are best-effort (no choice needed)
-
-Every storage and re-sourcing call in `EntityEmbeddingListener` and `EntityEmbeddingCleanupListener` catches `\Throwable`, logs one error through an injected `LoggerInterface` (default `NullLogger`), and returns. This is the repository's stated rule for non-critical post-commit side effects. The committed mutation is reported as successful, and later listeners run. `EntityEmbeddingCleanupListener` gains an optional `?LoggerInterface $logger = null`. The provider injects the kernel logger into both listeners.
-
-## Boundaries
-
-- `SearchController` is not changed. `SearchRouter` changes only where its storage and provider come from.
-- Listener registration moves into `AiVectorServiceProvider::boot()`, guarded against double registration, as `RelationshipServiceProvider::boot()` does. That matters for long-lived workers that re-enter provider boot.
-- No schema, migration or storage-format change.
-- Backend selection, asynchronous indexing and the synchronous timeout stay with #3140 and #3142.
-
-## Test plan
-
-**Written now (red at the base):**
-
-`packages/ai-vector/tests/Integration/EmbeddingCompositionTest.php` boots real kernels from a temp project whose root `composer.json` declares `AiVectorServiceProvider`. It uses no symlinks, so it runs on Windows too.
-
-- `http_kernel_lifecycle_listeners_use_the_provider_bound_storage_and_provider`: red, because the listeners hold a different storage instance.
-- `console_kernel_registers_lifecycle_listeners_with_the_provider_bound_storage`: red, because there are no listeners. It asserts only that both listeners exist and share the bound storage. This holds under D2 option A or B, not C.
-
-`packages/ai-vector/tests/Integration/PostCommitVectorFailureTest.php` uses a real repository and unit of work from a booted `ConsoleKernel`. The listeners are registered explicitly with an always-failing storage, so the test is independent of D1 and D2.
-
-- `a_committed_delete_succeeds_logs_and_lets_later_listeners_run_when_vector_cleanup_fails`: red, because the cleanup listener has no logger and doesn't catch failures.
-- `a_committed_non_indexable_save_succeeds_logs_and_lets_later_listeners_run_when_vector_removal_fails`: red with `EntityMutationCommittedSideEffectsFailedException`.
-
-**To write after the D1 and D2 decisions:**
-
-- Search uses the bound storage and provider. It needs a seam in `SearchRouter`; the test is written with that seam.
-- CLI indexable-save contract, depending on D2:
-  - under B, a CLI save of indexable content stores nothing and the documented contract says `semantic:refresh` is required;
-  - under A, it stores a vector.
-- The listeners are registered once, even if provider boot re-enters.
-- If D1 is O2, a configured storage replaces the default at every entry point.
-- Updates to `AiVectorServiceProviderTest`, `EventListenerRegistrarTest` and `HttpKernelTest` for the moved registration.
-
-**Qualification at candidate time:**
-- focused ai-vector and foundation tests;
-- the drift probe from #3138 (serving paths still create no schema);
-- a FETDER-copy boot and smoke;
-- exact-head hosted CI and independent review.
+**Other checks:**
+- `SearchRouterTest` has a new 501 case for when no embedding services are bound.
+- Focused run: 208 tests across ai-vector, the affected foundation, CLI and ai-tools tests, and the Phase 8, 14, 15 and 24 integration tests. The only errors are two `HttpKernelTest` teardown errors (Windows SQLite WAL locks), which also occur on unmodified `main`.
+- The #3138 drift probe still passes all 5 cases.

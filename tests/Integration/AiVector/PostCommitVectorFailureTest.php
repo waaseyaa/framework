@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\AI\Vector\Tests\Integration;
+namespace Waaseyaa\Tests\Integration\AiVector;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -51,7 +51,7 @@ final class PostCommitVectorFailureTest extends TestCase
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage/framework', 0o755, true);
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing'];");
-        file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php return [];");
+        file_put_contents($this->projectRoot . '/config/entity-types.php', '<?php return [];');
         file_put_contents($this->projectRoot . '/composer.json', json_encode([
             'name' => 'waaseyaa/aiv-post-commit-test',
             'extra' => ['waaseyaa' => ['providers' => [UserServiceProvider::class, NodeServiceProvider::class]]],
@@ -103,7 +103,7 @@ final class PostCommitVectorFailureTest extends TestCase
         $node->set('status', false);
         $this->repository()->save($node);
 
-        self::assertFalse((bool) $this->repository()->find((string) $node->id())?->get('status'), 'the save committed');
+        self::assertSame(0, $this->storedStatus($node), 'the unpublish committed');
         $this->assertLoggedStorageFailure();
         self::assertSame(1, $this->laterListenerRuns, 'a later POST_SAVE listener still ran');
     }
@@ -115,6 +115,21 @@ final class PostCommitVectorFailureTest extends TestCase
         $this->repository()->save($node);
 
         return $node;
+    }
+
+    /** Reads the committed row directly, without a field-read context. */
+    private function storedStatus(Node $node): int
+    {
+        $database = $this->kernel->getDatabase();
+        self::assertInstanceOf(DBALDatabase::class, $database);
+        $row = $database->getConnection()->fetchAssociative('SELECT * FROM node WHERE nid = ?', [$node->id()]);
+        self::assertIsArray($row);
+        if (array_key_exists('status', $row)) {
+            return (int) $row['status'];
+        }
+        $data = json_decode((string) $row['_data'], true, 512, JSON_THROW_ON_ERROR);
+
+        return (int) ($data['status'] ?? -1);
     }
 
     private function repository(): \Waaseyaa\Entity\Repository\EntityRepositoryInterface

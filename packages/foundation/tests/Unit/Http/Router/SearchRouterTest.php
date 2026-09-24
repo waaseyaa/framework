@@ -17,7 +17,7 @@ final class SearchRouterTest extends TestCase
     #[Test]
     public function supports_search_semantic(): void
     {
-        $router = new SearchRouter([], \Waaseyaa\Database\DBALDatabase::createSqlite());
+        $router = new SearchRouter();
         $request = Request::create('/api/search');
         $request->attributes->set('_controller', 'search.semantic');
         self::assertTrue($router->supports($request));
@@ -26,7 +26,7 @@ final class SearchRouterTest extends TestCase
     #[Test]
     public function does_not_support_unrelated(): void
     {
-        $router = new SearchRouter([], \Waaseyaa\Database\DBALDatabase::createSqlite());
+        $router = new SearchRouter();
         $request = Request::create('/api/mcp');
         $request->attributes->set('_controller', 'mcp.endpoint');
         self::assertFalse($router->supports($request));
@@ -37,7 +37,7 @@ final class SearchRouterTest extends TestCase
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
         RuntimeSchemaMigrations::broadcast($db);
-        $router = new SearchRouter([], $db);
+        $router = new SearchRouter();
 
         $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
@@ -54,5 +54,24 @@ final class SearchRouterTest extends TestCase
         $response = $router->handle($request);
 
         self::assertSame(400, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function handle_returns_501_when_no_embedding_services_are_bound(): void
+    {
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
+        $router = new SearchRouter(embeddingServices: static fn(): ?array => null);
+
+        $request = Request::create('/api/search', 'GET', ['q' => 'query', 'type' => 'node']);
+        $request->attributes->set('_controller', 'search.semantic');
+        $request->attributes->set('_account', $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class));
+        $request->attributes->set('_broadcast_storage', new \Waaseyaa\Api\Controller\BroadcastStorage($db));
+        $request->attributes->set('_parsed_body', null);
+        $request->attributes->set('_waaseyaa_context',
+            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request)
+        );
+
+        self::assertSame(501, $router->handle($request)->getStatusCode());
     }
 }

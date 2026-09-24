@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\AI\Vector\Tests\Integration;
+namespace Waaseyaa\Tests\Integration\AiVector;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -39,15 +39,7 @@ final class EmbeddingCompositionTest extends TestCase
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_aiv_composition_' . bin2hex(random_bytes(6));
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage/framework', 0o755, true);
-        file_put_contents($this->projectRoot . '/config/waaseyaa.php', <<<'PHP'
-            <?php
-            return [
-                'database' => ':memory:',
-                'environment' => 'testing',
-                // Binds EmbeddingProviderInterface. Nothing here calls the endpoint.
-                'ai' => ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings'],
-            ];
-            PHP);
+        $this->writeConfig(withProvider: true);
         file_put_contents($this->projectRoot . '/config/entity-types.php', <<<'PHP'
             <?php
             return [
@@ -82,12 +74,44 @@ final class EmbeddingCompositionTest extends TestCase
 
         self::assertSame($storage, $this->property($indexer, 'storage'), 'the indexing listener uses the bound storage');
         self::assertSame($provider, $this->property($indexer, 'embeddingProvider'), 'the indexing listener uses the bound provider');
+        self::assertFalse($this->property($indexer, 'invalidateOnly'), 'HTTP with a configured provider embeds on save');
         self::assertSame($storage, $this->property($cleanup, 'storage'), 'the cleanup listener uses the bound storage');
         self::assertSame(
             $storage,
             $this->property($this->resolve($kernel, SemanticIndexWarmer::class), 'embeddingStorage'),
             'the warmer uses the bound storage',
         );
+
+        // SearchRouter is built with this resolver (HttpKernel::semanticSearchServices).
+        $searchServices = (fn() => $this->semanticSearchServices())->call($kernel);
+        self::assertIsArray($searchServices);
+        self::assertSame($storage, $searchServices[0], 'search uses the bound storage');
+        self::assertSame($provider, $searchServices[1], 'search uses the bound provider');
+    }
+
+    #[Test]
+    public function http_kernel_without_a_configured_provider_invalidates_on_save(): void
+    {
+        $this->writeConfig(withProvider: false);
+        $kernel = $this->boot(HttpKernel::class);
+
+        $indexer = $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
+        self::assertTrue($this->property($indexer, 'invalidateOnly'));
+        self::assertNull($this->property($indexer, 'embeddingProvider'));
+    }
+
+    #[Test]
+    public function re_entering_provider_boot_and_http_configuration_registers_each_listener_once(): void
+    {
+        $kernel = $this->boot(HttpKernel::class);
+        $provider = $this->aiVectorProvider($kernel);
+        $provider->boot();
+        \assert($kernel instanceof HttpKernel);
+        $provider->configureHttpKernel($kernel);
+
+        $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
+        $this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class);
+        $this->onlyListener($kernel, EntityEvents::REVISION_REVERTED->value, EntityEmbeddingListener::class);
     }
 
     #[Test]
@@ -101,6 +125,15 @@ final class EmbeddingCompositionTest extends TestCase
 
         self::assertSame($storage, $this->property($indexer, 'storage'));
         self::assertSame($storage, $this->property($cleanup, 'storage'));
+        self::assertTrue($this->property($indexer, 'invalidateOnly'), 'outside HTTP, saves only remove vectors');
+        self::assertNull($this->property($indexer, 'embeddingProvider'), 'outside HTTP, the provider is never called');
+    }
+
+    private function writeConfig(bool $withProvider): void
+    {
+        // A configured provider binds EmbeddingProviderInterface. Nothing here calls the endpoint.
+        $ai = $withProvider ? "'ai' => ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings']," : '';
+        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing', {$ai}];");
     }
 
     /** @param class-string<AbstractKernel> $class */
@@ -125,9 +158,14 @@ final class EmbeddingCompositionTest extends TestCase
 
     private function resolve(AbstractKernel $kernel, string $abstract): object
     {
+        return $this->aiVectorProvider($kernel)->resolve($abstract);
+    }
+
+    private function aiVectorProvider(AbstractKernel $kernel): AiVectorServiceProvider
+    {
         foreach ((fn() => $this->providers)->call($kernel) as $provider) {
             if ($provider instanceof AiVectorServiceProvider) {
-                return $provider->resolve($abstract);
+                return $provider;
             }
         }
 

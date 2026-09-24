@@ -4324,13 +4324,6 @@
             "occurrence": 2
         },
         {
-            "path": "packages/foundation/tests/Unit/Http/Router/SearchRouterTest.php",
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "e32a4e7ee654c1d56bba1c51b9d27f49786c124cb358f5a31afc49214cd19b50",
-            "occurrence": 3
-        },
-        {
             "path": "packages/foundation/tests/Unit/Http/Router/WaaseyaaContextTest.php",
             "pattern": "dbal_factory",
             "class": "test",
