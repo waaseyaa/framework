@@ -4392,7 +4392,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "bee581d1c48c7f6b31ad45a73ea28acf972300ab"
+                "reference": "1176735953d1c3c23459a301fd69c92dcbdb45cc"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4413,6 +4413,7 @@
                 "phpunit/phpunit": "^13.0",
                 "waaseyaa/access": "^0.1.0-alpha.301",
                 "waaseyaa/ai-tools": "^0.1.0-alpha.301",
+                "waaseyaa/ai-vector": "^0.1.0-alpha.301",
                 "waaseyaa/api": "^0.1.0-alpha.301",
                 "waaseyaa/audit": "^0.1.0-alpha.301",
                 "waaseyaa/auth": "^0.1.0-alpha.301",
