@@ -132,7 +132,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Refutation:** considered "Foundation's kernel and router directories are documented layer exemptions". That covers the imports, not three divergent compositions.
 - **Disposition and owner:** repair; #3139. Candidate implementation FW-AIV-COMP-01, not landed: every consumer uses the kernel services' first binding of the storage and provider interfaces, which is ai-vector's own unless an earlier provider binds them. Choosing a different storage backend belongs to #3140.
 - **Dependencies:** the storage decision in #3138 (FW-AIV-PERSIST-01).
-- **Acceptance:** listeners, `SearchRouter`, the warmer and bus consumers use the same storage and provider, the kernel services' first binding, with no mix; proven by identity tests for the default composition and for a host binding registered before and after ai-vector (`EmbeddingCompositionTest`).
+- **Acceptance:** listeners, `SearchRouter`, the warmer and bus consumers use the same storage and provider, the kernel services' first binding of each interface; proven by identity tests for the default composition, for a host binding registered before and after ai-vector, and for a later host embedding provider when ai-vector has none configured (`EmbeddingCompositionTest`).
 - **Residual risk:** none once landed.
 - **Next action:** review and land the FW-AIV-COMP-01 candidate.
 

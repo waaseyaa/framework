@@ -15,6 +15,7 @@ use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
+use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
@@ -24,9 +25,10 @@ use Waaseyaa\Tests\Integration\AiVector\Fixtures\HostEmbeddingServicesProvider;
 use Waaseyaa\Tests\Integration\AiVector\Fixtures\HostEmbeddingStorage;
 
 /**
- * FW-AIV-COMP-01 (#3139): one composition owner. The embedding storage and
- * provider bound by `AiVectorServiceProvider` are the instances every entry
- * point uses. At the #3139 base, `HttpKernel` built its own storage and
+ * FW-AIV-COMP-01 (#3139): one composition owner. Every entry point uses the
+ * kernel services' first binding of the embedding storage and of the
+ * provider, which is `AiVectorServiceProvider`'s unless another provider
+ * binds the interface first. At the #3139 base, `HttpKernel` built its own storage and
  * provider for the listeners, and `ConsoleKernel` registered no listeners.
  *
  * This is a composition test: it asserts which instances are wired, by
@@ -126,13 +128,34 @@ final class EmbeddingCompositionTest extends TestCase
     }
 
     #[Test]
-    public function a_host_binding_registered_after_ai_vector_is_used_by_no_consumer(): void
+    public function a_host_binding_registered_after_a_configured_ai_vector_is_used_by_no_consumer(): void
     {
         $this->writeProviders([AiVectorServiceProvider::class, HostEmbeddingServicesProvider::class]);
         $kernel = $this->boot(HttpKernel::class);
         [$storage, $provider] = $this->boundServices($kernel);
 
         self::assertInstanceOf(DatabaseEmbeddingStorage::class, $storage, 'ai-vector\'s binding comes first');
+        self::assertNotInstanceOf(FakeEmbeddingProvider::class, $provider, 'ai-vector\'s configured provider comes first');
+        $this->assertEveryConsumerUses($kernel, $storage, $provider);
+    }
+
+    #[Test]
+    public function a_later_host_provider_binding_reaches_every_consumer_when_ai_vector_binds_no_provider(): void
+    {
+        // The rule is per interface: with no configured provider, ai-vector
+        // binds only the storage, so the later host binding is the first
+        // provider binding.
+        $this->writeConfig(withProvider: false);
+        $this->writeProviders([AiVectorServiceProvider::class, HostEmbeddingServicesProvider::class]);
+        $kernel = $this->boot(HttpKernel::class);
+        [$storage, $provider] = $this->boundServices($kernel);
+
+        self::assertInstanceOf(DatabaseEmbeddingStorage::class, $storage, 'ai-vector\'s storage binding comes first');
+        self::assertInstanceOf(FakeEmbeddingProvider::class, $provider, 'the host\'s is the only provider binding');
+        self::assertFalse(
+            $this->property($this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class), 'invalidateOnly'),
+            'HTTP embeds on save with the host provider',
+        );
         $this->assertEveryConsumerUses($kernel, $storage, $provider);
     }
 

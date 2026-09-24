@@ -237,7 +237,7 @@ final class HttpKernel extends AbstractKernel
      * services' first binding of each interface, the same rule
      * AiVectorServiceProvider uses for its lifecycle listeners and warmer
      * (FW-AIV-COMP-01). Null when waaseyaa/ai-vector isn't installed; the
-     * provider is null when none is configured.
+     * provider is null when no provider binds one.
      *
      * @return array{0: \Waaseyaa\AI\Vector\EmbeddingStorageInterface, 1: ?\Waaseyaa\AI\Vector\EmbeddingProviderInterface}|null
      */

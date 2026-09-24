@@ -46,7 +46,9 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  * first binding of the storage and provider interfaces, the same rule
  * `HttpKernel` applies for search and hosts get from the bus. By default
  * that is the binding made here. If an earlier provider binds an interface,
- * every consumer uses that binding instead, never a mix.
+ * every consumer uses that binding instead. The rule is per interface: with
+ * no configured provider this binds only the storage, so a later provider's
+ * embedding-provider binding is the first, and every consumer uses it.
  *
  * - Every kernel (CLI, imports, workers): `boot()` registers vector removal
  *   on delete and an `invalidateOnly` save listener, which removes any

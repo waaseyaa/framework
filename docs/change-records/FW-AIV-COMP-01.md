@@ -22,7 +22,7 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
 - **D1, composition owner, option O1.** The storage and provider bound by `AiVectorServiceProvider` are the instances every entry point uses. Selecting a different storage backend belongs to #3140.
   - Rejected: a config key now (O2), and changing the kernel bus to "last binding wins" (O3).
   - #3139's acceptance was reworded from "host-bound" to "provider-bound".
-  - **One rule for every consumer.** Every consumer resolves the two interfaces through the kernel services: the first provider to bind an interface wins, as it already did for search and for hosts reading the bus. By default that is `AiVectorServiceProvider`. If a provider that loads earlier binds either interface, every consumer uses that binding. No consumer ever mixes the two. This closes a split found in review, where the listeners and the warmer used ai-vector's local binding while search and the bus used the first binding.
+  - **One rule for every consumer.** Every consumer resolves the two interfaces through the kernel services: the first provider to bind an interface wins, as it already did for search and for hosts reading the bus. By default that is `AiVectorServiceProvider`. If a provider that loads earlier binds either interface, every consumer uses that binding. The rule applies to each interface separately: ai-vector binds the embedding provider only when one is configured, so without one, a later provider's embedding-provider binding is the first and every consumer uses it. The storage and provider can come from different providers, but every consumer gets the same pair. This closes a split found in review, where the listeners and the warmer used ai-vector's local binding while search and the bus used the first binding.
 - **D2, lifecycle outside HTTP, option B with safe invalidation.** Outside HTTP (CLI, imports, workers), a save or delete removes any existing vector, including a save of indexable content, and never calls the embedding provider. `semantic:refresh` re-indexes.
   - Rejected: embedding on every save everywhere (A), and keeping HTTP-only listeners (C).
 - **D3, post-commit failures are best-effort.** They are logged and never surfaced as a failure of the committed mutation.
@@ -44,11 +44,12 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
 
 **New tests** in `tests/Integration/AiVector/` (root integration tests, since they boot kernels across several packages):
 
-- **`EmbeddingCompositionTest` (7 tests)** boots real `HttpKernel` and `ConsoleKernel` instances from a temp project, with no symlinks. It asserts, by identity, that the HTTP listeners, search, the warmer and the bus use the bound storage and provider. It also covers:
+- **`EmbeddingCompositionTest` (8 tests)** boots real `HttpKernel` and `ConsoleKernel` instances from a temp project, with no symlinks. It asserts, by identity, that the HTTP listeners, search, the warmer and the bus use the bound storage and provider. It also covers:
   - HTTP without a provider invalidates;
   - the console kernel invalidates and holds no provider;
   - re-entered boot and HTTP configuration register each listener once;
-  - provider order: a host provider that binds its own storage and provider and loads **before** ai-vector is what every consumer uses, over HTTP and in the console kernel; one that loads **after** is used by none. The host-first tests fail against the provider as it was before the review fix, with the listeners on ai-vector's storage.
+  - provider order: a host provider that binds its own storage and provider and loads **before** ai-vector is what every consumer uses, over HTTP and in the console kernel; one that loads **after** is used by none while ai-vector binds both interfaces. The host-first tests fail against the provider as it was before the review fix, with the listeners on ai-vector's storage;
+  - per interface: with no configured provider, ai-vector binds only the storage, so a host that loads after it and binds an embedding provider is the one the listeners, warmer, search and bus all use, and HTTP saves embed with it. This test fails if the provider is taken only from ai-vector's own configuration.
 - **`ConsoleVectorInvalidationTest` (2 tests):** a console-kernel save of indexable content, and a delete, each remove an existing vector while a provider is configured.
   - That provider points at a closed port, so a design that embedded on save would keep the old vector.
   - With the base source swapped in, both tests fail.
