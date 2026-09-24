@@ -16,7 +16,8 @@ refuses with `[SEARCH-DB002]`.
   projection" in `docs/specs/search.md`.
 - **A dedicated `search.database` file** is no longer provisioned by the first
   indexed save. An existing file keeps working. A new one is provisioned by
-  `search:reindex`.
+  `search:reindex`. A `search.database` that names the application database
+  file is treated as the application database, so run `migrate` for it.
 - `Fts5SearchIndexer::ensureSchema()` is removed. Tests that built the schema
   through it can call the internal `Fts5SearchSchema::install()` on the DBAL
   connection, or apply the migration.

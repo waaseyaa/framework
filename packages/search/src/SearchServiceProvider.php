@@ -25,19 +25,22 @@ final class SearchServiceProvider extends ServiceProvider
 {
     private ?DatabaseInterface $searchDatabase = null;
 
+    private bool $searchDatabaseIsDedicated = false;
+
     public function register(): void
     {
         $this->singleton(SearchIndexerInterface::class, function (): SearchIndexerInterface {
             $logger = $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class);
+            $database = $this->getSearchDatabase();
 
             // The indexer never creates schema on a serving path
             // (FW-SEARCH-PERSIST-01). On the application database the
             // waaseyaa/search migration owns it; a dedicated search.database
             // file is provisioned only by search:reindex.
             return new Fts5SearchIndexer(
-                $this->getSearchDatabase(),
+                $database,
                 logger: $logger instanceof \Waaseyaa\Foundation\Log\LoggerInterface ? $logger : null,
-                ownsProjectionFile: $this->hasDedicatedSearchDatabase(),
+                ownsProjectionFile: $this->searchDatabaseIsDedicated,
             );
         });
 
@@ -140,11 +143,6 @@ final class SearchServiceProvider extends ServiceProvider
         return $registry;
     }
 
-    private function hasDedicatedSearchDatabase(): bool
-    {
-        return ($this->config['search']['database'] ?? null) !== null;
-    }
-
     private function getSearchDatabase(): DatabaseInterface
     {
         if ($this->searchDatabase !== null) {
@@ -159,6 +157,16 @@ final class SearchServiceProvider extends ServiceProvider
         if (is_string($searchDb)) {
             SqliteTopology::assertEnvironmentAllowsPath($searchDb, $environment);
             $searchDb = DatabaseBootstrapper::absolutize($searchDb, $this->projectRoot);
+
+            // A search.database naming the application database file is not a
+            // dedicated projection file: the projection there is migration-owned,
+            // so share the application connection and never provision it here.
+            $applicationDatabase = $this->resolveOptional(DatabaseInterface::class);
+            if ($applicationDatabase instanceof DBALDatabase && self::namesDatabaseFile($searchDb, $applicationDatabase)) {
+                return $this->searchDatabase = $applicationDatabase;
+            }
+
+            $this->searchDatabaseIsDedicated = true;
             $directory = dirname($searchDb);
             if ($searchDb !== ':memory:' && !is_dir($directory)
                 && !@mkdir($directory, 0o755, recursive: true) && !is_dir($directory)
@@ -175,5 +183,22 @@ final class SearchServiceProvider extends ServiceProvider
             : $this->resolve(DatabaseInterface::class);
 
         return $this->searchDatabase;
+    }
+
+    private static function namesDatabaseFile(string $path, DBALDatabase $database): bool
+    {
+        $databasePath = $database->getConnection()->getParams()['path'] ?? null;
+        if ($path === ':memory:' || !is_string($databasePath) || $databasePath === '') {
+            return false;
+        }
+
+        $canonical = static function (string $file): string {
+            $real = realpath($file);
+            $file = str_replace('\\', '/', $real === false ? $file : $real);
+
+            return PHP_OS_FAMILY === 'Windows' ? strtolower($file) : $file;
+        };
+
+        return $canonical($path) === $canonical($databasePath);
     }
 }
