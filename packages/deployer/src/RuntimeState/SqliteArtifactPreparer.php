@@ -127,6 +127,7 @@ final readonly class SqliteArtifactPreparer
             }
 
             $this->assertAccountReferences($candidate, $definitions);
+            $this->reconcileSchemaAuthority($artifact, $candidate, $definitions);
             $candidate->commit();
             $candidate->exec('PRAGMA foreign_keys = ON');
             $foreignKeyFailures = $candidate->query('PRAGMA foreign_key_check')->fetchAll();
@@ -134,6 +135,7 @@ final readonly class SqliteArtifactPreparer
                 throw new \RuntimeException('Candidate database has dangling foreign-key references.');
             }
             $this->assertIntegrity($candidate, 'Candidate database');
+            $this->assertSchemaAuthorityVerified($candidate);
         } catch (\Throwable $error) {
             if ($candidate->inTransaction()) {
                 $candidate->rollBack();
@@ -580,6 +582,169 @@ final readonly class SqliteArtifactPreparer
                 }
             }
         }
+    }
+
+    /**
+     * #3149: `waaseyaa_schema_authority` is {@see RuntimeTablePolicy::Artifact},
+     * so the candidate carries the artifact's manifest untouched even though
+     * runtime preservation just changed its actual logical schema (cloned
+     * serving-only tables, merged identities). Left alone, the next
+     * code-only deployment's `MigrationRepository::assertSchemaAuthorityPreState()`
+     * fails closed with `[S1-DB109]` against a candidate that is not
+     * actually wrong — see #2548's 2026-09-22/23 comments.
+     *
+     * Runs inside the caller's still-open candidate transaction, after
+     * runtime preservation and before commit, and only when the artifact
+     * carries a fingerprinted manifest at all (Rule 5: a fresh install or a
+     * #2452 adoption is left untouched, matching
+     * {@see \Waaseyaa\Foundation\Migration\MigrationRepository::assertSchemaAuthorityPreState()}'s
+     * own no-manifest pass-through).
+     *
+     * @param array<string, RuntimeTableDefinition> $definitions
+     */
+    private function reconcileSchemaAuthority(\PDO $artifact, \PDO $candidate, array $definitions): void
+    {
+        $manifest = $this->schemaAuthorityManifest($artifact);
+        if ($manifest === null || $manifest['schema_fingerprint'] === null || $manifest['ledger_fingerprint'] === null) {
+            return;
+        }
+
+        // Rule 1 — precondition: the artifact's own manifest must already be
+        // self-consistent. A stale artifact manifest must never be blessed by
+        // this reconciliation; it must fail before a single row moves.
+        if (!hash_equals(SchemaAuthorityFingerprint::logicalSchemaFingerprint($artifact), $manifest['schema_fingerprint'])
+            || !hash_equals(SchemaAuthorityFingerprint::ledgerFingerprint($artifact), $manifest['ledger_fingerprint'])
+        ) {
+            throw new \RuntimeException(
+                'Artifact schema authority manifest is stale: its recorded schema_fingerprint or ledger_fingerprint does not match its own computed schema and ledger.',
+            );
+        }
+
+        // Rule 2 — bounded difference: every schema object that differs
+        // between the artifact and the prepared candidate must belong to a
+        // catalogue table whose policy is not Artifact (runtime preservation
+        // is the only thing that may have changed the schema at this point;
+        // this is verified independently rather than trusted from the loop
+        // above).
+        $this->assertBoundedSchemaDifference($artifact, $candidate, $definitions);
+
+        // Rule 3 — re-record: only schema_fingerprint moves, conditioned on
+        // it still being exactly the value the artifact's manifest named.
+        // ledger_fingerprint, source_catalog_fingerprint and generation stay
+        // whatever the artifact copy already carries: waaseyaa_migrations is
+        // itself RuntimeTablePolicy::Artifact and untouched by this handoff,
+        // so the candidate's ledger is byte-identical to the artifact's and
+        // needs no re-recording; generation counts governed transitions, not
+        // artifact handoffs, so it is left exactly as the artifact recorded
+        // it.
+        $candidateSchemaFingerprint = SchemaAuthorityFingerprint::logicalSchemaFingerprint($candidate);
+        $statement = $this->prepareStatement(
+            $candidate,
+            'UPDATE waaseyaa_schema_authority SET schema_fingerprint = ? WHERE authority_id = 1 AND schema_fingerprint = ?',
+        );
+        $statement->execute([$candidateSchemaFingerprint, $manifest['schema_fingerprint']]);
+        if ($statement->rowCount() !== 1) {
+            throw new \RuntimeException(
+                'Schema authority manifest changed concurrently; refusing to re-record the candidate schema fingerprint.',
+            );
+        }
+    }
+
+    /**
+     * Independently diffs the artifact's and the candidate's `sqlite_schema`
+     * objects (not just trusts that the preservation loop above only ever
+     * touches non-Artifact tables) and requires every differing object's
+     * owning table to be a catalogue table whose policy is not Artifact. The
+     * declared `user` additive transition (#3127) needs no special case: its
+     * policy is already IdentityMerge, not Artifact.
+     *
+     * @param array<string, RuntimeTableDefinition> $definitions
+     */
+    private function assertBoundedSchemaDifference(\PDO $artifact, \PDO $candidate, array $definitions): void
+    {
+        $key = static fn(array $object): string => implode("\0", [$object['type'], $object['name'], $object['table'], $object['sql'] ?? "\0null"]);
+
+        $before = [];
+        foreach (SchemaAuthorityFingerprint::schemaObjects($artifact) as $object) {
+            $before[$key($object)] = $object;
+        }
+        $after = [];
+        foreach (SchemaAuthorityFingerprint::schemaObjects($candidate) as $object) {
+            $after[$key($object)] = $object;
+        }
+
+        $changedTables = [];
+        foreach ($after as $signature => $object) {
+            if (!isset($before[$signature])) {
+                $changedTables[$object['table']] = true;
+            }
+        }
+        foreach ($before as $signature => $object) {
+            if (!isset($after[$signature])) {
+                $changedTables[$object['table']] = true;
+            }
+        }
+
+        foreach (array_keys($changedTables) as $table) {
+            $definition = $definitions[$table] ?? null;
+            if ($definition === null || $definition->policy === RuntimeTablePolicy::Artifact) {
+                throw new \RuntimeException(
+                    'Schema authority reconciliation found an unbounded schema difference outside runtime-policy tables: ' . $table,
+                );
+            }
+        }
+    }
+
+    /**
+     * After commit: prove the candidate's recorded manifest equals its own
+     * computed values, using the identical computation
+     * {@see \Waaseyaa\Foundation\Migration\MigrationRepository::assertSchemaAuthorityPreState()}
+     * and `migrate --verify` use, so refusal here and refusal there can never
+     * disagree (Rule 4). The caller's catch block deletes the candidate file
+     * on any exception from this method.
+     */
+    private function assertSchemaAuthorityVerified(\PDO $candidate): void
+    {
+        $manifest = $this->schemaAuthorityManifest($candidate);
+        if ($manifest === null || $manifest['schema_fingerprint'] === null || $manifest['ledger_fingerprint'] === null) {
+            return;
+        }
+
+        if (!hash_equals(SchemaAuthorityFingerprint::logicalSchemaFingerprint($candidate), $manifest['schema_fingerprint'])
+            || !hash_equals(SchemaAuthorityFingerprint::ledgerFingerprint($candidate), $manifest['ledger_fingerprint'])
+        ) {
+            throw new \RuntimeException(
+                '[S1-DB109] Candidate schema authority verification failed after preparation; the prepared candidate has been discarded.',
+            );
+        }
+    }
+
+    /**
+     * @return array{schema_fingerprint:?string, ledger_fingerprint:?string, source_catalog_fingerprint:?string}|null
+     */
+    private function schemaAuthorityManifest(\PDO $pdo): ?array
+    {
+        if (!$this->tableExists($pdo, 'waaseyaa_schema_authority')) {
+            return null;
+        }
+        $columns = array_column($pdo->query('PRAGMA table_info(waaseyaa_schema_authority)')->fetchAll(), 'name');
+        foreach (['schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint'] as $required) {
+            if (!in_array($required, $columns, true)) {
+                return null;
+            }
+        }
+        $row = $pdo->query(
+            'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint FROM waaseyaa_schema_authority WHERE authority_id = 1',
+        )->fetch();
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'schema_fingerprint' => is_string($row['schema_fingerprint']) ? $row['schema_fingerprint'] : null,
+            'ledger_fingerprint' => is_string($row['ledger_fingerprint']) ? $row['ledger_fingerprint'] : null,
+            'source_catalog_fingerprint' => is_string($row['source_catalog_fingerprint']) ? $row['source_catalog_fingerprint'] : null,
+        ];
     }
 
     private function quoteIdentifier(string $identifier): string

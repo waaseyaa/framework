@@ -3073,11 +3073,158 @@
             "occurrence": 2
         },
         {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 9
+        },
+        {
             "path": "packages/deployer/tests/Unit/SqliteArtifactInstallerTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerSchemaAuthorityTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 9
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
