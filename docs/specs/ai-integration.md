@@ -249,12 +249,16 @@ doubles as the end-to-end form of R-1.
 `proc_open()` with an argv array and an explicit environment map, never a
 `NAME=value command` shell prefix — that is POSIX syntax, and `cmd.exe` parses
 it as a program named `APP_ENV=local`, so on Windows the probe would not run at
-all and the proof would pass vacuously. The `ci/local-operator-windows` job
+all and the proof would pass vacuously. The native Windows CI lane
 executes `packages/ai-agent/tests/Unit/LocalOperator` and
 `tests/Integration/LocalOperator` on `windows-2025` so that portability is a
 tested claim. The D-7.3 roster-gate sandbox is excluded from that lane: it
 builds its fixture tree with `symlink()`, which needs Developer Mode on
-Windows, and it exercises a gate that runs on the Linux lanes.
+Windows, and it exercises a gate that runs on the Linux lanes. Since #2678
+these tests run in the `native-host-contract` matrix on `ubuntu-24.04` and
+`windows-2025`, which replaced `ci/local-operator-windows`, under PHPUnit's
+skip-, incomplete- and empty-selection failures. They remain a narrow proof of
+the local-operator trust boundary, not the local AI-plane parity #2680 owns.
 
 **The allowlist is not a capability grant, and that distinction is gated.**
 `requireCapability()` evaluates a capability string and consults no tool

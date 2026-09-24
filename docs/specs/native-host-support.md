@@ -64,13 +64,25 @@ Ubuntu 24.04 x86_64; its consumer certification remains separate and pending.
 |---|---|---|
 | `support-contract` on `ubuntu-24.04` | The S1 framework runtime tuple and contract parity recorded by `php bin/check-support-contract --ci` | Consumer production certification |
 | `skeleton-create-project-windows` on `windows-2025`, with PHP 8.5 and its declared extension set | `create-project`, `post-create-project-cmd`, pre-init `composer site-verify` exit 3, `site:init`, `site:doctor`, `install:init`, repeated generation/verification, and the Bimaaji junction-containment entrypoint | Exact Composer feature line, Node version, SQLite library version, architecture, serving, FrankenPHP, admin build, Playwright, full PHPUnit, or unrelated CLI commands |
-| `local-operator-windows` on `windows-2025`, with PHP 8.5 and its declared extension set | The tests under `packages/ai-agent/tests/Unit/LocalOperator` and `tests/Integration/LocalOperator` | AI CLI commands, MCP stdio, the complete local-AI plane, serving, or the full test suite |
+| `native-host-contract` matrix on `ubuntu-24.04` and `windows-2025`, with PHP 8.5, Composer 2.10 and the contract's extension set, gated by `ci/native-host-contract` | Every command in [`tools/native-host-contract.json`](../../tools/native-host-contract.json) on both hosts, one step each: the locked `composer install`; `php bin/check-repo-root-hygiene` before and after the tests; `php bin/check-composer-policy`; `php bin/check-portable-paths`; the null-device `--self-test` of `php bin/check-skeleton-docker-secret-exclusion`; and `php vendor/bin/phpunit` over a curated Unit, Integration and Architecture selection covering native paths and temporary directories, subprocess launch, exit propagation and error handling, the Windows null device, host-aware Git and executable resolution, and the existing local-operator trust boundary. PHPUnit fails on skipped, incomplete and empty selections, and each leaf publishes a validated evidence record (runtime versions, runner and shell identity, exact source subject, per-step exit codes, per-command test counts, replay renderings) | Full PHPUnit, the preflight aggregate, Bash-backed gates, serving, FrankenPHP, Docker, browsers, release tooling, Node, AI CLI commands, MCP stdio, the complete local-AI plane (#2680), packaged consumers (#2681), or general CLI commands |
 
-Using Composer in a Windows job proves that the job's Composer invocation
-worked; without explicit version evidence it does not prove the normative
-Composer 2.10 target. Likewise, no current Windows job records Node, SQLite
-library, or architecture evidence. Related work #2678–#2681 owns those
-implementation and CI gaps. WSL and Git Bash results do not close them.
+Using Composer in a job proves that the job's Composer invocation worked. The
+native-host contract pins Composer to the 2.10 line and its evidence records
+and range-checks the observed Composer, PHP and SQLite library versions and
+the architecture on both hosts; the other Windows jobs record none of them. No
+job records Node evidence, because no selected contract command uses Node.
+The remaining #2678 slices, #2680 and #2681 own the remaining implementation and CI gaps. WSL
+and Git Bash results do not close them.
+
+The hosted leaves run their steps under `pwsh`. That shell is CI harness
+machinery, not a Linux or Windows contributor or consumer prerequisite: the
+evidence records the shell that ran, and its replay data gives each command's
+canonical argument array, a native PowerShell rendering for Windows and a
+POSIX `sh` rendering for Linux. Each leaf round-trips the PowerShell rendering
+through the hosted `pwsh`, and the Linux leaf also round-trips the POSIX
+rendering through `sh`, so every recorded rendering delivered the exact
+argument array. No single quoted string is claimed to work in every shell, and
+`cmd.exe` renderings are not claimed.
 
 ## Materially equivalent behavior
 
@@ -112,7 +124,7 @@ still determine the current disposition.
 
 | Entry point or family | Disposition | Notes |
 |---|---|---|
-| Root PHP/tool checks other than `check-pr-preflight`: `check-composer-policy`, `check-changelog-shape`, `check-changelog-fragments`, `check-distribution-extensions`, `check-distribution-exclusion`, `check-local-operator-tool-profile`, `check-external-consumers`, `check-governed-secret-access`, `check-runtime-policy-custody`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-symfony-imports`, `test:inventory`, `check-portable-paths`, `check-repo-root-hygiene`, `check-phpunit-skip-policy`, `check-dead-code`, `check-getquery-bindings`, `check-dispatcher-keys`, `refresh-governance-artifacts`, `check-admin-dist-fresh`, `check-admin-dist-manifest`, `check-s1-sqlite-contract`, `check-s1-schema-authority`, `check-s1-configuration-authority`, `check-s1-configuration-activation`, `check-delivery-agent-events`, `check-delivery-agent-projection`, `cs-check`, `cs-fix`, `phpstan` | Host-specific internal framework-maintainer automation; no native Windows support claim | PHP source or a Composer script is not native Windows proof. These commands are not currently in a native Windows job. |
+| Root PHP/tool checks other than `check-pr-preflight`: `check-composer-policy`, `check-changelog-shape`, `check-changelog-fragments`, `check-distribution-extensions`, `check-distribution-exclusion`, `check-local-operator-tool-profile`, `check-external-consumers`, `check-governed-secret-access`, `check-runtime-policy-custody`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-symfony-imports`, `test:inventory`, `check-portable-paths`, `check-repo-root-hygiene`, `check-phpunit-skip-policy`, `check-dead-code`, `check-getquery-bindings`, `check-dispatcher-keys`, `refresh-governance-artifacts`, `check-admin-dist-fresh`, `check-admin-dist-manifest`, `check-s1-sqlite-contract`, `check-s1-schema-authority`, `check-s1-configuration-authority`, `check-s1-configuration-activation`, `check-delivery-agent-events`, `check-delivery-agent-projection`, `cs-check`, `cs-fix`, `phpstan` | Host-specific internal framework-maintainer automation; no native Windows support claim | PHP source or a Composer script is not native Windows proof. No native Windows job runs these Composer scripts. The native-host contract runs the underlying `php bin/check-composer-policy`, `php bin/check-portable-paths` and `php bin/check-repo-root-hygiene` entrypoints on both hosts (see the `bin/` inventory); that does not make the Composer script wrappers verified. |
 | Root `check-pr-preflight` | Host-specific internal framework-maintainer automation | The PHP coordinator executes the governed roster, which includes Bash commands such as `check-phpstan-paths`, `check-phpunit-paths`, `check-admin-coercion-patterns`, `check-openapi`, `spec-drift`, and changelog discipline. It is not a native Windows entrypoint today. On native Windows its Bash gates start with Git for Windows Bash rather than the `System32` WSL launcher, and without that Bash it stops before any gate with exit 3 (`docs/specs/governed-gates.md` §8). No native Windows CI job executes it. |
 | Root shell-backed checks: `check-openapi`, `check-ingestion-defaults`, `check-no-secrets`, `check-phpstan-paths`, `check-phpunit-paths`, `check-contract-suite-coverage`, `check-admin-coercion-patterns`, `check-admin-coercion-self-test`, `check-field-guards`, `check-access-hardening` | POSIX-only internal automation | Run in the declared Linux CI environment or an explicitly provisioned POSIX shell. Git Bash is optional convenience only. |
 | Root `test`, `test:random`, and `verify` | Host-specific framework-maintainer automation | The complete suite includes POSIX-only fixtures; random-order and `verify` compose Linux/POSIX tooling. Targeted Windows PHPUnit evidence does not make these aggregate scripts native-portable. |
@@ -127,7 +139,7 @@ still determine the current disposition.
 
 ### Root `bin/` commands
 
-`bin/` contains 103 Git-tracked top-level files at this contract revision. The
+`bin/` contains 104 Git-tracked top-level files at this contract revision. The
 `bin/lib/` helper directory is not an entry. Every file appears exactly once in
 the partition below, with the stated counts;
 `tests/Architecture/NativeHostBinInventoryTest.php` enforces both. Interpreter
@@ -139,7 +151,8 @@ portability evidence.
 | POSIX-only internal automation (29 Bash entries) | `audit-composer-deps`, `audit-require-dev-layers`, `build-admin-dist`, `build-exact-source-artifact`, `build-split-contribution-boundary`, `check-admin-coercion-patterns`, `check-contract-suite-coverage`, `check-ingestion-defaults`, `check-monorepo-release-shape`, `check-no-secrets`, `check-openapi`, `check-phpstan`, `check-phpstan-paths`, `check-phpunit-paths`, `check-release-publish-shape`, `check-release-require-parity`, `check-release-tag-parity`, `clean-package-vendors`, `configure-split-tag-protection`, `enable-governed-auto-merge`, `git`, `materialize-exact-source-artifact`, `project-hooks`, `promote-exact-source-artifact`, `test-isolated-package`, `verify-exact-source-artifact`, `verify-random-order-vendor-archive`, `waaseyaa`, `wait-for-green-ci` | Bash is required. Git Bash/WSL may run some entries but are not native Windows proof. |
 | WSL2/POSIX-only development runtime (2 PHP entries) | `dev-runtime`, `dev-runtime-consumer` | The implementation requires POSIX absolute paths and `HOME`/`XDG_CACHE_HOME`; the bootstrap additionally uses `/dev/null`, `tar`, symlinks, `chmod`, and the `wsl2-ubuntu-24.04-x86_64` profile. Neither entry is native Windows portable. |
 | POSIX aggregate despite PHP coordinator (1 PHP entry) | `check-pr-preflight` | It executes `tools/preflight-gates.json`, whose default roster includes Bash tools and shell scripts. On native Windows those Bash gates need Git for Windows Bash. |
-| Host-specific internal framework-maintainer tools with no native Windows support claim (67 PHP entries) | `adapt-consumer-promotions`, `admin-dist-acceptance`, `agent-checkpoint`, `audit-ci-roster-live`, `build-phpunit-shards`, `changelog-fragments`, `check-admin-dist-fresh`, `check-changed-php-coverage`, `check-changelog-shape`, `check-ci-roster-conformance`, `check-composer-policy`, `check-covers-nothing-companions`, `check-dead-code`, `check-delivery-agent-events`, `check-dispatcher-keys`, `check-distribution-exclusion`, `check-distribution-extensions`, `check-external-consumers`, `check-getquery-bindings`, `check-governed-secret-access`, `check-landing-base`, `check-local-operator-tool-profile`, `check-package-coverage-history`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-php-coverage-baseline`, `check-portable-paths`, `check-repo-root-hygiene`, `check-runtime-policy-custody`, `check-s1-configuration-activation`, `check-s1-configuration-authority`, `check-s1-schema-authority`, `check-s1-sqlite-contract`, `check-skeleton-docker-secret-exclusion`, `check-stale-spec-deferrals`, `check-support-contract`, `check-symfony-imports`, `check-upgrade-contract`, `check-vendor-fresh`, `classify-ci-run-evidence`, `collect-ci-run-evidence`, `compile-spec-corpus`, `generate-ci-workflow-inventory`, `generate-surface-map`, `maintainer-skills`, `merge-clover-coverage`, `migrate-surface-map`, `normalize-admin-dist`, `phpstan-level-audit`, `project-board-sync`, `project-ci-ruleset`, `project-delivery-agent-events`, `project-hooks-launcher`, `qualify-candidate`, `refresh-governance-artifacts`, `refresh-phpunit-timings`, `report-ci-measurement`, `resolve-split-main-targets`, `run-hermetic-admin-build`, `skeleton-unpublished-repositories`, `summarize-php-coverage`, `sync-internal-versions`, `test-mutation-pilot`, `test-quality-inventory`, `test-random-order`, `verify-k1-delivery-cutover`, `worktree-coordinator` | Some run in Linux CI or focused local checks; no current native Windows job executes these exact root entrypoints. They are not classified portable merely because they are PHP. `project-hooks-launcher` is the internal Composer entrypoint for `hooks:install` and `hooks:doctor` described in the Composer-script row above. |
+| Verified native portable internal CI gates and evidence tool (5 PHP entries) | `check-composer-policy`, `check-portable-paths`, `check-repo-root-hygiene`, `check-skeleton-docker-secret-exclusion`, `native-host-evidence` | Executed through `php` on `ubuntu-24.04` and `windows-2025` by the `native-host-contract` matrix, with validated per-host evidence (#2678). For `check-skeleton-docker-secret-exclusion` only the Docker-free `--self-test` mode (null device, launcher probe) is verified on both hosts; its Docker proof stays Linux-owned in `ci/skeleton-create-project`. `native-host-evidence` validates hosted contract results and runs no contract command itself. |
+| Host-specific internal framework-maintainer tools with no native Windows support claim (63 PHP entries) | `adapt-consumer-promotions`, `admin-dist-acceptance`, `agent-checkpoint`, `audit-ci-roster-live`, `build-phpunit-shards`, `changelog-fragments`, `check-admin-dist-fresh`, `check-changed-php-coverage`, `check-changelog-shape`, `check-ci-roster-conformance`, `check-covers-nothing-companions`, `check-dead-code`, `check-delivery-agent-events`, `check-dispatcher-keys`, `check-distribution-exclusion`, `check-distribution-extensions`, `check-external-consumers`, `check-getquery-bindings`, `check-governed-secret-access`, `check-landing-base`, `check-local-operator-tool-profile`, `check-package-coverage-history`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-php-coverage-baseline`, `check-runtime-policy-custody`, `check-s1-configuration-activation`, `check-s1-configuration-authority`, `check-s1-schema-authority`, `check-s1-sqlite-contract`, `check-stale-spec-deferrals`, `check-support-contract`, `check-symfony-imports`, `check-upgrade-contract`, `check-vendor-fresh`, `classify-ci-run-evidence`, `collect-ci-run-evidence`, `compile-spec-corpus`, `generate-ci-workflow-inventory`, `generate-surface-map`, `maintainer-skills`, `merge-clover-coverage`, `migrate-surface-map`, `normalize-admin-dist`, `phpstan-level-audit`, `project-board-sync`, `project-ci-ruleset`, `project-delivery-agent-events`, `project-hooks-launcher`, `qualify-candidate`, `refresh-governance-artifacts`, `refresh-phpunit-timings`, `report-ci-measurement`, `resolve-split-main-targets`, `run-hermetic-admin-build`, `skeleton-unpublished-repositories`, `summarize-php-coverage`, `sync-internal-versions`, `test-mutation-pilot`, `test-quality-inventory`, `test-random-order`, `verify-k1-delivery-cutover`, `worktree-coordinator` | Some run in Linux CI or focused local checks; no current native Windows job executes these exact root entrypoints. They are not classified portable merely because they are PHP. `project-hooks-launcher` is the internal Composer entrypoint for `hooks:install` and `hooks:doctor` described in the Composer-script row above. |
 | Host-specific internal framework-maintainer tools with no native Windows support claim (2 PHP files without shebangs) | `check-access-hardening`, `check-phpunit-skip-policy` | These remain tracked `bin/` entries, but no current native Windows job proves them. |
 | Host-specific release helper (1 Node entry) | `generate-release-evidence` | Release automation, not a native consumer entrypoint; no cross-host claim is made. |
 | Host-specific Windows proof helper (1 PowerShell entry) | `check-bimaaji-junction-containment.ps1` | Executed on `windows-2025` to prove junction containment. It is not portable to Linux and is not a general consumer command. |
@@ -152,7 +165,13 @@ does not make any other POSIX-only `bin/` entrypoint portable.
 
 The four omissions found during review—`check-landing-base`,
 `check-skeleton-docker-secret-exclusion`, `check-vendor-fresh`, and
-`worktree-coordinator`—are included in the 67-entry row.
+`worktree-coordinator`—were added to the host-specific PHP row;
+`check-skeleton-docker-secret-exclusion` has since moved to the verified row
+with `check-composer-policy`, `check-portable-paths` and
+`check-repo-root-hygiene` (#2678). `worktree-coordinator` in particular
+accepts only POSIX paths and starts the Bash `bin/git`, so it cannot issue
+leases for native Windows worktrees; that is recorded debt, not a support
+claim.
 `verify-k1-delivery-cutover` appears once. The same row also holds the ten
 files that were missing until #2679 reconciled the inventory: the CI and
 governance tools `audit-ci-roster-live`, `check-ci-roster-conformance`,
@@ -180,7 +199,7 @@ governance tools `audit-ci-roster-live`, `check-ci-roster-conformance`,
 
 | Launcher | Disposition | Evidence boundary |
 |---|---|---|
-| `php vendor/bin/phpunit` | Targeted native Windows use only; full-suite support unsupported | The Windows job uses this exact invocation for the local-operator subset. The complete framework suite includes POSIX-only release-tooling, process, advisory-lock, symlink, and RSA/toolchain proofs. |
+| `php vendor/bin/phpunit` | Verified on both hosts for the native-host contract selection only; full-suite support unsupported | The `native-host-contract` matrix uses this exact invocation, with `--fail-on-skipped`, `--fail-on-incomplete` and `--fail-on-empty-test-suite`, for the curated selection in `tools/native-host-contract.json`. The complete framework suite includes POSIX-only release-tooling, process, advisory-lock, symlink, and RSA/toolchain proofs. |
 | `./vendor/bin/phpunit` | POSIX-style launcher; no native Windows evidence | Linux and POSIX environments may execute Composer's direct shim. It does not inherit evidence from the separate `php vendor/bin/phpunit` invocation. |
 | `composer test` | Native Windows unsupported as an aggregate | It reaches the complete framework suite and has no native Windows evidence. |
 | `cd packages/admin && npm test`, `npm run build`, `npm run typecheck`, `npm run lint` | Normative Node 24 targets; unsupported on native Windows pending verification | Current evidence is Linux-owned; command syntax alone is not proof. |
@@ -232,14 +251,38 @@ include:
 5. `skeleton-create-project-windows` when the consumer lifecycle, generated
    maintenance verification, Bimaaji installation, or Windows path containment
    can change;
-6. `local-operator-windows` when the local-operator trust boundary or its
-   subprocess behavior can change; and
+6. the `native-host-contract` matrix on `ubuntu-24.04` and `windows-2025`
+   when a contract command, its selected tests, or the paths, subprocess,
+   null-device, Git or executable-resolution behavior they prove can change;
+   and
 7. focused package or architecture tests for the changed inventory row.
 
 MCP stdio, AI CLI, Node/admin, Windows serving, or another unverified target
 cannot be declared verified merely by routing an unrelated change through the
-two existing Windows jobs. Its pull-request check becomes required when a
+existing native Windows jobs. Its pull-request check becomes required when a
 follow-up adds a discriminating native proof for that exact surface.
+
+### Implemented placement and cost split (#2678)
+
+The live ruleset requires `merge/platform-runtime-acceptance`, which fails
+closed unless `ci/frankenphp-worker`, `ci/skeleton-create-project-windows` and
+`ci/native-host-contract` all succeed. `ci/native-host-contract` succeeds only
+when both matrix leaves succeeded and `bin/native-host-evidence verify-set`
+accepts exactly one passing evidence record per contract host, bound to the
+same checkout, contract digest and workflow run. A failed, cancelled, skipped
+or missing leaf, step or record therefore blocks the merge. These jobs run
+unconditionally on every pull request, which is stricter than the conditional
+placement above.
+
+Measured against the 12 successful CI runs before the change, the matrix adds
+roughly one to two minutes of Linux runner time (the Linux leaf and the gate)
+and replaces the former `ci/local-operator-windows` job (63–84 s) with a
+Windows leaf expected to take roughly 90–150 s. The Windows leaf and the gate
+finish well inside the Linux PHPUnit shards that pace every run, so the
+critical path is unchanged unless Windows runner queueing exceeds several
+minutes. Weighted with GitHub's published runner multipliers (Windows ×2),
+this is a job-wall cost proxy only: the repository is public and runs on
+standard hosted runners, so no billed cost is claimed.
 
 A branch-protection adapter decides which named CI checks enforce this policy;
 the adapter must be audited rather than inferred from this prose. A check cannot

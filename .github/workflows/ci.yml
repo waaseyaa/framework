@@ -1470,30 +1470,42 @@ jobs:
             Remove-Item -Recurse -Force $env:BIMAAJI_WINDOWS_CONSUMER -ErrorAction SilentlyContinue
           }
 
-  # #2658. The local-operator trust-boundary proofs spawn child PHP processes
-  # (a production-shaped runtime for R-6, and a real `php -S` built-in server
-  # under SAPI `cli-server` for the narrowing-only SAPI seam). Their first
-  # implementation built a `NAME=value command` prefix and called exec() —
-  # POSIX shell syntax that cmd.exe does not parse, so on Windows the probe was
-  # never executed and the proof passed vacuously. They now use proc_open()
-  # with an argv array and an explicit environment map; this lane is what makes
-  # that portability a tested claim rather than an assertion.
+  # #2678 (FW-2678-NATIVE-HOST-CONTRACT-01). The supported native-host
+  # contract: tools/native-host-contract.json lists every command, and each
+  # matrix leaf runs all of them, in order, one step each, on the exact
+  # runner its contract host names. Both leaves execute the same step text.
   #
-  # Deliberately NOT folded into ci/skeleton-create-project-windows: that lane
-  # installs a consumer project via `composer create-project` and runs no
-  # PHPUnit at all, so it has neither the monorepo autoloader nor the dev
-  # dependencies these tests need. Bolting a full monorepo install onto it
-  # would roughly double its runtime and blur a lane with a specific charter.
+  # pwsh is hosted harness machinery on both runners, not a contributor or
+  # consumer prerequisite: the evidence records the shell that ran, and the
+  # replay data gives a native PowerShell rendering for Windows and a POSIX sh
+  # rendering for Linux. Each step starts exactly the rendered argument array,
+  # then records the native exit code before anything else can change it.
+  # $PSNativeCommandUseErrorActionPreference is pinned off so a non-zero exit
+  # is recorded instead of throwing first on pwsh versions that default it on.
   #
-  # Scope is only the boundary proofs. The D-7.3 roster-gate sandbox
-  # (tests/Architecture/LocalOperatorToolProfileGateTest.php) is excluded on
-  # purpose: it builds its fixture tree with symlink(), which needs Developer
-  # Mode or SeCreateSymbolicLinkPrivilege on Windows, and it exercises a gate
-  # that runs on the Linux lanes.
-  local-operator-windows:
-    name: ci/local-operator-windows
-    runs-on: windows-2025
+  # PHPUnit runs with --fail-on-skipped, --fail-on-incomplete and
+  # --fail-on-empty-test-suite and keeps its JUnit and OTR logs. The collector
+  # (bin/native-host-evidence) validates the hosted results and runs nothing:
+  # a missing identity, an unexecuted step, a skip, an incomplete test or an
+  # unlisted or missing test method fails the leaf. It replaces the former
+  # ci/local-operator-windows lane, whose trust-boundary tests are part of
+  # this contract on both hosts; they remain a narrow existing proof, not the
+  # local AI-plane parity #2680 owns.
+  native-host-contract:
+    name: ci/native-host-contract-${{ matrix.host }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [linux, windows]
+        include:
+          - host: linux
+            runner: ubuntu-24.04
+            composer_cache: ~/.cache/composer/files
+          - host: windows
+            runner: windows-2025
+            composer_cache: ~\AppData\Local\Composer\files
     defaults:
       run:
         shell: pwsh
@@ -1502,38 +1514,176 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
-      # The same extension set ci/skeleton-create-project-windows installs, and
-      # for the same reason: the root lock file resolves waaseyaa/oidc, whose
-      # lcobucci/jwt and league/oauth2-server dependencies carry ext-sodium
-      # platform requirements. A shorter list makes `composer install` fail
-      # with "lock file does not contain a compatible set of packages" before
-      # any test runs.
+      # The extension set ci/skeleton-create-project-windows installs: the root
+      # lock file resolves waaseyaa/oidc, whose dependencies require
+      # ext-sodium. Composer is pinned to the 2.10 feature line of the
+      # native-host contract; the evidence still validates the observed version.
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml, sodium, fileinfo, zip
           coverage: none
+          tools: composer:2.10
 
       - name: Cache Composer downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~\AppData\Local\Composer\files
+          path: ${{ matrix.composer_cache }}
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
 
-      - name: Install dependencies
-        run: |
-          $ErrorActionPreference = 'Stop'
-          composer install --no-interaction --no-progress --no-scripts
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record the hosted harness shell
+        id: harness-shell
+        run: '"version=$($PSVersionTable.PSVersion)" >> $env:GITHUB_OUTPUT'
 
-      - name: Local-operator trust boundary holds on Windows
+      - name: 'Contract step: composer-install'
+        id: composer-install
         run: |
-          $ErrorActionPreference = 'Stop'
-          php vendor/bin/phpunit --no-coverage `
-            packages/ai-agent/tests/Unit/LocalOperator `
-            tests/Integration/LocalOperator
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $PSNativeCommandUseErrorActionPreference = $false
+          composer install --no-interaction --no-progress --no-scripts
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: root-hygiene-before'
+        id: root-hygiene-before
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php bin/check-repo-root-hygiene
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: composer-policy'
+        id: composer-policy
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php bin/check-composer-policy
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: portable-paths'
+        id: portable-paths
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php bin/check-portable-paths
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: null-device-self-test'
+        id: null-device-self-test
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php bin/check-skeleton-docker-secret-exclusion --self-test
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: phpunit-unit'
+        id: phpunit-unit
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php vendor/bin/phpunit --no-coverage --do-not-cache-result --fail-on-empty-test-suite --fail-on-skipped --fail-on-incomplete --log-junit build/native-host/unit.junit.xml --log-otr build/native-host/unit.otr.xml --exclude-filter '/OnLinux$/' packages/cli/tests/Unit/ProjectInit/ProcOpenProjectInitProcessRunnerTest.php packages/ai-agent/tests/Unit/LocalOperator
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: phpunit-integration'
+        id: phpunit-integration
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php vendor/bin/phpunit --no-coverage --do-not-cache-result --fail-on-empty-test-suite --fail-on-skipped --fail-on-incomplete --log-junit build/native-host/integration.junit.xml --log-otr build/native-host/integration.otr.xml packages/cli/tests/Integration/ProjectInitProcessTest.php tests/Integration/LocalOperator
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: phpunit-architecture'
+        id: phpunit-architecture
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php vendor/bin/phpunit --no-coverage --do-not-cache-result --fail-on-empty-test-suite --fail-on-skipped --fail-on-incomplete --log-junit build/native-host/architecture.junit.xml --log-otr build/native-host/architecture.otr.xml --exclude-filter '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\w+)\b/' tests/Architecture/RepositoryGitEntrypointTest.php tests/Architecture/ProjectHooksLauncherTest.php tests/Architecture/SkeletonDockerSecretExclusionTest.php tests/Architecture/PhpunitTempDirGuardTest.php tests/Architecture/NativeHostEvidenceTest.php
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: 'Contract step: root-hygiene-after'
+        id: root-hygiene-after
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          php bin/check-repo-root-hygiene
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: Collect and validate native-host evidence
+        if: always()
+        env:
+          NATIVE_HOST_SHELL: pwsh
+          NATIVE_HOST_SHELL_VERSION: ${{ steps.harness-shell.outputs.version }}
+          NATIVE_HOST_RUNNER_LABEL: ${{ matrix.runner }}
+          NATIVE_HOST_DISPATCH_SHA: ${{ inputs.sha }}
+          NATIVE_HOST_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          NATIVE_HOST_STEP_RESULTS: |
+            composer-install ${{ steps.composer-install.outcome }} ${{ steps.composer-install.outputs.exit_code }}
+            root-hygiene-before ${{ steps.root-hygiene-before.outcome }} ${{ steps.root-hygiene-before.outputs.exit_code }}
+            composer-policy ${{ steps.composer-policy.outcome }} ${{ steps.composer-policy.outputs.exit_code }}
+            portable-paths ${{ steps.portable-paths.outcome }} ${{ steps.portable-paths.outputs.exit_code }}
+            null-device-self-test ${{ steps.null-device-self-test.outcome }} ${{ steps.null-device-self-test.outputs.exit_code }}
+            phpunit-unit ${{ steps.phpunit-unit.outcome }} ${{ steps.phpunit-unit.outputs.exit_code }}
+            phpunit-integration ${{ steps.phpunit-integration.outcome }} ${{ steps.phpunit-integration.outputs.exit_code }}
+            phpunit-architecture ${{ steps.phpunit-architecture.outcome }} ${{ steps.phpunit-architecture.outputs.exit_code }}
+            root-hygiene-after ${{ steps.root-hygiene-after.outcome }} ${{ steps.root-hygiene-after.outputs.exit_code }}
+        run: php bin/native-host-evidence collect --host=${{ matrix.host }} --out=build/native-host/evidence.json
+
+      - name: Upload native-host evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-host-evidence-${{ matrix.host }}
+          path: build/native-host/
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+  # The single stable gate over the native-host matrix. The matrix result is
+  # success only when every leaf that ran succeeded; it cannot say how many
+  # leaves ran. verify-set closes that: it accepts exactly one passing
+  # evidence record per contract host, each bound to this checkout, the same
+  # contract digest and this workflow run (a re-run leaf may carry a later
+  # attempt). merge/platform-runtime-acceptance requires this job.
+  native-host-contract-evidence:
+    name: ci/native-host-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [native-host-contract]
+    if: always()
+    steps:
+      - name: Require both native-host leaves
+        env:
+          NATIVE_HOST_LEAVES: ${{ needs.native-host-contract.result }}
+        run: test "$NATIVE_HOST_LEAVES" = success
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: none
+
+      - name: Download the per-host evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: native-host-evidence-*
+          path: build/native-host-evidence
+
+      - name: Verify exactly one passing record per host
+        run: php bin/native-host-evidence verify-set --dir=build/native-host-evidence --hosts=linux,windows
 
   packaged-form:
     name: packaged-form
@@ -2549,11 +2699,15 @@ jobs:
       - name: Run structural secrets scan
         run: ./vendor/bin/phpunit --filter Phase22 --no-coverage
 
-  # Task 5 of FW-CI-CHECK-ROSTER-AUDIT-01. These stable merge decisions run in
-  # shadow mode while the live ruleset continues to require the 22 established
-  # contexts. Every job uses always() and explicitly rejects every terminal
-  # prerequisite state except success. Tasks 6 and 7 must prove live parity
-  # before any of these names enters the ruleset.
+  # FW-CI-CHECK-ROSTER-AUDIT-01. These nine stable merge decisions are the
+  # sole required-check interface of the live ruleset (Task 7 migrated it from
+  # the 22 legacy contexts). Every job uses always() and explicitly rejects
+  # every terminal prerequisite state except success, so a failed, cancelled,
+  # skipped or missing prerequisite cannot produce a green decision.
+  # Prerequisites may be added behind an existing decision without renaming
+  # it. tools/ci-check-roster.json is the authority for which prerequisites
+  # each decision checks; tools/ci-ruleset-main-protection-baseline.json stays
+  # the frozen legacy emergency-rollback payload and is not extended.
   merge-source-repository-policy:
     name: merge/source-repository-policy
     runs-on: ubuntu-24.04
@@ -2725,18 +2879,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
-    needs: [frankenphp-worker, skeleton-create-project-windows]
+    needs: [frankenphp-worker, skeleton-create-project-windows, native-host-contract-evidence]
     if: always()
     steps:
       - name: Require platform and runtime acceptance
         env:
           FRANKENPHP_WORKER: ${{ needs.frankenphp-worker.result }}
           SKELETON_WINDOWS: ${{ needs.skeleton-create-project-windows.result }}
+          NATIVE_HOST_CONTRACT: ${{ needs.native-host-contract-evidence.result }}
         run: |
           failed=0
           for item in \
             "frankenphp-worker=$FRANKENPHP_WORKER" \
-            "skeleton-create-project-windows=$SKELETON_WINDOWS"; do
+            "skeleton-create-project-windows=$SKELETON_WINDOWS" \
+            "native-host-contract-evidence=$NATIVE_HOST_CONTRACT"; do
             if [ "${item#*=}" != success ]; then
               echo "::error title=Platform and runtime acceptance::${item%%=*} finished ${item#*=}"
               failed=1

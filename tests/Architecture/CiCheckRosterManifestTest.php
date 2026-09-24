@@ -54,6 +54,8 @@ final class CiCheckRosterManifestTest extends TestCase
         'random-order-shards',
         'random-order-aggregate',
         'mutation-pilot',
+        'native-host-contract-leaves',
+        'native-host-contract-aggregate',
         'release-publish-evidence',
         'enable-native-auto-merge',
     ];
@@ -233,6 +235,8 @@ final class CiCheckRosterManifestTest extends TestCase
             'binding-workflow-drift' => $mutated['bindings']['producers']['php-test-shards'] = ['workflow' => 'split.yml', 'job' => 'split'],
             'binding-missing-workflow' => $mutated['bindings']['workflow_policies']['primary-ci'] = 'not-a-workflow.yml',
             'residual-status' => $mutated['residual_tasks'][2]['status'] = 'pending',
+            'native-host-width' => $mutated['policy']['artifact_contracts'][1]['bounded_expansion'] = ['native-host-evidence-linux'],
+            'native-host-subject' => $mutated['policy']['producers'][$producerIndex('native-host-contract-leaves')]['subject_profiles'][0]['artifact_subject'] = 'pr-head-sha',
             default => self::fail(sprintf('Unknown fixture %s.', $case)),
         };
 
@@ -267,6 +271,8 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'explicit prerequisite result' => ['aggregate-result', 'php-behavior-aggregate prerequisite php-test-shards must explicitly require success'];
         yield 'bounded artifacts' => ['artifact-pattern', 'php shard coverage must use the bounded php-test-shard-* contract'];
         yield 'artifact subject matching' => ['artifact-subject', 'php shard coverage producer and consumer profiles must bind artifact-source-sha'];
+        yield 'native-host evidence width' => ['native-host-width', 'native-host evidence must use the bounded native-host-evidence-* contract from the leaves to the gate'];
+        yield 'native-host evidence subject' => ['native-host-subject', 'native-host evidence producer and consumer profiles must bind artifact-source-sha'];
         yield 'inventory pointer' => ['unbound-inventory-pointer', 'generated workflow inventory pointer must name the tracked inventory path'];
         yield 'verifier pointer' => ['unbound-verifier-pointer', 'offline workflow conformance pointer must name the task 3 verifier'];
         yield 'producer roster' => ['producer-roster', 'policy must define the governed producer roster in order'];
@@ -614,6 +620,7 @@ final class CiCheckRosterManifestTest extends TestCase
             'php-behavior-aggregate' => ['php-test-shards'],
             'php-coverage-aggregate' => ['php-test-shards'],
             'random-order-aggregate' => ['random-order-shards', 'random-order-plan'],
+            'native-host-contract-aggregate' => ['native-host-contract-leaves'],
         ];
         foreach ($contract['aggregates'] ?? [] as $aggregate) {
             $ownerId = $aggregate['producer_id'] ?? '?';
@@ -652,6 +659,27 @@ final class CiCheckRosterManifestTest extends TestCase
                 if (($profile['artifact_subject'] ?? null) !== 'artifact-source-sha') {
                     $errors[] = 'php shard coverage producer and consumer profiles must bind artifact-source-sha';
                 }
+            }
+        }
+
+        // #2678: one evidence record per native-host matrix leaf, consumed by
+        // the single ci/native-host-contract gate.
+        $evidence = array_values(array_filter(
+            $manifest['policy']['artifact_contracts'] ?? [],
+            static fn(mixed $contract): bool => is_array($contract) && ($contract['id'] ?? null) === 'native-host-evidence',
+        ))[0] ?? [];
+        if (($evidence['producer_id'] ?? null) !== 'native-host-contract-leaves'
+            || ($evidence['consumer_id'] ?? null) !== 'native-host-contract-aggregate'
+            || ($evidence['producer_pattern'] ?? null) !== 'native-host-evidence-*'
+            || ($evidence['bounded_expansion'] ?? null) !== ['native-host-evidence-linux', 'native-host-evidence-windows']
+            || ($evidence['subject'] ?? null) !== 'artifact-source-sha'
+            || ($evidence['require_exact_subject_match'] ?? null) !== true) {
+            $errors[] = 'native-host evidence must use the bounded native-host-evidence-* contract from the leaves to the gate';
+        }
+        foreach (['native-host-contract-leaves', 'native-host-contract-aggregate'] as $producerId) {
+            $profiles = $this->producer($manifest, $producerId)['subject_profiles'] ?? [];
+            if ($profiles === [] || array_filter($profiles, static fn(array $profile): bool => ($profile['artifact_subject'] ?? null) !== 'artifact-source-sha') !== []) {
+                $errors[] = 'native-host evidence producer and consumer profiles must bind artifact-source-sha';
             }
         }
     }

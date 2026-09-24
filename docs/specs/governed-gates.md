@@ -283,7 +283,12 @@ POSIX only a leading `/` qualifies (a `TMPDIR=C:\Temp` on Linux/WSL is a *relati
 `realpath()` cannot resolve and scratch paths land in the cwd); on Windows only drive-rooted
 (`C:\`, `C:/`) or UNC (`\\server\share`) paths qualify, never drive-relative `C:foo` or
 current-drive-rooted `\foo` — and the proof exercises both semantics on every OS,
-the mechanism fails loudly before the first write instead of silently.
+the mechanism fails loudly before the first write instead of silently. Native Windows PHP
+ignores `TMPDIR` and reads `TMP`, then `TEMP`, resolving a relative value against the working
+directory, so `TMP=.` yields the checkout itself and the root check refuses it; the guard's
+recovery guidance names the variables the host reads. The `native-host-contract` CI matrix runs
+this proof, and `bin/check-repo-root-hygiene` before and after its tests, natively on
+`ubuntu-24.04` and `windows-2025` (#2678).
 
 ### 8. Host-portable gate execution (#3096)
 
