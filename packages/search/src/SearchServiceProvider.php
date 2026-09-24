@@ -198,7 +198,15 @@ final class SearchServiceProvider extends ServiceProvider
 
             return PHP_OS_FAMILY === 'Windows' ? strtolower($file) : $file;
         };
+        if ($canonical($path) === $canonical($databasePath)) {
+            return true;
+        }
 
-        return $canonical($path) === $canonical($databasePath);
+        // A hard link has its own path but is the same file.
+        $searchFile = @stat($path);
+        $databaseFile = @stat($databasePath);
+
+        return $searchFile !== false && $databaseFile !== false && $searchFile['ino'] !== 0
+            && $searchFile['dev'] === $databaseFile['dev'] && $searchFile['ino'] === $databaseFile['ino'];
     }
 }
