@@ -1,19 +1,23 @@
 # `waaseyaa/ai-vector` audit
 
-- **Audit state:** in progress. It isn't assessed yet, for three reasons:
-  1. the findings have no owner issues yet (that waits on the remediation split below);
-  2. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
-  3. the AIV-SEC-001 private report hasn't been filed.
-- **Remediation state:** not triaged
+- **Audit state:** in progress. It isn't assessed yet, for two reasons:
+  1. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
+  2. AIV-SEC-001 hasn't completed private triage.
+- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. #3138 (AIV-PERSIST-001, AIV-PERSIST-002) is implemented by FW-AIV-PERSIST-01.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
 - **Dependency identity:** `composer.lock` SHA-256 `1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48` at the base; PHP 8.5.5, native Windows 11
-- **Evidence freshness:** current at `bfba7f27d7a27a2228649bc75967fb1d261856c0`
-- **Owner issue:** program `waaseyaa/framework#3118` (no package audit issue yet)
+- **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. The one production change since then, FW-AIV-PERSIST-01 (#3138), is reconciled in the charter, roster and AIV-PERSIST entries:
+  - `SqliteEmbeddingStorage` was replaced by `DatabaseEmbeddingStorage`;
+  - the `embeddings` migration was added;
+  - `waaseyaa/database-legacy` was declared.
+
+  Nothing else was re-audited. The findings' observed evidence describes the base.
+- **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
 - **Profiles applied:** persistence-execution, kernel-runtime, domain-contracts, http-ui-contracts (the search route and its composition), distribution. **Not applied:** introspection-cli (ai-vector registers no commands; `semantic:warm` and `semantic:refresh` live in `waaseyaa/cli` and only call `SemanticIndexWarmer`), generation-build (the package generates nothing).
 
 ## Charter
 
-- **Owns:** computing text embeddings through a configured provider (Ollama, OpenAI), storing one vector per entity, similarity search over stored vectors, keeping vectors in step with entity lifecycle events, and the semantic search controller.
+- **Owns:** computing text embeddings through a configured provider (Ollama, OpenAI), storing one vector per entity in its migration-owned `embeddings` table, similarity search over stored vectors, keeping vectors in step with entity lifecycle events, and the semantic search controller.
 - **Does not own:** schema authority (Foundation), entity storage and access policy (entity, access), publication rules (workflows), route registration (Foundation `BuiltinRouteRegistrar`), the `vector.search` AI tool (ai-tools), CLI commands (cli).
 - **Consumers:**
   - Foundation `HttpKernel` registers its lifecycle listeners.
@@ -21,23 +25,25 @@
   - The CLI `semantic:warm` and `semantic:refresh` handlers use `SemanticIndexWarmer`.
   - ai-tools `VectorSearchTool` duck-types its interfaces.
   - It arrives in applications through `waaseyaa/cli` (a runtime `require`) and the `waaseyaa/full` metapackage; `core` and `cms` don't include it.
-- **Dependencies:** requires entity, entity-storage, queue, api, access, workflows and foundation, all used; there are no undeclared imports. Embedding providers are optional and chosen by config. Storage has one implementation (SQLite through raw PDO) and isn't configurable.
+- **Dependencies:** requires entity, entity-storage, queue, api, access, workflows, foundation and (since FW-AIV-PERSIST-01) database-legacy, all used; there are no undeclared imports. Embedding providers are optional and chosen by config.
+- **Storage:** there is one implementation. At the base it was SQLite through raw PDO. Since FW-AIV-PERSIST-01 it is `DatabaseEmbeddingStorage` over `DatabaseInterface`, on the migration-owned `embeddings` table. It isn't configurable (#3140).
 - **Public surface:** see AIV-PUBLIC-001. `public-surface.php` declares five symbols, but nine classes carry `@api` without a declaration, and `SearchController` states a "stable" v1.0 wire contract that isn't declared anywhere.
 - **Evidence it works:**
-  - Source: 89 package unit tests and 12 related integration tests pass.
+  - Source: at the base, 89 package unit tests and 12 related integration tests pass. With FW-AIV-PERSIST-01, 107 package tests pass, including the migration and serving-path schema-authority tests.
   - Distributed form: not qualified (see "Not reviewed").
 
 ## Roster
 
-All 21 PHP files under `src/`, plus `public-surface.php` (22 PHP files), the manifest and the README.
+All 21 PHP files under `src/`, the migration and `public-surface.php` (23 PHP files), plus the manifest and the README. The rows for `DatabaseEmbeddingStorage` and the migration reflect FW-AIV-PERSIST-01 and replace the base's `SqliteEmbeddingStorage` row.
 
 | File | Role | Classification | Evidence level | Notes |
 | --- | --- | --- | --- | --- |
 | `src/AiVectorServiceProvider.php` | Binds storage, provider and warmer | duplicated or drifting contract | reviewed | Its bindings are bypassed by Foundation (AIV-COMP-001) |
-| `src/SqliteEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation | missing refusal, lifecycle, compatibility or distribution evidence | reproduced | AIV-PERSIST-001, AIV-PERSIST-002 |
+| `src/DatabaseEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation, over `DatabaseInterface` | owned and coherent | reproduced | Replaced `SqliteEmbeddingStorage` (AIV-PERSIST-001, AIV-PERSIST-002) in FW-AIV-PERSIST-01; no DDL, no raw PDO |
+| `migrations/2026_09_24_000001_embeddings_schema.php` | Owns the `embeddings` table | owned and coherent | reproduced | Creates it, adopts a compatible table in place, refuses others with `[AIV-DB001]` (FW-AIV-PERSIST-01) |
 | `src/EmbeddingStorageInterface.php` | Storage contract used in production | owned and coherent | reviewed | Competes with `VectorStoreInterface` (AIV-PUBLIC-001) |
 | `src/EntityEmbeddingListener.php` | Re-index on save and revision moves | necessary but under-specified | reproduced | Synchronous remote call (AIV-EXEC-001); indexability rule (AIV-DOMAIN-001) |
-| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | necessary but under-specified | reproduced | Triggers the lazy DDL (AIV-PERSIST-001) |
+| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | necessary but under-specified | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001) |
 | `src/SearchController.php` | Semantic and keyword search, graph rerank | necessary but under-specified | reproduced (synthetic) | AIV-SEC-001, AIV-HTTP-001 |
 | `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reviewed | The CLI's only indexing path (AIV-COMP-002) |
 | `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places (AIV-COMP-001) |
@@ -64,19 +70,19 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 | ID | Title | Severity | Confidence | Level | Disposition | Owner | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | repair | pending split (WP-A) | Choose migration-owned table vs dedicated projection file |
-| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | pending split (WP-A) | Move to `DatabaseInterface` with the WP-A decision |
-| `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair | pending split (WP-B) | Define one composition path |
-| `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair | pending split (WP-B) | Decide whether CLI and workers keep vectors in step |
-| `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reviewed | repair or document | pending split (WP-B) | Implement and qualify, or stop advertising and refuse clearly |
+| `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | repair | #3138 (FW-AIV-PERSIST-01) | Migration-owned table; remediation candidate in #3138 |
+| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | #3138 (FW-AIV-PERSIST-01) | `DatabaseEmbeddingStorage` in #3138; server-database qualification in #3140 |
+| `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair | #3139 | Define one composition path |
+| `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair | #3139 | Decide whether CLI and workers keep vectors in step |
+| `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reviewed | repair or document | #3140 | Implement and qualify, or stop advertising and refuse clearly |
 | `AIV-SEC-001` | Search response metadata can disclose entities removed from the results | withheld | confirmed | reproduced (synthetic) | repair | private report | Private report, then fix |
-| `AIV-HTTP-001` | Every semantic search loads all relationship entities | medium | confirmed | reviewed | repair | pending split (WP-SEC) | Bound or index the rerank query |
-| `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reviewed | repair or document | pending split (WP-C) | Decide an explicit indexability policy |
-| `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reviewed | repair or remove | pending split (WP-C) | Wire async indexing or remove the dead path |
-| `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reviewed | repair | pending split (WP-A) | Make post-commit storage failures best-effort, and test through a real repository |
-| `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | reviewed | document, deprecate or remove | pending split (WP-C) | Choose the canonical contract |
-| `AIV-DIST-001` | ai-vector is installed by default through `waaseyaa/cli`; a test helper ships in production | medium | confirmed | reviewed | repair | pending split (WP-B) | Make the capability opt-in |
-| `AIV-SYMFONY-001` | Hand-rolled HTTP client in both providers | low | likely | reviewed | defer | pending split (WP-C) | Evaluate `waaseyaa/http-client` |
+| `AIV-HTTP-001` | Every semantic search loads all relationship entities | medium | confirmed | reviewed | repair | #3143, sequenced with the private work | Bound or index the rerank query |
+| `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reviewed | repair or document | #3141 | Decide an explicit indexability policy |
+| `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reviewed | repair or remove | #3142 | Wire async indexing or remove the dead path |
+| `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reviewed | repair | #3139 | Make post-commit storage failures best-effort, and test through a real repository |
+| `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | reviewed | document, deprecate or remove | #3141 | Choose the canonical contract |
+| `AIV-DIST-001` | ai-vector is installed by default through `waaseyaa/cli`; a test helper ships in production | medium | confirmed | reviewed | repair | #3140 | Make the capability opt-in |
+| `AIV-SYMFONY-001` | Hand-rolled HTTP client in both providers | low | likely | reviewed | defer | accepted residual; review trigger owned by #3142 | Revisit when #3142's trigger fires |
 | `AIV-R-001` | Lead: any first entity save creates the table | — | refuted | reproduced | refuted | — | none |
 | `AIV-R-002` | Lead: the package imports undeclared dependencies | — | refuted | reviewed | refuted | — | none |
 | `AIV-R-003` | Lead: the in-`src` test helper breaks `--no-dev` boot | — | refuted | reviewed | refuted | — | none |
@@ -95,11 +101,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** any application that installs `waaseyaa/cli` (AIV-DIST-001) and serves HTTP gets drift on its first qualifying delete or save. After that, every coordinated transition refuses, including `install:init` in a new release. This blocked FETDER's production release (fetder-waaseyaa#160) and is the ai-vector half of #3110.
 - **Severity and confidence:** high; confirmed by reproduction. The spec already names ai-vector as a drift source, so this was known but unowned.
 - **Refutation:** considered "the deployer catalogue classifies `embeddings` as a runtime artifact table, so it's intended". Not a refutation: `FrameworkRuntimeTableCatalogue` governs deploy handoff, not schema authority, and the spec requires migration ownership or a separate file.
-- **Disposition and owner:** repair; WP-A (pending split). Required to unblock FETDER without a manual manifest re-record.
+- **Disposition and owner:** repair; #3138 (FW-AIV-PERSIST-01). FETDER was unblocked on 2026-09-23 by a guarded one-time manifest re-record (fetder-waaseyaa#160); the repair prevents recurrence.
 - **Dependencies:** #3110 (Foundation schema adoption) and AIV-PERSIST-002.
 - **Acceptance:** the probe's two drift cases (the delete and the draft-node save) flip; save, delete and search leave the manifest fingerprint unchanged (search is source-reviewed here, not reproduced by the probe, so the repair needs its own search case); strict verification and the next coordinated transition stay green on a real SQLite file.
-- **Residual risk:** databases already drifted need a supported adoption path (#3110).
-- **Next action:** decide between a migration-owned table on the authoritative database and a dedicated rebuildable projection file.
+- **Residual risk:** a database already drifted by the runtime table needs the documented re-adoption in `docs/specs/ai-integration.md` (embeddings-only drift). General adoption tooling remains #3110.
+- **Next action:** decided 2026-09-23: a migration-owned table on the authoritative database; already-drifted databases use the documented re-adoption procedure (`docs/specs/ai-integration.md`), with general adoption left to #3110. Remediation candidate in #3138.
 
 ### `AIV-PERSIST-002`: raw PDO and SQLite-only SQL on a driver-agnostic connection
 
@@ -108,28 +114,28 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** on MySQL or Postgres, `store()` fails. The listener logs the failure, so no vectors are ever written and semantic search silently returns nothing. The constructor also changes the shared connection's error mode.
 - **Severity and confidence:** medium; confirmed by source review. Not run against a non-SQLite database.
 - **Refutation:** none found.
-- **Disposition and owner:** repair; WP-A.
+- **Disposition and owner:** repair; #3138 (FW-AIV-PERSIST-01).
 - **Dependencies:** AIV-PERSIST-001's storage decision.
-- **Acceptance:** storage uses the framework database layer; the store/search/delete contract passes on SQLite and one server database; the shared connection's attributes are unchanged.
+- **Acceptance:** storage uses the framework database layer; the store/search/delete contract passes on SQLite; the shared connection's attributes are unchanged. Server-database qualification moved to #3140.
 - **Residual risk:** none after the repair.
-- **Next action:** fold into WP-A.
+- **Next action:** remediation candidate in #3138. Server-database qualification moved to #3140.
 
 ### `AIV-COMP-001`: three separately constructed storage and provider instances
 
 - **Observed, with evidence:**
   - `AiVectorServiceProvider` binds an `EmbeddingStorageInterface` singleton and a provider.
-  - `HttpKernel` builds another `SqliteEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners (`EventListenerRegistrar.php:147`).
+  - `HttpKernel` builds another `SqliteEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners (`EventListenerRegistrar.php:147`). Since FW-AIV-PERSIST-01 it builds a `DatabaseEmbeddingStorage` instead; the duplication is unchanged.
   - `SearchRouter` builds a third storage and provider on every request.
-  - All three are hard-wired to the SQLite class, so the interface binding can't substitute storage for HTTP.
+  - All three are hard-wired to one concrete class (`SqliteEmbeddingStorage` at the base, `DatabaseEmbeddingStorage` since FW-AIV-PERSIST-01), so the interface binding can't substitute storage for HTTP.
 - **Expected contract:** one composition owner and one selected storage, shared by listeners, HTTP, CLI and tools.
 - **Consequence and consumers:** a host that rebinds `EmbeddingStorageInterface` changes only the CLI warmer, not indexing or search. Provider configuration is resolved three times.
 - **Severity and confidence:** medium; confirmed.
 - **Refutation:** considered "Foundation's kernel and router directories are documented layer exemptions". That covers the imports, not three divergent compositions.
-- **Disposition and owner:** repair; WP-B.
-- **Dependencies:** WP-A's storage decision.
+- **Disposition and owner:** repair; #3139.
+- **Dependencies:** the storage decision in #3138 (FW-AIV-PERSIST-01).
 - **Acceptance:** listeners, `SearchRouter`, the warmer and tools resolve the same bound storage and provider, proven by a rebinding test.
 - **Residual risk:** none.
-- **Next action:** WP-B design.
+- **Next action:** #3139 design.
 
 ### `AIV-COMP-002`: lifecycle listeners exist only under `HttpKernel`
 
@@ -138,37 +144,37 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** entities saved, unpublished or deleted from the CLI, imports or workers keep stale vectors, or orphaned vectors for deleted entities, until `semantic:refresh` runs.
 - **Severity and confidence:** medium; confirmed by source review.
 - **Refutation:** considered "`semantic:refresh` is the intended reconcile path". It exists, but nothing says HTTP-only indexing is the contract.
-- **Disposition and owner:** repair; WP-B.
+- **Disposition and owner:** repair; #3139.
 - **Dependencies:** AIV-COMP-001.
 - **Acceptance:** a CLI-profile save and delete update the stored vectors, or the documented contract states that reconcile is required.
 - **Residual risk:** none.
-- **Next action:** WP-B.
+- **Next action:** #3139.
 
 ### `AIV-BACKEND-001`: `pgvector` advertised but never used
 
-- **Observed, with evidence:** `SovereigntyDefaults` sets `embeddings` and `vector_store` to `pgvector` for the `northops` profile. No ai-vector or Foundation code reads either key; every composition path builds `SqliteEmbeddingStorage`, and `findSimilar()` scans every row of a type in PHP.
+- **Observed, with evidence:** `SovereigntyDefaults` sets `embeddings` and `vector_store` to `pgvector` for the `northops` profile. No ai-vector or Foundation code reads either key; every composition path builds `SqliteEmbeddingStorage` (`DatabaseEmbeddingStorage` since FW-AIV-PERSIST-01), and `findSimilar()` scans every row of a type in PHP.
 - **Expected contract:** an advertised backend is implemented, or a request for it is refused clearly.
-- **Consequence and consumers:** a northops deployment believes it has pgvector and silently gets SQLite storage in its application database, with full-scan search.
+- **Consequence and consumers:** a northops deployment believes it has pgvector and silently gets storage in its application database (`DatabaseEmbeddingStorage` since FW-AIV-PERSIST-01, SQLite through raw PDO at the base), with a full-scan similarity search in PHP.
 - **Severity and confidence:** medium; confirmed.
 - **Refutation:** none found.
-- **Disposition and owner:** implement and qualify, or stop advertising; WP-B.
+- **Disposition and owner:** implement and qualify, or stop advertising; #3140.
 - **Dependencies:** AIV-COMP-001.
 - **Acceptance:** every advertised backend has a composition path and a qualification run, or selecting it fails with a clear message.
 - **Residual risk:** none.
-- **Next action:** WP-B decision.
+- **Next action:** #3140 decision.
 
 ### `AIV-SEC-001`: search response metadata can disclose entities removed from the results
 
 - **Observed, with evidence (safe summary):** under a specific configuration, the public search endpoint's response metadata can include identifiers and ranking data for entities that the visibility or access filters removed from the result list. Reproduced with a synthetic unit-level probe. The probe and details are withheld from this public record.
 - **Expected contract:** a search response reveals nothing about entities the caller can't see.
-- **Consequence and consumers:** applications that enable semantic search. Scope and severity will be assessed in a private report. **That report hasn't been filed**; filing waits on the maintainer's authorization.
+- **Consequence and consumers:** applications that enable semantic search. Scope and severity will be assessed in a private report. The report is in private triage.
 - **Severity and confidence:** withheld from this record; confirmed. Maintainer-side triage (2026-09-23): high static confidence, first in the exploitability queue.
 - **Refutation:** none found.
 - **Disposition and owner:** repair through the private reporting route (`SECURITY.md`).
 - **Dependencies:** none.
-- **Acceptance:** to be defined in the private report once it is filed.
-- **Residual risk:** to be defined in the private report once it is filed.
-- **Next action:** the maintainer authorizes and files the private report.
+- **Acceptance:** defined in the private report.
+- **Residual risk:** defined in the private report.
+- **Next action:** complete private triage, then the private fix, in the order the maintainer sets.
 
 ### `AIV-HTTP-001`: every semantic search loads all relationship entities
 
@@ -177,11 +183,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** search cost grows with the whole relationship table, on an anonymous endpoint.
 - **Severity and confidence:** medium; confirmed by review, not load-tested.
 - **Refutation:** none found.
-- **Disposition and owner:** repair; handled alongside AIV-SEC-001 because both touch the rerank path.
+- **Disposition and owner:** repair; #3143. It is sequenced with the private AIV-SEC-001 work because both touch the rerank path.
 - **Dependencies:** none.
 - **Acceptance:** the rerank query is limited to relationships touching the candidate IDs, with a bounded-cost test.
 - **Residual risk:** none.
-- **Next action:** pair with the AIV-SEC-001 fix.
+- **Next action:** #3143, once the maintainer confirms sequencing with the private work.
 
 ### `AIV-DOMAIN-001`: every non-node entity type is indexed and sent to the provider
 
@@ -190,11 +196,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** with a remote provider configured, content such as user names can be sent to a third-party API. This is a data-sovereignty question as much as a search question.
 - **Severity and confidence:** medium; confirmed by review.
 - **Refutation:** considered "only nodes need publication checks". That explains the node branch, not indexing everything else.
-- **Disposition and owner:** repair or document; WP-C, with a sovereignty review.
+- **Disposition and owner:** repair or document; #3141, with a sovereignty review.
 - **Dependencies:** none.
 - **Acceptance:** indexable types and fields are declared; undeclared types are never embedded; tests cover a user-like type.
 - **Residual risk:** existing stored vectors for newly excluded types need removal.
-- **Next action:** WP-C policy decision.
+- **Next action:** #3141 policy decision.
 
 ### `AIV-EXEC-001`: synchronous embedding on save; the queue message has no handler
 
@@ -205,11 +211,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** entity saves over HTTP wait on the embedding provider when one is configured. The queue path is dead code.
 - **Severity and confidence:** medium; confirmed.
 - **Refutation:** none found.
-- **Disposition and owner:** wire async indexing with a handler, or remove the message; WP-C.
+- **Disposition and owner:** wire async indexing with a handler, or remove the message; #3142.
 - **Dependencies:** AIV-COMP-001.
 - **Acceptance:** saves don't block on the provider, or the synchronous behavior is documented, and the message either has a handler with tests or is removed.
 - **Residual risk:** none.
-- **Next action:** WP-C.
+- **Next action:** #3142.
 
 ### `AIV-EXEC-002`: storage failures on the delete paths fail an already-committed entity mutation
 
@@ -226,11 +232,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - POST_* listeners registered after these for the same event don't run, because the dispatcher stops at the exception.
 - **Severity and confidence:** high; confirmed by source trace.
 - **Refutation:** considered "`EntityEmbeddingListener` catches failures". It does, but only around embed-and-store, not the delete branch or the re-sourcing read. The cleanup listener catches nothing.
-- **Disposition and owner:** repair; WP-A, because it touches the same storage calls as AIV-PERSIST-001.
-- **Dependencies:** none; it can land with WP-A.
+- **Disposition and owner:** repair; #3139, which owns lifecycle behavior across entry points. Post-commit vector storage failures must be best-effort.
+- **Dependencies:** none.
 - **Acceptance:** with a storage that fails on delete, an entity delete and a non-indexable save through a real repository report success, log the failure, and let later listeners run.
 - **Residual risk:** a vector left behind after a failed cleanup until `semantic:refresh` runs.
-- **Next action:** include in WP-A with an end-to-end regression test.
+- **Next action:** #3139, with an end-to-end regression test through a real repository.
 
 ### `AIV-PUBLIC-001`: two storage contracts; declarations don't match
 
@@ -243,11 +249,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** extension authors can't tell which contract is supported; removing either family later is a compatibility break.
 - **Severity and confidence:** low; confirmed.
 - **Refutation:** none found.
-- **Disposition and owner:** choose the canonical contract; deprecate or remove the other with a compatibility note; reconcile declarations; WP-C.
-- **Dependencies:** WP-A and WP-B settle the storage shape first.
+- **Disposition and owner:** choose the canonical contract; deprecate or remove the other with a compatibility note; reconcile declarations; #3141.
+- **Dependencies:** #3138 and #3139 settle the storage shape first.
 - **Acceptance:** public-surface parity, a declaration for the search wire contract, and an updated README.
 - **Residual risk:** downstream users of the second family, if any exist outside this repository.
-- **Next action:** WP-C.
+- **Next action:** #3141.
 
 ### `AIV-DIST-001`: installed by default through `waaseyaa/cli`; a test helper ships in production
 
@@ -259,11 +265,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** almost every application gets vector storage side effects without choosing them. This is how FETDER gained `embeddings`.
 - **Severity and confidence:** medium; confirmed.
 - **Refutation:** considered "`class_exists` gating makes it optional". Only for applications without the CLI.
-- **Disposition and owner:** repair; WP-B.
+- **Disposition and owner:** repair; #3140.
 - **Dependencies:** AIV-COMP-001.
 - **Acceptance:** the CLI no longer requires ai-vector at runtime, or activation needs explicit config; installed and absent profiles are both qualified.
 - **Residual risk:** applications relying on implicit installation need an upgrade note.
-- **Next action:** WP-B.
+- **Next action:** #3140.
 
 ### `AIV-SYMFONY-001`: hand-rolled HTTP client in both providers
 
@@ -272,11 +278,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** duplicated transport code and weak failure semantics.
 - **Severity and confidence:** low; likely. The fit of `waaseyaa/http-client` was not verified.
 - **Refutation:** not assessed.
-- **Disposition and owner:** defer; WP-C.
+- **Disposition and owner:** deferred as an accepted residual. #3142 owns the review trigger (see #3137).
 - **Dependencies:** AIV-EXEC-001.
 - **Acceptance:** an equivalence test for timeout, error and response-shape handling if replaced.
 - **Residual risk:** none.
-- **Next action:** evaluate during WP-C.
+- **Next action:** record retain, simplify or replace, with an equivalence test, if #3142 changes provider transport, retries or timeouts, or moves embedding off the request path.
 
 ### Refuted leads
 
@@ -326,7 +332,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 ## Not reviewed
 
-- The split-package install, a `--no-dev` install, a generated application, and a real server-database (MySQL or Postgres) run. All are needed for WP-D.
+- The split-package install, a `--no-dev` install, a generated application, and a real server-database (MySQL or Postgres) run. These belong to #3140's acceptance.
 - The `semantic:warm` and `semantic:refresh` handlers beyond their use of `SemanticIndexWarmer`.
 - ai-tools `VectorSearchTool` behavior. It's owned by ai-tools; only its dependency on these interfaces was checked.
 - Load or latency measurement for AIV-HTTP-001 and AIV-EXEC-001.
@@ -344,12 +350,17 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 | `php vendor/bin/phpunit packages/ai-vector/tests --no-coverage` | same | same | same | source read (unit, mocked) | 89 tests, 306 assertions pass |
 | `php vendor/bin/phpunit tests/Integration/Phase8/VectorSearchIntegrationTest.php tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php --no-coverage` | same | same | same | injected integration | 12 tests, 62 assertions pass |
 | `php bin/check-package-layers` | same | same | same | declared dependency layers | pass |
-| Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept for the private report, which hasn't been filed |
+| Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept with the private report, which is in private triage |
+| `php tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php` | `d05f38e611265688f4daf240a28b78aa50f0c13d` (FW-AIV-PERSIST-01) | lock `a4277f3a…7c5f9be9` | local, native Windows, PHP 8.5.5 | the same cases plus a semantic search, after the repair | 5 cases, none creates the table or drifts; the next transition succeeds in each (the probe's expectations were updated in FW-AIV-PERSIST-01) |
 
-## Proposed remediation split (for maintainer approval; no issues opened)
+## Remediation split
 
-- **WP-A, persistence and FETDER unblock:** AIV-PERSIST-001, AIV-PERSIST-002 and AIV-EXEC-002. Decide migration-owned versus dedicated projection storage, move off raw PDO, remove serving-path DDL, prove save/delete/search can't cause drift. Coordinates with #3110.
-- **WP-B, composition, backends and installation:** AIV-COMP-001, AIV-COMP-002, AIV-BACKEND-001 and AIV-DIST-001. One storage and provider composition path for every entry point; implement or stop advertising pgvector; make the capability opt-in.
-- **WP-C, public API, indexing policy and execution:** AIV-PUBLIC-001, AIV-DOMAIN-001, AIV-EXEC-001 and AIV-SYMFONY-001.
-- **WP-SEC, private:** AIV-SEC-001, with AIV-HTTP-001 on the same code path.
-- **WP-D, qualification:** source tests, the real SQLite schema-authority regression, split `--no-dev` install, a `waaseyaa/full` consumer, a generated application, package absence, and every advertised backend. Exact-head hosted CI and independent review.
+The maintainer approved the split on 2026-09-23 with adjustments, replacing the WP-A to WP-D proposal. The umbrella issue is #3137, and qualification is part of the acceptance of each child and of the umbrella; it isn't a separate issue.
+
+- **#3138, persistence and the FETDER unblock:** AIV-PERSIST-001 and AIV-PERSIST-002. Implemented by FW-AIV-PERSIST-01.
+- **#3139, composition and lifecycle:** AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002.
+- **#3140, distribution and backend claims:** AIV-DIST-001 and AIV-BACKEND-001, plus server-database qualification. Depends on #3138 and #3139.
+- **#3141, public contract and indexing policy:** AIV-PUBLIC-001 and AIV-DOMAIN-001.
+- **#3142, execution model:** AIV-EXEC-001. It also owns the review trigger for the deferred AIV-SYMFONY-001.
+- **#3143, public search cost:** AIV-HTTP-001, sequenced with the private work.
+- **AIV-SEC-001:** handled through the repository's private reporting route.

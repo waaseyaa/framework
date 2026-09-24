@@ -173,10 +173,6 @@ final class HttpKernel extends AbstractKernel
 
     protected function finalizeBoot(): void
     {
-        assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
-        $pdo = $this->database->getConnection()->getNativeConnection();
-        assert($pdo instanceof \PDO);
-
         $runtimeEpoch = $this->getHttpServiceResolver()->resolve(RuntimeEpochInterface::class);
         if (!$runtimeEpoch instanceof RuntimeEpochInterface) {
             if (!$this->isDevelopmentMode()) {
@@ -208,12 +204,12 @@ final class HttpKernel extends AbstractKernel
         }
         $listenerRegistrar->registerDiscoveryCacheListeners($this->discoveryCache);
         $listenerRegistrar->registerMcpReadCacheListeners($this->mcpReadCache);
-        if (class_exists(\Waaseyaa\AI\Vector\SqliteEmbeddingStorage::class)) {
+        if (class_exists(\Waaseyaa\AI\Vector\DatabaseEmbeddingStorage::class)) {
             // CW-v1 option-1 (#1920 PR-2): threading entityTypeManager
             // through lets EntityEmbeddingListener re-source served
             // content via repository->find() instead of trusting the
             // in-memory event entity (design §3.3).
-            $listenerRegistrar->registerEmbeddingLifecycleListeners(new \Waaseyaa\AI\Vector\SqliteEmbeddingStorage($pdo), $this->config, $this->entityTypeManager);
+            $listenerRegistrar->registerEmbeddingLifecycleListeners(new \Waaseyaa\AI\Vector\DatabaseEmbeddingStorage($this->database, $this->logger), $this->config, $this->entityTypeManager);
         }
 
         foreach ($this->providers as $provider) {

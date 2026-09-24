@@ -63,6 +63,11 @@ final class RuntimeSchemaMigrations
         self::apply($database, 'packages/api/migrations/2026_08_12_000001_broadcast_schema.php');
     }
 
+    public static function aiVector(DBALDatabase $database): void
+    {
+        self::apply($database, 'packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php');
+    }
+
     public static function foundation(DBALDatabase $database): void
     {
         self::apply($database, 'packages/foundation/migrations/2026_08_12_000001_rate_limit_window_schema.php');

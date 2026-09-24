@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Vector;
 
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
@@ -47,9 +48,8 @@ final class AiVectorServiceProvider extends ServiceProvider
 
         $this->singleton(
             EmbeddingStorageInterface::class,
-            fn(): EmbeddingStorageInterface => new SqliteEmbeddingStorage(
-                $this->resolve(\PDO::class),
-                'embeddings',
+            fn(): EmbeddingStorageInterface => new DatabaseEmbeddingStorage(
+                $this->resolve(DatabaseInterface::class),
                 $this->resolveOptional(LoggerInterface::class),
             ),
         );

@@ -21,8 +21,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Policy\PublishedContentStatusReader;
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\SearchController;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
@@ -49,7 +49,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
     private ResourceSerializer $serializer;
     private EntityAccessHandler $accessHandler;
     private AccountInterface $account;
-    private SqliteEmbeddingStorage $embeddingStorage;
+    private DatabaseEmbeddingStorage $embeddingStorage;
 
     /** @var array<string, int|string> */
     private array $nodeIdsByFixtureKey = [];
@@ -120,7 +120,8 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
             new DiscoveryFixtureRelationshipViewPolicy(),
         ]);
         $this->account = new DiscoveryFixtureAnonymousAccount();
-        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::aiVector($this->database);
+        $this->embeddingStorage = new DatabaseEmbeddingStorage($this->database);
         $this->seedFixtureCorpus();
     }
 

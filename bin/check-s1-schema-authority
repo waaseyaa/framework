@@ -51,7 +51,7 @@ function s1SchemaClass(string $path): string
         'packages/ai-agent/src/Routing/AgentRouteServiceProvider.php' => 'explicit-exclusion',
         'packages/ai-observability/migrations/2026_04_14_000001_create_trace_span_table.php' => 'coordinator-plan-or-executor',
         'packages/ai-tools/src/Content/MediaAssetStore.php' => 'explicit-exclusion',
-        'packages/ai-vector/src/SqliteEmbeddingStorage.php' => 'projection-authority',
+        'packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php' => 'coordinator-plan-or-executor',
         'packages/api/src/Controller/BroadcastStorage.php' => 'authoritative-bypass-remediation-required',
         'packages/api/migrations/2026_08_12_000001_broadcast_schema.php' => 'coordinator-plan-or-executor',
         'packages/api/src/Http/Router/OidcClientApiRouter.php' => 'explicit-exclusion',

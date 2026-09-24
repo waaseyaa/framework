@@ -5,12 +5,17 @@ declare(strict_types=1);
 /**
  * Audit probe for AIV-PERSIST-001 (docs/audits/packages/ai-vector.md).
  *
+ * Before FW-AIV-PERSIST-01 (#3138), the delete and draft-node-save cases
+ * created `embeddings` outside the coordinator and the next transition refused
+ * with [S1-DB109]. The table now belongs to ai-vector's migration and the
+ * serving paths never create schema, so no case drifts. The probe runs without
+ * the migration applied: the state in which the old code drifted.
+ *
  * Standalone script, not part of any test suite. Each case uses a throwaway
  * SQLite file from the packages/testing TemporarySqliteDatabase utility; no
  * real application database is touched. Schema transitions go through the
  * framework's own coordinated path (EntitySchemaSyncRunner), the same path
- * #3110 describes. That runner performs coordinated entity-table DDL; the
- * only uncoordinated DDL is ai-vector's own.
+ * #3110 describes.
  *
  * Run from the repository root:
  *
@@ -20,9 +25,10 @@ declare(strict_types=1);
  * the audit records.
  */
 
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
+use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
@@ -140,7 +146,7 @@ function aiVectorProbeCase(string $case, callable $activity): array
     }
 }
 
-$storage = static fn(DBALDatabase $database): SqliteEmbeddingStorage => new SqliteEmbeddingStorage($database->getConnection()->getNativeConnection());
+$storage = static fn(DBALDatabase $database): DatabaseEmbeddingStorage => new DatabaseEmbeddingStorage($database);
 
 $results = [
     aiVectorProbeCase('control: no ai-vector activity', static function (): void {}),
@@ -153,12 +159,16 @@ $results = [
     aiVectorProbeCase('save of a non-node entity, no provider', static function (DBALDatabase $database) use ($storage): void {
         new EntityEmbeddingListener(storage: $storage($database))->onPostSave(new EntityEvent(new AiVectorProbeEntity(3, 'note')));
     }),
+    aiVectorProbeCase('semantic similarity search, provider configured', static function (DBALDatabase $database) use ($storage): void {
+        $storage($database)->findSimilar(new FakeEmbeddingProvider(dimensions: 8)->embed('probe'), 'note', 5);
+    }),
 ];
 
 $expected = [
     [false, false, 'succeeded'],
-    [true, true, 'refused [S1-DB109]'],
-    [true, true, 'refused [S1-DB109]'],
+    [false, false, 'succeeded'],
+    [false, false, 'succeeded'],
+    [false, false, 'succeeded'],
     [false, false, 'succeeded'],
 ];
 

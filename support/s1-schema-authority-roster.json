@@ -189,10 +189,73 @@
             "occurrence": 1
         },
         {
-            "path": "packages/ai-vector/src/SqliteEmbeddingStorage.php",
+            "path": "packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
             "pattern": "ddl_sql",
-            "class": "projection-authority",
+            "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
             "occurrence": 1
         },
         {
