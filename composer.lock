@@ -4141,12 +4141,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/deployer",
-                "reference": "ce47dd42ccb6f8cd736d4b771bf25971c300a21f"
+                "reference": "cec5ab57c47095c9313afed26048ac1828b72c8d"
             },
             "require": {
                 "deployer/deployer": "^7.0",
                 "ext-pdo": "*",
                 "php": ">=8.5"
+            },
+            "require-dev": {
+                "waaseyaa/foundation": "^0.1.0-alpha.301"
             },
             "type": "library",
             "extra": {
@@ -4157,6 +4160,11 @@
             "autoload": {
                 "psr-4": {
                     "Waaseyaa\\Deployer\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Deployer\\Tests\\": "tests/"
                 }
             },
             "license": [

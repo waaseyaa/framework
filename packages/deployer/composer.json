@@ -3,14 +3,28 @@
     "description": "Shared Deployer recipe for Waaseyaa applications",
     "type": "library",
     "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../foundation"
+        }
+    ],
     "require": {
         "ext-pdo": "*",
         "php": ">=8.5",
         "deployer/deployer": "^7.0"
     },
+    "require-dev": {
+        "waaseyaa/foundation": "^0.1.0-alpha.301"
+    },
     "autoload": {
         "psr-4": {
             "Waaseyaa\\Deployer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Deployer\\Tests\\": "tests/"
         }
     },
     "extra": {
