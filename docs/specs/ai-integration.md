@@ -888,9 +888,9 @@ public function removeEntity(string $entityTypeId, int|string $entityId): void;
 
 ### Lifecycle composition and entry-point contract (FW-AIV-COMP-01)
 
-`AiVectorServiceProvider` is the only composition owner. The
-`EmbeddingStorageInterface` and `EmbeddingProviderInterface` it binds are the
-exact instances used by:
+`AiVectorServiceProvider` is the only composition owner. Every consumer
+resolves `EmbeddingStorageInterface` and `EmbeddingProviderInterface` through
+the kernel services, where the first provider to bind an interface wins:
 
 - the lifecycle listeners;
 - `SearchRouter`, through `HttpKernel::semanticSearchServices()`;
@@ -898,8 +898,11 @@ exact instances used by:
 - any host that resolves them from the kernel services bus, such as a
   host-wired `vector.search`.
 
-No kernel or router constructs its own storage or provider. Choosing a
-different storage backend is #3140's scope.
+By default the first binding is `AiVectorServiceProvider`'s own. A provider
+that loads earlier and binds either interface replaces it for every consumer;
+one that loads later replaces it for none. No consumer mixes the two. No
+kernel or router constructs its own storage or provider. Choosing a different
+storage backend is #3140's scope.
 
 | Entry point | On save or revision pointer move | On delete |
 | --- | --- | --- |
@@ -921,7 +924,7 @@ logger, and returns. So the committed mutation is reported as successful and
 later listeners still run.
 
 **Tests:**
-- `EmbeddingCompositionTest`: instance identity per entry point, and single registration;
+- `EmbeddingCompositionTest`: instance identity per entry point, single registration, and provider order (a host binding registered before ai-vector reaches every consumer, one registered after reaches none);
 - `ConsoleVectorInvalidationTest`: a console-kernel save of indexable content and a delete each remove the vector, with a provider configured;
 - `PostCommitVectorFailureTest`: through a real repository with a failing storage.
 

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\AI\Vector\AiVectorServiceProvider;
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
@@ -19,6 +20,8 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Tests\Integration\AiVector\Fixtures\HostEmbeddingServicesProvider;
+use Waaseyaa\Tests\Integration\AiVector\Fixtures\HostEmbeddingStorage;
 
 /**
  * FW-AIV-COMP-01 (#3139): one composition owner. The embedding storage and
@@ -51,10 +54,7 @@ final class EmbeddingCompositionTest extends TestCase
                 ),
             ];
             PHP);
-        file_put_contents($this->projectRoot . '/composer.json', json_encode([
-            'name' => 'waaseyaa/aiv-composition-test',
-            'extra' => ['waaseyaa' => ['providers' => [AiVectorServiceProvider::class]]],
-        ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+        $this->writeProviders([AiVectorServiceProvider::class]);
     }
 
     protected function tearDown(): void
@@ -115,6 +115,41 @@ final class EmbeddingCompositionTest extends TestCase
     }
 
     #[Test]
+    public function a_host_binding_registered_before_ai_vector_is_what_every_consumer_uses(): void
+    {
+        $this->writeProviders([HostEmbeddingServicesProvider::class, AiVectorServiceProvider::class]);
+        $kernel = $this->boot(HttpKernel::class);
+        [$storage, $provider] = $this->boundServices($kernel);
+
+        self::assertInstanceOf(HostEmbeddingStorage::class, $storage, 'the earlier binding wins on the bus');
+        $this->assertEveryConsumerUses($kernel, $storage, $provider);
+    }
+
+    #[Test]
+    public function a_host_binding_registered_after_ai_vector_is_used_by_no_consumer(): void
+    {
+        $this->writeProviders([AiVectorServiceProvider::class, HostEmbeddingServicesProvider::class]);
+        $kernel = $this->boot(HttpKernel::class);
+        [$storage, $provider] = $this->boundServices($kernel);
+
+        self::assertInstanceOf(DatabaseEmbeddingStorage::class, $storage, 'ai-vector\'s binding comes first');
+        $this->assertEveryConsumerUses($kernel, $storage, $provider);
+    }
+
+    #[Test]
+    public function console_kernel_listeners_follow_an_earlier_host_binding_too(): void
+    {
+        $this->writeProviders([HostEmbeddingServicesProvider::class, AiVectorServiceProvider::class]);
+        $kernel = $this->boot(ConsoleKernel::class);
+        [$storage] = $this->boundServices($kernel);
+
+        self::assertInstanceOf(HostEmbeddingStorage::class, $storage);
+        self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class), 'storage'));
+        self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class), 'storage'));
+        self::assertSame($storage, $this->property($this->resolve($kernel, SemanticIndexWarmer::class), 'embeddingStorage'));
+    }
+
+    #[Test]
     public function console_kernel_registers_lifecycle_listeners_with_the_provider_bound_storage(): void
     {
         $kernel = $this->boot(ConsoleKernel::class);
@@ -127,6 +162,31 @@ final class EmbeddingCompositionTest extends TestCase
         self::assertSame($storage, $this->property($cleanup, 'storage'));
         self::assertTrue($this->property($indexer, 'invalidateOnly'), 'outside HTTP, saves only remove vectors');
         self::assertNull($this->property($indexer, 'embeddingProvider'), 'outside HTTP, the provider is never called');
+    }
+
+    /** @param list<class-string> $providers in registration order */
+    private function writeProviders(array $providers): void
+    {
+        file_put_contents($this->projectRoot . '/composer.json', json_encode([
+            'name' => 'waaseyaa/aiv-composition-test',
+            'extra' => ['waaseyaa' => ['providers' => $providers]],
+        ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+    }
+
+    /** Listeners, warmer, search and the bus all hold exactly these instances. */
+    private function assertEveryConsumerUses(AbstractKernel $kernel, EmbeddingStorageInterface $storage, EmbeddingProviderInterface $provider): void
+    {
+        $indexer = $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
+        self::assertSame($storage, $this->property($indexer, 'storage'), 'indexing listener storage');
+        self::assertSame($provider, $this->property($indexer, 'embeddingProvider'), 'indexing listener provider');
+        self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class), 'storage'), 'cleanup listener storage');
+        $warmer = $this->resolve($kernel, SemanticIndexWarmer::class);
+        self::assertSame($storage, $this->property($warmer, 'embeddingStorage'), 'warmer storage');
+        self::assertSame($provider, $this->property($warmer, 'embeddingProvider'), 'warmer provider');
+        $search = (fn() => $this->semanticSearchServices())->call($kernel);
+        self::assertIsArray($search);
+        self::assertSame($storage, $search[0], 'search storage');
+        self::assertSame($provider, $search[1], 'search provider');
     }
 
     private function writeConfig(bool $withProvider): void
@@ -145,11 +205,17 @@ final class EmbeddingCompositionTest extends TestCase
         return $kernel;
     }
 
-    /** @return array{EmbeddingStorageInterface, EmbeddingProviderInterface} */
+    /**
+     * What the kernel services bus resolves (first binding wins), the rule
+     * every consumer must follow.
+     *
+     * @return array{EmbeddingStorageInterface, EmbeddingProviderInterface}
+     */
     private function boundServices(AbstractKernel $kernel): array
     {
-        $storage = $this->resolve($kernel, EmbeddingStorageInterface::class);
-        $provider = $this->resolve($kernel, EmbeddingProviderInterface::class);
+        $container = $kernel->buildHandlerContainer();
+        $storage = $container->get(EmbeddingStorageInterface::class);
+        $provider = $container->get(EmbeddingProviderInterface::class);
         self::assertInstanceOf(EmbeddingStorageInterface::class, $storage);
         self::assertInstanceOf(EmbeddingProviderInterface::class, $provider);
 

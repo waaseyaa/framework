@@ -22,6 +22,7 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
 - **D1, composition owner, option O1.** The storage and provider bound by `AiVectorServiceProvider` are the instances every entry point uses. Selecting a different storage backend belongs to #3140.
   - Rejected: a config key now (O2), and changing the kernel bus to "last binding wins" (O3).
   - #3139's acceptance was reworded from "host-bound" to "provider-bound".
+  - **One rule for every consumer.** Every consumer resolves the two interfaces through the kernel services: the first provider to bind an interface wins, as it already did for search and for hosts reading the bus. By default that is `AiVectorServiceProvider`. If a provider that loads earlier binds either interface, every consumer uses that binding. No consumer ever mixes the two. This closes a split found in review, where the listeners and the warmer used ai-vector's local binding while search and the bus used the first binding.
 - **D2, lifecycle outside HTTP, option B with safe invalidation.** Outside HTTP (CLI, imports, workers), a save or delete removes any existing vector, including a save of indexable content, and never calls the embedding provider. `semantic:refresh` re-indexes.
   - Rejected: embedding on every save everywhere (A), and keeping HTTP-only listeners (C).
 - **D3, post-commit failures are best-effort.** They are logged and never surfaced as a failure of the committed mutation.
@@ -32,9 +33,10 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
   - `boot()` registers `EntityEmbeddingCleanupListener` and an `invalidateOnly` `EntityEmbeddingListener` in every kernel, using the bound storage and the kernel logger.
   - `configureHttpKernel()`, which only `HttpKernel` calls, swaps the save listener for the embedding one when a provider is bound. With no provider, HTTP saves invalidate like every other entry point.
   - Both are idempotent.
+  - The listeners and the `SemanticIndexWarmer` binding get the storage and provider from the kernel services (`composedStorage()`, `composedProvider()`), not from the provider's local bindings. Without kernel services, when the provider is constructed bare, they fall back to its own bindings.
 - **`EntityEmbeddingListener`** gains `invalidateOnly`: on a save or pointer move it removes the vector, without reading the entity or calling the provider. Every storage call and the re-sourcing read are best-effort: it catches, logs one error and returns. If the re-sourcing read fails, it removes the vector rather than leave it possibly stale.
 - **`EntityEmbeddingCleanupListener`** gains an optional `?LoggerInterface`, and removal is best-effort.
-- **`HttpKernel`** no longer composes ai-vector. It gives `SearchRouter` a resolver, `semanticSearchServices()`, which returns the bound storage and provider from the kernel services bus. It returns null when ai-vector isn't installed, and search then answers 501, as before.
+- **`HttpKernel`** no longer composes ai-vector. It gives `SearchRouter` a resolver, `semanticSearchServices()`, which returns the storage and provider from the kernel services bus, by the same first-binding rule. It returns null when ai-vector isn't installed, and search then answers 501, as before.
 - **`EventListenerRegistrar::registerEmbeddingLifecycleListeners()`** and the registrar's now-unused secret-registry parameter are removed.
 - **Unchanged:** `SearchController`, the storage, the schema and the queue message. The queue dispatch stays with #3142.
 
@@ -42,10 +44,11 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
 
 **New tests** in `tests/Integration/AiVector/` (root integration tests, since they boot kernels across several packages):
 
-- **`EmbeddingCompositionTest` (4 tests)** boots real `HttpKernel` and `ConsoleKernel` instances from a temp project, with no symlinks. It asserts, by identity, that the HTTP listeners, search, the warmer and the bus use the bound storage and provider. It also covers:
+- **`EmbeddingCompositionTest` (7 tests)** boots real `HttpKernel` and `ConsoleKernel` instances from a temp project, with no symlinks. It asserts, by identity, that the HTTP listeners, search, the warmer and the bus use the bound storage and provider. It also covers:
   - HTTP without a provider invalidates;
   - the console kernel invalidates and holds no provider;
-  - re-entered boot and HTTP configuration register each listener once.
+  - re-entered boot and HTTP configuration register each listener once;
+  - provider order: a host provider that binds its own storage and provider and loads **before** ai-vector is what every consumer uses, over HTTP and in the console kernel; one that loads **after** is used by none. The host-first tests fail against the provider as it was before the review fix, with the listeners on ai-vector's storage.
 - **`ConsoleVectorInvalidationTest` (2 tests):** a console-kernel save of indexable content, and a delete, each remove an existing vector while a provider is configured.
   - That provider points at a closed port, so a design that embedded on save would keep the old vector.
   - With the base source swapped in, both tests fail.
@@ -56,7 +59,8 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
 - **`AiVectorServiceProviderTest`:** on a real dispatcher over an in-memory database:
   - `boot()` invalidates on save and delete;
   - a second boot registers each listener once;
-  - `configureHttpKernel()` swaps in the embedding listener once when a provider is bound, and keeps invalidating without one.
+  - `configureHttpKernel()` swaps in the embedding listener once when a provider is bound, and keeps invalidating without one;
+  - the lifecycle listeners use a storage the kernel services return from an earlier binding. This fails if the listeners take the provider's local binding.
 - **`EntityEmbeddingListenerTest`:** invalidate-only mode never calls the provider; failed removal and a failed re-sourcing read are both logged, not thrown.
 - **`EntityEmbeddingCleanupListenerTest`:** a failed removal is logged, not thrown.
 - **`HttpKernelTest`:** `/api/search` served through `HttpKernel::handle()` returns keyword mode with ai-vector composed, and 501 without it.

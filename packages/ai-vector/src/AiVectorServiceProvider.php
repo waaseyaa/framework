@@ -42,8 +42,11 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  * provider and reports `skipped_no_provider`, the correct graceful degrade.
  *
  * It is also the only composition owner for the lifecycle listeners
- * (FW-AIV-COMP-01): they use exactly the storage and provider bound here,
- * the same instances search, the warmer and bus consumers get.
+ * (FW-AIV-COMP-01). The listeners and the warmer use the kernel services'
+ * first binding of the storage and provider interfaces, the same rule
+ * `HttpKernel` applies for search and hosts get from the bus. By default
+ * that is the binding made here. If an earlier provider binds an interface,
+ * every consumer uses that binding instead, never a mix.
  *
  * - Every kernel (CLI, imports, workers): `boot()` registers vector removal
  *   on delete and an `invalidateOnly` save listener, which removes any
@@ -92,8 +95,8 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
             SemanticIndexWarmer::class,
             fn(): SemanticIndexWarmer => new SemanticIndexWarmer(
                 $this->resolve(EntityTypeManagerInterface::class),
-                $this->resolve(EmbeddingStorageInterface::class),
-                $configuredProvider,
+                $this->composedStorage(),
+                $this->composedProvider(),
                 new WorkflowVisibility(),
             ),
         );
@@ -111,7 +114,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
             return;
         }
 
-        $storage = $this->resolve(EmbeddingStorageInterface::class);
+        $storage = $this->composedStorage();
         $logger = $this->lifecycleLogger();
 
         $cleanup = new EntityEmbeddingCleanupListener($storage, $logger);
@@ -131,14 +134,14 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
             return;
         }
 
-        $provider = $this->resolveOptional(EmbeddingProviderInterface::class);
-        if (!$provider instanceof EmbeddingProviderInterface) {
+        $provider = $this->composedProvider();
+        if ($provider === null) {
             // No provider configured: HTTP saves invalidate like every other entry point.
             return;
         }
 
         $this->subscribeSaveListener(new EntityEmbeddingListener(
-            storage: $this->resolve(EmbeddingStorageInterface::class),
+            storage: $this->composedStorage(),
             embeddingProvider: $provider,
             logger: $this->lifecycleLogger(),
             entityTypeManager: $this->resolveOptional(EntityTypeManagerInterface::class),
@@ -164,6 +167,30 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
             $dispatcher->addListener($event, [$listener, $method]);
         }
         $this->saveListener = $listener;
+    }
+
+    /**
+     * The storage every consumer uses: the kernel services' first binding of
+     * `EmbeddingStorageInterface`, the same rule `HttpKernel` applies for search
+     * and hosts get from the bus. It is this provider's own binding unless an
+     * earlier provider binds the interface. Without kernel services (bare
+     * construction) it is this provider's binding.
+     */
+    private function composedStorage(): EmbeddingStorageInterface
+    {
+        $bound = $this->kernelServices?->get(EmbeddingStorageInterface::class);
+
+        return $bound instanceof EmbeddingStorageInterface ? $bound : $this->resolve(EmbeddingStorageInterface::class);
+    }
+
+    /** The embedding provider every consumer uses, by the same rule as {@see composedStorage()}; null when none is bound. */
+    private function composedProvider(): ?EmbeddingProviderInterface
+    {
+        $bound = $this->kernelServices !== null
+            ? $this->kernelServices->get(EmbeddingProviderInterface::class)
+            : $this->resolveOptional(EmbeddingProviderInterface::class);
+
+        return $bound instanceof EmbeddingProviderInterface ? $bound : null;
     }
 
     private function lifecycleLogger(): LoggerInterface

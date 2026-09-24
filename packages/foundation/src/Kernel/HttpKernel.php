@@ -232,22 +232,12 @@ final class HttpKernel extends AbstractKernel
         return $this->resolveInertiaFullPageRenderer();
     }
 
-    private ?HttpServiceResolverInterface $httpServiceResolver = null;
-
     /**
-     * Returns the SSR controller-method dependency resolver.
-     *
-     * Replaces the legacy `\Closure(string): ?object` shape with a typed
-     * interface; semantics unchanged (provider walk + narrow kernel-services
-     * fallback via {@see ProviderRegistryKernelServices}). Mirrors the typed-resolver
-     * pattern introduced for {@see \Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface}
-     * in mission #824 WP02 surface A.
-     */
-    /**
-     * The embedding storage and provider bound by ai-vector's provider, the
-     * instances its lifecycle listeners also use (FW-AIV-COMP-01). Null when
-     * waaseyaa/ai-vector isn't installed; the provider is null when none is
-     * configured.
+     * The embedding storage and provider for semantic search: the kernel
+     * services' first binding of each interface, the same rule
+     * AiVectorServiceProvider uses for its lifecycle listeners and warmer
+     * (FW-AIV-COMP-01). Null when waaseyaa/ai-vector isn't installed; the
+     * provider is null when none is configured.
      *
      * @return array{0: \Waaseyaa\AI\Vector\EmbeddingStorageInterface, 1: ?\Waaseyaa\AI\Vector\EmbeddingProviderInterface}|null
      */
@@ -266,6 +256,17 @@ final class HttpKernel extends AbstractKernel
         return [$storage, $provider instanceof \Waaseyaa\AI\Vector\EmbeddingProviderInterface ? $provider : null];
     }
 
+    private ?HttpServiceResolverInterface $httpServiceResolver = null;
+
+    /**
+     * Returns the SSR controller-method dependency resolver.
+     *
+     * Replaces the legacy `\Closure(string): ?object` shape with a typed
+     * interface; semantics unchanged (provider walk + narrow kernel-services
+     * fallback via {@see ProviderRegistryKernelServices}). Mirrors the typed-resolver
+     * pattern introduced for {@see \Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface}
+     * in mission #824 WP02 surface A.
+     */
     public function getHttpServiceResolver(): HttpServiceResolverInterface
     {
         return $this->httpServiceResolver ??= new HttpKernelServiceResolver(

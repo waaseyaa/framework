@@ -164,6 +164,20 @@ final class AiVectorServiceProviderTest extends TestCase
         self::fail('No EntityEmbeddingListener is registered for POST_SAVE.');
     }
 
+    #[Test]
+    public function lifecycle_listeners_use_an_earlier_storage_binding_from_kernel_services(): void
+    {
+        $hostStorage = $this->createMock(EmbeddingStorageInterface::class);
+        $hostStorage->expects($this->once())->method('delete')->with('note', '2');
+        [$provider, $dispatcher, $database] = $this->lifecycleProvider([], $hostStorage);
+        $provider->resolve(EmbeddingStorageInterface::class)->store('note', '2', [1.0]);
+
+        $provider->boot();
+        $dispatcher->dispatch(new EntityEvent(new ProviderLifecycleEntity(2, 'note')), EntityEvents::POST_DELETE->value);
+
+        self::assertSame(1, $this->vectorCount($database), 'the provider\'s own storage is not the one consumers use');
+    }
+
     private function publishedNode(): ProviderLifecycleEntity
     {
         return new ProviderLifecycleEntity(1, 'node', ['status' => 1, 'workflow_state' => 'published', 'title' => 'Indexable']);
@@ -172,12 +186,15 @@ final class AiVectorServiceProviderTest extends TestCase
     /**
      * A provider over an in-memory database with the ai-vector table, a real
      * kernel dispatcher, and no entity type manager, so the embedding listener
-     * indexes the event's own entity.
+     * indexes the event's own entity. Like the kernel bus, the fake kernel
+     * services return an earlier binding when there is one and otherwise this
+     * provider's own.
      *
      * @param array<string, mixed> $config
+     * @param EmbeddingStorageInterface|null $earlierBinding what kernel services return for the storage interface, as when an earlier provider binds it
      * @return array{AiVectorServiceProvider, SymfonyEventDispatcherAdapter, DBALDatabase}
      */
-    private function lifecycleProvider(array $config): array
+    private function lifecycleProvider(array $config, ?EmbeddingStorageInterface $earlierBinding = null): array
     {
         $database = DBALDatabase::createSqlite(':memory:');
         RuntimeSchemaMigrations::aiVector($database);
@@ -185,10 +202,27 @@ final class AiVectorServiceProviderTest extends TestCase
 
         $provider = new AiVectorServiceProvider();
         $provider->setKernelContext(sys_get_temp_dir(), $config, []);
-        $provider->setKernelServices(new class ($database, $dispatcher) implements KernelServicesInterface {
+        // The real bus never re-enters a provider for an interface it doesn't
+        // bind; the guard keeps this fake from recursing through resolve()'s
+        // kernel-services fallback.
+        $resolving = false;
+        $ownBinding = static function (string $abstract) use ($provider, &$resolving): ?object {
+            if ($resolving) {
+                return null;
+            }
+            $resolving = true;
+            try {
+                return $provider->resolveOptional($abstract);
+            } finally {
+                $resolving = false;
+            }
+        };
+        $provider->setKernelServices(new class ($database, $dispatcher, $earlierBinding, $ownBinding) implements KernelServicesInterface {
             public function __construct(
                 private readonly DBALDatabase $database,
                 private readonly SymfonyEventDispatcherAdapter $dispatcher,
+                private readonly ?EmbeddingStorageInterface $earlierBinding,
+                private readonly \Closure $ownBinding,
             ) {}
 
             public function get(string $abstract): ?object
@@ -196,6 +230,8 @@ final class AiVectorServiceProviderTest extends TestCase
                 return match ($abstract) {
                     DatabaseInterface::class => $this->database,
                     \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $this->dispatcher,
+                    EmbeddingStorageInterface::class => $this->earlierBinding ?? ($this->ownBinding)($abstract),
+                    EmbeddingProviderInterface::class => ($this->ownBinding)($abstract),
                     default => null,
                 };
             }
