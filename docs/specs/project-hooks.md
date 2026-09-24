@@ -42,10 +42,23 @@ stdin is the null device. A runner still going after 60 seconds is stopped
 `git --exec-path` probe has a 10-second deadline and captures at most 4096
 bytes of stdout. A probe that fails, overflows, or times out selects no Bash.
 
-The runner treats a drive-letter hook directory (`C:/...`), which Git for
-Windows reports for a linked worktree's common hook directory, as absolute.
-Proof: `tests/Architecture/ProjectHooksLauncherTest.php`; change record
-`docs/change-records/FW-2679-HOOKS-WINDOWS-LAUNCHER-01.md`.
+The runner takes the hook directory from `git rev-parse --git-path hooks`. It
+treats a drive-letter answer as absolute: `C:/...`, which Git for Windows
+reports for a linked worktree's common hook directory, and `C:\...`, which it
+echoes for a `core.hooksPath` configured in native spelling. It joins a
+relative answer to the checkout root.
+
+An unusable answer is never joined to the checkout root. If Git fails, answers
+nothing, or answers more than one line, `install` and `doctor` exit 1 before
+creating or changing anything. Stderr names the cause and the next step, for
+example ``project-hooks: could not resolve the Git hook directory:
+`git rev-parse --git-path hooks` failed in <checkout>. Check that Git can read
+this checkout, then retry.``
+
+Proof: `tests/Architecture/ProjectHooksLauncherTest.php` and
+`tests/Architecture/ProjectHooksDirectoryTest.php`; change records
+`docs/change-records/FW-2679-HOOKS-WINDOWS-LAUNCHER-01.md` and
+`docs/change-records/FW-2679-PROJECT-HOOKS-DIR-01.md`.
 
 ## Gate contract
 

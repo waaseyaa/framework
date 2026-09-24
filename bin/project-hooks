@@ -16,11 +16,21 @@ require_command() {
 }
 
 hooks_dir() {
-  local directory
-  directory="$(git -C "$REPO_ROOT" rev-parse --git-path hooks)"
-  # Git for Windows reports a linked worktree's common hook directory as an
-  # absolute drive-letter path (C:/...).
-  if [[ "$directory" != /* && ! "$directory" =~ ^[A-Za-z]:/ ]]; then
+  local directory unresolved="could not resolve the Git hook directory: \`git rev-parse --git-path hooks\`"
+  # An unusable answer fails closed: joined to the checkout root, it would put
+  # the shims in the working tree and doctor would then approve them.
+  if ! directory="$(git -C "$REPO_ROOT" rev-parse --git-path hooks)"; then
+    fail "$unresolved failed in $REPO_ROOT. Check that Git can read this checkout, then retry."
+  fi
+  [[ -n "$directory" ]] || fail "$unresolved answered nothing. Check the git on PATH, then retry."
+  if [[ "$directory" == *$'\n'* || "$directory" == *$'\r'* ]]; then
+    fail "$unresolved answered more than one line. Check core.hooksPath, then retry."
+  fi
+  # Git for Windows answers an absolute drive-letter path for a linked
+  # worktree's common hook directory (C:/...) and echoes core.hooksPath as
+  # configured (C:\... too).
+  local drive_letter='^[A-Za-z]:[\/]'
+  if [[ "$directory" != /* && ! "$directory" =~ $drive_letter ]]; then
     directory="$REPO_ROOT/$directory"
   fi
   printf '%s\n' "$directory"
@@ -41,7 +51,7 @@ write_hook() {
 install_hooks() {
   require_command git
   local directory
-  directory="$(hooks_dir)"
+  directory="$(hooks_dir)" || exit
   mkdir -p "$directory"
   for hook in pre-commit pre-push; do
     if [[ -f "$directory/$hook" ]] && ! grep -q "$MARKER\|call_lefthook" "$directory/$hook"; then
@@ -60,7 +70,7 @@ install_hooks() {
 doctor() {
   require_command git
   local directory problem=0
-  directory="$(hooks_dir)"
+  directory="$(hooks_dir)" || exit
   for hook in pre-commit pre-push; do
     if [[ ! -x "$directory/$hook" ]] || ! grep -q "$MARKER" "$directory/$hook"; then
       echo "project-hooks: $hook is missing or stale; run 'composer hooks:install'." >&2
