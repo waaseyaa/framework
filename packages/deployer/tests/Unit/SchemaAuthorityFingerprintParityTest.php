@@ -72,15 +72,54 @@ final class SchemaAuthorityFingerprintParityTest extends TestCase
                 INSERT INTO widget_log (widget_id, note) VALUES (NEW.id, ' . "'created'" . ');
              END',
         );
-        // sqlite_sequence is an internal table auto-created for AUTOINCREMENT
-        // and carries a NULL `sql`; both fingerprints must normalize it the
-        // same way rather than diverge on a null-handling edge case.
+        // sqlite_sequence is an internal table auto-created for
+        // AUTOINCREMENT, but it is not a NULL-`sql` case: SQLite stores a
+        // real `CREATE TABLE sqlite_sequence(name,seq)` for it, and both
+        // implementations exclude it (and the auto-index SQLite creates for
+        // every PRIMARY KEY / UNIQUE constraint, `sqlite_autoindex_*`) the
+        // same way, by the `WHERE name NOT LIKE 'sqlite_%'` filter — the only
+        // NULL-`sql` rows `sqlite_master`/`sqlite_schema` produce in
+        // practice. There is consequently no reachable non-`sqlite_%`-named
+        // row with a NULL `sql` to exercise the `?? "\0null"` /
+        // `normalizeSql(null)` branch against; this fixture keeps
+        // AUTOINCREMENT for its own sake (an extra internal table alongside
+        // ordinary ones) without claiming it exercises that branch.
         $pdo->exec('CREATE TABLE counted (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT)');
         $pdo->exec("INSERT INTO counted (label) VALUES ('a')");
         // Mixed line endings and leading/trailing whitespace inside the raw
         // DDL text — normalizeSql() must fold these identically on both
         // sides, independent of how sqlite_master happens to store them.
         $pdo->exec("CREATE TABLE \r\n  spaced  \r\n (id INTEGER PRIMARY KEY)");
+
+        self::assertSame(
+            $this->foundationSchemaFingerprint($path),
+            SchemaAuthorityFingerprint::logicalSchemaFingerprint($pdo),
+        );
+    }
+
+    /**
+     * A wider construct fixture than the one above: non-ASCII/Unicode
+     * identifiers (a removed `JSON_UNESCAPED_UNICODE` would escape them
+     * differently on whichever side lost it), `WITHOUT ROWID`, a partial
+     * index, a quoted mixed-case identifier containing `/`, a view, CR/CRLF
+     * embedded inside a trigger body, and FTS5 (which creates several
+     * `_data`/`_idx`/`_content`/`_docsize`/`_config` shadow tables, none
+     * `sqlite_%`-named, alongside the virtual table itself).
+     */
+    #[Test]
+    public function logical_schema_fingerprint_matches_foundation_for_unicode_without_rowid_partial_index_view_crlf_trigger_and_fts5(): void
+    {
+        $path = $this->directory . '/exotic.sqlite';
+        $pdo = $this->open($path);
+
+        $pdo->exec('CREATE TABLE "wïdgét_日本語" (id INTEGER PRIMARY KEY, "nãme" TEXT NOT NULL)');
+        $pdo->exec('CREATE TABLE wr (id INTEGER PRIMARY KEY, label TEXT) WITHOUT ROWID');
+        $pdo->exec('CREATE TABLE flagged (id INTEGER PRIMARY KEY, active INTEGER NOT NULL)');
+        $pdo->exec('CREATE INDEX flagged_active_idx ON flagged (id) WHERE active = 1');
+        $pdo->exec('CREATE TABLE "Mixed/Case" (id INTEGER PRIMARY KEY)');
+        $pdo->exec('CREATE VIEW flagged_view AS SELECT id FROM flagged WHERE active = 1');
+        $pdo->exec("CREATE TRIGGER flagged_audit AFTER INSERT ON flagged\r\nBEGIN\r\n   SELECT 1;\r\nEND");
+        $pdo->exec('CREATE VIRTUAL TABLE ft USING fts5(body)');
 
         self::assertSame(
             $this->foundationSchemaFingerprint($path),
@@ -120,6 +159,50 @@ final class SchemaAuthorityFingerprintParityTest extends TestCase
             $connection->executeStatement(
                 "INSERT INTO waaseyaa_migrations (migration, package, batch, ran_at, checksum, diff_hash)
                  VALUES ('2025_12_01_000000_legacy', 'app/content', 1, '2025-12-01 00:00:00', NULL, NULL)",
+            );
+        });
+        $connection->close();
+
+        $pdo = $this->open($path);
+        self::assertSame(
+            $this->foundationLedgerFingerprint($path),
+            SchemaAuthorityFingerprint::ledgerFingerprint($pdo),
+        );
+    }
+
+    /**
+     * Rows inserted out of migration-name order (`c`, then `a`, then `b`): a
+     * ledger query missing its own `ORDER BY migration` would return them in
+     * rowid/insertion order instead, diverging from foundation's DBAL query,
+     * which always orders by `migration`. Also mixes a string-shaped batch
+     * (`'07'`), an integer checksum, a float diff_hash, and an empty-string
+     * checksum in with the usual hex/`null` values — SQLite's column-affinity
+     * coercion means both sides read back whatever was actually stored, so
+     * this fixture is a parity guard against either implementation's own
+     * `(int)` cast or `is_string()` null-handling diverging, not a claim
+     * about what gets stored.
+     */
+    #[Test]
+    public function ledger_fingerprint_matches_foundation_for_an_out_of_order_ledger_with_mixed_value_types(): void
+    {
+        $path = $this->directory . '/mixed-ledger.sqlite';
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $path]);
+        $repository = new MigrationRepository($connection);
+        $coordinator = new SchemaMutationCoordinator($connection, $repository);
+        $coordinator->execute(static function () use ($connection): void {
+            $connection->executeStatement('CREATE TABLE content (id INTEGER PRIMARY KEY)');
+            $connection->executeStatement(
+                "INSERT INTO waaseyaa_migrations (migration, package, batch, ran_at, checksum, diff_hash)
+                 VALUES ('c_migration', 'app/content', '07', '2026-01-03 00:00:00', 12345, 1.5)",
+            );
+            $connection->executeStatement(
+                "INSERT INTO waaseyaa_migrations (migration, package, batch, ran_at, checksum, diff_hash)
+                 VALUES ('a_migration', 'app/content', 1, '2026-01-01 00:00:00', '', NULL)",
+            );
+            $connection->executeStatement(
+                'INSERT INTO waaseyaa_migrations (migration, package, batch, ran_at, checksum, diff_hash)
+                 VALUES (?, ?, ?, ?, ?, ?)',
+                ['b_migration', 'app/content', 2, '2026-01-02 00:00:00', hash('sha256', 'b-checksum'), hash('sha256', 'b-diff')],
             );
         });
         $connection->close();
