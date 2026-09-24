@@ -134,11 +134,15 @@ composer install                    # Install dependencies
 php -S localhost:8080 -t public     # Dev server
 ./vendor/bin/phpunit                # Run tests
 ./vendor/bin/waaseyaa               # CLI
-bin/maintenance/waaseyaa-version    # Framework provenance (path SHA, lockfile, drift vs golden)
-bin/maintenance/waaseyaa-audit-site # Mechanical convergence preflight (validate + bins + provenance)
+php bin/maintenance/waaseyaa-version # Framework provenance (path SHA, lockfile, drift vs golden)
 ./vendor/bin/waaseyaa sync-rules    # Update framework rules from Waaseyaa
 ./vendor/bin/waaseyaa bimaaji:install --client=claude  # Install framework agent skills
 ```
+
+`bin/maintenance/waaseyaa-audit-site` (optional mechanical convergence
+preflight: validate, bins, provenance) is a POSIX-only Bash script and is
+outside the portable workflow on native Windows. There, the portable
+verification command is `composer site-verify`.
 
 Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see `docs/specs/version-provenance.md` in the framework repo).
 
