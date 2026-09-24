@@ -4,11 +4,12 @@
 - Findings: AIV-PERSIST-001, AIV-PERSIST-002 in `docs/audits/packages/ai-vector.md`
 - Base: `03ffdb530` (`origin/main`); designed at `0f3592d65`. The two commits between don't touch this change's files.
 - Branch: `claude/ai-vector-persistence-3138`
+- Landed: 2026-09-24 as `4512c0d9a` through #3147 (governed squash of reviewed head `2a3a0149b` onto `ec6e47d2e`, tree identical to the reviewed head). #3138 is closed.
 - Related: #3110 (general drift adoption), #3139 (one composition owner), #3140
   (alternative backends and separate projection storage),
   `jonesrussell/fetder-waaseyaa#160` (the production release this blocked)
 - Authority: repository source, tests and PR. No release, publication or
-  deployment. Landing needs the maintainer's approval.
+  deployment. Landed with the maintainer's approval.
 
 ## Problem
 
@@ -101,10 +102,15 @@ Tracks #3138:
 - Migration: create, adopt in place with rows preserved, and fail closed on an
   incompatible shape, each with a regression test.
 - The recovery procedure is proven on a drifted SQLite database, and FETDER is
-  qualified against the candidate.
-- Exact-head hosted CI and independent review.
+  qualified against the change.
+- Exact-head hosted CI and independent review: 56/56 checks on `2a3a0149b`,
+  independent review with no findings, and 54/54 post-merge CI on `4512c0d9a`.
 
-## Candidate evidence (native Windows host)
+## Evidence (native Windows host)
+
+Recorded before landing, on `d05f38e61`. At that commit, `packages/ai-vector`,
+`packages/foundation/src`, the drift probe, `tests/Support` and `composer.lock`
+are identical to the landed `4512c0d9a`.
 
 **Framework tests:**
 
