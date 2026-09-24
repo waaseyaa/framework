@@ -76,4 +76,5 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
   - the S1 SQLite roster was regenerated for the new test-only constructions.
 - `check-pr-preflight --full`: 46 of 47 gates pass. The failure is `check-dead-code`, on the same three `config` and `scheduler` findings that fail on unmodified `main` on this host.
 - Both S1 installed-artifact contracts pass.
+- After the review fix (`c89944b5a`): 147 tests and 613 assertions pass across `tests/Integration/AiVector`, the ai-vector package tests, `SearchRouterTest` and the Phase 8 and 15 integration tests. `HttpKernelTest`'s two search cases still hit only the Windows WAL teardown error. `check-pr-preflight --full` still passes 46 of 47 gates, with the same host-only dead-code findings, and both S1 installed-artifact contracts pass again.
 - The #3138 drift probe still passes all 5 cases.
