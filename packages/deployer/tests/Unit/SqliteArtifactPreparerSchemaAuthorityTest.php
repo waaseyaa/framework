@@ -437,6 +437,159 @@ final class SqliteArtifactPreparerSchemaAuthorityTest extends TestCase
     }
 
     /**
+     * Re-review item 1: a real gap. The item-7 bind originally compared only
+     * the three fingerprint columns, not `generation` — a cloned trigger `ON
+     * state` that bumps `waaseyaa_schema_authority.generation` was accepted,
+     * silently violating Required outcome 3 (generation must stay exactly
+     * what the artifact recorded). `generation` is now part of both the
+     * captured snapshot and the bind comparison; this is the public-API
+     * proof.
+     */
+    #[Test]
+    public function probe_b_a_serving_trigger_on_the_preserved_table_that_mutates_generation_fails_closed(): void
+    {
+        $artifactPath = $this->directory . '/artifact.sqlite';
+        $artifactConnection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $artifactPath]);
+        $this->governArtifact($artifactConnection);
+        $artifactConnection->close();
+
+        $servingPath = $this->directory . '/serving.sqlite';
+        $serving = $this->open($servingPath);
+        $serving->exec('CREATE TABLE state (name TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        // Serving's own decoy waaseyaa_schema_authority: only needed so the
+        // trigger body below compiles against this connection.
+        $serving->exec(
+            'CREATE TABLE waaseyaa_schema_authority (
+                authority_id INTEGER PRIMARY KEY CHECK (authority_id = 1),
+                generation INTEGER NOT NULL
+            )',
+        );
+        $serving->exec(
+            "CREATE TRIGGER state_generation_hijack AFTER INSERT ON state
+             BEGIN
+                UPDATE waaseyaa_schema_authority SET generation = generation + 5 WHERE authority_id = 1;
+             END",
+        );
+        $serving->exec("INSERT INTO state VALUES ('last_run', '2026-09-22')");
+        $serving = null;
+
+        $candidatePath = $this->directory . '/candidate.sqlite';
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('no longer matches');
+
+        try {
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                $servingPath,
+                $artifactPath,
+                $candidatePath,
+                ['content'],
+            );
+        } finally {
+            self::assertFileDoesNotExist($candidatePath, 'A candidate whose generation was mutated mid-preparation must never survive.');
+        }
+    }
+
+    /**
+     * Re-review item 2 (mutation M16b): the bind previously ignored
+     * `source_catalog_fingerprint`, so no test exercised a trigger mutating
+     * it specifically — a regression there would have survived. Public-API
+     * proof that it is now part of the bind comparison.
+     */
+    #[Test]
+    public function probe_b_a_serving_trigger_on_the_preserved_table_that_mutates_source_catalog_fingerprint_fails_closed(): void
+    {
+        $artifactPath = $this->directory . '/artifact.sqlite';
+        $artifactConnection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $artifactPath]);
+        $this->governArtifact($artifactConnection);
+        $artifactConnection->close();
+
+        $servingPath = $this->directory . '/serving.sqlite';
+        $serving = $this->open($servingPath);
+        $serving->exec('CREATE TABLE state (name TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        // Serving's own decoy waaseyaa_schema_authority: only needed so the
+        // trigger body below compiles against this connection.
+        $serving->exec(
+            'CREATE TABLE waaseyaa_schema_authority (
+                authority_id INTEGER PRIMARY KEY CHECK (authority_id = 1),
+                source_catalog_fingerprint VARCHAR(64) NULL
+            )',
+        );
+        $serving->exec(
+            "CREATE TRIGGER state_catalog_hijack AFTER INSERT ON state
+             BEGIN
+                UPDATE waaseyaa_schema_authority SET source_catalog_fingerprint = 'hijacked-by-trigger' WHERE authority_id = 1;
+             END",
+        );
+        $serving->exec("INSERT INTO state VALUES ('last_run', '2026-09-22')");
+        $serving = null;
+
+        $candidatePath = $this->directory . '/candidate.sqlite';
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('no longer matches');
+
+        try {
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                $servingPath,
+                $artifactPath,
+                $candidatePath,
+                ['content'],
+            );
+        } finally {
+            self::assertFileDoesNotExist($candidatePath, 'A candidate whose source_catalog_fingerprint was mutated mid-preparation must never survive.');
+        }
+    }
+
+    /**
+     * Re-review item 3 (public-API coverage for mutation M4b): probe (a)
+     * above used a trigger `ON content`, an application-owned table not in
+     * the catalogue at all — the `$definition === null` branch of the
+     * bounded-difference check. This variant instead names an actual
+     * catalogue table whose policy IS `RuntimeTablePolicy::Artifact`
+     * (`cache_discovery`), exercising the other branch through the public
+     * `prepare()` API, matching Required outcome 2 by name.
+     */
+    #[Test]
+    public function probe_a_a_serving_trigger_named_after_a_preserved_table_but_on_an_artifact_policy_table_fails_closed(): void
+    {
+        $artifactPath = $this->directory . '/artifact.sqlite';
+        $artifactConnection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $artifactPath]);
+        $this->governArtifact($artifactConnection, static function (Connection $connection): void {
+            $connection->executeStatement('CREATE TABLE cache_discovery (cid TEXT PRIMARY KEY, data TEXT)');
+        });
+        $artifactConnection->close();
+
+        $servingPath = $this->directory . '/serving.sqlite';
+        $serving = $this->open($servingPath);
+        $serving->exec('CREATE TABLE state (name TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        // Serving's own decoy cache_discovery: only needed so the trigger
+        // below compiles against this connection — the real cache_discovery
+        // the candidate carries comes from the artifact copy.
+        $serving->exec('CREATE TABLE cache_discovery (cid TEXT PRIMARY KEY, data TEXT)');
+        // Named "state" (the Preserve-policy table being cloned) but ON
+        // "cache_discovery" — a catalogue table whose policy is Artifact.
+        $serving->exec('CREATE TRIGGER state AFTER INSERT ON cache_discovery BEGIN SELECT 1; END');
+        $serving = null;
+
+        $candidatePath = $this->directory . '/candidate.sqlite';
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('cache_discovery');
+
+        try {
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                $servingPath,
+                $artifactPath,
+                $candidatePath,
+                ['content'],
+            );
+        } finally {
+            self::assertFileDoesNotExist($candidatePath, 'An unbounded schema difference must never leave a candidate behind.');
+        }
+    }
+
+    /**
      * Kept in addition to the public-API probe (a) above (review: "or keep
      * them in addition"): drives `reconcileSchemaAuthority()` directly with a
      * hand-built artifact snapshot, so it covers the `RuntimeTablePolicy::Artifact`
@@ -471,19 +624,30 @@ final class SqliteArtifactPreparerSchemaAuthorityTest extends TestCase
     }
 
     /**
-     * The item-7 bind check now catches every realistic way a candidate's
-     * manifest row could stop matching what was captured from the artifact
-     * (including review probe b, above, through the public API), so by the
-     * time `reconcileSchemaAuthority()` reaches its conditional re-record
-     * `UPDATE`, that `UPDATE`'s own `WHERE schema_fingerprint = ?` cannot
-     * realistically miss within one `prepare()` call — the bind check would
-     * already have refused. This fixture drives the guard directly to prove
-     * the re-record step is conditional at all, independent of the bind
-     * check: pass a hand-built artifact snapshot whose schema_fingerprint
-     * the candidate's own (unmutated, bind-check-passing) row does not carry.
+     * Corrected per review: this does NOT isolate the re-record `UPDATE`'s
+     * own `WHERE schema_fingerprint = ?` clause from the item-7 bind check —
+     * that is impossible to do with a hand-built snapshot. The bind check
+     * compares the candidate's real `schema_fingerprint` against
+     * `$artifactSchemaAuthority['schema_fingerprint']`, and the re-record
+     * `UPDATE`'s `WHERE` clause is parameterised with that exact same
+     * `$artifactSchemaAuthority['schema_fingerprint']` value moments later,
+     * with nothing in between that could change the candidate's row
+     * (`assertBoundedSchemaDifference()` is read-only). So whenever the bind
+     * check's `schema_fingerprint` comparison passes, the re-record
+     * `UPDATE`'s identical comparison cannot then fail — there is no snapshot
+     * that reaches the `UPDATE` with a schema_fingerprint mismatch the bind
+     * check did not already catch. This fixture instead directly proves what
+     * IS true and useful: `reconcileSchemaAuthority()` refuses a hand-built
+     * artifact snapshot whose `schema_fingerprint` does not match the
+     * candidate's own (unmutated) row — via the bind check, in practice,
+     * every time. The re-record `UPDATE`'s own `rowCount() !== 1` branch
+     * remains defensive code with no test that reaches it specifically; see
+     * `docs/change-records/FW-3149.md`'s mutation table (M2, M16) for why
+     * that is recorded as an accepted, harmless surviving mutation rather
+     * than pursued further.
      */
     #[Test]
-    public function a_manifest_changed_concurrently_between_precondition_and_re_record_fails_closed(): void
+    public function a_manifest_that_no_longer_matches_the_captured_artifact_snapshot_fails_closed(): void
     {
         $artifactPath = $this->directory . '/artifact.sqlite';
         $artifactConnection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $artifactPath]);
@@ -495,11 +659,6 @@ final class SqliteArtifactPreparerSchemaAuthorityTest extends TestCase
         $candidatePdo = $this->open($candidatePath);
 
         $artifactSnapshot = $this->captureSnapshot($artifactPath);
-        // A snapshot whose captured schema_fingerprint the candidate's own
-        // (otherwise untouched) row does not carry: the bind check and the
-        // re-record UPDATE share the same "no longer matches" shape, so this
-        // is the smallest fixture that isolates the re-record UPDATE's own
-        // WHERE clause from the bind check that now runs before it.
         $artifactSnapshot['schema_fingerprint'] = 'concurrently-changed-value';
 
         $preparer = new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue());
@@ -507,6 +666,7 @@ final class SqliteArtifactPreparerSchemaAuthorityTest extends TestCase
         $reconcile = new \ReflectionMethod(SqliteArtifactPreparer::class, 'reconcileSchemaAuthority');
 
         $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('no longer matches');
 
         $reconcile->invoke($preparer, $candidatePdo, $definitions, $artifactSnapshot);
     }
@@ -581,19 +741,20 @@ final class SqliteArtifactPreparerSchemaAuthorityTest extends TestCase
      * returns, for the two tests above that invoke `reconcileSchemaAuthority()`
      * directly rather than through `prepare()`.
      *
-     * @return array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}
+     * @return array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, generation:int, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}
      */
     private function captureSnapshot(string $artifactPath): array
     {
         $pdo = $this->open($artifactPath);
         $manifest = $pdo->query(
-            'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint FROM waaseyaa_schema_authority WHERE authority_id = 1',
+            'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint, generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
         )->fetch(\PDO::FETCH_ASSOC);
 
         return [
             'schema_fingerprint' => (string) $manifest['schema_fingerprint'],
             'ledger_fingerprint' => (string) $manifest['ledger_fingerprint'],
             'source_catalog_fingerprint' => $manifest['source_catalog_fingerprint'],
+            'generation' => (int) $manifest['generation'],
             'schema_objects' => SchemaAuthorityFingerprint::schemaObjects($pdo),
         ];
     }

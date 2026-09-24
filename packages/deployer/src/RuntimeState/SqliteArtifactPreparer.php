@@ -609,7 +609,7 @@ final readonly class SqliteArtifactPreparer
      * own no-manifest pass-through) — otherwise the captured values
      * `reconcileSchemaAuthority()` later binds the copied candidate to.
      *
-     * @return array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}|null
+     * @return array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, generation:int, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}|null
      */
     private function captureArtifactSchemaAuthority(\PDO $artifact): ?array
     {
@@ -633,6 +633,7 @@ final readonly class SqliteArtifactPreparer
             'schema_fingerprint' => $manifest['schema_fingerprint'],
             'ledger_fingerprint' => $manifest['ledger_fingerprint'],
             'source_catalog_fingerprint' => $manifest['source_catalog_fingerprint'],
+            'generation' => $manifest['generation'],
             'schema_objects' => SchemaAuthorityFingerprint::schemaObjects($artifact),
         ];
     }
@@ -658,7 +659,7 @@ final readonly class SqliteArtifactPreparer
      * is recorded for #2548 rather than fixed here.
      *
      * @param array<string, RuntimeTableDefinition> $definitions
-     * @param array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}|null $artifactSchemaAuthority
+     * @param array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, generation:int, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}|null $artifactSchemaAuthority
      */
     private function reconcileSchemaAuthority(\PDO $candidate, array $definitions, ?array $artifactSchemaAuthority): void
     {
@@ -668,15 +669,18 @@ final readonly class SqliteArtifactPreparer
 
         // Review item 7 — bind: the candidate's own copied manifest row must
         // still equal exactly what was captured from the artifact before the
-        // copy. This is what catches probe (b): a cloned trigger `ON` the
-        // preserved table that UPDATEs `waaseyaa_schema_authority` during row
-        // copying leaves a candidate row that no longer matches the artifact
-        // this reconciliation is supposed to be reconciling.
+        // copy, in every column, including `generation`. This is what
+        // catches probe (b): a cloned trigger `ON` the preserved table that
+        // UPDATEs `waaseyaa_schema_authority` during row copying — whether it
+        // mutates a fingerprint column, `source_catalog_fingerprint`, or
+        // `generation` — leaves a candidate row that no longer matches the
+        // artifact this reconciliation is supposed to be reconciling.
         $candidateManifest = $this->schemaAuthorityManifest($candidate);
         if ($candidateManifest === null
             || $candidateManifest['schema_fingerprint'] !== $artifactSchemaAuthority['schema_fingerprint']
             || $candidateManifest['ledger_fingerprint'] !== $artifactSchemaAuthority['ledger_fingerprint']
             || $candidateManifest['source_catalog_fingerprint'] !== $artifactSchemaAuthority['source_catalog_fingerprint']
+            || $candidateManifest['generation'] !== $artifactSchemaAuthority['generation']
         ) {
             throw new \RuntimeException(
                 'Candidate schema authority manifest no longer matches the values captured from the artifact before preparation began.',
@@ -793,7 +797,7 @@ final readonly class SqliteArtifactPreparer
      * {@see \Waaseyaa\Foundation\Migration\MigrationRepository::schemaAuthorityManifest()}'s
      * own `[S1-DB105]` refusal for the identical case.
      *
-     * @return array{schema_fingerprint:?string, ledger_fingerprint:?string, source_catalog_fingerprint:?string}|null
+     * @return array{schema_fingerprint:?string, ledger_fingerprint:?string, source_catalog_fingerprint:?string, generation:int}|null
      */
     private function schemaAuthorityManifest(\PDO $pdo): ?array
     {
@@ -801,7 +805,7 @@ final readonly class SqliteArtifactPreparer
             return null;
         }
         $columns = array_column($pdo->query('PRAGMA table_info(waaseyaa_schema_authority)')->fetchAll(), 'name');
-        $required = ['schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint'];
+        $required = ['schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint', 'generation'];
         $missing = array_values(array_diff($required, $columns));
         if ($missing !== []) {
             throw new \RuntimeException(sprintf(
@@ -810,7 +814,7 @@ final readonly class SqliteArtifactPreparer
             ));
         }
         $row = $pdo->query(
-            'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint FROM waaseyaa_schema_authority WHERE authority_id = 1',
+            'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint, generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
         )->fetch();
         if ($row === false) {
             return null;
@@ -820,6 +824,7 @@ final readonly class SqliteArtifactPreparer
             'schema_fingerprint' => is_string($row['schema_fingerprint']) ? $row['schema_fingerprint'] : null,
             'ledger_fingerprint' => is_string($row['ledger_fingerprint']) ? $row['ledger_fingerprint'] : null,
             'source_catalog_fingerprint' => is_string($row['source_catalog_fingerprint']) ? $row['source_catalog_fingerprint'] : null,
+            'generation' => (int) $row['generation'],
         ];
     }
 

@@ -123,9 +123,13 @@ schema-mutation transitions, not artifact handoffs. After commit, preparation
 asserts the candidate's recorded schema and ledger fingerprints equal their
 freshly computed values, using the identical computation the serving host's
 own schema-authority pre-state assertion and `migrate --verify` use, and
-discards the candidate on any mismatch — this is the only guard that catches
-a cloned trigger mutating a *different* artifact-policy table's data, such as
-an extra row inserted into the migration ledger. An artifact without a
+discards the candidate on any mismatch — this recomputation only covers the
+schema and the migration ledger, so it is the guard that catches a cloned
+trigger inserting an extra row into `waaseyaa_migrations` specifically, not a
+general guard against a cloned trigger mutating any other artifact-policy
+table's data: a trigger that instead wrote to, say, a cache table would have
+no schema-object footprint and no effect on either recomputed fingerprint, and
+would go uncaught. An artifact without a
 fingerprinted manifest — a fresh install or a pre-fingerprint adoption — is
 left completely untouched. A manifest table present but missing a required
 fingerprint column is a different case again — an installation too old for
