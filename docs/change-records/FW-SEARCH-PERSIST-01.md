@@ -73,7 +73,9 @@ Dedicated `search.database` file:
 - A `search.database` that resolves to the application database file (the
   same canonical path, or the same device and inode, as with a hard link) is
   not a dedicated file. The provider shares the application connection, so
-  `search:reindex` can never provision the authoritative database.
+  `search:reindex` doesn't provision the authoritative database. One gap
+  remains: a hard link on a filesystem that reports no inode numbers is still
+  treated as dedicated.
 
 ## Evidence
 
@@ -122,8 +124,8 @@ runs the candidate's test.
 - `SchemaDeclarationBoundaryTest`: only `Fts5SearchSchema` declares DDL.
 
 **Independent review.** A separate reviewer read the immutable diff at
-`5bdd548a8`, then each repair delta (`7a6bc2fbd`, `896b234bf`). Neither pass
-found a blocker.
+`5bdd548a8`, then each repair delta (`7a6bc2fbd`, `896b234bf`) and this
+record. No pass found a blocker.
 
 | Finding | Disposition |
 | --- | --- |
@@ -138,10 +140,14 @@ found a blocker.
 | `Fts5SearchProvider` throws if `search_index` exists without `search_metadata` | Residual and pre-existing: neither the migration nor the now-atomic dedicated rebuild can produce that state |
 | On Linux, a `../` spelling through a missing directory is not recognized as the application file | Residual: it fails closed at the existing directory creation, before any connection opens |
 
-Each fixed finding has a test that fails on the code before its repair,
-checked with the same scratch-bootstrap technique against `5bdd548a8` and
-`7a6bc2fbd`. The two rollback tests pass on both: the behaviour was already
-correct, and they guard it.
+I checked the new tests with the same scratch-bootstrap technique against
+`5bdd548a8` and `7a6bc2fbd`. Each behaviour fix has a test that fails on the
+code before its repair: the same-file and hard-link cases, dedicated-file
+recovery, the dedicated-rebuild rollback, the case-variant refusal and the
+trigger case. Two kinds of test pass on the older code too. The provider test's
+no-`search.database` and dedicated-file cases, and the two rollback tests,
+cover behaviour that was already correct. They guard it against regression,
+for example a forced dedicated flag.
 
 **FETDER qualification (local, native Windows host, PHP 8.5.5, candidate
 `896b234bf`).**
