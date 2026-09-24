@@ -276,6 +276,51 @@ final class SearchProjectionSchemaMigrationTest extends TestCase
             ['CREATE TABLE search_index_data (id INTEGER PRIMARY KEY, block BLOB)'],
             '`search_index_data` exists without the `search_index` table',
         ];
+        // SQLite names are case-insensitive: this collides with search_metadata.
+        yield 'owned name in a different case' => [
+            [str_replace('search_metadata', 'Search_Metadata', self::RUNTIME_DDL[1])],
+            '`search_metadata` is defined as `CREATE TABLE Search_Metadata(',
+        ];
+    }
+
+    #[Test]
+    public function aLaterFailureInTheTransitionRollsBackTheCreatedProjection(): void
+    {
+        $before = $this->schemaSnapshot();
+        $manifest = $this->manifestFingerprint();
+
+        $this->failAfterTheMigrationRuns(function (): void {
+            self::assertCount(5, $this->ownedObjects(), 'the migration created the projection inside the transition');
+        });
+
+        self::assertSame($before, $this->schemaSnapshot(), 'no projection object survives the rollback');
+        self::assertSame($manifest, $this->manifestFingerprint());
+        $this->assertManifestDescribesLiveSchema();
+    }
+
+    #[Test]
+    public function aLaterFailureInTheTransitionRollsBackThePorterRebuild(): void
+    {
+        $this->coordinated(function (): void {
+            $this->connection->executeStatement(self::PORTER_DDL);
+            foreach (array_slice(self::RUNTIME_DDL, 1) as $ddl) {
+                $this->connection->executeStatement($ddl);
+            }
+            $this->insertRows();
+        });
+        $before = $this->snapshot();
+        $schema = $this->schemaSnapshot();
+        $manifest = $this->manifestFingerprint();
+
+        $this->failAfterTheMigrationRuns(function (): void {
+            self::assertStringNotContainsString('porter', $this->ownedObjects()['search_index'], 'the rebuild ran inside the transition');
+        });
+
+        self::assertSame($before, $this->snapshot(), 'the retired index and every row are back');
+        self::assertSame($schema, $this->schemaSnapshot(), 'no rebuild leftover survives the rollback');
+        self::assertSame($manifest, $this->manifestFingerprint());
+        self::assertSame('search:2', $this->connection->fetchOne("SELECT document_id FROM search_index WHERE search_index MATCH 'run'"), 'the Porter tokens are intact');
+        $this->assertManifestDescribesLiveSchema();
     }
 
     /** @param list<string> $ddl */
@@ -309,6 +354,27 @@ final class SearchProjectionSchemaMigrationTest extends TestCase
         $migration = require self::MIGRATION;
         self::assertInstanceOf(Migration::class, $migration);
         $this->coordinated(fn() => $migration->up(new SchemaBuilder($this->connection)));
+    }
+
+    /**
+     * Run the migration inside one coordinated transition, check its effect
+     * there, then fail a later step of the same transition.
+     */
+    private function failAfterTheMigrationRuns(\Closure $inspect): void
+    {
+        $migration = require self::MIGRATION;
+        self::assertInstanceOf(Migration::class, $migration);
+
+        try {
+            $this->coordinated(function () use ($migration, $inspect): void {
+                $migration->up(new SchemaBuilder($this->connection));
+                $inspect();
+                throw new \RuntimeException('a later step of the transition failed');
+            });
+            self::fail('The transition must fail.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('a later step of the transition failed', $exception->getMessage());
+        }
     }
 
     private function coordinated(\Closure $transition, bool $readopt = false): void

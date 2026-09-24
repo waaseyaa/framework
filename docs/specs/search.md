@@ -75,9 +75,14 @@ and `idx_search_meta_source`. `Fts5SearchSchema` is their one owner.
   migration (`migrate`, `db:init`, `install:init`).
 - **Dedicated `search.database` file:** the file is outside schema authority
   and has no manifest. Only `search:reindex` provisions its schema, through
-  `Fts5SearchIndexer::removeAll()`. The migration still creates the (unused)
-  projection on the application database, so the recorded schema does not
-  depend on configuration.
+  `Fts5SearchIndexer::removeAll()`, in the same transaction as the row deletes,
+  so an interrupted rebuild leaves the file as it was. Its `[SEARCH-DB001]`
+  refusal says to move the file aside and reindex. The migration still creates
+  the (unused) projection on the application database, so the recorded schema
+  does not depend on configuration.
+- **A `search.database` that resolves to the application database file** is
+  not a dedicated file. The provider shares the application connection, and
+  the projection there stays migration-owned.
 - **Serving paths perform no DDL.** Lifecycle indexing, removal, batch
   reindexing, search and the content catalogue never create, alter or drop
   schema on any connection. When the projection is absent, writes log a warning
@@ -92,7 +97,11 @@ The migration handles the live state as follows:
 | An object is absent | Created. The DDL text is the text the pre-migration runtime code used, so a migrated and a runtime-created projection have the same logical schema fingerprint. |
 | An object has the expected definition (whitespace-insensitive) | Adopted in place with every row. |
 | `search_index` uses the retired `porter unicode61` tokenizer (framework versions before 0.1.0-alpha.263) | Rebuilt with the current tokenizer inside the transition. Every row is carried across and re-tokenized. |
-| Any other definition, a `search_index_retired_porter` leftover, or an FTS5 shadow table without `search_index` | Refused with `[SEARCH-DB001]`, naming each difference. The transition rolls back and nothing changes. |
+| Any other definition (object names compare case-insensitively, as SQLite does), a `search_index_retired_porter` leftover, or an FTS5 shadow table without `search_index` | Refused with `[SEARCH-DB001]`, naming each difference. The transition rolls back and nothing changes. |
+
+Every statement the migration runs is inside the coordinated transition. A
+failure later in the same transition rolls back a created projection or a
+tokenizer rebuild completely.
 
 ### Adopting a runtime-created search projection
 
@@ -127,7 +136,8 @@ the listed objects aside, re-adopt, run `migrate`, then `search:reindex`.
 
 `packages/search/tests/Integration/SearchProjectionSchemaMigrationTest.php`
 runs this procedure on a drifted SQLite database, along with creation, in-place
-adoption, the tokenizer rebuild and every refusal case.
+adoption, the tokenizer rebuild, rollback after the migration's DDL and every
+refusal case.
 `SearchServingPathSchemaAuthorityTest` proves the serving paths leave the
 recorded manifest valid.
 

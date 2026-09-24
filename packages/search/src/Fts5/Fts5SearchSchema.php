@@ -78,17 +78,23 @@ final class Fts5SearchSchema
 
     private const string LEGACY_RENAME = 'search_index_retired_porter';
 
-    public static function install(Connection $connection): void
+    /**
+     * @param bool $dedicatedFile true when provisioning a dedicated `search.database`
+     *                            file from `search:reindex`; only the recovery text differs
+     */
+    public static function install(Connection $connection, bool $dedicatedFile = false): void
     {
         $definitions = self::liveDefinitions($connection);
         $differences = self::differences($definitions);
         if ($differences !== []) {
             throw new \RuntimeException(sprintf(
                 '[SEARCH-DB001] The existing search projection does not have the schema waaseyaa/search owns: %s. Nothing was changed. '
-                . 'Recovery (FW-SEARCH-PERSIST-01, docs/specs/search.md "Search projection schema"): back up the database, '
-                . 'then move the listed objects aside yourself so the migration can create the expected projection. '
-                . 'The projection is rebuildable with `search:reindex`.',
+                . 'Recovery (FW-SEARCH-PERSIST-01, docs/specs/search.md "Search projection schema"): %s',
                 implode('; ', $differences),
+                $dedicatedFile
+                    ? 'the dedicated search.database file holds only the rebuildable projection; move that file aside and run `search:reindex` to recreate it.'
+                    : 'back up the database, then move the listed objects aside yourself so the migration can create the expected projection. '
+                        . 'The projection is rebuildable with `search:reindex`.',
             ));
         }
 
@@ -119,14 +125,16 @@ final class Fts5SearchSchema
     private static function liveDefinitions(Connection $connection): array
     {
         $names = [self::INDEX_TABLE, self::METADATA_TABLE, self::LEGACY_RENAME, ...array_keys(self::INDEX_DDLS), ...self::SHADOW_TABLES];
+        // SQLite object names are case-insensitive, so `Search_Metadata` would
+        // collide with `search_metadata`; match and key them case-insensitively.
         $rows = $connection->fetchAllAssociative(
-            sprintf('SELECT name, type, tbl_name, sql FROM sqlite_master WHERE name IN (%s)', implode(', ', array_fill(0, count($names), '?'))),
+            sprintf('SELECT name, type, tbl_name, sql FROM sqlite_master WHERE lower(name) IN (%s)', implode(', ', array_fill(0, count($names), '?'))),
             $names,
         );
 
         $definitions = [];
         foreach ($rows as $row) {
-            $name = (string) $row['name'];
+            $name = strtolower((string) $row['name']);
             $sql = (string) ($row['sql'] ?? '');
             // An index on another table that happens to share an owned name is
             // a different object; keep its table so it compares unequal.

@@ -99,6 +99,51 @@ final class Fts5SearchIndexerSchemaBoundaryTest extends TestCase
     }
 
     #[Test]
+    public function an_incompatible_dedicated_file_is_refused_with_file_recovery_and_left_unchanged(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        // The state an interrupted pre-transaction tokenizer rebuild could leave.
+        $database->query('CREATE VIRTUAL TABLE search_index_retired_porter USING fts5(document_id UNINDEXED, title, body)');
+        $before = $this->schema($database);
+
+        try {
+            new Fts5SearchIndexer($database, ownsProjectionFile: true)->removeAll();
+            self::fail('An incompatible dedicated projection file must be refused.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('[SEARCH-DB001]', $e->getMessage());
+            $this->assertStringContainsString('move that file aside and run `search:reindex`', $e->getMessage());
+            $this->assertStringNotContainsString('so the migration can', $e->getMessage(), 'no migration runs on a dedicated file');
+        }
+
+        $this->assertSame($before, $this->schema($database));
+    }
+
+    #[Test]
+    public function a_failed_dedicated_rebuild_rolls_back_its_provisioning(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $connection = $database->getConnection();
+        $connection->executeStatement("CREATE VIRTUAL TABLE search_index USING fts5(document_id UNINDEXED, title, body, tokenize='porter unicode61')");
+        $connection->executeStatement(self::metadataDdl());
+        $connection->executeStatement("INSERT INTO search_index (document_id, title, body) VALUES ('node:1', 'Running', 'runs')");
+        $connection->executeStatement("INSERT INTO search_metadata (document_id, entity_type, created_at, schema_version) VALUES ('node:1', 'node', '2026-09-24', '2')");
+        // Fail the row deletes that follow the tokenizer rebuild in removeAll().
+        $connection->executeStatement("CREATE TRIGGER fail_metadata_delete BEFORE DELETE ON search_metadata BEGIN SELECT RAISE(ABORT, 'delete failed'); END");
+        $before = $this->schema($database);
+
+        try {
+            new Fts5SearchIndexer($database, ownsProjectionFile: true)->removeAll();
+            self::fail('The failing delete must surface.');
+        } catch (\Throwable $e) {
+            $this->assertStringContainsString('delete failed', $e->getMessage());
+        }
+
+        $this->assertSame($before, $this->schema($database), 'the Porter index is back and no rebuild leftover remains');
+        $this->assertSame('node:1', $connection->fetchOne("SELECT document_id FROM search_index WHERE search_index MATCH 'run'"));
+        $this->assertSame(['node:1'], $this->documentIds($database));
+    }
+
+    #[Test]
     public function searching_a_missing_projection_returns_empty_not_an_error(): void
     {
         $database = DBALDatabase::createSqlite();
@@ -125,6 +170,30 @@ final class Fts5SearchIndexerSchemaBoundaryTest extends TestCase
         ));
 
         return array_map(static fn(array $row): string => (string) $row['name'], $rows);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function schema(DBALDatabase $database): array
+    {
+        return $database->getConnection()->fetchAllAssociative('SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name');
+    }
+
+    private static function metadataDdl(): string
+    {
+        return <<<'SQL'
+            CREATE TABLE search_metadata (
+                document_id TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                content_type TEXT NOT NULL DEFAULT '',
+                source_name TEXT NOT NULL DEFAULT '',
+                quality_score INTEGER NOT NULL DEFAULT 0,
+                topics TEXT NOT NULL DEFAULT '[]',
+                url TEXT NOT NULL DEFAULT '',
+                og_image TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                schema_version TEXT NOT NULL
+            )
+            SQL;
     }
 
     /** @return list<string> */

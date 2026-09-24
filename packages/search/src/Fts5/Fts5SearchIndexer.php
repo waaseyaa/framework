@@ -149,23 +149,24 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
      * This is the only method that may provision schema, and only on a
      * dedicated projection file. On the authoritative database the
      * `waaseyaa/search` migration owns the schema, so a missing projection is
-     * refused with `[SEARCH-DB002]` rather than created.
+     * refused with `[SEARCH-DB002]` rather than created. Provisioning and the
+     * row deletes share one transaction, so an interrupted rebuild of a
+     * dedicated file leaves it as it was.
      */
     public function removeAll(): void
     {
-        if ($this->ownsProjectionFile) {
-            if (!$this->database instanceof DBALDatabase) {
-                throw new \LogicException('A dedicated search projection file must be a DBALDatabase.');
-            }
-            Fts5SearchSchema::install($this->database->getConnection());
-            $this->schemaReady = true;
-        } elseif (!$this->tablesExist()) {
-            throw new \RuntimeException('[SEARCH-DB002] The search projection tables do not exist on the application database. Run `migrate` to apply the waaseyaa/search migration, then `search:reindex`.');
+        if ($this->ownsProjectionFile && !$this->database instanceof DBALDatabase) {
+            throw new \LogicException('A dedicated search projection file must be a DBALDatabase.');
         }
 
         $tx = $this->database->transaction();
 
         try {
+            if ($this->database instanceof DBALDatabase && $this->ownsProjectionFile) {
+                Fts5SearchSchema::install($this->database->getConnection(), dedicatedFile: true);
+            } elseif (!$this->tablesExist()) {
+                throw new \RuntimeException('[SEARCH-DB002] The search projection tables do not exist on the application database. Run `migrate` to apply the waaseyaa/search migration, then `search:reindex`.');
+            }
             $this->database->query('DELETE FROM search_index');
             $this->database->delete('search_metadata')->execute();
             $tx->commit();
@@ -173,6 +174,8 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
             $tx->rollBack();
             throw $e;
         }
+
+        $this->schemaReady = true;
     }
 
     public function getSchemaVersion(): string
