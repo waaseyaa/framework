@@ -123,7 +123,7 @@ still determine the current disposition.
 | Skeleton `dev` (`@php vendor/bin/waaseyaa dev`) | Normative portable target; native Windows serving unsupported pending evidence | The invocation is shell-free, but current Windows jobs explicitly make no `dev`, FrankenPHP, or serving claim. |
 | Skeleton `audit-site` | Host-specific internal automation | Delegates to the POSIX `bin/maintenance/waaseyaa-audit-site`. |
 | Skeleton `post-create-project-cmd` | Verified native portable | The Linux and Windows skeleton jobs execute `bin/post-create-setup.php` through Composer's PHP. |
-| Skeleton `regen-lock` | Dependency-maintenance operation; unsupported on native Windows pending verification | It runs Composer update and therefore resolves dependencies and rewrites lock state. It is not the locked install path. |
+| Skeleton `regen-lock` | Dependency-maintenance operation; unsupported on native Windows pending verification | It runs Composer update and therefore resolves dependencies and rewrites lock state. It is not the locked install path. The `waaseyaa/*` pattern is double-quoted, so both `cmd.exe` and POSIX `sh` pass it to Composer unchanged and unexpanded. With single quotes, native Windows passed the quotes through, selected no package and exited 0 (#2679; `tests/Architecture/SkeletonRegenLockTest.php`). No native Windows CI job runs it. |
 
 ### Root `bin/` commands
 
