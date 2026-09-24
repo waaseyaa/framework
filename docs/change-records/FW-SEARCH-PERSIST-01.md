@@ -50,7 +50,7 @@ calls it under the coordinator.
 | Object absent | Created with the runtime code's exact DDL text, so a migrated and a runtime-created projection store identical SQL and share a logical fingerprint. |
 | Expected definition (whitespace-insensitive) | Adopted in place, every row kept. |
 | `search_index` with the retired `porter unicode61` tokenizer (before 0.1.0-alpha.263) | Renamed aside, recreated with the current tokenizer, rows copied across and re-tokenized, old table dropped, all inside the transition. |
-| Any other definition, a `search_index_retired_porter` leftover, or an orphaned FTS5 shadow table | `[SEARCH-DB001]` naming each difference; the coordinator rolls back and nothing changes. |
+| Any other definition (names compare case-insensitively, as SQLite does; triggers have their own namespace and are ignored), a `search_index_retired_porter` leftover, or an orphaned FTS5 shadow table | `[SEARCH-DB001]` naming each difference; the coordinator rolls back and nothing changes. |
 
 Serving paths:
 
@@ -65,67 +65,152 @@ Serving paths:
 - `Fts5SearchIndexer::ensureSchema()` is removed. The class isn't a declared
   public symbol; `SearchIndexerInterface` is unchanged.
 
+Dedicated `search.database` file:
+
+- Only `removeAll()` (`search:reindex`) provisions it, in one transaction with
+  the row deletes, so an interrupted rebuild leaves the file as it was. Its
+  `[SEARCH-DB001]` refusal says to move the file aside and reindex.
+- A `search.database` that resolves to the application database file (the
+  same canonical path, or the same device and inode, as with a hard link) is
+  not a dedicated file. The provider shares the application connection, so
+  `search:reindex` can never provision the authoritative database.
+
 ## Evidence
 
-- `SearchServingPathSchemaAuthorityTest`, written first and seen red on the
-  base: the recorded fingerprint `4b19b1af…` against the live `e987c3e9…`
-  after the serving paths ran. With the migration applied, lifecycle save and
-  delete, `removeAll()` plus `reindexBatch()`, search and the catalogue leave
-  the manifest valid, and the next coordinated transition succeeds. Without the
-  migration they create nothing.
-- `SearchProjectionSchemaMigrationTest`: create; stored SQL identical to the
-  runtime-created projection; package declaration and single `Migrator`
-  install; in-place adoption with rows; partial completion; Porter rebuild
-  with rows and re-tokenization; `[S1-DB109]` for drift outside the manifest;
-  the documented recovery on a drifted database; eight refusal shapes.
-- `Fts5SearchIndexerSchemaBoundaryTest`: no DDL on construction or serving
-  writes; the warning; `[SEARCH-DB002]`; a later migration is picked up; a
-  dedicated file is provisioned only by `removeAll()`.
+The code under qualification is `896b234bf` on base `6359a4428`. Later commits
+change only this record.
 
-**FETDER qualification (local, native Windows host, candidate `6ae88b768`):**
+**Failing before, passing after.** The drift regression
+`SearchServingPathSchemaAuthorityTest` was committed red in `64553c0d9`, before
+the fix. That commit's first test called a helper added with the fix, so the
+discriminator was reconstructed without touching the worktree: a scratch
+PHPUnit bootstrap loads the candidate's autoloader, declares the base
+(`6359a4428`) `Fts5SearchIndexer` before the candidate's copy can load, and
+runs the candidate's test.
 
-- **Method:**
-  - Two scratch copies of the FETDER app at `874e4c8`, with `.env.example`
-    (fake provider). The *old* copy keeps its installed `0.1.0-alpha.301`
-    packages. The *new* copy resolves every `waaseyaa/*` package from a
-    `git archive` of the candidate through Composer path repositories.
-  - Each case uses its own copy of FETDER's local database.
-  - FETDER's deploy sequence: `schema:sync`, `install:init`,
-    `migrate --verify`.
-  - A probe boots the HTTP kernel, dispatches `POST_DELETE` for a
-    search-indexable entity through the kernel dispatcher (the trigger
-    observed in #3138), and indexes one document through the kernel-resolved
-    indexer.
-- **FETDER's own data:** its checkout and database are unchanged (database
-  SHA-256 `ef3932e2…` before and after).
+- Pre-fix (WSL, PHP 8.5.9): `withoutTheMigrationTheServingPathsCreateNothing`
+  fails "strict verification: no schema drift", with the recorded `4b19b1af…`
+  against the live `e987c3e9…` (2 tests, 1 failure).
+- Candidate: 2 tests, 14 assertions, OK.
+
+**Tests.**
+
+- `SearchServingPathSchemaAuthorityTest`: with the migration applied,
+  lifecycle save and delete, `removeAll()` plus `reindexBatch()`, search and
+  the catalogue leave the manifest valid, and the next coordinated transition
+  succeeds. Without the migration they create nothing.
+- `SearchProjectionSchemaMigrationTest`:
+  - create, with stored SQL identical to the runtime-created projection;
+  - the package declaration and a single `Migrator` install;
+  - in-place adoption with rows, and partial completion;
+  - the Porter rebuild, with rows kept and re-tokenized;
+  - `[S1-DB109]` for drift outside the manifest, and the documented recovery
+    on a drifted database;
+  - nine refusal shapes, and a trigger that shares an owned name;
+  - rollback of a created projection, and of a Porter rebuild, when a later
+    step of the same transition fails.
+- `Fts5SearchIndexerSchemaBoundaryTest`:
+  - no DDL on construction or on serving writes, and the warning;
+  - `[SEARCH-DB002]`, and a later migration is picked up;
+  - a dedicated file is provisioned only by `removeAll()`;
+  - a dedicated-file refusal gives file recovery, and a failed dedicated
+    rebuild rolls back.
+- `SearchServiceProviderSchemaAuthorityTest`, through the provider:
+  - no `search.database`, one naming the application file (two spellings), and
+    a hard link to it all refuse with `[SEARCH-DB002]` and create nothing;
+  - a dedicated file is provisioned and the application database is untouched.
+- `SchemaDeclarationBoundaryTest`: only `Fts5SearchSchema` declares DDL.
+
+**Independent review.** A separate reviewer read the immutable diff at
+`5bdd548a8`, then each repair delta (`7a6bc2fbd`, `896b234bf`). Neither pass
+found a blocker.
+
+| Finding | Disposition |
+| --- | --- |
+| A `search.database` naming the application file let `search:reindex` run DDL outside the coordinator | Fixed in `7a6bc2fbd`; hard links fixed in `896b234bf` |
+| No test of the provider's dedicated-file wiring | Fixed: `SearchServiceProviderSchemaAuthorityTest` |
+| Dedicated-file provisioning was not atomic, and its refusal pointed at the migration | Fixed: one transaction, and file recovery text |
+| A case-variant owned name gave a raw DBAL error | Fixed: `[SEARCH-DB001]` |
+| No test of rollback after the migration's DDL ran | Fixed: two rollback tests |
+| A trigger with an owned name was a false `[SEARCH-DB001]` | Fixed in `896b234bf` |
+| The Porter rebuild's `ALTER TABLE … RENAME` fails when an unrelated view is stale | Residual: it fails closed with a raw SQLite error and rolls back |
+| A Porter rebuild renumbers rowids | Residual: nothing reads rowid; NULL `document_id` rows survive |
+| `Fts5SearchProvider` throws if `search_index` exists without `search_metadata` | Residual and pre-existing: neither the migration nor the now-atomic dedicated rebuild can produce that state |
+| On Linux, a `../` spelling through a missing directory is not recognized as the application file | Residual: it fails closed at the existing directory creation, before any connection opens |
+
+Each fixed finding has a test that fails on the code before its repair,
+checked with the same scratch-bootstrap technique against `5bdd548a8` and
+`7a6bc2fbd`. The two rollback tests pass on both: the behaviour was already
+correct, and they guard it.
+
+**FETDER qualification (local, native Windows host, PHP 8.5.5, candidate
+`896b234bf`).**
+
+- **Setup:**
+  - Scratch copies of the FETDER app at `874e4c8` (`git archive`), with
+    `.env.example` (fake provider, no secrets).
+  - The *old* copy uses FETDER's installed `0.1.0-alpha.301` packages. The
+    *new* copy resolves every `waaseyaa/*` package from a `git archive` of
+    `896b234bf` through Composer path repositories (copies, not links). Every
+    installed package's `src/` is byte-identical to the archive.
+  - Each case starts from a fresh copy of FETDER's local database
+    (`var/fetder-local.sqlite`, SHA-256 `ef3932e2…`).
+- **Sequence** (issue acceptance 7): `migrate`, the probe, `migrate --verify`,
+  `install:init`, `migrate --verify`, the probe again, `migrate --verify`,
+  `install:init`, `migrate --verify`.
+- **The probe** boots the HTTP kernel, then:
+  - saves and deletes a `fetder_room` through the kernel's entity repository,
+    so the storage dispatches `POST_SAVE` and `POST_DELETE` through the kernel
+    dispatcher;
+  - dispatches `POST_DELETE` for a search-indexable document (the #3138
+    trigger);
+  - indexes two documents through the kernel-resolved indexer and deletes one
+    through the lifecycle;
+  - searches and lists the catalogue through the kernel-resolved provider and
+    catalogue;
+  - reports the recorded and live schema fingerprints and the row counts.
+- **The real entity save** needs an activated configuration generation, which
+  FETDER's local database gets from `install:init`. It therefore fails in the
+  first probe, as FETDER's own runtime would, and runs in the second.
+- **FETDER's own data** is unchanged: its checkout is still `874e4c8` and
+  clean, and its database is still `ef3932e2…`.
 
 | Case | Result |
 | --- | --- |
-| Control: old copy | The probe created the projection (and, from alpha.301's ai-vector, `embeddings`). `migrate --verify` went from `authority:match` to `schema_drift`. |
-| Clean database, new copy | `install:init` applied the search and ai-vector migrations; STATUS OK (42 matched). After the probe, the schema fingerprint was unchanged, a second `install:init` succeeded, and STATUS stayed OK. |
-| Runtime projection inside the manifest (re-recorded on the old copy) | `install:init` adopted it in place: 1 row in each table before and after; STATUS OK. |
-| FETDER production's likely state: `embeddings` re-recorded (the 2026-09-23 unblock), then only the search projection drifted from a later delete | `schema:sync` and `install:init` refused with `[S1-DB109]`. The documented recovery then worked: backup integrity `ok`; the proof copy showed `source_catalog_mismatch` with equal `schema=` and `ledger=`; after re-adoption, `migrate` adopted the projection with no DDL (live fingerprint equal to the runtime-created one); 1 row each before and after; the deploy sequence then reported STATUS OK. |
+| Control: old copy, same sequence | The first probe created the projection and `embeddings` (290 → 303 objects), and the live fingerprint moved from `8c4a54bd…` to `300229b5…`. Every `migrate --verify` reported `schema_drift`, and both `install:init` runs refused with `[S1-DB109]`. |
+| A: clean database, new copy | `migrate` applied the ai-vector and search migrations (303 objects). Both probes left the live fingerprint unchanged and equal to the manifest, and the second saved and deleted room 1. Each projection table held 1 row after the probes. All four `migrate --verify` runs reported STATUS OK (42 matched), and both `install:init` runs succeeded. The sequence took 19.2 s. |
+| B: FETDER production's likely state. On the old copy, `embeddings` was re-recorded (the 2026-09-23 unblock), then a later probe drifted only the search projection (`c8874276…` → `f03162a9…`). | `migrate` refused with `[S1-DB109]`. The documented recovery followed: backup integrity `ok`; the proof copy showed `source_catalog_mismatch` with equal `schema=` and `ledger=`; re-adoption; then the sequence above. `migrate` adopted the projection with no DDL: the definitions hash was `7405ac99…` before and after, and the live fingerprint stayed at the runtime-created `f03162a9…`. Each projection table kept 1 row throughout, the second probe saved and deleted a room, all four verifies reported STATUS OK, and both `install:init` runs succeeded. The sequence took 12.4 s. |
 
-- **Boot and smoke on the recovered database:** after the probe, the schema
-  stayed verified. `/health`, `/`, `/create`, `/signup` and `/discover` all
-  returned 200.
+Setting up each copy took about 200 s (Composer). Earlier evidence on
+`6ae88b768` also covered adopting a projection that was inside the manifest,
+and an HTTP smoke of five routes; that candidate predates the review repairs.
 
-**Local Linux evidence (WSL Ubuntu, PHP 8.5, read-only on the Windows worktree):**
+**Local evidence on the candidate.**
 
-- The search package, the api, CLI, ai-vector and Search/Generation
-  integration tests pass (296 tests).
-- These Architecture contracts pass: `SearchIndexTrustBoundaryTest`,
-  `RecursiveRemoverContractTest`, `SubprocessHarnessContractTest`,
-  `TestQualityInventoryTest`, `S1RosterSchemaV2Test`, `S1SupportContractTest`,
-  `S1UpgradeCompatibilityContractTest`, `LockedPackageDiscoveryMetadataTest`,
-  `SplitPackageTestDependencyBoundaryTest`, `CheckPackageLayersGateTest` and
-  `CoversNothingCompanionDiagnosticTest`.
-- `S1SchemaAuthorityContractTest` and `S1SqliteTopologyContractTest` need Git
-  to enumerate the worktree, which WSL can't do for a Windows linked worktree.
-  Their native gates (`check-s1-schema-authority`, `check-s1-sqlite-contract`)
-  pass in preflight. Hosted CI owns the installed-artifact variants.
-- Dead-code on this host reports seven findings in `config` and `scheduler`,
-  outside this change. Hosted CI owns that gate.
+- **WSL Ubuntu, PHP 8.5.9, read-only on the Windows worktree** (local Linux
+  evidence):
+  - `packages/search/tests` pass on `896b234bf`: 173 tests, 600 assertions.
+  - The callers pass on `7a6bc2fbd`: the api content-search integration,
+    `MakeSearchProjectionCustodyTest`, `SearchReindexHandlerTest`,
+    `SearchProjectionReindexTest`, `tests/Integration/Search` and
+    `packages/ai-vector/tests`. The second repair touches only
+    `Fts5SearchSchema`'s lookup and the provider's same-file check, which the
+    search package covers.
+  - These Architecture contracts pass: `SearchIndexTrustBoundaryTest` and
+    `TestQualityInventoryTest` (named files with a scoped, read-only Git
+    environment), `RecursiveRemoverContractTest`,
+    `SubprocessHarnessContractTest`, `S1RosterSchemaV2Test`,
+    `S1SupportContractTest`, `S1UpgradeCompatibilityContractTest`,
+    `CoversNothingCompanionDiagnosticTest`,
+    `LockedPackageDiscoveryMetadataTest`,
+    `SplitPackageTestDependencyBoundaryTest` and `CheckPackageLayersGateTest`.
+- **Host limits:** `S1SchemaAuthorityContractTest` and
+  `S1SqliteTopologyContractTest` can't enumerate a Windows linked worktree from
+  WSL, and natively they stop at `is_executable()` on an extensionless
+  checker. The checkers themselves (`check-s1-schema-authority` and
+  `check-s1-sqlite-contract`) pass natively. Hosted CI owns those tests.
+- **Native:** `php bin/check-pr-preflight` (45 gates, 0 failed) and PHPStan on
+  `packages/search` pass.
 
 ## Out of scope
 
