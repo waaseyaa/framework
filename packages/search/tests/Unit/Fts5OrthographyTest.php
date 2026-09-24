@@ -24,6 +24,7 @@ final class Fts5OrthographyTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($this->database->getConnection());
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
     }

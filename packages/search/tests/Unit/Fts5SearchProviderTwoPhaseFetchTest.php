@@ -32,6 +32,7 @@ final class Fts5SearchProviderTwoPhaseFetchTest extends TestCase
     public function raw_scan_fetches_only_pointers_and_canonical_resolver_supplies_page_content(): void
     {
         $database = DBALDatabase::createSqlite();
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($database->getConnection());
         $indexer = new Fts5SearchIndexer($database);
         $this->index($indexer, 'node:1', '2026-01-01T00:00:00Z');
         $this->index($indexer, 'node:2', '2026-01-02T00:00:00Z');

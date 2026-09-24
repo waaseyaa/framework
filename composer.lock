@@ -5809,7 +5809,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "7a3d841cbf08ce46480c3d045dc0b8f5ad75a152"
+                "reference": "be03335eb9897520d3678257a94da5083393f7eb"
             },
             "require": {
                 "php": ">=8.5",
@@ -5833,7 +5833,8 @@
                 "waaseyaa": {
                     "providers": [
                         "Waaseyaa\\Search\\SearchServiceProvider"
-                    ]
+                    ],
+                    "migrations": "migrations"
                 }
             },
             "autoload": {

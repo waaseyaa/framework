@@ -28,12 +28,17 @@ final class SearchServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->singleton(SearchIndexerInterface::class, function (): SearchIndexerInterface {
-            $database = $this->getSearchDatabase();
+            $logger = $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class);
 
-            // Do NOT call ensureSchema() here. Resolving the indexer at boot (to
-            // wire the SearchIndexSubscriber) must not run DDL — the indexer
-            // creates its schema lazily on first write instead. (D-35)
-            return new Fts5SearchIndexer($database);
+            // The indexer never creates schema on a serving path
+            // (FW-SEARCH-PERSIST-01). On the application database the
+            // waaseyaa/search migration owns it; a dedicated search.database
+            // file is provisioned only by search:reindex.
+            return new Fts5SearchIndexer(
+                $this->getSearchDatabase(),
+                logger: $logger instanceof \Waaseyaa\Foundation\Log\LoggerInterface ? $logger : null,
+                ownsProjectionFile: $this->hasDedicatedSearchDatabase(),
+            );
         });
 
         // #2270: one shared projection registry serves full reindex, the
@@ -133,6 +138,11 @@ final class SearchServiceProvider extends ServiceProvider
         }
 
         return $registry;
+    }
+
+    private function hasDedicatedSearchDatabase(): bool
+    {
+        return ($this->config['search']['database'] ?? null) !== null;
     }
 
     private function getSearchDatabase(): DatabaseInterface

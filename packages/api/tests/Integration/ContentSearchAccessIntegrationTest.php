@@ -28,6 +28,7 @@ final class ContentSearchAccessIntegrationTest extends TestCase
     public function anonymous_and_authenticated_responses_reflect_only_their_principal_safe_projections(): void
     {
         $database = DBALDatabase::createSqlite();
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($database->getConnection());
         $indexer = new Fts5SearchIndexer($database);
         $this->index($indexer, 'node:1', 'Community raw private label', 'publicterm raw secretterm');
         $this->index($indexer, 'node:2', 'Community members raw label', 'memberterm raw body');

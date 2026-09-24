@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Search\Document\SearchDocument;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
+use Waaseyaa\Search\Fts5\Fts5SearchSchema;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
 use Waaseyaa\Search\SearchRequest;
 
@@ -31,7 +32,7 @@ final class Fts5SearchProviderWeightingTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->indexer->ensureSchema();
+        Fts5SearchSchema::install($this->database->getConnection());
 
         // A title-match doc: "entity" lives in the (short) title; the body
         // mentions "entity type" once, in passing.

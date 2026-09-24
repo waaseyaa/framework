@@ -11,6 +11,7 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
+use Waaseyaa\Search\Fts5\Fts5SearchSchema;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
 use Waaseyaa\Search\SearchCandidateProjection;
 use Waaseyaa\Search\SearchCandidateReference;
@@ -35,7 +36,7 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->indexer->ensureSchema();
+        Fts5SearchSchema::install($this->database->getConnection());
 
         // Index two documents that both match the word "Tutorial":
         //   node:1 — allowed (viewable)
