@@ -42,6 +42,13 @@ final readonly class SqliteArtifactPreparer
         $this->assertIntegrity($current, 'Serving database');
         $this->assertIntegrity($artifact, 'Artifact database');
 
+        // #3149: capture and precondition-check the artifact's schema
+        // authority manifest from this read-only connection, before the
+        // candidate file exists. Reconciliation later binds the copied
+        // candidate to exactly these captured values, not to a later re-read
+        // of $artifact.
+        $artifactSchemaAuthority = $this->captureArtifactSchemaAuthority($artifact);
+
         $definitions = $this->catalogue->definitions();
         $this->assertRetirements($current, $artifact, $definitions, $applicationArtifactTables, $retiredApplicationTables);
         $allowed = array_fill_keys([...$applicationArtifactTables, ...$retiredApplicationTables, ...array_keys($definitions), 'sqlite_sequence'], true);
@@ -127,7 +134,7 @@ final readonly class SqliteArtifactPreparer
             }
 
             $this->assertAccountReferences($candidate, $definitions);
-            $this->reconcileSchemaAuthority($artifact, $candidate, $definitions);
+            $this->reconcileSchemaAuthority($candidate, $definitions, $artifactSchemaAuthority);
             $candidate->commit();
             $candidate->exec('PRAGMA foreign_keys = ON');
             $foreignKeyFailures = $candidate->query('PRAGMA foreign_key_check')->fetchAll();
@@ -593,20 +600,22 @@ final readonly class SqliteArtifactPreparer
      * fails closed with `[S1-DB109]` against a candidate that is not
      * actually wrong — see #2548's 2026-09-22/23 comments.
      *
-     * Runs inside the caller's still-open candidate transaction, after
-     * runtime preservation and before commit, and only when the artifact
-     * carries a fingerprinted manifest at all (Rule 5: a fresh install or a
-     * #2452 adoption is left untouched, matching
+     * Called from `prepare()` with a connection still open read-only against
+     * the artifact database, before the candidate file exists, so a stale
+     * manifest fails before a single row moves (Rule 1). Returns `null` when
+     * the artifact carries no fingerprinted manifest at all (Rule 5: a fresh
+     * install or a #2452 adoption is left untouched, matching
      * {@see \Waaseyaa\Foundation\Migration\MigrationRepository::assertSchemaAuthorityPreState()}'s
-     * own no-manifest pass-through).
+     * own no-manifest pass-through) — otherwise the captured values
+     * `reconcileSchemaAuthority()` later binds the copied candidate to.
      *
-     * @param array<string, RuntimeTableDefinition> $definitions
+     * @return array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}|null
      */
-    private function reconcileSchemaAuthority(\PDO $artifact, \PDO $candidate, array $definitions): void
+    private function captureArtifactSchemaAuthority(\PDO $artifact): ?array
     {
         $manifest = $this->schemaAuthorityManifest($artifact);
         if ($manifest === null || $manifest['schema_fingerprint'] === null || $manifest['ledger_fingerprint'] === null) {
-            return;
+            return null;
         }
 
         // Rule 1 — precondition: the artifact's own manifest must already be
@@ -620,13 +629,69 @@ final readonly class SqliteArtifactPreparer
             );
         }
 
+        return [
+            'schema_fingerprint' => $manifest['schema_fingerprint'],
+            'ledger_fingerprint' => $manifest['ledger_fingerprint'],
+            'source_catalog_fingerprint' => $manifest['source_catalog_fingerprint'],
+            'schema_objects' => SchemaAuthorityFingerprint::schemaObjects($artifact),
+        ];
+    }
+
+    /**
+     * Runs inside the caller's still-open candidate transaction, after
+     * runtime preservation and before commit. `$artifactSchemaAuthority` is
+     * `captureArtifactSchemaAuthority()`'s pre-copy snapshot; `null` means
+     * Rule 5 (no manifest) and this is a no-op.
+     *
+     * A cloned serving trigger can fire during row copying and mutate
+     * `waaseyaa_schema_authority` (or any other Artifact-policy table's
+     * data) in the candidate before this method runs — `cloneSchema()`
+     * matches on `name = ? OR tbl_name = ?`, so a serving trigger merely
+     * *named* after a preserved table, regardless of which table it is
+     * actually `ON`, is cloned too, and a trigger genuinely `ON` a preserved
+     * table can write anywhere. The bind check below catches a mutated
+     * manifest row directly (review probe b); {@see assertSchemaAuthorityVerified()}
+     * catches a mutated `waaseyaa_migrations` row after commit, because a
+     * data-only change to another Artifact-policy table has no schema-object
+     * footprint for {@see assertBoundedSchemaDifference()} to see (review
+     * probe c) — see `docs/change-records/FW-3149.md` for why that residual
+     * is recorded for #2548 rather than fixed here.
+     *
+     * @param array<string, RuntimeTableDefinition> $definitions
+     * @param array{schema_fingerprint:string, ledger_fingerprint:string, source_catalog_fingerprint:?string, schema_objects:list<array{type:string,name:string,table:string,sql:?string}>}|null $artifactSchemaAuthority
+     */
+    private function reconcileSchemaAuthority(\PDO $candidate, array $definitions, ?array $artifactSchemaAuthority): void
+    {
+        if ($artifactSchemaAuthority === null) {
+            return;
+        }
+
+        // Review item 7 — bind: the candidate's own copied manifest row must
+        // still equal exactly what was captured from the artifact before the
+        // copy. This is what catches probe (b): a cloned trigger `ON` the
+        // preserved table that UPDATEs `waaseyaa_schema_authority` during row
+        // copying leaves a candidate row that no longer matches the artifact
+        // this reconciliation is supposed to be reconciling.
+        $candidateManifest = $this->schemaAuthorityManifest($candidate);
+        if ($candidateManifest === null
+            || $candidateManifest['schema_fingerprint'] !== $artifactSchemaAuthority['schema_fingerprint']
+            || $candidateManifest['ledger_fingerprint'] !== $artifactSchemaAuthority['ledger_fingerprint']
+            || $candidateManifest['source_catalog_fingerprint'] !== $artifactSchemaAuthority['source_catalog_fingerprint']
+        ) {
+            throw new \RuntimeException(
+                'Candidate schema authority manifest no longer matches the values captured from the artifact before preparation began.',
+            );
+        }
+
         // Rule 2 — bounded difference: every schema object that differs
-        // between the artifact and the prepared candidate must belong to a
-        // catalogue table whose policy is not Artifact (runtime preservation
-        // is the only thing that may have changed the schema at this point;
-        // this is verified independently rather than trusted from the loop
-        // above).
-        $this->assertBoundedSchemaDifference($artifact, $candidate, $definitions);
+        // between the artifact (as captured before the copy) and the
+        // prepared candidate must belong to a catalogue table whose policy is
+        // not Artifact (runtime preservation is the only thing that may have
+        // changed the schema at this point; this is verified independently
+        // rather than trusted from the loop above). This is what catches
+        // probe (a): a serving trigger named after a preserved table but
+        // actually `ON` an Artifact-policy or application-owned table.
+        $this->assertBoundedSchemaDifference($artifactSchemaAuthority['schema_objects'], $candidate, $definitions);
 
         // Rule 3 — re-record: only schema_fingerprint moves, conditioned on
         // it still being exactly the value the artifact's manifest named.
@@ -642,7 +707,7 @@ final readonly class SqliteArtifactPreparer
             $candidate,
             'UPDATE waaseyaa_schema_authority SET schema_fingerprint = ? WHERE authority_id = 1 AND schema_fingerprint = ?',
         );
-        $statement->execute([$candidateSchemaFingerprint, $manifest['schema_fingerprint']]);
+        $statement->execute([$candidateSchemaFingerprint, $artifactSchemaAuthority['schema_fingerprint']]);
         if ($statement->rowCount() !== 1) {
             throw new \RuntimeException(
                 'Schema authority manifest changed concurrently; refusing to re-record the candidate schema fingerprint.',
@@ -651,21 +716,22 @@ final readonly class SqliteArtifactPreparer
     }
 
     /**
-     * Independently diffs the artifact's and the candidate's `sqlite_schema`
-     * objects (not just trusts that the preservation loop above only ever
-     * touches non-Artifact tables) and requires every differing object's
-     * owning table to be a catalogue table whose policy is not Artifact. The
-     * declared `user` additive transition (#3127) needs no special case: its
-     * policy is already IdentityMerge, not Artifact.
+     * Diffs the artifact's captured `sqlite_schema` objects against the
+     * candidate's current ones (not just trusts that the preservation loop
+     * above only ever touches non-Artifact tables) and requires every
+     * differing object's owning table to be a catalogue table whose policy is
+     * not Artifact. The declared `user` additive transition (#3127) needs no
+     * special case: its policy is already IdentityMerge, not Artifact.
      *
+     * @param list<array{type:string,name:string,table:string,sql:?string}> $artifactSchemaObjects
      * @param array<string, RuntimeTableDefinition> $definitions
      */
-    private function assertBoundedSchemaDifference(\PDO $artifact, \PDO $candidate, array $definitions): void
+    private function assertBoundedSchemaDifference(array $artifactSchemaObjects, \PDO $candidate, array $definitions): void
     {
         $key = static fn(array $object): string => implode("\0", [$object['type'], $object['name'], $object['table'], $object['sql'] ?? "\0null"]);
 
         $before = [];
-        foreach (SchemaAuthorityFingerprint::schemaObjects($artifact) as $object) {
+        foreach ($artifactSchemaObjects as $object) {
             $before[$key($object)] = $object;
         }
         $after = [];
@@ -720,6 +786,13 @@ final readonly class SqliteArtifactPreparer
     }
 
     /**
+     * A missing table means "fresh install or a #2452 adoption" and is a
+     * legitimate no-manifest skip (Rule 5). A present table missing a
+     * required column is a different thing — an installation too old for
+     * this contract — and must not be silently treated the same way; mirrors
+     * {@see \Waaseyaa\Foundation\Migration\MigrationRepository::schemaAuthorityManifest()}'s
+     * own `[S1-DB105]` refusal for the identical case.
+     *
      * @return array{schema_fingerprint:?string, ledger_fingerprint:?string, source_catalog_fingerprint:?string}|null
      */
     private function schemaAuthorityManifest(\PDO $pdo): ?array
@@ -728,10 +801,13 @@ final readonly class SqliteArtifactPreparer
             return null;
         }
         $columns = array_column($pdo->query('PRAGMA table_info(waaseyaa_schema_authority)')->fetchAll(), 'name');
-        foreach (['schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint'] as $required) {
-            if (!in_array($required, $columns, true)) {
-                return null;
-            }
+        $required = ['schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint'];
+        $missing = array_values(array_diff($required, $columns));
+        if ($missing !== []) {
+            throw new \RuntimeException(sprintf(
+                '[S1-DB105] Schema authority manifest requires coordinator upgrade; missing columns: %s.',
+                implode(', ', $missing),
+            ));
         }
         $row = $pdo->query(
             'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint FROM waaseyaa_schema_authority WHERE authority_id = 1',
