@@ -93,15 +93,16 @@ Runtime tables that a serving path declares lazily on the authoritative
 database are part of the logical schema fingerprint. The privileged-read ledger
 (`StrictLedgerSchema`) therefore creates its table through the coordinator on
 first use, so a kernel boot cannot leave the manifest stale. A projection that
-still declares its tables outside the coordinator on a shared authoritative
-file (FTS5 search without a dedicated `search.database`) makes strict
-verification report `schema_drift` and makes the next coordinated transition
-refuse with `[S1-DB109]` until the projection is migration-owned or moved to
-its own file. ai-vector's `embeddings` projection is migration-owned
-(FW-AIV-PERSIST-01). A database where the old runtime code created the table
-after the manifest was recorded is adopted through the governed re-adoption
-below, with the proofs in `docs/specs/ai-integration.md` ("Adopting a
-runtime-created embeddings table").
+declared its tables outside the coordinator on a shared authoritative file
+made strict verification report `schema_drift` and made the next coordinated
+transition refuse with `[S1-DB109]`. Both such projections are now
+migration-owned: ai-vector's `embeddings` (FW-AIV-PERSIST-01) and the FTS5
+search projection (FW-SEARCH-PERSIST-01, which also keeps a dedicated
+`search.database` file's schema off every serving path). A database where the
+old runtime code created those tables after the manifest was recorded is
+adopted through the governed re-adoption below, with the proofs in
+`docs/specs/ai-integration.md` ("Adopting a runtime-created embeddings table")
+and `docs/specs/search.md` ("Adopting a runtime-created search projection").
 
 ### Governed re-adoption
 
@@ -194,7 +195,8 @@ hash, occurrence index — never line numbers or file hashes; schema v2, see
 New or reclassified candidates fail until reviewed. `migrate:defaults` row
 work remains outside the schema transaction. ETL row processing remains
 separate while its table DDL is coordinator-owned. Search FTS5 remains a
-rebuildable projection and cannot lazily mutate the authoritative database.
+rebuildable projection; its schema is owned by the `waaseyaa/search` migration
+on the authoritative database and never created lazily.
 
 ## Retained-red sequence
 

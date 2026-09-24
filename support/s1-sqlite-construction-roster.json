@@ -6550,6 +6550,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/search/tests/Integration/SearchProjectionSchemaMigrationTest.php",
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "1e58a849078f2323b08c3a2f2a2b94fa26f8533fcff7d98db0447b7f246c9706",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/search/tests/Integration/SearchProjectionSchemaMigrationTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 1
+        },
+        {
             "path": "packages/search/tests/Unit/Fts5OrthographyTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -6571,39 +6585,60 @@
             "occurrence": 2
         },
         {
-            "path": "packages/search/tests/Unit/Fts5SearchIndexerLazySchemaTest.php",
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 1
         },
         {
-            "path": "packages/search/tests/Unit/Fts5SearchIndexerLazySchemaTest.php",
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 2
         },
         {
-            "path": "packages/search/tests/Unit/Fts5SearchIndexerLazySchemaTest.php",
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 3
         },
         {
-            "path": "packages/search/tests/Unit/Fts5SearchIndexerLazySchemaTest.php",
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 4
         },
         {
-            "path": "packages/search/tests/Unit/Fts5SearchIndexerLazySchemaTest.php",
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 5
+        },
+        {
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerSchemaBoundaryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 8
         },
         {
             "path": "packages/search/tests/Unit/Fts5SearchIndexerTest.php",
@@ -6618,6 +6653,13 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 2
+        },
+        {
+            "path": "packages/search/tests/Unit/Fts5SearchIndexerTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 3
         },
         {
             "path": "packages/search/tests/Unit/Fts5SearchProviderAccessFilteredCountTest.php",
@@ -6674,6 +6716,13 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 2
+        },
+        {
+            "path": "packages/search/tests/Unit/SearchServiceProviderSchemaAuthorityTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
         },
         {
             "path": "packages/search/tests/Unit/SearchServiceProviderTrustBoundaryTest.php",

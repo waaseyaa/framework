@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Search\Fts5;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Search\BatchSearchIndexerInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchIndexerInterface;
@@ -13,61 +16,28 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 {
     private const SCHEMA_VERSION = '2';
 
-    private bool $schemaEnsured = false;
+    private readonly LoggerInterface $logger;
 
-    public function __construct(
-        private readonly DatabaseInterface $database,
-    ) {}
+    private bool $schemaReady = false;
 
     /**
-     * Create the FTS5 + metadata tables if they do not yet exist.
-     *
-     * Lazy and idempotent: the DDL runs once per process (a private marker
-     * guards re-entry) and only when a write actually needs the schema, never
-     * eagerly at kernel boot. Every write entry point calls this first, so the
-     * tables always exist before any row is inserted; the read path only ever
-     * returns rows a prior write created, so it needs no eager schema. (D-35)
+     * @param bool $ownsProjectionFile true only for a dedicated `search.database`
+     *                                 file, which sits outside schema authority;
+     *                                 {@see removeAll()} then provisions it
      */
-    public function ensureSchema(): void
-    {
-        if ($this->schemaEnsured) {
-            return;
-        }
-
-        $this->database->query(<<<'SQL'
-                CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-                    document_id UNINDEXED,
-                    title,
-                    body,
-                    tokenize="unicode61 remove_diacritics 0 tokenchars '''’ʼ'"
-                )
-            SQL);
-
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS search_metadata (
-                    document_id TEXT PRIMARY KEY,
-                    entity_type TEXT NOT NULL,
-                    content_type TEXT NOT NULL DEFAULT '',
-                    source_name TEXT NOT NULL DEFAULT '',
-                    quality_score INTEGER NOT NULL DEFAULT 0,
-                    topics TEXT NOT NULL DEFAULT '[]',
-                    url TEXT NOT NULL DEFAULT '',
-                    og_image TEXT NOT NULL DEFAULT '',
-                    created_at TEXT NOT NULL,
-                    schema_version TEXT NOT NULL
-                )
-            SQL);
-
-        $this->database->query('CREATE INDEX IF NOT EXISTS idx_search_meta_entity_type ON search_metadata(entity_type)');
-        $this->database->query('CREATE INDEX IF NOT EXISTS idx_search_meta_content_type ON search_metadata(content_type)');
-        $this->database->query('CREATE INDEX IF NOT EXISTS idx_search_meta_source ON search_metadata(source_name)');
-
-        $this->schemaEnsured = true;
+    public function __construct(
+        private readonly DatabaseInterface $database,
+        ?LoggerInterface $logger = null,
+        private readonly bool $ownsProjectionFile = false,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
     }
 
     public function index(SearchIndexableInterface $item): void
     {
-        $this->ensureSchema();
+        if (!$this->schemaReady('indexing')) {
+            return;
+        }
 
         $documentId = $item->getSearchDocumentId();
         $document = $item->toSearchDocument();
@@ -108,7 +78,9 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 
     public function reindexBatch(iterable $items): int
     {
-        $this->ensureSchema();
+        if (!$this->schemaReady('batch reindexing')) {
+            return 0;
+        }
 
         $tx = $this->database->transaction();
         $count = 0;
@@ -156,7 +128,9 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 
     public function remove(string $documentId): void
     {
-        $this->ensureSchema();
+        if (!$this->schemaReady('removal')) {
+            return;
+        }
 
         $tx = $this->database->transaction();
 
@@ -169,32 +143,75 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
         }
     }
 
+    /**
+     * Empty the projection before a `search:reindex` rebuild.
+     *
+     * This is the only method that may provision schema, and only on a
+     * dedicated projection file. On the authoritative database the
+     * `waaseyaa/search` migration owns the schema, so a missing projection is
+     * refused with `[SEARCH-DB002]` rather than created. Provisioning and the
+     * row deletes share one transaction, so an interrupted rebuild of a
+     * dedicated file leaves it as it was.
+     */
     public function removeAll(): void
     {
-        $this->ensureSchema();
+        if ($this->ownsProjectionFile && !$this->database instanceof DBALDatabase) {
+            throw new \LogicException('A dedicated search projection file must be a DBALDatabase.');
+        }
 
         $tx = $this->database->transaction();
 
         try {
-            // FTS5 tokenizers cannot be altered in place. A full reindex is
-            // therefore also the upgrade boundary from the retired Porter
-            // schema: replace the derived virtual table, then let the caller
-            // repopulate it through reindexBatch().
-            $this->database->query('DROP TABLE search_index');
+            if ($this->database instanceof DBALDatabase && $this->ownsProjectionFile) {
+                Fts5SearchSchema::install($this->database->getConnection(), dedicatedFile: true);
+            } elseif (!$this->tablesExist()) {
+                throw new \RuntimeException('[SEARCH-DB002] The search projection tables do not exist on the application database. Run `migrate` to apply the waaseyaa/search migration, then `search:reindex`.');
+            }
+            $this->database->query('DELETE FROM search_index');
             $this->database->delete('search_metadata')->execute();
-            $this->schemaEnsured = false;
-            $this->ensureSchema();
             $tx->commit();
         } catch (\Throwable $e) {
-            $this->schemaEnsured = false;
             $tx->rollBack();
             throw $e;
         }
+
+        $this->schemaReady = true;
     }
 
     public function getSchemaVersion(): string
     {
         return self::SCHEMA_VERSION;
+    }
+
+    /**
+     * Read-only readiness check for the serving paths. A missing projection is
+     * skipped and logged, never created. Only a positive result is cached, so
+     * a migration applied later is picked up.
+     */
+    private function schemaReady(string $operation): bool
+    {
+        if ($this->schemaReady || $this->schemaReady = $this->tablesExist()) {
+            return true;
+        }
+
+        $this->logger->warning(sprintf(
+            'Search %s skipped: the search projection tables do not exist. %s',
+            $operation,
+            $this->ownsProjectionFile
+                ? 'Run `search:reindex` to provision the dedicated search database.'
+                : 'Run `migrate` to apply the waaseyaa/search migration.',
+        ));
+
+        return false;
+    }
+
+    private function tablesExist(): bool
+    {
+        $rows = iterator_to_array($this->database->query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('search_index', 'search_metadata')",
+        ));
+
+        return count($rows) === 2;
     }
 
     private function deleteDocument(string $documentId): void

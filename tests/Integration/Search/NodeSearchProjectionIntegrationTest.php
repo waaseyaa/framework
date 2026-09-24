@@ -105,6 +105,7 @@ final class NodeSearchProjectionIntegrationTest extends TestCase
         ));
 
         $this->projectionRegistry = new EntitySearchProjectionRegistry([new NodeSearchProjector()]);
+        \Waaseyaa\Search\Fts5\Fts5SearchSchema::install($this->database->getConnection());
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->provider = new Fts5SearchProvider(
             $this->database,

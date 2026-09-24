@@ -188,7 +188,7 @@ function s1SchemaClass(string $path): string
         'packages/scheduler/migrations/2026_08_12_000003_create_scheduler_effect_fences.php' => 'coordinator-plan-or-executor',
         'packages/scheduler/migrations/2026_08_12_000004_create_scheduler_occurrences.php' => 'coordinator-plan-or-executor',
         'packages/scheduler/migrations/2026_08_12_000005_create_scheduler_occurrence_outbox.php' => 'coordinator-plan-or-executor',
-        'packages/search/src/Fts5/Fts5SearchIndexer.php' => 'projection-authority',
+        'packages/search/src/Fts5/Fts5SearchSchema.php' => 'projection-authority',
         'packages/state/src/SqlState.php' => 'authoritative-bypass-remediation-required',
         'packages/state/migrations/2026_08_12_000001_state_schema.php' => 'coordinator-plan-or-executor',
         'packages/testing/src/Factory/EntityFactory.php' => 'test-tooling',

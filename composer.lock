@@ -5809,7 +5809,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "7a3d841cbf08ce46480c3d045dc0b8f5ad75a152"
+                "reference": "f8711ee9e59d1c7d635aa79f9a23625039f2c59d"
             },
             "require": {
                 "php": ">=8.5",
@@ -5822,7 +5822,8 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.301"
             },
             "require-dev": {
-                "phpunit/phpunit": "^13.0"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/testing": "^0.1.0-alpha.301"
             },
             "type": "library",
             "extra": {
@@ -5833,7 +5834,8 @@
                 "waaseyaa": {
                     "providers": [
                         "Waaseyaa\\Search\\SearchServiceProvider"
-                    ]
+                    ],
+                    "migrations": "migrations"
                 }
             },
             "autoload": {

@@ -11,6 +11,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Search\FacetBucket;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
+use Waaseyaa\Search\Fts5\Fts5SearchSchema;
 use Waaseyaa\Search\SearchFilters;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchRequest;
@@ -26,7 +27,7 @@ final class Fts5SearchIntegrationTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->indexer->ensureSchema();
+        Fts5SearchSchema::install($this->database->getConnection());
         $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
     }
 
