@@ -38,6 +38,10 @@
         },
         {
             "type": "path",
+            "url": "../ai-vector"
+        },
+        {
+            "type": "path",
             "url": "../api"
         },
         {
@@ -132,6 +136,7 @@
         "phpunit/phpunit": "^13.0",
         "waaseyaa/access": "^0.1.0-alpha.301",
         "waaseyaa/ai-tools": "^0.1.0-alpha.301",
+        "waaseyaa/ai-vector": "^0.1.0-alpha.301",
         "waaseyaa/api": "^0.1.0-alpha.301",
         "waaseyaa/audit": "^0.1.0-alpha.301",
         "waaseyaa/auth": "^0.1.0-alpha.301",

@@ -4,21 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
-use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
-use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
-use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
-use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\TagAwareCacheInterface;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
-use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 
 /**
  * Registers all event listeners used by the HTTP kernel.
@@ -33,7 +26,6 @@ final class EventListenerRegistrar
     public function __construct(
         private readonly EventDispatcherInterface $dispatcher,
         ?LoggerInterface $logger = null,
-        private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -139,42 +131,5 @@ final class EventListenerRegistrar
         $this->dispatcher->addListener(EntityEvents::POST_DELETE->value, static function (EntityEvent $event) use ($invalidate): void {
             $invalidate($event);
         });
-    }
-
-    /**
-     * @param array<string, mixed> $config
-     */
-    public function registerEmbeddingLifecycleListeners(
-        EmbeddingStorageInterface $embeddingStorage,
-        array $config,
-        ?EntityTypeManagerInterface $entityTypeManager = null,
-    ): void {
-        $embeddingProvider = EmbeddingProviderFactory::fromConfig($config, $this->secretResolverRegistry);
-        $embeddingListener = new EntityEmbeddingListener(
-            storage: $embeddingStorage,
-            embeddingProvider: $embeddingProvider,
-            entityTypeManager: $entityTypeManager,
-        );
-        $cleanupListener = new EntityEmbeddingCleanupListener($embeddingStorage);
-        $this->dispatcher->addListener(
-            EntityEvents::POST_SAVE->value,
-            [$embeddingListener, 'onPostSave'],
-        );
-        $this->dispatcher->addListener(
-            EntityEvents::POST_DELETE->value,
-            [$cleanupListener, 'onPostDelete'],
-        );
-        // CW-v1 option-1 (#1920 PR-2, design §3.3): a standalone pointer
-        // move (rollback/revert/promote with no accompanying save()) now
-        // changes served content with no POST_SAVE of its own — mirrors
-        // Waaseyaa\Cache\Listener\EntityCacheSubscriber's identical pattern.
-        $this->dispatcher->addListener(
-            RevisionPointerMovedEvent::class,
-            [$embeddingListener, 'onRevisionPointerMoved'],
-        );
-        $this->dispatcher->addListener(
-            EntityEvents::REVISION_REVERTED->value,
-            [$embeddingListener, 'onRevisionReverted'],
-        );
     }
 }

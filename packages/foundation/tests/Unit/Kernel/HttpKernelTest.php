@@ -128,6 +128,65 @@ final class HttpKernelTest extends TestCase
         }
     }
 
+    /**
+     * FW-AIV-COMP-01: search resolves the storage and provider bound by
+     * ai-vector's provider through the kernel. With ai-vector composed and no
+     * embedding provider configured, search runs in keyword mode; without
+     * ai-vector it answers 501.
+     *
+     * @return iterable<string, array{bool, int}>
+     */
+    public static function semanticSearchComposition(): iterable
+    {
+        yield 'ai-vector composed' => [true, 200];
+        yield 'ai-vector absent' => [false, 501];
+    }
+
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('semanticSearchComposition')]
+    public function search_is_served_from_the_ai_vector_bound_services(bool $withAiVector, int $expectedStatus): void
+    {
+        $databasePath = $this->projectRoot . '/search.sqlite';
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];",
+        );
+        file_put_contents($this->projectRoot . '/config/entity-types.php', '<?php return [];');
+        $this->writeInstalledPackageProviders([
+            'waaseyaa/foundation' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
+            'waaseyaa/user' => ['Waaseyaa\\User\\UserServiceProvider'],
+            'waaseyaa/audit' => ['Waaseyaa\\Audit\\AuditServiceProvider'],
+            ...($withAiVector ? ['waaseyaa/ai-vector' => ['Waaseyaa\\AI\\Vector\\AiVectorServiceProvider']] : []),
+        ]);
+        $database = DBALDatabase::createSqlite($databasePath, 'testing');
+        RuntimeSchemaMigrations::foundation($database);
+        RuntimeSchemaMigrations::broadcast($database);
+        RuntimeSchemaMigrations::audit($database);
+        RuntimeSchemaMigrations::aiVector($database);
+        $database->getConnection()->close();
+        RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
+
+        $server = $_SERVER;
+        $get = $_GET;
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/api/search?q=nobody&type=user';
+        $_SERVER['QUERY_STRING'] = 'q=nobody&type=user';
+        $_GET = ['q' => 'nobody', 'type' => 'user'];
+
+        try {
+            $response = new HttpKernel($this->projectRoot)->handle();
+
+            self::assertSame($expectedStatus, $response->getStatusCode(), (string) $response->getContent());
+            if ($withAiVector) {
+                $document = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+                self::assertSame('keyword', $document['meta']['mode'] ?? null, 'no embedding provider is bound');
+            }
+        } finally {
+            $_SERVER = $server;
+            $_GET = $get;
+        }
+    }
+
     #[Test]
     public function provides_project_root(): void
     {

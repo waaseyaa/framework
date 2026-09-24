@@ -299,6 +299,66 @@ final class EntityEmbeddingListenerTest extends TestCase
         ));
     }
 
+    #[Test]
+    public function invalidate_only_removes_the_vector_on_save_and_pointer_moves_without_calling_the_provider(): void
+    {
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects($this->exactly(3))->method('delete')->with('node', '42');
+        $storage->expects($this->never())->method('store');
+        $provider = $this->createMock(EmbeddingProviderInterface::class);
+        $provider->expects($this->never())->method('embed');
+
+        $listener = new EntityEmbeddingListener(storage: $storage, embeddingProvider: $provider, invalidateOnly: true);
+        $published = new TestEmbeddingEntity(id: 42, entityTypeId: 'node', values: ['status' => 1, 'workflow_state' => 'published', 'title' => 'Indexable']);
+        $listener->onPostSave(new EntityEvent($published));
+        $listener->onRevisionReverted(new EntityEvent($published));
+        $listener->onRevisionPointerMoved(new RevisionPointerMovedEvent(
+            entityTypeId: 'node',
+            entityId: '42',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+        ));
+    }
+
+    #[Test]
+    public function a_failed_removal_after_commit_is_logged_not_thrown(): void
+    {
+        $storage = $this->createStub(EmbeddingStorageInterface::class);
+        $storage->method('delete')->willThrowException(new \RuntimeException('storage offline'));
+        $logger = new EmbeddingListenerRecordingLogger();
+
+        $listener = new EntityEmbeddingListener(storage: $storage, logger: $logger);
+        $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
+            id: 42,
+            entityTypeId: 'node',
+            values: ['status' => 0, 'workflow_state' => 'archived'],
+        )));
+
+        self::assertCount(1, $logger->errors);
+        self::assertStringContainsString('storage offline', $logger->errors[0]);
+    }
+
+    #[Test]
+    public function a_failed_re_sourcing_read_is_logged_and_the_vector_removed(): void
+    {
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects($this->once())->method('delete')->with('node', '42');
+        $storage->expects($this->never())->method('store');
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willThrowException(new \RuntimeException('read failed'));
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getRepository')->willReturn($repository);
+        $logger = new EmbeddingListenerRecordingLogger();
+
+        $listener = new EntityEmbeddingListener(storage: $storage, embeddingProvider: $this->createStub(EmbeddingProviderInterface::class), logger: $logger, entityTypeManager: $manager);
+        $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(id: 42, entityTypeId: 'node')));
+
+        self::assertCount(1, $logger->errors);
+        self::assertStringContainsString('read failed', $logger->errors[0]);
+    }
+
     private function entityTypeManager(?EntityInterface $servedEntity): EntityTypeManagerInterface
     {
         return new class ($servedEntity) implements EntityTypeManagerInterface {
@@ -363,4 +423,19 @@ final readonly class TestEmbeddingEntity implements EntityInterface
     public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
     public function toArray(): array { return $this->values; }
     public function language(): string { return 'en'; }
+}
+
+final class EmbeddingListenerRecordingLogger implements \Waaseyaa\Foundation\Log\LoggerInterface
+{
+    use \Waaseyaa\Foundation\Log\LoggerTrait;
+
+    /** @var list<string> */
+    public array $errors = [];
+
+    public function log(\Waaseyaa\Foundation\Log\LogLevel $level, string|\Stringable $message, array $context = []): void
+    {
+        if ($level === \Waaseyaa\Foundation\Log\LogLevel::ERROR) {
+            $this->errors[] = (string) $message;
+        }
+    }
 }

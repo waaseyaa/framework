@@ -886,6 +886,59 @@ public function removeEntity(string $entityTypeId, int|string $entityId): void;
 
 **`EntityEmbeddingListener`:** node publish checks use **`WorkflowVisibility::isEntityServedPublicForEntity()`**; embedding text uses **`EntityValues::toCastAwareMap()`** for `title` / `name` / `body` / `description`.
 
+### Lifecycle composition and entry-point contract (FW-AIV-COMP-01)
+
+`AiVectorServiceProvider` is the only composition owner. Every consumer
+resolves `EmbeddingStorageInterface` and `EmbeddingProviderInterface` through
+the kernel services, where the first provider to bind an interface wins:
+
+- the lifecycle listeners;
+- `SearchRouter`, through `HttpKernel::semanticSearchServices()`;
+- `SemanticIndexWarmer`;
+- any host that resolves them from the kernel services bus, such as a
+  host-wired `vector.search`.
+
+The rule applies to each interface separately. `AiVectorServiceProvider`
+always binds the storage, but binds the embedding provider only when
+`ai.embedding_provider` is configured. So:
+
+- A provider that loads earlier and binds an interface is used for it by
+  every consumer.
+- A provider that loads later and binds the storage, or the embedding
+  provider while ai-vector has one configured, is used by no consumer.
+- A provider that loads later and binds the embedding provider while
+  ai-vector has none configured makes the only binding, so every consumer
+  uses it. HTTP saves then embed with it.
+
+The storage and the embedding provider can therefore come from different
+providers, but every consumer gets the same pair. No kernel or router
+constructs its own storage or provider. Choosing a different
+storage backend is #3140's scope.
+
+| Entry point | On save or revision pointer move | On delete |
+| --- | --- | --- |
+| HTTP, provider configured | Embeds served, indexable content; removes the vector otherwise (re-sourced from the served row). | Removes the vector. |
+| HTTP without a provider, and every other kernel (CLI, imports, queue workers) | Removes any existing vector, including for indexable content. Never calls the embedding provider. | Removes the vector. |
+
+Outside HTTP, `semantic:refresh` re-indexes. Until it runs, an entity saved
+there isn't found by semantic search. It never has a stale vector.
+
+`boot()` registers the cleanup listener and an `invalidateOnly`
+`EntityEmbeddingListener` in every kernel. When a provider is bound,
+`configureHttpKernel()` swaps the save listener for the embedding one.
+Registration is idempotent across re-entered boots.
+
+**Post-commit failures are best-effort.** POST_SAVE and POST_DELETE run after
+the mutation has committed. Every storage call and every re-sourcing read in
+both listeners catches `\Throwable`, logs one error through the kernel
+logger, and returns. So the committed mutation is reported as successful and
+later listeners still run.
+
+**Tests:**
+- `EmbeddingCompositionTest`: instance identity per entry point, single registration, and provider order (a host binding registered before ai-vector reaches every consumer; one registered after reaches none while ai-vector binds both interfaces, and its embedding provider reaches every consumer when ai-vector has none configured);
+- `ConsoleVectorInvalidationTest`: a console-kernel save of indexable content and a delete each remove the vector, with a provider configured;
+- `PostCommitVectorFailureTest`: through a real repository with a failing storage.
+
 **`SemanticIndexWarmer`:** node gating uses **`isEntityServedPublicForEntity()`** (not raw `toArray()`).
 
 ```mermaid
