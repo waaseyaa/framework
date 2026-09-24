@@ -3172,7 +3172,17 @@ because each is a place the obvious answer is wrong:
   stale lease holder out-fence the live one.
 - **`waaseyaa_schema_authority` is `Artifact`**, not preserved: it counts the
   migration ledger, and `waaseyaa_migrations` is already artifact-owned. The
-  candidate's schema is the artifact's, so its generation must be too.
+  candidate's schema is the artifact's, so its generation must be too. Its
+  `schema_fingerprint` is the one field this rule does not fully settle:
+  runtime preservation (cloning serving-only tables, merging identities) can
+  still change the candidate's actual logical schema relative to what the
+  artifact's own recorded fingerprint describes. #3149 closed that gap: the
+  preparer reconciles `schema_fingerprint` — and only that field — inside its
+  candidate transaction, after preservation and before commit, then verifies
+  the recorded and computed values agree after commit using the same
+  computation the serving host's own `[S1-DB109]` pre-state check uses.
+  `ledger_fingerprint`, `source_catalog_fingerprint`, and `generation` stay
+  exactly what the artifact recorded, for the reason above.
 
 `AppendOnly` and `Preserve` are the same code path in the preparer today. The
 distinction is recorded intent — which rows are a rewritable state and which are

@@ -15,6 +15,7 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Migration\SchemaMutationCoordinator;
 
 /**
  * #2547: the catalogue must classify what Framework migrations actually
@@ -300,10 +301,23 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
         $serving = $this->migratedDatabase('serving.sqlite');
         $artifact = $this->migratedDatabase('artifact.sqlite');
 
-        foreach ([$serving, $artifact] as $path) {
-            $pdo = new \PDO('sqlite:' . $path, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
-            $pdo->exec('CREATE TABLE waaseyaa_unclassified_future_table (id INTEGER PRIMARY KEY)');
-        }
+        // Serving carries no schema-authority manifest the preparer reads, so
+        // a bare DDL statement is fine here. The artifact's manifest,
+        // however, must stay self-consistent — see migratedDatabase()'s own
+        // comment — or #3149's precondition refuses it as stale before
+        // prepare() ever reaches the unclassified-table check this test is
+        // actually about. Add the unclassified table through the same
+        // governed coordinator path for the artifact side only.
+        $pdo = new \PDO('sqlite:' . $serving, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+        $pdo->exec('CREATE TABLE waaseyaa_unclassified_future_table (id INTEGER PRIMARY KEY)');
+
+        $artifactConnection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $artifact]);
+        new SchemaMutationCoordinator($artifactConnection, new MigrationRepository($artifactConnection))->execute(
+            static function () use ($artifactConnection): void {
+                $artifactConnection->executeStatement('CREATE TABLE waaseyaa_unclassified_future_table (id INTEGER PRIMARY KEY)');
+            },
+        );
+        $artifactConnection->close();
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/waaseyaa_unclassified_future_table/');
@@ -451,13 +465,36 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
         // references without it. A minimal shape is enough here: this test is
         // about catalogue coverage, and the identity-merge semantics of the
         // real table are #2549's subject.
-        $connection->executeStatement(
-            'CREATE TABLE user (uid INTEGER PRIMARY KEY AUTOINCREMENT, uuid VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, _data TEXT)',
-        );
-        $connection->executeStatement('CREATE UNIQUE INDEX user_uuid ON user (uuid)');
-        $connection->executeStatement(
-            "INSERT INTO user (uid, uuid, name, _data) VALUES (1, 'u-1', 'seed', '{}')",
-        );
+        //
+        // #3149: the real entity sync path always runs this kind of DDL as a
+        // governed transition — SqlSchemaHandler::ensureTable()'s
+        // coordinateIfNeeded() (packages/entity-storage/src/SqlSchemaHandler.php:792-802)
+        // routes through CoordinatedEntitySchemaExecutor::execute()
+        // (packages/entity-storage/src/CoordinatedEntitySchemaExecutor.php:27-42),
+        // which is exactly `new SchemaMutationCoordinator($connection, new
+        // MigrationRepository($connection))->execute($transition)`. That
+        // coordinator re-records the aggregate schema fingerprint after every
+        // transition (SchemaMutationCoordinator::execute() ->
+        // MigrationRepository::recordSchemaManifest(), packages/foundation/src/
+        // Migration/SchemaMutationCoordinator.php:52-54), so a real serving or
+        // artifact database's manifest always describes its `user` table too
+        // — confirmed by Sheguiandah's real Stage-1 artifacts, whose recorded
+        // and computed schema fingerprints matched exactly. Creating `user`
+        // with a bare executeStatement() left this fixture's manifest
+        // describing a schema the database no longer had, which #3149's
+        // precondition correctly refuses as a stale manifest. Route the same
+        // DDL through the coordinator's own public API instead, so this
+        // fixture stays a realistic post-governed-transition database.
+        $repository = new MigrationRepository($connection);
+        new SchemaMutationCoordinator($connection, $repository)->execute(static function () use ($connection): void {
+            $connection->executeStatement(
+                'CREATE TABLE user (uid INTEGER PRIMARY KEY AUTOINCREMENT, uuid VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, _data TEXT)',
+            );
+            $connection->executeStatement('CREATE UNIQUE INDEX user_uuid ON user (uuid)');
+            $connection->executeStatement(
+                "INSERT INTO user (uid, uuid, name, _data) VALUES (1, 'u-1', 'seed', '{}')",
+            );
+        });
         $connection->close();
 
         self::assertFileExists($path);
