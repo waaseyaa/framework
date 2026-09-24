@@ -20,6 +20,26 @@ Installation stays manual because linked worktrees share a common hook
 directory. `composer hooks:doctor` reports missing, stale, or obsolete shims
 with a repair command.
 
+Both Composer scripts start `bin/project-hooks-launcher` with Composer's PHP
+rather than a bare `bash`, because Composer runs a script line through the host
+shell and on native Windows `cmd.exe` resolves `bash` to
+`C:\Windows\System32\bash.exe`, the WSL launcher. The launcher runs the runner
+from the repository root with the host's supported Bash
+(`repository_bash_command()` in `bin/lib/repository-bash.php`) and returns its
+exit status unchanged:
+
+- POSIX hosts use `bash` from `PATH`.
+- Native Windows uses `bin/bash.exe` of the Git for Windows installation that
+  owns the Windows Git executable (`repository_git_command()`, so
+  `WAASEYAA_SYSTEM_GIT` applies), found from `git --exec-path`. That is the
+  shell Git runs the installed shims with. The launcher never falls back to
+  `PATH` there: without Git for Windows Bash it exits 1 with a repair message.
+
+The runner treats a drive-letter hook directory (`C:/...`), which Git for
+Windows reports for a linked worktree's common hook directory, as absolute.
+Proof: `tests/Architecture/ProjectHooksLauncherTest.php`; change record
+`docs/change-records/FW-2679-HOOKS-WINDOWS-LAUNCHER-01.md`.
+
 ## Gate contract
 
 - Pre-commit runs the code-style check only when PHP files are staged.

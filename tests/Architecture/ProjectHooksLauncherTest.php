@@ -229,7 +229,9 @@ final class ProjectHooksLauncherTest extends TestCase
     /** @return list<string> */
     private function entries(string $directory): array
     {
-        $entries = array_values(array_diff((array) scandir($directory), ['.', '..']));
+        $listing = scandir($directory);
+        self::assertIsArray($listing, $directory);
+        $entries = array_values(array_diff($listing, ['.', '..']));
         sort($entries);
 
         return $entries;

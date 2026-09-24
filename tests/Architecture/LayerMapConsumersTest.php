@@ -89,8 +89,10 @@ final class LayerMapConsumersTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/lefthook.yml');
         self::assertFileExists($this->root . '/bin/project-hooks');
 
+        // Composer reaches the tracked runner through its host-Bash launcher (#2679).
         $composer = json_decode((string) file_get_contents($this->root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
-        self::assertSame('bash bin/project-hooks install', $composer['scripts']['hooks:install'] ?? null);
-        self::assertSame('bash bin/project-hooks doctor', $composer['scripts']['hooks:doctor'] ?? null);
+        self::assertSame('@php bin/project-hooks-launcher install', $composer['scripts']['hooks:install'] ?? null);
+        self::assertSame('@php bin/project-hooks-launcher doctor', $composer['scripts']['hooks:doctor'] ?? null);
+        self::assertStringContainsString("'bin/project-hooks'", (string) file_get_contents($this->root . '/bin/project-hooks-launcher'));
     }
 }

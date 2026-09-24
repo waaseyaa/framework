@@ -1,0 +1,34 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Composer entrypoint for `composer hooks:install` and `composer hooks:doctor`
+ * (#2679).
+ *
+ * Composer runs a script line through the host shell, and on native Windows a
+ * bare `bash` there is C:\Windows\System32\bash.exe, the WSL launcher. This
+ * launcher instead starts the tracked bin/project-hooks runner with the host's
+ * supported Bash (repository_bash_command(): `bash` from PATH on POSIX, Git for
+ * Windows' Bash on native Windows) and returns the runner's exit status
+ * unchanged. The runner stays the single source of truth for every action.
+ */
+
+require __DIR__ . '/lib/repository-bash.php';
+
+$root = dirname(__DIR__);
+$bash = repository_bash_command($root);
+if ($bash === null) {
+    fwrite(STDERR, "project-hooks: Git for Windows Bash is unavailable. Install Git for Windows, or set WAASEYAA_SYSTEM_GIT to its git.exe, then retry.\n");
+    exit(1);
+}
+
+$pipes = [];
+$process = proc_open([...$bash, 'bin/project-hooks', ...array_slice($argv, 1)], [STDIN, STDOUT, STDERR], $pipes, $root);
+if (!is_resource($process)) {
+    fwrite(STDERR, "project-hooks: could not start {$bash[0]}.\n");
+    exit(1);
+}
+
+exit(proc_close($process));
