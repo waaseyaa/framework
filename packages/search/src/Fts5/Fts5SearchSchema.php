@@ -127,8 +127,9 @@ final class Fts5SearchSchema
         $names = [self::INDEX_TABLE, self::METADATA_TABLE, self::LEGACY_RENAME, ...array_keys(self::INDEX_DDLS), ...self::SHADOW_TABLES];
         // SQLite object names are case-insensitive, so `Search_Metadata` would
         // collide with `search_metadata`; match and key them case-insensitively.
+        // Triggers have their own namespace and never collide.
         $rows = $connection->fetchAllAssociative(
-            sprintf('SELECT name, type, tbl_name, sql FROM sqlite_master WHERE lower(name) IN (%s)', implode(', ', array_fill(0, count($names), '?'))),
+            sprintf("SELECT name, type, tbl_name, sql FROM sqlite_master WHERE type <> 'trigger' AND lower(name) IN (%s)", implode(', ', array_fill(0, count($names), '?'))),
             $names,
         );
 

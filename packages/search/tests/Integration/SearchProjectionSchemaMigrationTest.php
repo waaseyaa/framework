@@ -284,6 +284,25 @@ final class SearchProjectionSchemaMigrationTest extends TestCase
     }
 
     #[Test]
+    public function aTriggerSharingAnOwnedNameIsNotACollision(): void
+    {
+        // Triggers have their own namespace in SQLite.
+        $this->coordinated(function (): void {
+            $this->connection->executeStatement('CREATE TABLE app_things (id INTEGER PRIMARY KEY)');
+            $this->connection->executeStatement('CREATE TRIGGER search_index AFTER INSERT ON app_things BEGIN SELECT 1; END');
+        });
+
+        $this->applyMigration();
+
+        self::assertSame(
+            ['idx_search_meta_content_type', 'idx_search_meta_entity_type', 'idx_search_meta_source', 'search_index', 'search_metadata'],
+            array_map('strval', $this->connection->fetchFirstColumn("SELECT name FROM sqlite_master WHERE type <> 'trigger' AND (name LIKE 'search\\_%' ESCAPE '\\' OR name LIKE 'idx\\_search\\_%' ESCAPE '\\') AND name NOT LIKE 'search\\_index\\_%' ESCAPE '\\' ORDER BY name")),
+        );
+        self::assertSame('trigger', $this->connection->fetchOne("SELECT type FROM sqlite_master WHERE name = 'search_index' AND type = 'trigger'"));
+        $this->assertManifestDescribesLiveSchema();
+    }
+
+    #[Test]
     public function aLaterFailureInTheTransitionRollsBackTheCreatedProjection(): void
     {
         $before = $this->schemaSnapshot();

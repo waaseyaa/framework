@@ -63,6 +63,23 @@ final class SearchServiceProviderSchemaAuthorityTest extends TestCase
     }
 
     #[Test]
+    public function aHardLinkToTheApplicationFileIsTheApplicationDatabase(): void
+    {
+        $root = dirname($this->application->path());
+        self::assertTrue(link($this->application->path(), $root . '/hard.sqlite'));
+        $indexer = $this->indexer($root, 'hard.sqlite');
+
+        try {
+            $indexer->removeAll();
+            self::fail('removeAll() must refuse a missing projection on the application database.');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('[SEARCH-DB002]', $e->getMessage());
+        }
+
+        self::assertSame([], $this->projectionTables($this->application->database()));
+    }
+
+    #[Test]
     public function reindexProvisionsADedicatedProjectionFileOnly(): void
     {
         $root = dirname($this->application->path());
