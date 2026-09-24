@@ -51,7 +51,25 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
   - With the base source swapped in, both tests fail.
 - **`PostCommitVectorFailureTest` (2 tests):** through a real repository and unit of work, with a failing storage, a delete and an unpublish report success, log one error, and let later listeners run.
 
+**Unit companions** (`#[CoversClass]`, public boundaries only):
+
+- **`AiVectorServiceProviderTest`:** on a real dispatcher over an in-memory database:
+  - `boot()` invalidates on save and delete;
+  - a second boot registers each listener once;
+  - `configureHttpKernel()` swaps in the embedding listener once when a provider is bound, and keeps invalidating without one.
+- **`EntityEmbeddingListenerTest`:** invalidate-only mode never calls the provider; failed removal and a failed re-sourcing read are both logged, not thrown.
+- **`EntityEmbeddingCleanupListenerTest`:** a failed removal is logged, not thrown.
+- **`HttpKernelTest`:** `/api/search` served through `HttpKernel::handle()` returns keyword mode with ai-vector composed, and 501 without it.
+- **`SearchRouterTest`:** 501 when no embedding services are bound.
+
 **Other checks:**
-- `SearchRouterTest` has a new 501 case for when no embedding services are bound.
-- Focused run: 208 tests across ai-vector, the affected foundation, CLI and ai-tools tests, and the Phase 8, 14, 15 and 24 integration tests. The only errors are two `HttpKernelTest` teardown errors (Windows SQLite WAL locks), which also occur on unmodified `main`.
+- Focused run: 218 tests and 862 assertions across the new tests, ai-vector, the affected foundation, CLI and ai-tools tests, and the Phase 8, 14, 15 and 24 integration tests, with no assertion failures.
+  - Four errors are Windows teardown locks on SQLite WAL files. Two are pre-existing `HttpKernelTest` cases, which also fail on unmodified `main`; two are the new file-database `HttpKernelTest` cases, whose assertions pass.
+  - Hosted Linux CI covers these.
+- Governance:
+  - `foundation` declares `waaseyaa/ai-vector` in `require-dev` for `HttpKernelTest`;
+  - the S1 dependency-byte authority was regenerated with its governed writer, changing only the lock digest;
+  - the S1 SQLite roster was regenerated for the new test-only constructions.
+- `check-pr-preflight --full`: 46 of 47 gates pass. The failure is `check-dead-code`, on the same three `config` and `scheduler` findings that fail on unmodified `main` on this host.
+- Both S1 installed-artifact contracts pass.
 - The #3138 drift probe still passes all 5 cases.
