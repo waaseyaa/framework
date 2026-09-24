@@ -5,17 +5,32 @@ declare(strict_types=1);
 
 /**
  * Composer entrypoint for `composer hooks:install` and `composer hooks:doctor`
- * (#2679).
+ * (#2679), and for nothing else: the Git hook shims start bin/project-hooks
+ * directly.
  *
  * Composer runs a script line through the host shell, and on native Windows a
  * bare `bash` there is C:\Windows\System32\bash.exe, the WSL launcher. This
  * launcher instead starts the tracked bin/project-hooks runner with the host's
  * supported Bash (repository_bash_command(): `bash` from PATH on POSIX, Git for
  * Windows' Bash on native Windows) and returns the runner's exit status
- * unchanged. The runner stays the single source of truth for every action.
+ * unchanged. The runner stays the single source of truth for both actions.
+ *
+ * The runner writes straight to the inherited stdout and stderr, so the
+ * launcher buffers nothing; stdin is the null device, since neither action
+ * reads it. A runner that has not finished after the deadline is stopped and
+ * the launcher exits 1.
  */
 
+const PROJECT_HOOKS_ACTIONS = ['install', 'doctor'];
+const PROJECT_HOOKS_TIMEOUT_SECONDS = 60;
+
 require __DIR__ . '/lib/repository-bash.php';
+
+$action = $argv[1] ?? '';
+if ($argc !== 2 || !in_array($action, PROJECT_HOOKS_ACTIONS, true)) {
+    fwrite(STDERR, "project-hooks: usage: bin/project-hooks-launcher {install|doctor}\n");
+    exit(1);
+}
 
 $root = dirname(__DIR__);
 $bash = repository_bash_command($root);
@@ -25,10 +40,21 @@ if ($bash === null) {
 }
 
 $pipes = [];
-$process = proc_open([...$bash, 'bin/project-hooks', ...array_slice($argv, 1)], [STDIN, STDOUT, STDERR], $pipes, $root);
+$process = proc_open([...$bash, 'bin/project-hooks', $action], [0 => ['null'], 1 => STDOUT, 2 => STDERR], $pipes, $root);
 if (!is_resource($process)) {
     fwrite(STDERR, "project-hooks: could not start {$bash[0]}.\n");
     exit(1);
 }
 
-exit(proc_close($process));
+[$exitCode, $stopped] = repository_wait_for_child($process, PROJECT_HOOKS_TIMEOUT_SECONDS);
+if ($exitCode === null) {
+    fwrite(STDERR, sprintf(
+        "project-hooks: %s did not finish within %d seconds; %s.\n",
+        $action,
+        PROJECT_HOOKS_TIMEOUT_SECONDS,
+        $stopped ? 'it was stopped' : 'it could not be stopped',
+    ));
+    exit(1);
+}
+
+exit($exitCode);

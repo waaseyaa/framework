@@ -35,6 +35,13 @@ exit status unchanged:
   shell Git runs the installed shims with. The launcher never falls back to
   `PATH` there: without Git for Windows Bash it exits 1 with a repair message.
 
+The launcher accepts only `install` and `doctor`; the hook shims start the
+runner directly. The runner writes to the inherited stdout and stderr, and its
+stdin is the null device. A runner still going after 60 seconds is stopped
+(terminate, then kill, direct child only) and the launcher exits 1. The Windows
+`git --exec-path` probe has a 10-second deadline and captures at most 4096
+bytes of stdout. A probe that fails, overflows, or times out selects no Bash.
+
 The runner treats a drive-letter hook directory (`C:/...`), which Git for
 Windows reports for a linked worktree's common hook directory, as absolute.
 Proof: `tests/Architecture/ProjectHooksLauncherTest.php`; change record

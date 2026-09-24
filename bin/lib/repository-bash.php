@@ -47,18 +47,93 @@ function repository_bash_command(string $root, string $osFamily = PHP_OS_FAMILY,
 }
 
 /**
- * `git --exec-path` of the host's repository Git entrypoint, or '' when it
- * cannot start or does not answer.
+ * `git --exec-path` of the host's repository Git entrypoint
+ * (repository_git_command()), or '' when it cannot start, fails, answers too
+ * much, or misses the deadline.
  */
-function repository_git_exec_path(string $root): string
+function repository_git_exec_path(string $root, float $timeoutSeconds = 10.0): string
 {
-    $pipes = [];
-    $process = @proc_open([...repository_git_command($root), '--exec-path'], [1 => ['pipe', 'w'], 2 => ['null']], $pipes);
-    if (!is_resource($process)) {
-        return '';
-    }
-    $output = (string) stream_get_contents($pipes[1]);
-    fclose($pipes[1]);
+    return repository_bounded_output([...repository_git_command($root), '--exec-path'], $timeoutSeconds) ?? '';
+}
 
-    return proc_close($process) === 0 ? $output : '';
+/**
+ * Stdout of a short, read-only command, or null when it cannot start, exits
+ * non-zero, writes more than $maxBytes, or misses the deadline.
+ *
+ * Stdout goes to a temporary file rather than a pipe, so a child cannot block
+ * on a full pipe that nobody drains, and at most $maxBytes + 1 bytes are read
+ * back. Stdin and stderr are the null device. The capture file is removed
+ * best-effort; a removal failure never changes the result.
+ *
+ * @param non-empty-list<string> $command
+ */
+function repository_bounded_output(array $command, float $timeoutSeconds, int $maxBytes = 4096): ?string
+{
+    $capture = tempnam(sys_get_temp_dir(), 'wsy');
+    if ($capture === false) {
+        return null;
+    }
+
+    try {
+        $pipes = [];
+        $process = @proc_open($command, [0 => ['null'], 1 => ['file', $capture, 'w'], 2 => ['null']], $pipes);
+        if (!is_resource($process)) {
+            return null;
+        }
+        [$exitCode] = repository_wait_for_child($process, $timeoutSeconds);
+        if ($exitCode !== 0) {
+            return null;
+        }
+        $output = @file_get_contents($capture, false, null, 0, $maxBytes + 1);
+
+        return is_string($output) && strlen($output) <= $maxBytes ? $output : null;
+    } finally {
+        @unlink($capture);
+    }
+}
+
+/**
+ * Wait for a proc_open() child until $timeoutSeconds, then stop it: terminate,
+ * wait up to two seconds, kill, and wait up to two more. Only the direct child
+ * is signalled; anything it started itself is not tracked.
+ *
+ * Returns [exit code, true] when the child exited (128 + signal when a signal
+ * ended it), [null, true] when it was stopped at the deadline, and
+ * [null, false] when it was still running after the kill. The deadline result
+ * stands either way: a failed cleanup never turns into an exit code.
+ *
+ * @param resource $process
+ *
+ * @return array{int|null, bool}
+ */
+function repository_wait_for_child($process, float $timeoutSeconds): array
+{
+    $deadline = hrtime(true) + (int) ($timeoutSeconds * 1e9);
+    do {
+        $status = proc_get_status($process);
+        if (!$status['running']) {
+            // Only this first non-running status carries the real exit code.
+            proc_close($process);
+
+            return [$status['signaled'] ? 128 + $status['termsig'] : $status['exitcode'], true];
+        }
+        usleep(10_000);
+    } while (hrtime(true) < $deadline);
+
+    foreach ([15, 9] as $signal) {
+        @proc_terminate($process, $signal);
+        $grace = hrtime(true) + 2_000_000_000;
+        while (proc_get_status($process)['running'] && hrtime(true) < $grace) {
+            usleep(10_000);
+        }
+        if (!proc_get_status($process)['running']) {
+            proc_close($process);
+
+            return [null, true];
+        }
+    }
+
+    // Still running after the kill: proc_close() would block on it, so the
+    // handle is left to PHP's non-blocking resource cleanup.
+    return [null, false];
 }

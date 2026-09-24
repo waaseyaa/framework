@@ -44,8 +44,22 @@ inside the worktree.
   found from `git --exec-path`. That is the shell Git uses to run the installed
   shims. It never falls back to `PATH` on Windows. Without Git for Windows Bash
   it exits 1 with a repair message.
-- The launcher runs the runner from the repository root with inherited standard
-  streams and returns its exit status unchanged.
+- The launcher accepts exactly one action, `install` or `doctor`, and rejects
+  anything else with a usage message and exit 1. The Git hook shims keep
+  starting `bin/project-hooks` directly.
+- The launcher runs the runner from the repository root and returns its exit
+  status unchanged. The runner writes to the inherited stdout and stderr, so
+  the launcher buffers nothing, and its stdin is the null device. After 60
+  seconds the launcher stops the runner and exits 1.
+- The `git --exec-path` probe starts Git only through `repository_git_command()`.
+  It has a 10-second deadline, null stdin and stderr, and a stdout capture file
+  instead of a pipe. It reads back at most 4096 bytes, and larger output is
+  rejected rather than truncated. A probe that cannot start, fails, overflows,
+  or times out selects no Bash.
+- Both subprocesses use `repository_wait_for_child()`. At the deadline it sends
+  terminate, waits up to two seconds, sends kill, and waits up to two more. It
+  signals only the direct child, and a failed cleanup never replaces the
+  deadline result with an exit code.
 - `hooks_dir` treats a drive-letter path (`^[A-Za-z]:/`) as absolute. POSIX
   paths never match it, so Linux resolution is unchanged.
 
@@ -69,6 +83,19 @@ The `bin/` partition in `docs/specs/native-host-support.md` counts 93 entries
 the new launcher on the hooks row and leaves the re-inventory to the #2679
 audit.
 
+## Residual #2679 work
+
+- `tests/Architecture/ProjectHooksTest.php` is not green on native Windows.
+  `installer_is_idempotent_and_preserves_unknown_hooks` and
+  `claude_context_is_bounded_and_works_from_a_subdirectory` start
+  `../bin/project-hooks` and `../../bin/project-hooks` through PHP `exec()`,
+  which uses `cmd.exe`, and fail with `'..' is not recognized as an internal or
+  external command`. This slice does not touch that test or those commands, so
+  the failure predates it. Porting the test is separate work.
+- A launcher or probe that stops at its deadline signals only its direct
+  child. Processes the runner started itself are not tracked.
+- `hooks_dir`'s fallback to the worktree root when Git fails, noted above.
+
 ## Verification boundary
 
 `tests/Architecture/ProjectHooksLauncherTest.php` fails against the base and
@@ -77,9 +104,23 @@ Composer scripts from a disposable linked worktree, with a `PATH` `bash` shadow
 standing in for the WSL launcher. The Windows cases of the host rule run on
 every host against a simulated installation. That is not native Windows
 evidence. Reverting only the `hooks_dir` change fails the end-to-end case on
-native Windows. Under WSL2, as local Linux evidence, the end-to-end case shows
-POSIX hosts still take `bash` from `PATH`, and `ProjectHooksTest` keeps passing
-its installer and gate cases.
+native Windows.
+
+The exec-path probe case is a discriminator for the Git entrypoint. On native
+Windows, a `WAASEYAA_SYSTEM_GIT` pinned to a missing executable must make the
+probe and the host rule fail closed, after an unpinned positive control reaches
+Git for Windows. On POSIX, the probe must return the answer of a fixture
+`bin/git` adapter. Changing the probe to a bare `git` fails the case on native
+Windows and under WSL2. The bounded-subprocess cases use PHP children on every
+host. Removing termination at the deadline fails the stop case on native
+Windows, because the abandoned child survives and writes its marker.
+
+Under WSL2, as local Linux evidence, the end-to-end case shows POSIX hosts still
+take `bash` from `PATH`. `ProjectHooksTest` passes all five cases there.
+`claude_context_is_bounded_and_works_from_a_subdirectory` needs `GIT_DIR` and
+`GIT_WORK_TREE` pointed at the Linux view of this Windows worktree, plus
+`GIT_OPTIONAL_LOCKS=0`, because WSL's Git cannot follow its `gitdir: C:/...`
+pointer.
 
 No native Windows CI job runs these scripts (#2678). Hosted Linux CI
 qualification of the exact candidate is still required.

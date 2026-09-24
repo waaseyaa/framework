@@ -28,16 +28,19 @@ final class ProjectHooksLauncherTest extends TestCase
 {
     private string $root;
     private string $scratch;
+    private string|false $pinned;
 
     protected function setUp(): void
     {
         $this->root = dirname(__DIR__, 2);
         $this->scratch = sys_get_temp_dir() . '/waaseyaa-hooks-launcher-' . bin2hex(random_bytes(6));
         mkdir($this->scratch, 0o777, true);
+        $this->pinned = getenv('WAASEYAA_SYSTEM_GIT');
     }
 
     protected function tearDown(): void
     {
+        putenv($this->pinned === false ? 'WAASEYAA_SYSTEM_GIT' : 'WAASEYAA_SYSTEM_GIT=' . $this->pinned);
         $this->remove($this->scratch);
     }
 
@@ -97,6 +100,91 @@ final class ProjectHooksLauncherTest extends TestCase
         self::assertNull(repository_bash_command('C:\\repo', 'Windows', $this->scratch . '/MinGit/mingw64/libexec/git-core'));
         self::assertNull(repository_bash_command('C:\\repo', 'Windows', '/usr/libexec/git-core'), 'A POSIX-shaped exec path names no Windows installation.');
         self::assertNull(repository_bash_command('C:\\repo', 'Windows', ''), 'A Git that reported no exec path must not select PATH bash.');
+    }
+
+    /**
+     * The exec-path probe must start Git through repository_git_command(),
+     * never a bare `git`. On Windows a pinned WAASEYAA_SYSTEM_GIT that cannot
+     * start fails the probe, and so the host rule, closed. POSIX hosts start
+     * the root's bin/git adapter, here a fixture that answers with a marker.
+     */
+    #[Test]
+    public function the_exec_path_probe_starts_git_through_the_repository_git_entrypoint(): void
+    {
+        $this->requireLibrary();
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            putenv('WAASEYAA_SYSTEM_GIT');
+            $discovered = rtrim(str_replace('\\', '/', trim(repository_git_exec_path($this->root))), '/');
+            self::assertStringEndsWith('/libexec/git-core', $discovered, 'Positive control: the unpinned probe reaches Git for Windows.');
+            self::assertNotNull(repository_bash_command($this->root));
+
+            putenv('WAASEYAA_SYSTEM_GIT=' . $this->scratch . '\\missing\\git.exe');
+            self::assertSame('', repository_git_exec_path($this->root), 'The probe must start the pinned Git, not PATH git.');
+            self::assertNull(repository_bash_command($this->root), 'A pinned Git that cannot start must fail the host rule closed.');
+
+            return;
+        }
+
+        $fixture = $this->scratch . '/adapter';
+        mkdir($fixture . '/bin', 0o777, true);
+        file_put_contents($fixture . '/bin/git', "#!/bin/sh\n[ \"\$1\" = --exec-path ] || exit 2\necho /fixture/libexec/git-core\n");
+        chmod($fixture . '/bin/git', 0o755);
+        // The pin is a Windows concern; the POSIX adapter handles its own.
+        putenv('WAASEYAA_SYSTEM_GIT=' . $this->scratch . '/missing/git');
+
+        self::assertSame("/fixture/libexec/git-core\n", repository_git_exec_path($fixture), 'The probe must start the root\'s bin/git adapter, not PATH git.');
+    }
+
+    #[Test]
+    public function bounded_output_returns_stdout_and_fails_closed_on_exit_overflow_start_or_deadline(): void
+    {
+        $this->requireLibrary();
+
+        self::assertSame('ok', repository_bounded_output([PHP_BINARY, '-r', 'echo "ok";'], 10.0));
+        self::assertSame(str_repeat('x', 4096), repository_bounded_output([PHP_BINARY, '-r', 'echo str_repeat("x", 4096);'], 10.0));
+        self::assertNull(repository_bounded_output([PHP_BINARY, '-r', 'echo "partial"; exit(3);'], 10.0), 'A failing command has no answer.');
+        self::assertNull(
+            repository_bounded_output([PHP_BINARY, '-r', 'echo str_repeat("x", 1 << 20);'], 10.0),
+            'Output past the cap is rejected, not truncated, and a child writing more than a pipe buffer still finishes.',
+        );
+        self::assertNull(repository_bounded_output([$this->scratch . '/missing/tool'], 10.0), 'A command that cannot start has no answer.');
+
+        $started = hrtime(true);
+        self::assertNull(repository_bounded_output([PHP_BINARY, '-r', 'echo "late"; sleep(30);'], 0.2), 'A command past its deadline has no answer.');
+        self::assertLessThan(10.0, (hrtime(true) - $started) / 1e9);
+    }
+
+    #[Test]
+    public function a_child_past_its_deadline_is_stopped_and_an_exit_code_passes_through(): void
+    {
+        $this->requireLibrary();
+        $null = [0 => ['null'], 1 => ['null'], 2 => ['null']];
+        $pipes = [];
+
+        $process = proc_open([PHP_BINARY, '-r', 'exit(7);'], $null, $pipes);
+        self::assertIsResource($process);
+        self::assertSame([7, true], repository_wait_for_child($process, 10.0));
+
+        $survived = $this->scratch . '/survived';
+        $started = hrtime(true);
+        $process = proc_open([PHP_BINARY, '-r', 'usleep(2000000); file_put_contents($argv[1], "survived");', $survived], $null, $pipes);
+        self::assertIsResource($process);
+        self::assertSame([null, true], repository_wait_for_child($process, 0.2));
+        self::assertLessThan(1.8, (hrtime(true) - $started) / 1e9, 'The deadline returns before the child would have finished.');
+
+        usleep(max(0, 2_600_000 - intdiv(hrtime(true) - $started, 1000)));
+        self::assertFileDoesNotExist($survived, 'The child must be stopped at the deadline, not abandoned.');
+    }
+
+    #[Test]
+    public function the_launcher_accepts_only_install_and_doctor(): void
+    {
+        foreach ([[], ['pre-push'], ['claude-session'], ['install', 'doctor']] as $arguments) {
+            [$code, $output] = $this->execute([PHP_BINARY, $this->root . '/bin/project-hooks-launcher', ...$arguments], $this->root, []);
+            self::assertSame(1, $code, $output);
+            self::assertStringContainsString('usage: bin/project-hooks-launcher {install|doctor}', $output);
+        }
     }
 
     /**
