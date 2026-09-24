@@ -288,10 +288,18 @@ the mechanism fails loudly before the first write instead of silently.
 ### 8. Host-portable gate execution (#3096)
 
 `bin/check-pr-preflight` runs each manifest command through the host shell: `sh` on POSIX,
-`cmd.exe` on native Windows. A Git pre-push hook on Git for Windows starts it from Git's `sh`, so
-`bash`, `grep` and `find` resolve to Git for Windows tools, while `php`, `git` and `python3` are
-native Windows programs. A gate failure on that host must mean a repository finding, never an
-unstartable child process or an untranslated path. Gates therefore follow these rules:
+`cmd.exe` on native Windows. From PowerShell or cmd, a bare `bash` is
+`C:\Windows\System32\bash.exe`, the WSL launcher, whose Linux Git cannot read a Windows linked
+worktree. On native Windows the runner therefore starts every selected gate whose command begins
+with exactly `bash` with Git for Windows Bash (`repository_bash_command()`,
+`bin/lib/repository-bash.php`, #2679). It resolves that Bash once per run and quotes it for
+`cmd.exe`, leaving the rest of the command unchanged. If it cannot be resolved or quoted, no gate
+runs: the runner exits with the shared precondition code (3) and prints no repair guidance, because
+this is a host fault, not a repository finding. POSIX command strings are never rewritten. Whether
+the runner is started from a native shell or from Git's `sh` by a pre-push hook, Bash gates run
+with Git for Windows `bash`, `grep` and `find`, while `php`, `git` and `python3` are native Windows
+programs. A gate failure on that host must mean a repository finding, never an unstartable child
+process or an untranslated path. Gates therefore follow these rules:
 
 - **Child processes start from argument arrays**, not shell strings. A POSIX `VAR=value cmd
   2>/dev/null` line does not run under `cmd.exe`, and a child that never starts can read as a
@@ -364,6 +372,7 @@ claim until a native Windows CI job executes them.
 | S1 verifiers (schema v2) | `bin/check-s1-{configuration-activation,configuration-authority,schema-authority,sqlite-contract}` |
 | Scanner file enumeration | `bin/lib/repository-files.php` (`repositoryFiles()`), shared by `bin/lib/s1-roster.php` and `bin/check-access-hardening` |
 | Host-aware Git entrypoint (§8) | `bin/lib/repository-git.php` (`repository_git_command()`), used by `bin/check-pr-preflight`, `bin/check-delivery-agent-events` and `bin/check-covers-nothing-companions`; proofs `tests/Architecture/RepositoryGitEntrypointTest.php` and `PreflightParityTest::preflight_drift_base_lookup_starts_the_repository_git_entrypoint` |
+| Host Bash for Bash gates (§8) | `bin/lib/repository-bash.php` (`repository_bash_command()`), used by `bin/check-pr-preflight` for gates that begin with `bash` and by `bin/project-hooks-launcher`; proofs `PreflightParityTest::preflight_bash_gates_start_the_host_bash_not_a_path_bash`, `PreflightParityTest::preflight_fails_closed_before_any_gate_when_windows_bash_is_unavailable` and `tests/Architecture/ProjectHooksLauncherTest.php` |
 | Recorded rosters | `support/s1-*-roster.json` |
 | Hook integration | `bin/project-hooks` (`pre_push`) |
 | CI ordering | `.github/workflows/ci.yml` (`needs: [support-contract, spec-drift]` on the three long jobs) |

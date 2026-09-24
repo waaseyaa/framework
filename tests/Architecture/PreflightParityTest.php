@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 
 /**
@@ -313,6 +315,163 @@ final class PreflightParityTest extends TestCase
         } finally {
             @unlink($manifestPath);
         }
+    }
+
+    /**
+     * #2679: from PowerShell or cmd, a bare `bash` is C:\Windows\System32\bash.exe,
+     * the WSL launcher. On native Windows the runner must start a gate whose
+     * command begins with `bash` with Git for Windows' Bash
+     * (repository_bash_command()), never a PATH `bash`; POSIX hosts keep `bash`
+     * from PATH. A `bash` placed first on PATH stands in for the WSL launcher,
+     * and the gate's own arguments are paths containing spaces.
+     */
+    #[Test]
+    public function preflight_bash_gates_start_the_host_bash_not_a_path_bash(): void
+    {
+        $scratch = $this->scratchDirectory();
+        try {
+            $shadow = $this->shadowBash($scratch);
+            $evidence = $scratch . '/uname evidence';
+            file_put_contents($scratch . '/probe gate.sh', "uname -s > \"\$1\"\n");
+            $manifest = $this->writeManifest($scratch, [
+                ['id' => 'host-bash', 'run' => 'bash ' . self::hostPath($scratch . '/probe gate.sh') . ' ' . self::hostPath($evidence)],
+            ]);
+
+            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, [self::pathKey() => $shadow . PATH_SEPARATOR . (string) getenv('PATH')]);
+
+            self::assertSame(0, $exitCode, $stdout . $stderr);
+            self::assertMatchesRegularExpression('/^ok\s+host-bash\s/m', $stdout);
+            self::assertFileExists($evidence);
+            $system = trim((string) file_get_contents($evidence));
+            if (PHP_OS_FAMILY === 'Windows') {
+                self::assertFileDoesNotExist($shadow . '/used', 'Native Windows must not start the PATH bash.');
+                self::assertMatchesRegularExpression('/^(MINGW|MSYS)/', $system, 'Git for Windows Bash must run the gate.');
+            } else {
+                self::assertFileExists($shadow . '/used', 'POSIX hosts must keep starting bash from PATH.');
+                self::assertNotSame('', $system);
+            }
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    /**
+     * Without Git for Windows Bash the run must stop before its first gate,
+     * as a host precondition (exit 3) with no repository repair guidance.
+     * WAASEYAA_SYSTEM_GIT pinned to a missing executable leaves the host rule
+     * nothing to resolve. On POSIX the pin is irrelevant and both gates run.
+     */
+    #[Test]
+    public function preflight_fails_closed_before_any_gate_when_windows_bash_is_unavailable(): void
+    {
+        $scratch = $this->scratchDirectory();
+        try {
+            $ran = $scratch . '/php gate ran';
+            file_put_contents($scratch . '/probe gate.sh', "uname -s > \"\$1\"\n");
+            $manifest = $this->writeManifest($scratch, [
+                ['id' => 'php-first', 'run' => self::phpCommand("file_put_contents(\$argv[1], 'ran');", self::hostPath($ran))],
+                ['id' => 'bash-second', 'run' => 'bash ' . self::hostPath($scratch . '/probe gate.sh') . ' ' . self::hostPath($scratch . '/uname evidence')],
+            ]);
+
+            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, ['WAASEYAA_SYSTEM_GIT' => $scratch . '/missing/git.exe']);
+
+            if (PHP_OS_FAMILY === 'Windows') {
+                self::assertSame(3, $exitCode, $stdout . $stderr);
+                self::assertStringContainsString('Git for Windows Bash is unavailable', $stderr);
+                self::assertStringContainsString('WAASEYAA_SYSTEM_GIT', $stderr);
+                self::assertFileDoesNotExist($ran, 'No gate may run without the host Bash.');
+                self::assertStringNotContainsString('repair:', $stdout . $stderr, 'A host precondition is not a repository finding.');
+                self::assertStringNotContainsString('FAIL', $stdout);
+            } else {
+                self::assertSame(0, $exitCode, $stdout . $stderr);
+                self::assertFileExists($ran);
+                self::assertMatchesRegularExpression('/^ok\s+bash-second\s/m', $stdout);
+            }
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    private function scratchDirectory(): string
+    {
+        $scratch = sys_get_temp_dir() . '/waaseyaa preflight bash ' . bin2hex(random_bytes(6));
+        new Filesystem()->mkdir($scratch);
+
+        return $scratch;
+    }
+
+    /**
+     * A `bash` for the front of PATH that records each start. On Windows it
+     * stands in for the WSL launcher and fails; on POSIX it runs the real bash.
+     */
+    private function shadowBash(string $scratch): string
+    {
+        $shadow = $scratch . '/shadow';
+        new Filesystem()->mkdir($shadow);
+        if (PHP_OS_FAMILY === 'Windows') {
+            file_put_contents($shadow . '/bash.cmd', "@echo off\r\necho used>>\"%~dp0used\"\r\necho PATH bash started 1>&2\r\nexit /b 97\r\n");
+
+            return $shadow;
+        }
+
+        $bash = new ExecutableFinder()->find('bash');
+        self::assertIsString($bash, 'POSIX hosts need bash on PATH.');
+        file_put_contents($shadow . '/bash', "#!/bin/sh\necho used >> " . escapeshellarg($shadow . '/used') . "\nexec " . escapeshellarg($bash) . " \"\$@\"\n");
+        chmod($shadow . '/bash', 0o755);
+
+        return $shadow;
+    }
+
+    /** @param list<array{id: string, run: string}> $gates */
+    private function writeManifest(string $scratch, array $gates): string
+    {
+        $manifestPath = $scratch . '/manifest.json';
+        file_put_contents($manifestPath, json_encode([
+            'schema_version' => 1,
+            'gates' => array_map(
+                static fn(array $gate): array => $gate + ['repair' => 'n/a', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
+                $gates,
+            ),
+        ], JSON_THROW_ON_ERROR));
+
+        return $manifestPath;
+    }
+
+    /**
+     * @param array<string, string|false> $environment
+     *
+     * @return array{int, string, string}
+     */
+    private function runPreflight(string $manifestPath, array $environment): array
+    {
+        $process = new Process(
+            [PHP_BINARY, $this->root . '/bin/check-pr-preflight', '--manifest=' . $manifestPath],
+            $this->root,
+            $environment,
+            null,
+            120,
+        );
+        $exitCode = $process->run();
+
+        return [(int) $exitCode, $process->getOutput(), $process->getErrorOutput()];
+    }
+
+    /** The PATH variable's spelling in this process (Windows keeps `Path`). */
+    private static function pathKey(): string
+    {
+        foreach (array_keys(getenv()) as $name) {
+            if (strcasecmp($name, 'PATH') === 0) {
+                return $name;
+            }
+        }
+
+        return 'PATH';
+    }
+
+    /** A host-quoted path argument, spelled with `/` so Git for Windows Bash reads it too. */
+    private static function hostPath(string $path): string
+    {
+        return escapeshellarg(str_replace('\\', '/', $path));
     }
 
     /** Host-quoted `php -r` command; $code must not contain double quotes, % or ! (cmd.exe escaping). */
