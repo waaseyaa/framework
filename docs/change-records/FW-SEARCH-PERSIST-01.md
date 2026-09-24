@@ -81,7 +81,51 @@ Serving paths:
 - `Fts5SearchIndexerSchemaBoundaryTest`: no DDL on construction or serving
   writes; the warning; `[SEARCH-DB002]`; a later migration is picked up; a
   dedicated file is provisioned only by `removeAll()`.
-- FETDER qualification: recorded in the PR.
+
+**FETDER qualification (local, native Windows host, candidate `6ae88b768`):**
+
+- **Method:**
+  - Two scratch copies of the FETDER app at `874e4c8`, with `.env.example`
+    (fake provider). The *old* copy keeps its installed `0.1.0-alpha.301`
+    packages. The *new* copy resolves every `waaseyaa/*` package from a
+    `git archive` of the candidate through Composer path repositories.
+  - Each case uses its own copy of FETDER's local database.
+  - FETDER's deploy sequence: `schema:sync`, `install:init`,
+    `migrate --verify`.
+  - A probe boots the HTTP kernel, dispatches `POST_DELETE` for a
+    search-indexable entity through the kernel dispatcher (the trigger
+    observed in #3138), and indexes one document through the kernel-resolved
+    indexer.
+- **FETDER's own data:** its checkout and database are unchanged (database
+  SHA-256 `ef3932e2…` before and after).
+
+| Case | Result |
+| --- | --- |
+| Control: old copy | The probe created the projection (and, from alpha.301's ai-vector, `embeddings`). `migrate --verify` went from `authority:match` to `schema_drift`. |
+| Clean database, new copy | `install:init` applied the search and ai-vector migrations; STATUS OK (42 matched). After the probe, the schema fingerprint was unchanged, a second `install:init` succeeded, and STATUS stayed OK. |
+| Runtime projection inside the manifest (re-recorded on the old copy) | `install:init` adopted it in place: 1 row in each table before and after; STATUS OK. |
+| FETDER production's likely state: `embeddings` re-recorded (the 2026-09-23 unblock), then only the search projection drifted from a later delete | `schema:sync` and `install:init` refused with `[S1-DB109]`. The documented recovery then worked: backup integrity `ok`; the proof copy showed `source_catalog_mismatch` with equal `schema=` and `ledger=`; after re-adoption, `migrate` adopted the projection with no DDL (live fingerprint equal to the runtime-created one); 1 row each before and after; the deploy sequence then reported STATUS OK. |
+
+- **Boot and smoke on the recovered database:** after the probe, the schema
+  stayed verified. `/health`, `/`, `/create`, `/signup` and `/discover` all
+  returned 200.
+
+**Local Linux evidence (WSL Ubuntu, PHP 8.5, read-only on the Windows worktree):**
+
+- The search package, the api, CLI, ai-vector and Search/Generation
+  integration tests pass (296 tests).
+- These Architecture contracts pass: `SearchIndexTrustBoundaryTest`,
+  `RecursiveRemoverContractTest`, `SubprocessHarnessContractTest`,
+  `TestQualityInventoryTest`, `S1RosterSchemaV2Test`, `S1SupportContractTest`,
+  `S1UpgradeCompatibilityContractTest`, `LockedPackageDiscoveryMetadataTest`,
+  `SplitPackageTestDependencyBoundaryTest`, `CheckPackageLayersGateTest` and
+  `CoversNothingCompanionDiagnosticTest`.
+- `S1SchemaAuthorityContractTest` and `S1SqliteTopologyContractTest` need Git
+  to enumerate the worktree, which WSL can't do for a Windows linked worktree.
+  Their native gates (`check-s1-schema-authority`, `check-s1-sqlite-contract`)
+  pass in preflight. Hosted CI owns the installed-artifact variants.
+- Dead-code on this host reports seven findings in `config` and `scheduler`,
+  outside this change. Hosted CI owns that gate.
 
 ## Out of scope
 
