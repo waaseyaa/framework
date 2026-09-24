@@ -3384,12 +3384,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
-                "reference": "06b47b1f77f28881aebdcbb40c570a8106ae3eb0"
+                "reference": "8e55e9f553015eea3145a4d591a3d28f06687e55"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/access": "^0.1.0-alpha.301",
                 "waaseyaa/api": "^0.1.0-alpha.301",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.301",
                 "waaseyaa/entity": "^0.1.0-alpha.301",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.301",
                 "waaseyaa/foundation": "^0.1.0-alpha.301",
@@ -3397,7 +3398,8 @@
                 "waaseyaa/workflows": "^0.1.0-alpha.301"
             },
             "require-dev": {
-                "phpunit/phpunit": "^13.0"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/testing": "^0.1.0-alpha.301"
             },
             "type": "library",
             "extra": {
@@ -3408,7 +3410,8 @@
                 "waaseyaa": {
                     "providers": [
                         "Waaseyaa\\AI\\Vector\\AiVectorServiceProvider"
-                    ]
+                    ],
+                    "migrations": "migrations"
                 }
             },
             "autoload": {

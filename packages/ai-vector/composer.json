@@ -31,6 +31,14 @@
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../testing"
         }
     ],
     "require": {
@@ -41,10 +49,12 @@
         "waaseyaa/api": "^0.1.0-alpha.301",
         "waaseyaa/access": "^0.1.0-alpha.301",
         "waaseyaa/workflows": "^0.1.0-alpha.301",
-        "waaseyaa/foundation": "^0.1.0-alpha.301"
+        "waaseyaa/foundation": "^0.1.0-alpha.301",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.301"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/testing": "^0.1.0-alpha.301"
     },
     "autoload": {
         "psr-4": {
@@ -66,7 +76,8 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\AI\\Vector\\AiVectorServiceProvider"
-            ]
+            ],
+            "migrations": "migrations"
         }
     },
     "config": {

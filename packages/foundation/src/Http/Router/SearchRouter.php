@@ -7,9 +7,9 @@ namespace Waaseyaa\Foundation\Http\Router;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
 use Waaseyaa\AI\Vector\SearchController;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
@@ -53,7 +53,7 @@ final class SearchRouter implements DomainRouterInterface
             ]);
         }
 
-        if (!class_exists(SqliteEmbeddingStorage::class)) {
+        if (!class_exists(DatabaseEmbeddingStorage::class)) {
             return $this->jsonApiResponse(501, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '501', 'title' => 'Not Implemented', 'detail' => 'Semantic search requires the waaseyaa/ai-vector package.']],
@@ -68,8 +68,7 @@ final class SearchRouter implements DomainRouterInterface
         }
 
         $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config, $this->secretResolverRegistry);
-        assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
-        $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
+        $embeddingStorage = new DatabaseEmbeddingStorage($this->database);
         $serializer = new ResourceSerializer($this->entityTypeManager, internalFieldVisibility: $this->internalFieldVisibility);
 
         $searchController = new SearchController(

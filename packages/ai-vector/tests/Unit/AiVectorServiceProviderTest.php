@@ -9,10 +9,12 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\AI\Vector\AiVectorServiceProvider;
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -27,13 +29,13 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 final class AiVectorServiceProviderTest extends TestCase
 {
     #[Test]
-    public function resolvesEmbeddingStorageThroughKernelServicesPdo(): void
+    public function resolvesEmbeddingStorageThroughKernelServicesDatabase(): void
     {
         $provider = $this->providerWithKernelServices([]);
 
         $storage = $provider->resolve(EmbeddingStorageInterface::class);
 
-        $this->assertInstanceOf(SqliteEmbeddingStorage::class, $storage);
+        $this->assertInstanceOf(DatabaseEmbeddingStorage::class, $storage);
     }
 
     #[Test]
@@ -96,8 +98,8 @@ final class AiVectorServiceProviderTest extends TestCase
 
             public function get(string $abstract): ?object
             {
-                if ($abstract === \PDO::class) {
-                    return new \PDO('sqlite::memory:');
+                if ($abstract === DatabaseInterface::class) {
+                    return DBALDatabase::createSqlite(':memory:');
                 }
 
                 if ($abstract === EntityTypeManagerInterface::class) {

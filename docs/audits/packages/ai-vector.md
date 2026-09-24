@@ -64,8 +64,8 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 | ID | Title | Severity | Confidence | Level | Disposition | Owner | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | repair | pending split (WP-A) | Choose migration-owned table vs dedicated projection file |
-| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | pending split (WP-A) | Move to `DatabaseInterface` with the WP-A decision |
+| `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | repair | #3138 (FW-AIV-PERSIST-01) | Migration-owned table; remediation candidate in #3138 |
+| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | #3138 (FW-AIV-PERSIST-01) | `DatabaseEmbeddingStorage` in #3138; server-database run open |
 | `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair | pending split (WP-B) | Define one composition path |
 | `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair | pending split (WP-B) | Decide whether CLI and workers keep vectors in step |
 | `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reviewed | repair or document | pending split (WP-B) | Implement and qualify, or stop advertising and refuse clearly |
@@ -95,11 +95,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** any application that installs `waaseyaa/cli` (AIV-DIST-001) and serves HTTP gets drift on its first qualifying delete or save. After that, every coordinated transition refuses, including `install:init` in a new release. This blocked FETDER's production release (fetder-waaseyaa#160) and is the ai-vector half of #3110.
 - **Severity and confidence:** high; confirmed by reproduction. The spec already names ai-vector as a drift source, so this was known but unowned.
 - **Refutation:** considered "the deployer catalogue classifies `embeddings` as a runtime artifact table, so it's intended". Not a refutation: `FrameworkRuntimeTableCatalogue` governs deploy handoff, not schema authority, and the spec requires migration ownership or a separate file.
-- **Disposition and owner:** repair; WP-A (pending split). Required to unblock FETDER without a manual manifest re-record.
+- **Disposition and owner:** repair; #3138 (FW-AIV-PERSIST-01). FETDER was unblocked on 2026-09-23 by a guarded one-time manifest re-record (fetder-waaseyaa#160); the repair prevents recurrence.
 - **Dependencies:** #3110 (Foundation schema adoption) and AIV-PERSIST-002.
 - **Acceptance:** the probe's two drift cases (the delete and the draft-node save) flip; save, delete and search leave the manifest fingerprint unchanged (search is source-reviewed here, not reproduced by the probe, so the repair needs its own search case); strict verification and the next coordinated transition stay green on a real SQLite file.
 - **Residual risk:** databases already drifted need a supported adoption path (#3110).
-- **Next action:** decide between a migration-owned table on the authoritative database and a dedicated rebuildable projection file.
+- **Next action:** decided 2026-09-23: a migration-owned table on the authoritative database; already-drifted databases use the documented re-adoption procedure (`docs/specs/ai-integration.md`), with general adoption left to #3110. Remediation candidate in #3138.
 
 ### `AIV-PERSIST-002`: raw PDO and SQLite-only SQL on a driver-agnostic connection
 
@@ -108,11 +108,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** on MySQL or Postgres, `store()` fails. The listener logs the failure, so no vectors are ever written and semantic search silently returns nothing. The constructor also changes the shared connection's error mode.
 - **Severity and confidence:** medium; confirmed by source review. Not run against a non-SQLite database.
 - **Refutation:** none found.
-- **Disposition and owner:** repair; WP-A.
+- **Disposition and owner:** repair; #3138 (FW-AIV-PERSIST-01).
 - **Dependencies:** AIV-PERSIST-001's storage decision.
 - **Acceptance:** storage uses the framework database layer; the store/search/delete contract passes on SQLite and one server database; the shared connection's attributes are unchanged.
 - **Residual risk:** none after the repair.
-- **Next action:** fold into WP-A.
+- **Next action:** remediation candidate in #3138. The server-database run is an open acceptance item.
 
 ### `AIV-COMP-001`: three separately constructed storage and provider instances
 

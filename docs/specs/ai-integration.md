@@ -906,6 +906,68 @@ Canonical rules: `docs/specs/entity-system.md` (Casting & hydration architecture
 
 In-memory implementation for testing. Uses cosine similarity. Stores embeddings keyed by `"{entityTypeId}:{entityId}:{langcode}"`. The `delete()` method removes all langcode variants for an entity.
 
+### DatabaseEmbeddingStorage and the `embeddings` table
+
+**Files:** `packages/ai-vector/src/DatabaseEmbeddingStorage.php`,
+`packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php`.
+Change record: `docs/change-records/FW-AIV-PERSIST-01.md` (#3138).
+
+`EmbeddingStorageInterface`'s production implementation stores one vector per
+`(entity_type, entity_id)` in the `embeddings` table on the application's main
+database.
+
+- **Schema ownership:** the table belongs to ai-vector's package migration,
+  run through the schema coordinator like every other package migration.
+  Nothing on the save, delete or search path creates schema.
+- **Database access:** only through `DatabaseInterface`. There is no raw
+  `\PDO`, and the storage never changes the connection's attributes.
+- **Writes:** `store()` deletes and inserts in one transaction.
+- **Migration not yet applied:** `store()` and `delete()` log a warning and do
+  nothing, and `findSimilar()` logs a warning and returns no matches.
+- **Backends:** alternative backends and a separate projection store are
+  #3140's scope.
+
+The migration handles an existing table as follows:
+
+| Live state | Result |
+| --- | --- |
+| No table | Creates it: `entity_type`, `entity_id`, `vector` (text affinity), `updated_at` (integer affinity), all NOT NULL, primary key `(entity_type, entity_id)`. |
+| Exactly that shape | Adopted in place with every row. The pre-migration runtime code created this shape. |
+| Any other shape | Refused with `[AIV-DB001]`, naming each difference. The transition rolls back. |
+
+It never drops, recreates, renames or empties the table. Embeddings are a
+rebuildable projection (`semantic:refresh`).
+
+#### Adopting a runtime-created embeddings table
+
+Before the migration existed, the storage created `embeddings` at runtime. If
+that happened after the schema manifest was recorded, `migrate --verify`
+reports `schema_drift` and every coordinated transition, including this
+migration, refuses with `[S1-DB109]`. For the case where `embeddings` is the
+only drift, use the S1 spec's governed re-adoption with these proofs. General
+adoption tooling belongs to #3110.
+
+1. Back up the database (for SQLite: `.backup`, then check the backup's
+   integrity).
+2. Prove `embeddings` is the only drift. On a scratch copy (for example
+   `VACUUM INTO`), drop `embeddings` and run `migrate --verify` against the
+   copy. It must report `STATUS: OK`. Any other result means something else
+   also drifted; stop and don't re-adopt.
+3. Prove the table has the expected shape. For SQLite, run
+   `PRAGMA table_info(embeddings)`; it must show exactly the four NOT NULL
+   columns above with key positions 1 and 2 on `entity_type` and `entity_id`.
+   If it doesn't, stop. The migration would refuse with `[AIV-DB001]` anyway.
+4. Record the row count, then apply the governed re-adoption from
+   `docs/specs/s1-schema-authority.md` ("Governed re-adoption"), which clears
+   the recorded fingerprints.
+5. Run `migrate`. The ai-vector migration adopts the table in place and the
+   transition records a fresh manifest. Confirm `migrate --verify` reports
+   `STATUS: OK` and the row count is unchanged.
+
+`packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php` runs
+this procedure on a drifted SQLite database, along with create, in-place
+adoption and every refusal case.
+
 ### DistanceMetric
 
 **File:** `packages/ai-vector/src/DistanceMetric.php`
@@ -1318,6 +1380,8 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-vector/src/SimilarityResult.php` | `SimilarityResult` | Search result with score |
 | `packages/ai-vector/src/EntityEmbedder.php` | `EntityEmbedder` | High-level embed + search service |
 | `packages/ai-vector/src/InMemoryVectorStore.php` | `InMemoryVectorStore` | In-memory store (cosine similarity) |
+| `packages/ai-vector/src/DatabaseEmbeddingStorage.php` | `DatabaseEmbeddingStorage` | `EmbeddingStorageInterface` on the migration-owned `embeddings` table |
+| `packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php` | (migration) | Creates or adopts `embeddings`; refuses other shapes with `[AIV-DB001]` |
 | `packages/ai-vector/src/DistanceMetric.php` | `DistanceMetric` | Distance metric enum |
 | `packages/ai-vector/src/Testing/FakeEmbeddingProvider.php` | `FakeEmbeddingProvider` | Deterministic test embeddings |
 | `packages/ai-vector/src/SemanticIndexWarmer.php` | `SemanticIndexWarmer` | Deterministic semantic index warming service |

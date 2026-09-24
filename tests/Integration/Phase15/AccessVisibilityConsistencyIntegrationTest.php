@@ -14,8 +14,8 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\SearchController;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityReadRuntime;
@@ -125,7 +125,8 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         $relationshipRepository->save($relationship, validate: false);
 
         $serializer = new ResourceSerializer($manager);
-        $embeddingStorage = new SqliteEmbeddingStorage($database->getConnection()->getNativeConnection());
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::aiVector($database);
+        $embeddingStorage = new DatabaseEmbeddingStorage($database);
 
         $search = new SearchController(
             entityTypeManager: $manager,

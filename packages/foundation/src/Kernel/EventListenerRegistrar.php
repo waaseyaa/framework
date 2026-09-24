@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel;
 
 use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
+use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\TagAwareCacheInterface;
@@ -145,7 +145,7 @@ final class EventListenerRegistrar
      * @param array<string, mixed> $config
      */
     public function registerEmbeddingLifecycleListeners(
-        SqliteEmbeddingStorage $embeddingStorage,
+        EmbeddingStorageInterface $embeddingStorage,
         array $config,
         ?EntityTypeManagerInterface $entityTypeManager = null,
     ): void {

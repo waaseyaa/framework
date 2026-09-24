@@ -94,10 +94,14 @@ database are part of the logical schema fingerprint. The privileged-read ledger
 (`StrictLedgerSchema`) therefore creates its table through the coordinator on
 first use, so a kernel boot cannot leave the manifest stale. A projection that
 still declares its tables outside the coordinator on a shared authoritative
-file (FTS5 search without a dedicated `search.database`, ai-vector embeddings)
-makes strict verification report `schema_drift` and makes the next coordinated
-transition refuse with `[S1-DB109]` until the projection is migration-owned or
-moved to its own file.
+file (FTS5 search without a dedicated `search.database`) makes strict
+verification report `schema_drift` and makes the next coordinated transition
+refuse with `[S1-DB109]` until the projection is migration-owned or moved to
+its own file. ai-vector's `embeddings` projection is migration-owned
+(FW-AIV-PERSIST-01). A database where the old runtime code created the table
+after the manifest was recorded is adopted through the governed re-adoption
+below, with the proofs in `docs/specs/ai-integration.md` ("Adopting a
+runtime-created embeddings table").
 
 ### Governed re-adoption
 
