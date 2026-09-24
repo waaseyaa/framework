@@ -476,8 +476,10 @@ final class NativeHostEvidenceTest extends TestCase
         mkdir($scratch . '/binary');
         touch($scratch . '/shim/composer.bat');
         touch($scratch . '/binary/composer.exe');
-        $shim = $scratch . '/shim\\composer.bat';
-        $binary = $scratch . '/binary\\composer.exe';
+        // Windows semantics (PATH ';', PATHEXT) on any host; the join uses the
+        // host's own separator, so the shims are real files here too.
+        $shim = $scratch . '/shim' . DIRECTORY_SEPARATOR . 'composer.bat';
+        $binary = $scratch . '/binary' . DIRECTORY_SEPARATOR . 'composer.exe';
 
         self::assertSame(['composer', '--no-ansi', '--version'], \nhe_composer_command('Linux', []));
         self::assertSame(

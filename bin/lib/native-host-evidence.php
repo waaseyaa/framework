@@ -459,7 +459,7 @@ function nhe_composer_command(string $osFamily, array $env): ?array
             continue;
         }
         foreach ($extensions as $extension) {
-            $candidate = rtrim($directory, '\\/') . '\\composer' . $extension;
+            $candidate = rtrim($directory, '\\/') . DIRECTORY_SEPARATOR . 'composer' . $extension;
             if (is_file($candidate)) {
                 return in_array($extension, ['.bat', '.cmd'], true)
                     ? ['cmd.exe', '/d', '/c', $candidate, '--no-ansi', '--version']
