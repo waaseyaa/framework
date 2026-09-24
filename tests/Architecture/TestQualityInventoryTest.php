@@ -46,8 +46,11 @@ final class TestQualityInventoryTest extends TestCase
         // packaged runner enforces its own 30s timeout beneath an independent
         // 35s outer bound. The thirteenth is #3064's ProductionInstallGenesis
         // bounded-helper fixtures (TERM→KILL php -r loop + exact-PID custody
-        // usleep). None is a retry loop (see bin/test-quality-inventory).
-        self::assertCount(13, array_merge(
+        // usleep). The fourteenth is #2679's ProjectHooksLauncherTest: fixed
+        // php -r children stopped at a deadline by repository_wait_for_child()
+        // and the bounded Git probe, plus one bounded post-deadline
+        // observation. None is a retry loop (see bin/test-quality-inventory).
+        self::assertCount(14, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));

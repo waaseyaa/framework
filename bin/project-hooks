@@ -18,7 +18,9 @@ require_command() {
 hooks_dir() {
   local directory
   directory="$(git -C "$REPO_ROOT" rev-parse --git-path hooks)"
-  if [[ "$directory" != /* ]]; then
+  # Git for Windows reports a linked worktree's common hook directory as an
+  # absolute drive-letter path (C:/...).
+  if [[ "$directory" != /* && ! "$directory" =~ ^[A-Za-z]:/ ]]; then
     directory="$REPO_ROOT/$directory"
   fi
   printf '%s\n' "$directory"

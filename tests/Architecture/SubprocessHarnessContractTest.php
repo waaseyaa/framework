@@ -46,6 +46,13 @@ final class SubprocessHarnessContractTest extends TestCase
             . 'runtime by assertFrozenHarness(), and benchmarks/field-read-pages.php loads no '
             . 'vendor/autoload.php, so a Symfony import would not resolve. Proven at 256KiB on both streams '
             . 'by PagePerformanceHarnessContractTest::benchmark_subprocess_drains_large_stdout_and_stderr_without_deadlock().',
+        'tests/Architecture/ProjectHooksLauncherTest.php' =>
+            'Tests repository_wait_for_child() (bin/lib/repository-bash.php) at its raw resource boundary: the '
+            . 'function takes a proc_open() process resource, which Symfony\\Component\\Process\\Process '
+            . 'intentionally hides. The single call site, waitForPhpChild(), passes stdout and stderr as two '
+            . 'distinct tmpfile() resources directly as child descriptors, so neither output can fill a pipe or '
+            . 'block the other, and closes the stdin pipe immediately. The production helper owns the deadline, '
+            . 'termination and kill escalation; the children are fixed php -r programs.',
         'tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php' =>
             'Already safe, and deliberately independent. Both pipes are non-blocking and both are drained on '
             . 'every iteration of one loop, under a hard 3.0s deadline that escalates SIGTERM to SIGKILL. It '

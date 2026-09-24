@@ -195,6 +195,13 @@ foreach ($phpTestFiles as $path) {
             // subprocess-lifecycle proofs for run_bounded, never assertion
             // retry loops.
             'tests/Architecture/ProductionInstallGenesisGateTest.php' => 'subprocess_polling',
+            // #2679: usleep()/sleep() appear in fixed, disposable php -r
+            // children that prove repository_wait_for_child() and the bounded
+            // Git probe stop a child at their deadline, plus one bounded
+            // post-deadline observation that the stopped child never wrote
+            // its marker. Subprocess-lifecycle fixtures, never assertion
+            // retry loops.
+            'tests/Architecture/ProjectHooksLauncherTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;

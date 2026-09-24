@@ -504,8 +504,8 @@
         "check-package-layers": "php bin/check-package-layers",
         "check-symfony-imports": "php bin/check-symfony-imports",
         "test:inventory": "php bin/test-quality-inventory --format=json",
-        "hooks:install": "bash bin/project-hooks install",
-        "hooks:doctor": "bash bin/project-hooks doctor",
+        "hooks:install": "@php bin/project-hooks-launcher install",
+        "hooks:doctor": "@php bin/project-hooks-launcher doctor",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",
         "dev": [
