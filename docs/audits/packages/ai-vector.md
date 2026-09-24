@@ -351,7 +351,7 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 | `php vendor/bin/phpunit tests/Integration/Phase8/VectorSearchIntegrationTest.php tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php --no-coverage` | same | same | same | injected integration | 12 tests, 62 assertions pass |
 | `php bin/check-package-layers` | same | same | same | declared dependency layers | pass |
 | Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept with the private report, which is in private triage |
-| `php tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php` | FW-AIV-PERSIST-01 candidate (#3147) | lock `a4277f3a…7c5f9be9` | local, native Windows, PHP 8.5.5 | the same cases plus a semantic search, after the repair | 5 cases, none creates the table or drifts; the next transition succeeds in each (the probe's expectations were updated in FW-AIV-PERSIST-01) |
+| `php tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php` | `d05f38e611265688f4daf240a28b78aa50f0c13d` (FW-AIV-PERSIST-01) | lock `a4277f3a…7c5f9be9` | local, native Windows, PHP 8.5.5 | the same cases plus a semantic search, after the repair | 5 cases, none creates the table or drifts; the next transition succeeds in each (the probe's expectations were updated in FW-AIV-PERSIST-01) |
 
 ## Remediation split
 
