@@ -1,15 +1,14 @@
 # `waaseyaa/ai-vector` audit
 
 - **Audit state:** in progress. It isn't assessed yet, for two reasons:
-  1. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
+  1. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, and search contract conformance (there's no declared schema to check against);
   2. AIV-SEC-001 hasn't completed private triage.
-- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`).
+- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`). AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 are in repair: #3139 (FW-AIV-COMP-01) has a candidate implementation that hasn't landed.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
 - **Dependency identity:** `composer.lock` SHA-256 `1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48` at the base; PHP 8.5.5, native Windows 11
-- **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. The one production change since then, FW-AIV-PERSIST-01 (#3138, landed as `4512c0d9a`), is reconciled in the charter, roster and AIV-PERSIST entries:
-  - `SqliteEmbeddingStorage` was replaced by `DatabaseEmbeddingStorage`;
-  - the `embeddings` migration was added;
-  - `waaseyaa/database-legacy` was declared.
+- **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. One landed production change and one candidate are reconciled in the charter, roster and the affected findings:
+  - FW-AIV-PERSIST-01 (#3138, landed as `4512c0d9a`): `SqliteEmbeddingStorage` was replaced by `DatabaseEmbeddingStorage`, the `embeddings` migration was added, and `waaseyaa/database-legacy` was declared;
+  - FW-AIV-COMP-01 (#3139, candidate, not landed): `AiVectorServiceProvider` composes the lifecycle listeners in every kernel, every consumer uses the kernel services' first binding of the storage and provider, `HttpKernel` no longer builds its own, and post-commit vector failures are best-effort. Statements about "the FW-AIV-COMP-01 candidate" hold only once it lands.
 
   Nothing else was re-audited. The findings' observed evidence describes the base.
 - **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
@@ -20,7 +19,7 @@
 - **Owns:** computing text embeddings through a configured provider (Ollama, OpenAI), storing one vector per entity in its migration-owned `embeddings` table, similarity search over stored vectors, keeping vectors in step with entity lifecycle events, and the semantic search controller.
 - **Does not own:** schema authority (Foundation), entity storage and access policy (entity, access), publication rules (workflows), route registration (Foundation `BuiltinRouteRegistrar`), the `vector.search` AI tool (ai-tools), CLI commands (cli).
 - **Consumers:**
-  - Foundation `HttpKernel` registers its lifecycle listeners.
+  - Foundation `HttpKernel` registers the lifecycle listeners, and only under HTTP. In the FW-AIV-COMP-01 candidate, ai-vector's own provider registers them in every kernel.
   - Foundation `SearchRouter` serves `GET /api/search`.
   - The CLI `semantic:warm` and `semantic:refresh` handlers use `SemanticIndexWarmer`.
   - ai-tools `VectorSearchTool` duck-types its interfaces.
@@ -38,15 +37,15 @@ All 21 PHP files under `src/`, the migration and `public-surface.php` (23 PHP fi
 
 | File | Role | Classification | Evidence level | Notes |
 | --- | --- | --- | --- | --- |
-| `src/AiVectorServiceProvider.php` | Binds storage, provider and warmer | duplicated or drifting contract | reviewed | Its bindings are bypassed by Foundation (AIV-COMP-001) |
+| `src/AiVectorServiceProvider.php` | Binds storage, provider and warmer; composes the lifecycle listeners | owned and coherent | reproduced | At the base its bindings were bypassed by Foundation (AIV-COMP-001); in the FW-AIV-COMP-01 candidate it is the only composition owner |
 | `src/DatabaseEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation, over `DatabaseInterface` | owned and coherent | reproduced | Replaced `SqliteEmbeddingStorage` (AIV-PERSIST-001, AIV-PERSIST-002) in FW-AIV-PERSIST-01; no DDL, no raw PDO |
 | `migrations/2026_09_24_000001_embeddings_schema.php` | Owns the `embeddings` table | owned and coherent | reproduced | Creates it, adopts a compatible table in place, refuses others with `[AIV-DB001]` (FW-AIV-PERSIST-01) |
 | `src/EmbeddingStorageInterface.php` | Storage contract used in production | owned and coherent | reviewed | Competes with `VectorStoreInterface` (AIV-PUBLIC-001) |
-| `src/EntityEmbeddingListener.php` | Re-index on save and revision moves | necessary but under-specified | reproduced | Synchronous remote call (AIV-EXEC-001); indexability rule (AIV-DOMAIN-001) |
-| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | necessary but under-specified | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001) |
+| `src/EntityEmbeddingListener.php` | Re-index on save and revision moves (HTTP only at the base) | necessary but under-specified | reproduced | Synchronous remote call (AIV-EXEC-001); indexability rule (AIV-DOMAIN-001); delete branch not best-effort at the base (AIV-EXEC-002); invalidates outside HTTP in the FW-AIV-COMP-01 candidate |
+| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | owned and coherent | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001); not best-effort at the base (AIV-EXEC-002); best-effort in the FW-AIV-COMP-01 candidate |
 | `src/SearchController.php` | Semantic and keyword search, graph rerank | necessary but under-specified | reproduced (synthetic) | AIV-SEC-001, AIV-HTTP-001 |
-| `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reviewed | The CLI's only indexing path (AIV-COMP-002) |
-| `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places (AIV-COMP-001) |
+| `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reviewed | The only indexing path outside HTTP; in the FW-AIV-COMP-01 candidate CLI saves invalidate and `semantic:refresh` re-indexes |
+| `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places at the base (AIV-COMP-001), once, by the provider, in the FW-AIV-COMP-01 candidate |
 | `src/EmbeddingProviderInterface.php` | Single-text embedding contract | owned and coherent | reviewed | |
 | `src/EmbeddingInterface.php` | Adds batch and dimension methods | necessary but under-specified | reviewed | Only implemented, never required by a caller |
 | `src/OllamaEmbeddingProvider.php` | Ollama HTTP provider | owned and coherent | reviewed | `file_get_contents`, 15 s timeout (AIV-SYMFONY-001) |
@@ -72,14 +71,14 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | resolved | #3138/#3147 (`4512c0d9a`) | None; migration-owned table landed |
 | `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | resolved | #3138/#3147 (`4512c0d9a`) | None; server-database qualification in #3140 |
-| `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair | #3139 | Define one composition path |
-| `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair | #3139 | Decide whether CLI and workers keep vectors in step |
+| `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair (candidate) | #3139 (FW-AIV-COMP-01, not landed) | Review and land the candidate |
+| `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair (candidate) | #3139 (FW-AIV-COMP-01, not landed) | Review and land the candidate |
 | `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reviewed | repair or document | #3140 | Implement and qualify, or stop advertising and refuse clearly |
 | `AIV-SEC-001` | Search response metadata can disclose entities removed from the results | withheld | confirmed | reproduced (synthetic) | repair | private report | Private report, then fix |
 | `AIV-HTTP-001` | Every semantic search loads all relationship entities | medium | confirmed | reviewed | repair | #3143, sequenced with the private work | Bound or index the rerank query |
 | `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reviewed | repair or document | #3141 | Decide an explicit indexability policy |
 | `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reviewed | repair or remove | #3142 | Wire async indexing or remove the dead path |
-| `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reviewed | repair | #3139 | Make post-commit storage failures best-effort, and test through a real repository |
+| `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reproduced | repair (candidate) | #3139 (FW-AIV-COMP-01, not landed) | Review and land the candidate |
 | `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | reviewed | document, deprecate or remove | #3141 | Choose the canonical contract |
 | `AIV-DIST-001` | ai-vector is installed by default through `waaseyaa/cli`; a test helper ships in production | medium | confirmed | reviewed | repair | #3140 | Make the capability opt-in |
 | `AIV-SYMFONY-001` | Hand-rolled HTTP client in both providers | low | likely | reviewed | defer | accepted residual; review trigger owned by #3142 | Revisit when #3142's trigger fires |
@@ -124,18 +123,18 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 - **Observed, with evidence:**
   - `AiVectorServiceProvider` binds an `EmbeddingStorageInterface` singleton and a provider.
-  - `HttpKernel` builds another `SqliteEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners (`EventListenerRegistrar.php:147`). Since FW-AIV-PERSIST-01 it builds a `DatabaseEmbeddingStorage` instead; the duplication is unchanged.
+  - `HttpKernel` builds another `SqliteEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners (`EventListenerRegistrar.php:147`). FW-AIV-PERSIST-01 changed this to a `DatabaseEmbeddingStorage`; the FW-AIV-COMP-01 candidate removes the duplication.
   - `SearchRouter` builds a third storage and provider on every request.
-  - All three are hard-wired to one concrete class (`SqliteEmbeddingStorage` at the base, `DatabaseEmbeddingStorage` since FW-AIV-PERSIST-01), so the interface binding can't substitute storage for HTTP.
+  - At the base, all three were hard-wired to `SqliteEmbeddingStorage`, so the interface binding couldn't substitute storage for HTTP.
 - **Expected contract:** one composition owner and one selected storage, shared by listeners, HTTP, CLI and tools.
 - **Consequence and consumers:** a host that rebinds `EmbeddingStorageInterface` changes only the CLI warmer, not indexing or search. Provider configuration is resolved three times.
 - **Severity and confidence:** medium; confirmed.
 - **Refutation:** considered "Foundation's kernel and router directories are documented layer exemptions". That covers the imports, not three divergent compositions.
-- **Disposition and owner:** repair; #3139.
+- **Disposition and owner:** repair; #3139. Candidate implementation FW-AIV-COMP-01, not landed: every consumer uses the kernel services' first binding of the storage and provider interfaces, which is ai-vector's own unless an earlier provider binds them. Choosing a different storage backend belongs to #3140.
 - **Dependencies:** the storage decision in #3138 (FW-AIV-PERSIST-01).
-- **Acceptance:** listeners, `SearchRouter`, the warmer and tools resolve the same bound storage and provider, proven by a rebinding test.
-- **Residual risk:** none.
-- **Next action:** #3139 design.
+- **Acceptance:** listeners, `SearchRouter`, the warmer and bus consumers use the same storage and provider, the kernel services' first binding of each interface; proven by identity tests for the default composition, for a host binding registered before and after ai-vector, and for a later host embedding provider when ai-vector has none configured (`EmbeddingCompositionTest`).
+- **Residual risk:** none once landed.
+- **Next action:** review and land the FW-AIV-COMP-01 candidate.
 
 ### `AIV-COMP-002`: lifecycle listeners exist only under `HttpKernel`
 
@@ -144,11 +143,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** entities saved, unpublished or deleted from the CLI, imports or workers keep stale vectors, or orphaned vectors for deleted entities, until `semantic:refresh` runs.
 - **Severity and confidence:** medium; confirmed by source review.
 - **Refutation:** considered "`semantic:refresh` is the intended reconcile path". It exists, but nothing says HTTP-only indexing is the contract.
-- **Disposition and owner:** repair; #3139.
+- **Disposition and owner:** repair; #3139. Candidate implementation FW-AIV-COMP-01, not landed: outside HTTP, saves and deletes remove any existing vector without calling the provider, and `semantic:refresh` re-indexes.
 - **Dependencies:** AIV-COMP-001.
-- **Acceptance:** a CLI-profile save and delete update the stored vectors, or the documented contract states that reconcile is required.
-- **Residual risk:** none.
-- **Next action:** #3139.
+- **Acceptance:** a console-kernel save of indexable content and a delete remove the vector with a provider configured (`ConsoleVectorInvalidationTest`), and the contract is documented in `docs/specs/ai-integration.md`.
+- **Residual risk:** none once landed.
+- **Next action:** review and land the FW-AIV-COMP-01 candidate.
 
 ### `AIV-BACKEND-001`: `pgvector` advertised but never used
 
@@ -205,7 +204,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 ### `AIV-EXEC-001`: synchronous embedding on save; the queue message has no handler
 
 - **Observed, with evidence:**
-  - The listener calls the provider's HTTP endpoint inline during the save, with a 15–20 s timeout. Failures of this embed-and-store step are logged and swallowed. The delete paths aren't; see AIV-EXEC-002.
+  - The listener calls the provider's HTTP endpoint inline during the save, with a 15–20 s timeout. Failures of this embed-and-store step are logged and swallowed. At the base the delete paths weren't (AIV-EXEC-002, in repair).
   - It can also dispatch a `GenericMessage` of type `ai_vector.embed_entity`, but every production construction passes `queue: null`, and no handler for that type exists in the repository.
 - **Expected contract:** remote work on the save path is bounded or asynchronous, and no dead dispatch path is left in place.
 - **Consequence and consumers:** entity saves over HTTP wait on the embedding provider when one is configured. The queue path is dead code.
@@ -224,7 +223,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - In `EntityEmbeddingListener`, only the embed-and-store block is inside `try` (`src/EntityEmbeddingListener.php:121-132`). The non-indexable branch's `storage->delete()` (lines 111-114) and the `repository->find()` re-sourcing (line 102) are outside it.
   - POST_SAVE and POST_DELETE are notification events, buffered and dispatched only after the entity mutation commits (`packages/entity-storage/src/EntityRepository.php`, `dispatchEvent()` and its delete path at lines 1539-1543).
   - A listener exception there becomes `EntityMutationCommittedSideEffectsFailedException` (`EntityRepository.php:832`).
-  - Traced in source; not reproduced end to end through a real repository.
+  - Traced in source at the base, then reproduced end to end through a real repository by `PostCommitVectorFailureTest`, which fails at the base and passes with the FW-AIV-COMP-01 candidate.
 - **Expected contract:** a best-effort side effect of a committed mutation logs its failure and doesn't turn the committed mutation into a reported failure (repository guidance on best-effort side effects), or the failure contract is documented.
 - **Consequence and consumers:** if the vector storage fails after an entity delete or save (a locked or read-only database, the lazy DDL failing, a table with the wrong shape):
   - the entity change is committed, but the caller, such as the HTTP API, is told the mutation's side effects failed;
@@ -232,11 +231,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - POST_* listeners registered after these for the same event don't run, because the dispatcher stops at the exception.
 - **Severity and confidence:** high; confirmed by source trace.
 - **Refutation:** considered "`EntityEmbeddingListener` catches failures". It does, but only around embed-and-store, not the delete branch or the re-sourcing read. The cleanup listener catches nothing.
-- **Disposition and owner:** repair; #3139, which owns lifecycle behavior across entry points. Post-commit vector storage failures must be best-effort.
+- **Disposition and owner:** repair; #3139. Candidate implementation FW-AIV-COMP-01, not landed: post-commit vector storage failures are best-effort, logged once and never surfaced.
 - **Dependencies:** none.
 - **Acceptance:** with a storage that fails on delete, an entity delete and a non-indexable save through a real repository report success, log the failure, and let later listeners run.
-- **Residual risk:** a vector left behind after a failed cleanup until `semantic:refresh` runs.
-- **Next action:** #3139, with an end-to-end regression test through a real repository.
+- **Residual risk:** once landed, a vector left behind after a failed cleanup until `semantic:refresh` runs.
+- **Next action:** review and land the FW-AIV-COMP-01 candidate.
 
 ### `AIV-PUBLIC-001`: two storage contracts; declarations don't match
 
@@ -297,23 +296,23 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - Storage access and schema authority: AIV-PERSIST-001 and AIV-PERSIST-002.
   - The deployer catalogue lists `embeddings` as a runtime artifact table, which is consistent with the table's existence but not with schema authority.
   - Backend claims: AIV-BACKEND-001.
-  - Upgrade on an existing database: not applicable until migration ownership exists.
+  - Upgrade on an existing database: the FW-AIV-PERSIST-01 migration creates the table, adopts a compatible one in place, or refuses with `[AIV-DB001]`.
   - Transactions: store, delete and search are single statements.
   - Counted limits: none.
-  - Retries and idempotency: `INSERT OR REPLACE` is idempotent per entity.
-  - Reported versus durable outcome: embed-and-store failures are logged and swallowed (AIV-EXEC-001). Delete-path failures aren't; they surface as a committed-side-effects failure of the entity mutation (AIV-EXEC-002).
+  - Retries and idempotency: a store is idempotent per entity (`INSERT OR REPLACE` at the base; delete then insert in one transaction since FW-AIV-PERSIST-01).
+  - Reported versus durable outcome: embed-and-store failures are logged and swallowed (AIV-EXEC-001). At the base, delete-path failures aren't; they surface as a committed-side-effects failure of the entity mutation (AIV-EXEC-002). In the FW-AIV-COMP-01 candidate they are logged and swallowed too.
   - Restart and recovery: `semantic:refresh` reconciles.
 - **Kernel and runtime:**
   - Composition: AIV-COMP-001. Profile differences: AIV-COMP-002.
   - Early resolution: the provider binding resolves config once at register time.
-  - Boot failure: a misconfigured OpenAI credential throws at register time, from the provider and again from `HttpKernel`'s listener wiring, and fails closed (reviewed, acceptable).
+  - Boot failure: a misconfigured OpenAI credential throws at register time and fails closed (reviewed, acceptable). At the base it throws from the provider and again from `HttpKernel`'s listener wiring; in the FW-AIV-COMP-01 candidate, only from the provider.
   - Boot retry and state: ai-vector keeps no state between attempts, because its bindings are closures. A retry with the same config fails the same way. Kernel-level retry state belongs to Foundation (#3123).
-  - Repeated execution: the storage caches its schema check per instance, and `SearchRouter` creates a new instance per request.
+  - Repeated execution: at the base, the storage caches its schema check per instance and `SearchRouter` creates a new instance per request. Since FW-AIV-PERSIST-01 the storage has no schema check; in the FW-AIV-COMP-01 candidate, search resolves the one kernel-bound instance.
 - **Domain contracts:**
   - Invariants and lifecycle: indexing follows served content (CW-v1 option 1) for HTTP saves, pointer moves and reverts (reviewed).
   - Indexability: AIV-DOMAIN-001.
-  - Events: POST_SAVE, POST_DELETE, `RevisionPointerMovedEvent` and REVISION_REVERTED, registered only by `HttpKernel` (AIV-COMP-002), after the discovery and MCP read-cache listeners.
-  - Ordering and veto: these are notification events dispatched after commit, so they can't veto a mutation. A listener exception stops later listeners for the same event (AIV-EXEC-002).
+  - Events: POST_SAVE, POST_DELETE, `RevisionPointerMovedEvent` and REVISION_REVERTED. At the base they are registered only by `HttpKernel` (AIV-COMP-002), after the discovery and MCP read-cache listeners. In the FW-AIV-COMP-01 candidate, ai-vector's provider registers them at boot in every kernel.
+  - Ordering and veto: these are notification events dispatched after commit, so they can't veto a mutation. A listener exception stops later listeners for the same event. At the base, ai-vector's delete paths can throw (AIV-EXEC-002); in the FW-AIV-COMP-01 candidate they don't.
   - Extension seams: AIV-PUBLIC-001.
 - **HTTP, UI and wire contracts:**
   - The route is `allowAll()`.
@@ -358,7 +357,7 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 The maintainer approved the split on 2026-09-23 with adjustments, replacing the WP-A to WP-D proposal. The umbrella issue is #3137, and qualification is part of the acceptance of each child and of the umbrella; it isn't a separate issue.
 
 - **#3138, persistence and the FETDER unblock:** AIV-PERSIST-001 and AIV-PERSIST-002. Resolved by #3147 (`4512c0d9a`); closed.
-- **#3139, composition and lifecycle:** AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002.
+- **#3139, composition and lifecycle:** AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002. Candidate implementation FW-AIV-COMP-01, not landed; the issue stays open.
 - **#3140, distribution and backend claims:** AIV-DIST-001 and AIV-BACKEND-001, plus server-database qualification. Depends on #3138 and #3139.
 - **#3141, public contract and indexing policy:** AIV-PUBLIC-001 and AIV-DOMAIN-001.
 - **#3142, execution model:** AIV-EXEC-001. It also owns the review trigger for the deferred AIV-SYMFONY-001.

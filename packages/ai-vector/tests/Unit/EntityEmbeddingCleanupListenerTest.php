@@ -36,6 +36,32 @@ final class EntityEmbeddingCleanupListenerTest extends TestCase
         $listener = new EntityEmbeddingCleanupListener($storage);
         $listener->onPostDelete(new EntityEvent(new CleanupTestEntity(null, 'node')));
     }
+
+    #[Test]
+    public function a_failed_removal_after_the_committed_delete_is_logged_not_thrown(): void
+    {
+        $storage = $this->createStub(EmbeddingStorageInterface::class);
+        $storage->method('delete')->willThrowException(new \RuntimeException('storage offline'));
+        $errors = [];
+        $logger = new class ($errors) implements \Waaseyaa\Foundation\Log\LoggerInterface {
+            use \Waaseyaa\Foundation\Log\LoggerTrait;
+
+            /** @param list<string> $errors */
+            public function __construct(private array &$errors) {}
+
+            public function log(\Waaseyaa\Foundation\Log\LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                if ($level === \Waaseyaa\Foundation\Log\LogLevel::ERROR) {
+                    $this->errors[] = (string) $message;
+                }
+            }
+        };
+
+        new EntityEmbeddingCleanupListener($storage, $logger)->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
+
+        self::assertCount(1, $errors);
+        self::assertStringContainsString('storage offline', $errors[0]);
+    }
 }
 
 final readonly class CleanupTestEntity implements EntityInterface

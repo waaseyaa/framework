@@ -411,6 +411,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/ai-vector/tests/Unit/AiVectorServiceProviderTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 2
+        },
+        {
             "path": "packages/ai-vector/tests/Unit/DatabaseEmbeddingStorageTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -4324,13 +4331,6 @@
             "occurrence": 2
         },
         {
-            "path": "packages/foundation/tests/Unit/Http/Router/SearchRouterTest.php",
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "e32a4e7ee654c1d56bba1c51b9d27f49786c124cb358f5a31afc49214cd19b50",
-            "occurrence": 3
-        },
-        {
             "path": "packages/foundation/tests/Unit/Http/Router/WaaseyaaContextTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -4644,6 +4644,13 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 11
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 12
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/ProviderDrivenRouteRegistrationTest.php",

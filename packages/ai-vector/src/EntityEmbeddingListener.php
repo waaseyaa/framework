@@ -49,6 +49,16 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  * triggering event's own entity object (pre-option-1 behavior, unchanged);
  * `onRevisionPointerMoved()` (which carries no entity object at all) then
  * has nothing to re-source and no-ops.
+ *
+ * Two modes (FW-AIV-COMP-01). The default indexing mode embeds served,
+ * indexable content and removes the vector otherwise. `invalidateOnly` mode,
+ * used outside HTTP (CLI, imports, workers), removes any existing vector on
+ * every save or pointer move and never calls the embedding provider;
+ * `semantic:refresh` re-indexes.
+ *
+ * Every storage and re-sourcing call is best-effort. These listeners run
+ * after the entity mutation has committed, so a failure is logged once as an
+ * error and never surfaced as a failure of the committed mutation.
  */
 final class EntityEmbeddingListener
 {
@@ -61,6 +71,7 @@ final class EntityEmbeddingListener
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
         ?LoggerInterface $logger = null,
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
+        private readonly bool $invalidateOnly = false,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -98,8 +109,28 @@ final class EntityEmbeddingListener
 
         $entityIdString = (string) $entityId;
 
+        if ($this->invalidateOnly) {
+            $this->removeVector($entityType, $entityIdString);
+
+            return;
+        }
+
         if ($this->entityTypeManager !== null) {
-            $entity = $this->entityTypeManager->getRepository($entityType)->find($entityIdString);
+            try {
+                $entity = $this->entityTypeManager->getRepository($entityType)->find($entityIdString);
+            } catch (\Throwable $exception) {
+                // The served content can't be read, so indexability is unknown:
+                // remove the vector rather than leave it possibly stale.
+                $this->logger->error(sprintf(
+                    'Embedding re-source failed for %s:%s: %s',
+                    $entityType,
+                    $entityIdString,
+                    $exception->getMessage(),
+                ));
+                $this->removeVector($entityType, $entityIdString);
+
+                return;
+            }
         } elseif ($fallbackEntity !== null) {
             $entity = $fallbackEntity;
         } else {
@@ -109,9 +140,7 @@ final class EntityEmbeddingListener
         }
 
         if (!$this->isIndexable($entityType, $entity)) {
-            if ($this->storage !== null) {
-                $this->storage->delete($entityType, $entityIdString);
-            }
+            $this->removeVector($entityType, $entityIdString);
 
             return;
         }
@@ -144,6 +173,24 @@ final class EntityEmbeddingListener
                 'langcode' => $entity->language(),
             ],
         ));
+    }
+
+    private function removeVector(string $entityType, string $entityId): void
+    {
+        if ($this->storage === null) {
+            return;
+        }
+
+        try {
+            $this->storage->delete($entityType, $entityId);
+        } catch (\Throwable $exception) {
+            $this->logger->error(sprintf(
+                'Embedding removal failed for %s:%s: %s',
+                $entityType,
+                $entityId,
+                $exception->getMessage(),
+            ));
+        }
     }
 
     private function isIndexable(string $entityType, ?EntityInterface $entity): bool
