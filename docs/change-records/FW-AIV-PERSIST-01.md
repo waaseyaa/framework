@@ -76,9 +76,10 @@ procedure is in `docs/specs/ai-integration.md` ("Adopting a runtime-created
 embeddings table"). In outline:
 
 1. Back up the database.
-2. On a copy, drop `embeddings` and run `migrate --verify`. `STATUS: OK` proves
-   `embeddings` is the only drift and the ledger matches. Any other result
-   stops the procedure.
+2. On a copy, drop `embeddings` and run `migrate --verify`. The recorded and
+   live `schema=` and `ledger=` values must be equal. The authority kind must
+   be `match`, or `source_catalog_mismatch` when the new release has pending
+   migrations. Anything else stops the procedure.
 3. On the live database, check the table's shape against the expected schema.
    Stop if it differs.
 4. Apply the S1 spec's governed re-adoption: clear the recorded fingerprints.
@@ -101,6 +102,38 @@ Tracks #3138:
 - The recovery procedure is proven on a drifted SQLite database, and FETDER is
   qualified against the candidate.
 - Exact-head hosted CI and independent review.
+
+## Candidate evidence (native Windows host)
+
+**Framework tests:**
+
+- The `packages/ai-vector` tests pass:
+  - migration create, adopt in place, Migrator run, drift refusal, the recovery procedure, and seven refused shapes;
+  - storage behaviour with and without the migration;
+  - serving paths on a real SQLite file leave the manifest valid and let the next transition succeed;
+  - the source boundary (no raw PDO or DDL in `src/`).
+- The committed drift probe reports all five cases (the control, delete, draft-node save, non-node save and semantic search) as no table, no drift, next transition succeeded.
+- The affected foundation, CLI, ai-tools and Phase 14/15/24 integration tests pass, apart from two `HttpKernelTest` Windows teardown errors (SQLite WAL file locks). Those also occur on unmodified `main`.
+
+**FETDER qualification (local):**
+
+- **Method:**
+  - a temporary copy of the FETDER app, with this change's `src/` diff applied to its installed `alpha.301` packages (the touched files are identical between `v0.1.0-alpha.301` and the base);
+  - the committed `.env.example` (fake provider, no worker);
+  - copies of FETDER's local database;
+  - FETDER's deploy sequence: `schema:sync`, `install:init`, `migrate --verify`.
+- **FETDER's own data:** its checkout and database were unchanged (same hash before and after).
+
+| Starting state | Result |
+| --- | --- |
+| Clean | `install:init` applied the migration and created the table. `migrate --verify` STATUS OK (40 matched). |
+| Runtime table created by `alpha.301`, manifest re-recorded (FETDER production's state) | Adopted in place; 2 rows before and after; STATUS OK. |
+| Runtime table created by `alpha.301`, not re-recorded (drifted) | `install:init` refused. The recovery procedure then worked: backup integrity `ok`; on the copy, `source_catalog_mismatch` with equal `schema=` and `ledger=`; `table_info` matched. After re-adoption, `install:init` adopted the table; 2 rows before and after; STATUS OK. |
+
+- **Boot and smoke:** `/health`, `/`, `/create`, `/signup` and `/discover` all returned 200, and the schema stayed verified afterwards.
+- **Out of scope, found during qualification:** dispatching an entity delete through FETDER's booted kernel drifted the schema. The objects created were the search package's FTS5 projection (`search_index*`, `search_metadata`); `embeddings` was untouched. It's the other drift source the S1 spec names, and #2763 covers the same lazy DDL from the observability side.
+
+**Host limits:** the full Architecture suite aborts on this host. Its targeted tests fail identically on unmodified `main`. Dead-code reports three findings in `config` and `scheduler` that also occur on unmodified `main`. Hosted Linux CI owns these.
 
 **Open acceptance item:** #3138 asks for store, search and delete on "at least
 one server database". CI has no MySQL or PostgreSQL service, the local host

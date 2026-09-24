@@ -951,8 +951,12 @@ adoption tooling belongs to #3110.
    integrity).
 2. Prove `embeddings` is the only drift. On a scratch copy (for example
    `VACUUM INTO`), drop `embeddings` and run `migrate --verify` against the
-   copy. It must report `STATUS: OK`. Any other result means something else
-   also drifted; stop and don't re-adopt.
+   copy. In its `[authority:…]` line, the recorded and live values of both
+   `schema=` and `ledger=` must be equal. The kind must be `match`, or
+   `source_catalog_mismatch` when the release you're running brings pending
+   migrations such as this one; in that case `STATUS` still reads FAIL, which
+   is expected. Any other kind, or any unequal `schema=` or `ledger=` pair,
+   means something else drifted too: stop and don't re-adopt.
 3. Prove the table has the expected shape. For SQLite, run
    `PRAGMA table_info(embeddings)`; it must show exactly the four NOT NULL
    columns above with key positions 1 and 2 on `entity_type` and `entity_id`.
