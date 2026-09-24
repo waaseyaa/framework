@@ -19,6 +19,11 @@ namespace Waaseyaa\Tests\Support;
  * A repository-internal but non-root temp directory (for example `<root>/tmp`)
  * is deliberately accepted: it is gitignored, allowlisted by
  * `bin/check-repo-root-hygiene`, and a legitimate local choice.
+ *
+ * Native Windows PHP ignores `TMPDIR` and reads `TMP`, then `TEMP`, resolving
+ * a relative value against the working directory: `TMP=.` yields the checkout
+ * itself, which the root check below refuses. The recovery guidance names the
+ * variables the host actually reads (#2678).
  */
 final class TempDirGuard
 {
@@ -32,15 +37,17 @@ final class TempDirGuard
 
         if ($tempDir === '' || !self::isFullyQualified($tempDir, $windows)) {
             return sprintf(
-                'sys_get_temp_dir() resolved to the non-absolute path %s — every test scratch path would land in the process working directory (the repository root). Unset TMPDIR or point it at an absolute directory (#2927).',
+                'sys_get_temp_dir() resolved to the non-absolute path %s — every test scratch path would land in the process working directory (the repository root). %s at an absolute directory (#2927).',
                 json_encode($tempDir, JSON_UNESCAPED_SLASHES),
+                $windows ? 'Point TMP and TEMP' : 'Unset TMPDIR or point it',
             );
         }
 
         if (self::normalize($tempDir) === self::normalize($repositoryRoot)) {
             return sprintf(
-                'sys_get_temp_dir() resolved to the repository root %s — every test scratch path would land in the checkout. Unset TMPDIR or point it at a directory outside the repository root (#2927).',
+                'sys_get_temp_dir() resolved to the repository root %s — every test scratch path would land in the checkout. %s at a directory outside the repository root (#2927).',
                 json_encode($tempDir, JSON_UNESCAPED_SLASHES),
+                $windows ? 'Point TMP and TEMP' : 'Unset TMPDIR or point it',
             );
         }
 

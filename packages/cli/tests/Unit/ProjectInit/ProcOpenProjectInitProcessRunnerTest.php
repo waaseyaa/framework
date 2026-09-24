@@ -13,6 +13,37 @@ use Waaseyaa\CLI\ProjectInit\ProjectInitProcessResult;
 #[CoversClass(ProcOpenProjectInitProcessRunner::class)]
 final class ProcOpenProjectInitProcessRunnerTest extends TestCase
 {
+    /**
+     * A per-test child working directory below the temp directory. The temp
+     * directory itself is not a valid working directory for captured output:
+     * the Windows file-capture transport refuses a working directory that
+     * contains its capture files (#2678), so tests that ran children there
+     * never started one on native Windows.
+     */
+    private ?string $workingDirectory = null;
+
+    protected function tearDown(): void
+    {
+        if ($this->workingDirectory !== null) {
+            @rmdir($this->workingDirectory);
+            $this->workingDirectory = null;
+        }
+    }
+
+    #[Test]
+    public function fileCaptureRefusesAWorkingDirectoryThatContainsItsCaptureFiles(): void
+    {
+        $result = (new ProcOpenProjectInitProcessRunner(capturedFileTransport: true))->run(
+            command: [PHP_BINARY, '-r', 'echo 1;'],
+            cwd: sys_get_temp_dir(),
+            captureOutput: true,
+        );
+
+        self::assertTrue($result->hasRunnerError());
+        self::assertSame(ProjectInitProcessResult::ERROR_CHILD_START_FAILED, $result->errorCode);
+        self::assertNull($result->childPid, 'The refusal happens before any child is started.');
+    }
+
     #[Test]
     public function concurrentStdoutAndStderrAreDrainedInCapturedMode(): void
     {
@@ -24,7 +55,7 @@ PHP;
 
         $result = new ProcOpenProjectInitProcessRunner()->run(
             command: [PHP_BINARY, '-r', $code],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -41,7 +72,7 @@ PHP;
         $limit = 64;
         $result = new ProcOpenProjectInitProcessRunner(maxOutputBytesPerStream: $limit)->run(
             command: [PHP_BINARY, '-r', 'fwrite(STDOUT, str_repeat("x", $argv[1]));', (string) $limit],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -56,7 +87,7 @@ PHP;
         $limit = 64;
         $result = new ProcOpenProjectInitProcessRunner(maxOutputBytesPerStream: $limit)->run(
             command: [PHP_BINARY, '-r', 'fwrite(STDOUT, str_repeat("x", $argv[1]));', (string) ($limit + 1)],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -205,7 +236,7 @@ PHP;
         $started = microtime(true);
         $result = new ProcOpenProjectInitProcessRunner(maxRuntimeSeconds: 0.2)->run(
             command: [PHP_BINARY, '-r', 'while (true) {}'],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -219,7 +250,7 @@ PHP;
     {
         $result = new ProcOpenProjectInitProcessRunner()->run(
             command: [PHP_BINARY, '-r', 'fwrite(STDOUT, "ok"); exit(42);'],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -347,7 +378,7 @@ PHP;
             terminalConfirmationProbe: static fn (): bool => false,
         )->run(
             command: [PHP_BINARY, '-r', 'while (true) {}'],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -364,7 +395,7 @@ PHP;
             terminalConfirmationProbe: static fn (): bool => false,
         )->run(
             command: [PHP_BINARY, '-r', 'echo str_repeat("x", 8192);'],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -392,7 +423,7 @@ PHP;
     {
         $result = new ProcOpenProjectInitProcessRunner()->run(
             command: [sys_get_temp_dir() . '/waaseyaa-missing-php-' . bin2hex(random_bytes(6)), '-r', 'echo 1;'],
-            cwd: sys_get_temp_dir(),
+            cwd: $this->workingDirectory(),
             captureOutput: true,
         );
 
@@ -433,6 +464,11 @@ PHP;
         @unlink($pidFile);
 
         return $pid;
+    }
+
+    private function workingDirectory(): string
+    {
+        return $this->workingDirectory ??= $this->createWorkingDirectory();
     }
 
     private function createWorkingDirectory(): string
