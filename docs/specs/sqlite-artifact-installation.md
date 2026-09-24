@@ -86,6 +86,45 @@ It writes a new candidate; it never mutates either input.
 The report contains table policy, pre/post row counts, and SHA-256 row digests.
 It never contains row values, secrets, bearer tokens, or raw MCP arguments.
 
+## Schema authority reconciliation
+
+`waaseyaa_schema_authority` is itself a framework runtime table, catalogued
+`artifact`: its aggregate `schema_fingerprint`, `ledger_fingerprint`,
+`source_catalog_fingerprint`, and `generation` arrive from the artifact
+untouched by ordinary preservation. Runtime preservation can still change the
+candidate's actual logical schema relative to what the artifact's own
+manifest describes — a serving-only runtime table it just cloned, for
+example — so preparation reconciles the aggregate fingerprint before commit
+rather than leaving a candidate whose recorded manifest describes a database
+that no longer exists.
+
+When the artifact carries a fingerprinted manifest (`schema_fingerprint` and
+`ledger_fingerprint` both non-null), preparation requires the artifact's
+recorded values to equal its own computed schema and ledger fingerprints
+before touching anything, requires every schema object that differs between
+the artifact and the prepared candidate to belong to a non-`artifact`-policy
+catalogue table, and then conditionally re-records only `schema_fingerprint`
+to the candidate's computed value — `UPDATE ... WHERE authority_id = 1 AND
+schema_fingerprint = <artifact's recorded value>`, requiring exactly one
+affected row. `ledger_fingerprint`, `source_catalog_fingerprint`, and
+`generation` are left exactly as the artifact recorded them:
+`waaseyaa_migrations` is itself catalogued `artifact` and untouched by the
+handoff, so the candidate's ledger is already byte-identical to the
+artifact's, and `generation` counts governed schema-mutation transitions, not
+artifact handoffs. After commit, preparation asserts the candidate's recorded
+schema and ledger fingerprints equal their freshly computed values, using the
+identical computation the serving host's own schema-authority pre-state
+assertion and `migrate --verify` use, and discards the candidate on any
+mismatch. An artifact without a fingerprinted manifest — a fresh install or a
+pre-fingerprint adoption — is left completely untouched.
+
+This fingerprint computation must describe exactly one algorithm. The
+deployer package computes it independently of the serving host's own
+migration-ledger implementation (rather than depending on it, which would tie
+the deployer's isolated installation boundary to the full framework
+dependency graph); a parity test pins the two byte-identical against each
+other so they cannot drift apart unnoticed.
+
 ## Installation and restore
 
 The privileged serving process creates a durable byte-for-byte backup before
@@ -116,6 +155,9 @@ Installation fails before activation for:
 - dangling account references;
 - append-only row-count or digest changes;
 - failed integrity or foreign-key checks;
+- a stale artifact schema-authority manifest, an unbounded schema difference
+  outside runtime-policy tables, a schema-authority manifest that changed
+  concurrently, or a post-commit schema-authority verification mismatch;
 - paths that are symlinks, aliases of one another, or outside the caller's
   approved deployment root.
 
