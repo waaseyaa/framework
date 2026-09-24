@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 
@@ -41,7 +42,10 @@ final class ProjectHooksLauncherTest extends TestCase
     protected function tearDown(): void
     {
         putenv($this->pinned === false ? 'WAASEYAA_SYSTEM_GIT' : 'WAASEYAA_SYSTEM_GIT=' . $this->pinned);
-        $this->remove($this->scratch);
+        $filesystem = new Filesystem();
+        // Git writes its objects read-only; Windows refuses to unlink those.
+        $filesystem->chmod($this->scratch, 0o755, 0o000, true);
+        $filesystem->remove($this->scratch);
     }
 
     #[Test]
@@ -159,20 +163,15 @@ final class ProjectHooksLauncherTest extends TestCase
     public function a_child_past_its_deadline_is_stopped_and_an_exit_code_passes_through(): void
     {
         $this->requireLibrary();
-        $null = [0 => ['null'], 1 => ['null'], 2 => ['null']];
-        $pipes = [];
 
-        $process = proc_open([PHP_BINARY, '-r', 'exit(7);'], $null, $pipes);
-        self::assertIsResource($process);
-        self::assertSame([7, true], repository_wait_for_child($process, 10.0));
+        self::assertSame([7, true], $this->waitForPhpChild('exit(7);', 10.0));
 
         $survived = $this->scratch . '/survived';
         $started = hrtime(true);
-        $process = proc_open([PHP_BINARY, '-r', 'usleep(2000000); file_put_contents($argv[1], "survived");', $survived], $null, $pipes);
-        self::assertIsResource($process);
-        self::assertSame([null, true], repository_wait_for_child($process, 0.2));
+        self::assertSame([null, true], $this->waitForPhpChild('usleep(2000000); file_put_contents($argv[1], "survived");', 0.2, [$survived]));
         self::assertLessThan(1.8, (hrtime(true) - $started) / 1e9, 'The deadline returns before the child would have finished.');
 
+        // Observe past the moment an abandoned child would have written its marker.
         usleep(max(0, 2_600_000 - intdiv(hrtime(true) - $started, 1000)));
         self::assertFileDoesNotExist($survived, 'The child must be stopped at the deadline, not abandoned.');
     }
@@ -339,20 +338,33 @@ final class ProjectHooksLauncherTest extends TestCase
         return [(int) $process->getExitCode(), $process->getOutput() . $process->getErrorOutput()];
     }
 
-    private function remove(string $path): void
+    /**
+     * Start a PHP child at the raw resource boundary repository_wait_for_child()
+     * takes, which Symfony Process does not expose. Stdout and stderr are two
+     * distinct tmpfile() handles, so neither can fill a pipe; stdin is a pipe
+     * closed at once. The production helper owns the deadline and termination.
+     *
+     * @param list<string> $arguments
+     *
+     * @return array{int|null, bool}
+     */
+    private function waitForPhpChild(string $code, float $timeoutSeconds, array $arguments = []): array
     {
-        if (is_link($path) || is_file($path)) {
-            @chmod($path, 0o666);
-            @unlink($path);
+        $stdout = tmpfile();
+        $stderr = tmpfile();
+        self::assertIsResource($stdout);
+        self::assertIsResource($stderr);
 
-            return;
+        try {
+            $pipes = [];
+            $process = proc_open([PHP_BINARY, '-r', $code, ...$arguments], [0 => ['pipe', 'r'], 1 => $stdout, 2 => $stderr], $pipes);
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+
+            return repository_wait_for_child($process, $timeoutSeconds);
+        } finally {
+            fclose($stdout);
+            fclose($stderr);
         }
-        if (!is_dir($path)) {
-            return;
-        }
-        foreach (array_diff((array) scandir($path), ['.', '..']) as $entry) {
-            $this->remove($path . '/' . $entry);
-        }
-        @rmdir($path);
     }
 }
