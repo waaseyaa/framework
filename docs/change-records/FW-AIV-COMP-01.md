@@ -4,10 +4,11 @@
 - Findings: AIV-COMP-001, AIV-COMP-002, AIV-EXEC-002 in `docs/audits/packages/ai-vector.md`
 - Base: `3479dec2fcce623e68fa9ad3fe21a0c0d2d9cc21`
 - Branch: `claude/ai-vector-composition-3139`
+- Landed: 2026-09-24 as `d58d526ab` through #3155 (governed squash of reviewed head `a43c4c1c8` onto `b21e36309`, tree identical to the reviewed head). `a43c4c1c8` merged `main` at `b21e36309` into the reviewed `8a738bc9d` without rewriting its commits; the feature diff was byte-identical. #3139 is closed.
 - Depends on: #3138 (landed as `4512c0d9a`: `DatabaseEmbeddingStorage` and the migration-owned table)
 - Related: #3140 (backend selection), #3142 (execution model, including asynchronous indexing)
 - Authority: repository source, tests and PR. No release, publication or
-  deployment. Landing needs the maintainer's approval.
+  deployment. Landed with the maintainer's approval.
 
 ## Problem, reproduced at the base
 
@@ -81,3 +82,4 @@ Red tests at `55bbd6c5d` pinned all three defects before the fix.
 - After the second review fix (`e743631a6`, the per-interface rule): 148 tests and 630 assertions pass on the same set. `check-pr-preflight` passes 45 of 45 fast gates; `--full` fails only on the same host-only dead-code findings.
 - After the first review fix (`416e9739c`): 147 tests and 613 assertions pass across `tests/Integration/AiVector`, the ai-vector package tests, `SearchRouterTest` and the Phase 8 and 15 integration tests. `HttpKernelTest`'s two search cases still hit only the Windows WAL teardown error. `check-pr-preflight --full` still passes 46 of 47 gates, with the same host-only dead-code findings, and both S1 installed-artifact contracts pass again.
 - The #3138 drift probe still passes all 5 cases.
+- Hosted: PR run `36036139251`, 56/56 checks on `a43c4c1c8`, with independent review finding nothing; post-merge `main` run `36038434121`, 54/54 jobs on `d58d526ab`.

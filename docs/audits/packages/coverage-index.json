@@ -169,7 +169,7 @@
                     "path": "tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php"
                 }
             ],
-            "notes": "Persistence calibration audit: 13 findings and 4 refuted leads. Remediation umbrella #3137 with child issues #3138-#3143. FW-AIV-PERSIST-01 landed as 4512c0d9a (#3147) and resolves AIV-PERSIST-001 and AIV-PERSIST-002; FW-AIV-COMP-01 (#3139) is a candidate repair for AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 and has not landed. The audit record reconciles both; nothing else was re-audited. In progress until the open profile items are closed or qualified and AIV-SEC-001 completes private triage."
+            "notes": "Persistence calibration audit: 13 findings and 4 refuted leads. Remediation umbrella #3137 with child issues #3138-#3143. FW-AIV-PERSIST-01 landed as 4512c0d9a (#3147) and resolves AIV-PERSIST-001 and AIV-PERSIST-002; FW-AIV-COMP-01 landed as d58d526ab (#3155) and resolves AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002. The audit record reconciles both; nothing else was re-audited. In progress until the open profile items are closed or qualified and AIV-SEC-001 completes private triage."
         },
         {
             "package": "waaseyaa/analytics",
