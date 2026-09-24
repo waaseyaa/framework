@@ -2,7 +2,7 @@
 
 - Forge mirror: `waaseyaa/framework#3138` (parent #3137, program #3118)
 - Findings: AIV-PERSIST-001, AIV-PERSIST-002 in `docs/audits/packages/ai-vector.md`
-- Base: `0f3592d65c5bfa87c6bb5c60a1d4f39c7a9aa3f4`
+- Base: `03ffdb530` (`origin/main`); designed at `0f3592d65`. The two commits between don't touch this change's files.
 - Branch: `claude/ai-vector-persistence-3138`
 - Related: #3110 (general drift adoption), #3139 (one composition owner), #3140
   (alternative backends and separate projection storage),
