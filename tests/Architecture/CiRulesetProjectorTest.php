@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
@@ -29,7 +30,9 @@ final class CiRulesetProjectorTest extends TestCase
 
         self::assertSame(22, $plan['before']['required_context_count']);
         self::assertSame(31, $plan['after']['required_context_count']);
-        self::assertSame(31, $plan['verified_check_count']);
+        // The 31 projected contexts plus ci/native-host-contract, an aggregate
+        // prerequisite added after the migration (#2678): proved, never projected.
+        self::assertSame(32, $plan['verified_check_count']);
         self::assertSame(
             \crp_hash(\crp_non_context_shape(\crp_write_payload($live))),
             \crp_hash(\crp_non_context_shape($plan['payload'])),
@@ -72,7 +75,7 @@ final class CiRulesetProjectorTest extends TestCase
 
         self::assertSame(31, $plan['before']['required_context_count']);
         self::assertSame(9, $plan['after']['required_context_count']);
-        self::assertSame(31, $plan['verified_check_count']);
+        self::assertSame(32, $plan['verified_check_count']);
     }
 
     #[Test]
@@ -110,6 +113,122 @@ final class CiRulesetProjectorTest extends TestCase
         $this->expectExceptionMessage('Exact-SHA evidence is missing');
 
         \crp_plan('union', $baseline, $policy, $live, $runs, 'waaseyaa/framework', str_repeat('e', 40));
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function newPrerequisiteEvidence(): iterable
+    {
+        yield 'missing' => ['missing', 'Exact-SHA evidence is missing ci/native-host-contract.'];
+        yield 'red' => ['red', 'Exact-SHA evidence for ci/native-host-contract is not a completed success.'];
+        yield 'produced by another app' => ['wrong-app', 'Exact-SHA evidence for ci/native-host-contract has app id 99, expected 15368.'];
+    }
+
+    #[Test]
+    #[DataProvider('newPrerequisiteEvidence')]
+    public function a_prerequisite_added_after_migration_must_be_proved_on_the_evidence_sha(string $case, string $message): void
+    {
+        [$policy, $baseline, $live, $runs] = self::fixtures();
+        self::assertNotContains('ci/native-host-contract', array_column(\crp_required_contexts($baseline), 'context'), 'The prerequisite is not a legacy context.');
+        foreach ($runs as $index => $run) {
+            if ($run['name'] !== 'ci/native-host-contract') {
+                continue;
+            }
+            match ($case) {
+                'missing' => array_splice($runs, $index, 1),
+                'red' => $runs[$index]['conclusion'] = 'failure',
+                'wrong-app' => $runs[$index]['app']['id'] = 99,
+            };
+            break;
+        }
+
+        foreach (['union', 'final'] as $phase) {
+            $from = $phase === 'union' ? $live : \crp_with_required_contexts($live, \crp_phase_projection('union', $baseline, $policy)['target']);
+            try {
+                \crp_plan($phase, $baseline, $policy, $from, $runs, 'waaseyaa/framework', str_repeat('a', 40));
+                self::fail("A {$phase} plan accepted {$case} evidence for a new prerequisite.");
+            } catch (\RuntimeException $exception) {
+                self::assertSame($message, $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function a_proved_new_prerequisite_is_evidence_only_and_never_projected(): void
+    {
+        [$policy, $baseline, $live, $runs] = self::fixtures();
+
+        $plan = \crp_plan('union', $baseline, $policy, $live, $runs, 'waaseyaa/framework', str_repeat('a', 40));
+
+        self::assertContains(['context' => 'ci/native-host-contract', 'app_id' => 15368], $plan['verified_checks']);
+        self::assertArrayNotHasKey('ci/native-host-contract', $plan['after']['required_contexts']);
+        self::assertArrayNotHasKey('ci/native-host-contract', \crp_context_map(\crp_phase_projection('final', $baseline, $policy)['target']));
+        self::assertArrayNotHasKey('ci/native-host-contract', \crp_context_map(\crp_phase_projection('rollback', $baseline, $policy)['target']));
+    }
+
+    #[Test]
+    public function a_prerequisite_named_by_two_aggregates_is_required_once_and_its_latest_run_decides(): void
+    {
+        [$policy, $baseline, $live, $runs] = self::fixtures();
+        $policy['policy']['stable_aggregate_interface']['contexts']['merge-release-integrity']['prerequisite_contexts'][] = 'ci/native-host-contract';
+
+        $plan = \crp_plan('union', $baseline, $policy, $live, $runs, 'waaseyaa/framework', str_repeat('a', 40));
+        self::assertSame(32, $plan['verified_check_count']);
+        self::assertCount(1, array_filter($plan['verified_checks'], static fn(array $check): bool => $check['context'] === 'ci/native-host-contract'));
+
+        $older = ['started_at' => '2026-09-19T00:00:00Z', 'completed_at' => '2026-09-19T00:00:03Z'];
+        $newer = ['started_at' => '2026-09-21T00:00:00Z', 'completed_at' => '2026-09-21T00:00:03Z'];
+        $green = ['name' => 'ci/native-host-contract', 'status' => 'completed', 'conclusion' => 'success', 'app' => ['id' => 15368]];
+        $red = ['conclusion' => 'failure'] + $green;
+        $withoutPrerequisite = array_values(array_filter($runs, static fn(array $run): bool => $run['name'] !== 'ci/native-host-contract'));
+
+        $recovered = \crp_plan('union', $baseline, $policy, $live, [...$withoutPrerequisite, $red + $older, $green + $newer], 'waaseyaa/framework', str_repeat('a', 40));
+        self::assertSame(32, $recovered['verified_check_count']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Exact-SHA evidence for ci/native-host-contract is not a completed success.');
+        \crp_plan('union', $baseline, $policy, $live, [...$withoutPrerequisite, $green + $older, $red + $newer], 'waaseyaa/framework', str_repeat('a', 40));
+    }
+
+    #[Test]
+    public function an_already_legacy_prerequisite_keeps_its_legacy_binding(): void
+    {
+        [$policy, $baseline, $live, $runs] = self::fixtures();
+        $retarget = static function (array $runs, string $name, int $app): array {
+            foreach ($runs as $index => $run) {
+                if ($run['name'] === $name) {
+                    $runs[$index]['app']['id'] = $app;
+                }
+            }
+
+            return $runs;
+        };
+
+        // ci/mutation-pilot is a legacy context with no integration binding:
+        // it stays unbound, and is not app-checked, exactly as before.
+        $plan = \crp_plan('union', $baseline, $policy, $live, $retarget($runs, 'ci/mutation-pilot', 99), 'waaseyaa/framework', str_repeat('a', 40));
+        self::assertContains(['context' => 'ci/mutation-pilot', 'app_id' => 99], $plan['verified_checks']);
+
+        // ci/skeleton-create-project-windows keeps its legacy app binding.
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Exact-SHA evidence for ci/skeleton-create-project-windows has app id 99, expected 15368.');
+        \crp_plan('union', $baseline, $policy, $live, $retarget($runs, 'ci/skeleton-create-project-windows', 99), 'waaseyaa/framework', str_repeat('a', 40));
+    }
+
+    #[Test]
+    public function rollback_restores_the_exact_frozen_legacy_payload_without_evidence(): void
+    {
+        [$policy, $baseline, $live, $runs] = self::fixtures();
+        $red = array_map(static fn(array $run): array => ['conclusion' => 'failure'] + $run, $runs);
+
+        foreach (['union', 'final'] as $from) {
+            $liveFrom = \crp_with_required_contexts($live, \crp_phase_projection($from, $baseline, $policy)['target']);
+            $plan = \crp_plan('rollback', $baseline, $policy, $liveFrom, $red, 'waaseyaa/framework', str_repeat('c', 40));
+
+            self::assertSame(0, $plan['verified_check_count']);
+            self::assertSame(\crp_hash(\crp_write_payload($baseline)), $plan['after']['hash']);
+            self::assertSame(\crp_write_payload($baseline), $plan['payload']);
+            self::assertArrayNotHasKey('ci/native-host-contract', $plan['after']['required_contexts']);
+        }
     }
 
     #[Test]

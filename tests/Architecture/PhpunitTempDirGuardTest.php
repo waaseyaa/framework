@@ -79,21 +79,31 @@ final class PhpunitTempDirGuardTest extends TestCase
         yield 'windows: relative' => ['Temp', true, false];
         yield 'windows: relative dot' => ['.', true, false];
         yield 'windows: empty string' => ['', true, false];
+        yield 'windows: repository root itself' => ['__ROOT__', true, false];
+        yield 'windows: repository root with trailing backslash' => ['__ROOT__\\', true, false];
+        yield 'windows: repository-internal scratch (tmp\\) is allowed' => ['__ROOT__\\tmp', true, true];
     }
 
     #[Test]
     #[DataProvider('tempDirs')]
     public function the_guard_rejects_relative_and_root_temp_dirs(string $tempDir, bool $windows, bool $safe): void
     {
-        $tempDir = str_replace('__ROOT__', $this->repoRoot, $tempDir);
+        // `__ROOT__` is the checkout when the data set uses this host's own
+        // path semantics, and a synthetic root of the data set's shape
+        // otherwise: a Windows checkout path is not a POSIX absolute path, and
+        // a POSIX one is not fully qualified on Windows (#2678).
+        $root = $windows === self::hostIsWindows()
+            ? $this->repoRoot
+            : ($windows ? 'C:\\workspace\\framework' : '/workspace/framework');
+        $tempDir = str_replace('__ROOT__', $root, $tempDir);
 
-        $violation = TempDirGuard::violation($tempDir, $this->repoRoot, $windows);
+        $violation = TempDirGuard::violation($tempDir, $root, $windows);
 
         if ($safe) {
             self::assertNull($violation, "{$tempDir} must be accepted.");
         } else {
             self::assertIsString($violation, "{$tempDir} must be rejected.");
-            self::assertStringContainsString('TMPDIR', $violation);
+            self::assertStringContainsString($windows ? 'TEMP' : 'TMPDIR', $violation);
         }
     }
 
@@ -103,12 +113,12 @@ final class PhpunitTempDirGuardTest extends TestCase
         $process = new Process(
             [PHP_BINARY, '-r', 'require $argv[1];', $this->repoRoot . '/tests/bootstrap.php'],
             $this->repoRoot,
-            ['TMPDIR' => '.'],
+            self::tempDirEnvironment('.'),
         );
         $process->run();
 
         self::assertSame(1, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
-        self::assertStringContainsString('TMPDIR', $process->getErrorOutput());
+        self::assertStringContainsString(self::hostIsWindows() ? 'TEMP' : 'TMPDIR', $process->getErrorOutput());
         self::assertStringContainsString('#2927', $process->getErrorOutput());
     }
 
@@ -118,11 +128,28 @@ final class PhpunitTempDirGuardTest extends TestCase
         $process = new Process(
             [PHP_BINARY, '-r', 'require $argv[1]; echo "booted";', $this->repoRoot . '/tests/bootstrap.php'],
             $this->repoRoot,
-            ['TMPDIR' => sys_get_temp_dir()],
+            self::tempDirEnvironment(sys_get_temp_dir()),
         );
         $process->run();
 
         self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
         self::assertSame('booted', $process->getOutput());
+    }
+
+    private static function hostIsWindows(): bool
+    {
+        return \DIRECTORY_SEPARATOR === '\\';
+    }
+
+    /**
+     * The temp-directory variables this host's PHP reads: `TMPDIR` on POSIX;
+     * `TMP` then `TEMP` on native Windows, which ignores `TMPDIR` and resolves
+     * a relative value against the working directory, here the checkout.
+     *
+     * @return array<string, string>
+     */
+    private static function tempDirEnvironment(string $value): array
+    {
+        return self::hostIsWindows() ? ['TMP' => $value, 'TEMP' => $value] : ['TMPDIR' => $value];
     }
 }

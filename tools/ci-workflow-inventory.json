@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "4285446003acff3f29412759440c2e60affc18a82da3686b9cc50dbfe34d6a9f"
+                "sha256": "773fc20400b5f0789fc33c635af2afdc0554acf242096543c8d2aeb358a997e9"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -122,9 +122,9 @@
     },
     "summary": {
         "workflow_count": 23,
-        "job_count": 96,
-        "visible_context_count": 171,
-        "unresolved_expression_count": 17
+        "job_count": 97,
+        "visible_context_count": 173,
+        "unresolved_expression_count": 18
     },
     "workflows": [
         {
@@ -1383,7 +1383,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "4285446003acff3f29412759440c2e60affc18a82da3686b9cc50dbfe34d6a9f",
+            "source_sha256": "773fc20400b5f0789fc33c635af2afdc0554acf242096543c8d2aeb358a997e9",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -3431,85 +3431,6 @@
                     }
                 },
                 {
-                    "key": "local-operator-windows",
-                    "name": {
-                        "kind": "literal",
-                        "raw": "ci/local-operator-windows",
-                        "derivation": "literal"
-                    },
-                    "contexts": [
-                        {
-                            "context": "ci/local-operator-windows",
-                            "derivation": "literal",
-                            "matrix": null
-                        }
-                    ],
-                    "structural_role": "execution",
-                    "role_evidence": {
-                        "publication_signals": [],
-                        "orchestration_signals": [],
-                        "aggregate_condition_with_needs": false,
-                        "feeds_same_workflow_consumer": false
-                    },
-                    "expansion": "singleton",
-                    "strategy": null,
-                    "matrix": null,
-                    "reusable_workflow": null,
-                    "runs_on": {
-                        "kind": "literal",
-                        "value": "windows-2025"
-                    },
-                    "timeout_minutes": {
-                        "kind": "literal",
-                        "value": 20
-                    },
-                    "continue_on_error": null,
-                    "environment": null,
-                    "defaults": {
-                        "run": {
-                            "shell": "pwsh"
-                        }
-                    },
-                    "permissions": null,
-                    "effective_permissions": {
-                        "scope": "workflow",
-                        "kind": "literal",
-                        "shorthand": null,
-                        "grants": {
-                            "contents": "read"
-                        }
-                    },
-                    "needs": [],
-                    "needed_by": [],
-                    "if": null,
-                    "expected_skip": {
-                        "own_condition": false,
-                        "inherited_from": [],
-                        "propagates_prerequisite_failure": false
-                    },
-                    "aggregate": null,
-                    "dependency_result_references": [],
-                    "outputs": [],
-                    "artifacts": {
-                        "produces": [],
-                        "consumes": []
-                    },
-                    "action_uses": [
-                        "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
-                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
-                    ],
-                    "step_count": 5,
-                    "local_equivalent": {
-                        "status": "discoverable",
-                        "commands": [
-                            "composer install",
-                            "vendor/bin/phpunit"
-                        ],
-                        "hosted_signals": []
-                    }
-                },
-                {
                     "key": "manifest-conformance",
                     "name": {
                         "kind": "literal",
@@ -3978,6 +3899,7 @@
                     },
                     "needs": [
                         "frankenphp-worker",
+                        "native-host-contract-evidence",
                         "skeleton-create-project-windows"
                     ],
                     "needed_by": [],
@@ -4000,10 +3922,12 @@
                         "gate": "always",
                         "prerequisites": [
                             "frankenphp-worker",
+                            "native-host-contract-evidence",
                             "skeleton-create-project-windows"
                         ],
                         "result_checked_prerequisites": [
                             "frankenphp-worker",
+                            "native-host-contract-evidence",
                             "skeleton-create-project-windows"
                         ],
                         "result_unchecked_prerequisites": []
@@ -4011,6 +3935,12 @@
                     "dependency_result_references": [
                         {
                             "job": "frankenphp-worker",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "native-host-contract-evidence",
                             "locations": [
                                 "steps.env"
                             ]
@@ -4665,6 +4595,282 @@
                         "status": "discoverable",
                         "commands": [
                             "bin/test-mutation-pilot"
+                        ],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "native-host-contract",
+                    "name": {
+                        "kind": "bounded-expansion",
+                        "raw": "ci/native-host-contract-${{ matrix.host }}",
+                        "derivation": "template-expanded"
+                    },
+                    "contexts": [
+                        {
+                            "context": "ci/native-host-contract-linux",
+                            "derivation": "template-expanded",
+                            "matrix": {
+                                "host": "linux",
+                                "runner": "ubuntu-24.04",
+                                "composer_cache": "~/.cache/composer/files"
+                            }
+                        },
+                        {
+                            "context": "ci/native-host-contract-windows",
+                            "derivation": "template-expanded",
+                            "matrix": {
+                                "host": "windows",
+                                "runner": "windows-2025",
+                                "composer_cache": "~\\AppData\\Local\\Composer\\files"
+                            }
+                        }
+                    ],
+                    "structural_role": "setup",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": false,
+                        "feeds_same_workflow_consumer": true
+                    },
+                    "expansion": "matrix",
+                    "strategy": {
+                        "keys": [
+                            "fail-fast",
+                            "matrix"
+                        ],
+                        "fail_fast": false,
+                        "max_parallel": null
+                    },
+                    "matrix": {
+                        "resolution": "literal",
+                        "raw_expression": null,
+                        "axes": {
+                            "host": [
+                                "linux",
+                                "windows"
+                            ]
+                        },
+                        "expression_axes": [],
+                        "include": [
+                            {
+                                "host": "linux",
+                                "runner": "ubuntu-24.04",
+                                "composer_cache": "~/.cache/composer/files"
+                            },
+                            {
+                                "host": "windows",
+                                "runner": "windows-2025",
+                                "composer_cache": "~\\AppData\\Local\\Composer\\files"
+                            }
+                        ],
+                        "exclude": null,
+                        "combinations": [
+                            {
+                                "host": "linux",
+                                "runner": "ubuntu-24.04",
+                                "composer_cache": "~/.cache/composer/files"
+                            },
+                            {
+                                "host": "windows",
+                                "runner": "windows-2025",
+                                "composer_cache": "~\\AppData\\Local\\Composer\\files"
+                            }
+                        ]
+                    },
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "unresolved-expression",
+                        "value": "${{ matrix.runner }}"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 20
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": {
+                        "run": {
+                            "shell": "pwsh"
+                        }
+                    },
+                    "permissions": null,
+                    "effective_permissions": {
+                        "scope": "workflow",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [],
+                    "needed_by": [
+                        "native-host-contract-evidence"
+                    ],
+                    "if": null,
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": null,
+                    "dependency_result_references": [],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [
+                            {
+                                "step_index": 14,
+                                "name": "native-host-evidence-${{ matrix.host }}",
+                                "kind": "bounded-expansion",
+                                "expansion": [
+                                    "native-host-evidence-linux",
+                                    "native-host-evidence-windows"
+                                ],
+                                "path": [
+                                    "build/native-host/"
+                                ],
+                                "if": "always()",
+                                "if_no_files_found": "error",
+                                "retention_days": 30,
+                                "overwrite": true
+                            }
+                        ],
+                        "consumes": []
+                    },
+                    "action_uses": [
+                        "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 15,
+                    "local_equivalent": {
+                        "status": "discoverable",
+                        "commands": [
+                            "bin/check-composer-policy",
+                            "bin/check-portable-paths",
+                            "bin/check-repo-root-hygiene",
+                            "bin/check-skeleton-docker-secret-exclusion",
+                            "bin/native-host-evidence",
+                            "vendor/bin/phpunit"
+                        ],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "native-host-contract-evidence",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "ci/native-host-contract",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "ci/native-host-contract",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": null,
+                    "effective_permissions": {
+                        "scope": "workflow",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [
+                        "native-host-contract"
+                    ],
+                    "needed_by": [
+                        "merge-platform-runtime-acceptance"
+                    ],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "native-host-contract"
+                        ],
+                        "result_checked_prerequisites": [
+                            "native-host-contract"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "native-host-contract",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": [
+                            {
+                                "step_index": 3,
+                                "name": null,
+                                "pattern": "native-host-evidence-*",
+                                "kind": "literal",
+                                "expansion": [
+                                    "native-host-evidence-*"
+                                ],
+                                "path": "build/native-host-evidence",
+                                "merge_multiple": null,
+                                "cross_run": false,
+                                "run_id": null,
+                                "if": null
+                            }
+                        ]
+                    },
+                    "action_uses": [
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 5,
+                    "local_equivalent": {
+                        "status": "discoverable",
+                        "commands": [
+                            "bin/native-host-evidence"
                         ],
                         "hosted_signals": []
                     }
@@ -6181,6 +6387,40 @@
                     "cross_run_producer_candidates": []
                 },
                 {
+                    "id": "native-host-evidence-${{ matrix.host }}",
+                    "producers": [
+                        {
+                            "job": "native-host-contract",
+                            "kind": "bounded-expansion",
+                            "expansion": [
+                                "native-host-evidence-linux",
+                                "native-host-evidence-windows"
+                            ],
+                            "if": "always()"
+                        }
+                    ],
+                    "consumers": [],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                },
+                {
+                    "id": "native-host-evidence-*",
+                    "producers": [],
+                    "consumers": [
+                        {
+                            "job": "native-host-contract-evidence",
+                            "via": "pattern",
+                            "kind": "literal",
+                            "matched_producers": [
+                                "native-host-contract"
+                            ],
+                            "if": null
+                        }
+                    ],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                },
+                {
                     "id": "php-coverage",
                     "producers": [
                         {
@@ -6399,6 +6639,7 @@
             "duplicate_contexts": [],
             "unresolved_expressions": [
                 "jobs.immutable-source-artifact.steps.3.with.name: framework-source-${{ inputs.sha || github.sha }}",
+                "jobs.native-host-contract.runs-on: \"${{ matrix.runner }}\"",
                 "jobs.release-evidence.steps.3.with.name: release-evidence-dry-run-${{ github.sha }}",
                 "jobs.support-contract.steps.9.with.name: support-contract-evidence-${{ inputs.sha || github.sha }}"
             ]

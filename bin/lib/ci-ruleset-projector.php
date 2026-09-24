@@ -198,12 +198,31 @@ function crp_normalize_check_runs(array $payload): array
     return $runs;
 }
 
-/** @return list<array{context: string, app_id: int|null}> */
+/**
+ * The exact-SHA evidence a forward projection requires. The required set is:
+ *
+ * 1. the frozen legacy contexts, each keeping its tracked binding (a legacy
+ *    context without an integration id is not app-checked, as before);
+ * 2. the stable aggregate contexts, bound to the stable interface's app;
+ * 3. every aggregate prerequisite not already required, bound to that same
+ *    app. Prerequisites added behind an existing aggregate after the
+ *    migration (#2678) are proved like the rest; the legacy rollback payload
+ *    is never extended to hold them.
+ *
+ * Every required context must be a completed success on the evidence SHA,
+ * from its bound app. Rollback plans never call this.
+ *
+ * @return list<array{context: string, app_id: int|null}>
+ */
 function crp_verify_evidence(array $policy, array $legacyContexts, array $checkRuns): array
 {
     $interface = $policy['policy']['stable_aggregate_interface'] ?? null;
     if (!is_array($interface) || !is_array($interface['contexts'] ?? null)) {
         throw new RuntimeException('The policy lacks ruleset projection evidence contracts.');
+    }
+    $stableApp = $interface['integration_id'] ?? null;
+    if (!is_int($stableApp)) {
+        throw new RuntimeException('The stable aggregate contract has no integer integration_id.');
     }
     $expected = [];
     foreach ($legacyContexts as $entry) {
@@ -211,15 +230,19 @@ function crp_verify_evidence(array $policy, array $legacyContexts, array $checkR
             $expected[$entry['context']] = $entry['integration_id'] ?? null;
         }
     }
-    $stableApp = $interface['integration_id'] ?? null;
     foreach ($interface['contexts'] as $entry) {
         if (!is_array($entry) || !is_string($entry['context'] ?? null)) {
             throw new RuntimeException('The policy has an invalid stable aggregate context.');
         }
         $expected[$entry['context']] = $stableApp;
+    }
+    foreach ($interface['contexts'] as $entry) {
         foreach (($entry['prerequisite_contexts'] ?? []) as $prerequisite) {
+            if (!is_string($prerequisite) || $prerequisite === '') {
+                throw new RuntimeException("The stable aggregate {$entry['context']} has an invalid prerequisite context.");
+            }
             if (!array_key_exists($prerequisite, $expected)) {
-                throw new RuntimeException("Stable aggregate prerequisite {$prerequisite} is absent from the legacy projection.");
+                $expected[$prerequisite] = $stableApp;
             }
         }
     }

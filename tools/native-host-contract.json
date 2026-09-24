@@ -1,0 +1,273 @@
+{
+    "schema": "waaseyaa.native_host_contract",
+    "schema_version": 1,
+    "change_record": "FW-2678-NATIVE-HOST-CONTRACT-01",
+    "statement": "The supported native-host contract: every command runs, in this order, as its own step in each leaf of the ci.yml native-host-contract matrix. bin/native-host-evidence validates the hosted results; it runs nothing itself. Adding, removing or renaming a selected test method is a reviewed change to this file (tests/Architecture/NativeHostContractWorkflowTest.php derives the selection from source and compares).",
+    "harness_shell": "pwsh",
+    "php_extensions": [
+        "pdo_sqlite",
+        "sqlite3",
+        "mbstring",
+        "xml",
+        "sodium",
+        "fileinfo",
+        "zip"
+    ],
+    "hosts": {
+        "linux": {
+            "runner": "ubuntu-24.04",
+            "runner_os": "Linux",
+            "php_os_family": "Linux",
+            "architecture": "x86_64",
+            "replay_shell": "posix_sh"
+        },
+        "windows": {
+            "runner": "windows-2025",
+            "runner_os": "Windows",
+            "php_os_family": "Windows",
+            "architecture": "x86_64",
+            "replay_shell": "powershell"
+        }
+    },
+    "runtime": {
+        "php": {
+            "min": "8.5.0",
+            "below": "8.6.0"
+        },
+        "composer": {
+            "min": "2.10.0",
+            "below": "2.11.0"
+        },
+        "sqlite": {
+            "min": "3.40.0",
+            "below": "4.0.0"
+        }
+    },
+    "commands": [
+        {
+            "id": "composer-install",
+            "kind": "setup",
+            "argv": [
+                "composer",
+                "install",
+                "--no-interaction",
+                "--no-progress",
+                "--no-scripts"
+            ]
+        },
+        {
+            "id": "root-hygiene-before",
+            "kind": "gate",
+            "argv": [
+                "php",
+                "bin/check-repo-root-hygiene"
+            ]
+        },
+        {
+            "id": "composer-policy",
+            "kind": "gate",
+            "argv": [
+                "php",
+                "bin/check-composer-policy"
+            ]
+        },
+        {
+            "id": "portable-paths",
+            "kind": "gate",
+            "argv": [
+                "php",
+                "bin/check-portable-paths"
+            ]
+        },
+        {
+            "id": "null-device-self-test",
+            "kind": "gate",
+            "argv": [
+                "php",
+                "bin/check-skeleton-docker-secret-exclusion",
+                "--self-test"
+            ]
+        },
+        {
+            "id": "phpunit-unit",
+            "kind": "phpunit",
+            "argv": [
+                "php",
+                "vendor/bin/phpunit",
+                "--no-coverage",
+                "--do-not-cache-result",
+                "--fail-on-empty-test-suite",
+                "--fail-on-skipped",
+                "--fail-on-incomplete",
+                "--log-junit",
+                "build/native-host/unit.junit.xml",
+                "--log-otr",
+                "build/native-host/unit.otr.xml",
+                "--exclude-filter",
+                "/OnLinux$/",
+                "packages/cli/tests/Unit/ProjectInit/ProcOpenProjectInitProcessRunnerTest.php",
+                "packages/ai-agent/tests/Unit/LocalOperator"
+            ],
+            "expected_methods": [
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorAccountContextGuardTest::installing_the_local_operator_as_the_ambient_account_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorAccountContextGuardTest::the_refusal_is_not_a_silent_downgrade_to_anonymous",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorAccountContextGuardTest::reading_back_a_principal_that_was_already_installed_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorAccountContextGuardTest::a_principal_installed_through_a_second_reference_is_refused_on_read",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorAccountContextGuardTest::the_read_refusal_is_not_a_silent_null",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorAccountContextGuardTest::the_guard_is_transparent_for_every_other_account",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::it_is_an_authorization_principal",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::id_is_a_fixed_string_sentinel",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::the_sentinel_collides_with_no_uid_but_casts_to_the_anonymous_id",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::no_machine_identifying_value_appears_in_the_identity_surface",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::has_permission_is_strict_membership",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::has_permission_refuses_arbitrary_strings",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::roles_exclude_administrator",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::it_is_authenticated",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::tenant_and_community_are_null_by_default",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::claims_generation_is_a_digest_not_a_constant",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::claims_generation_is_deterministic_for_the_same_authority",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::claims_generation_is_order_insensitive",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::narrowing_the_capability_grant_advances_the_generation",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::narrowing_the_tool_allowlist_advances_the_generation",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::tightening_the_read_side_sovereignty_policy_advances_the_generation",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::binding_a_tenant_or_community_advances_the_generation",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::audit_actor_uid_is_null",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::audit_metadata_carries_the_sentinel_and_the_generation",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::serialization_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::json_encoding_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::var_export_round_tripping_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::unserializing_a_forged_payload_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::construction_is_refused_outside_an_explicit_development_runtime",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::construction_is_refused_outside_the_cli_sapi",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::construction_is_refused_for_any_other_transport",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorPrincipalTest::the_attestation_itself_is_not_serializable",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::the_default_allowlist_is_exactly_the_three_structural_tools",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::the_inert_spec_search_tool_stays_on_the_allowlist",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::the_default_capability_grant_is_exactly_bimaaji_read",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::admission_is_exact_membership",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::the_default_grant_withholds_every_content_and_mutation_capability",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::the_allowlist_never_widens_the_capability_grant",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::granting_a_content_bearing_capability_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::a_local_sovereignty_profile_is_not_consent_to_content_reads",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::an_unresolved_read_policy_is_a_distinct_digest_input",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::an_empty_tool_id_or_capability_is_refused",
+                "Waaseyaa\\AI\\Agent\\Tests\\Unit\\LocalOperator\\LocalOperatorToolProfileTest::lists_are_normalized_so_that_the_same_authority_digests_identically",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::fileCaptureRefusesAWorkingDirectoryThatContainsItsCaptureFiles",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::concurrentStdoutAndStderrAreDrainedInCapturedMode",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::exactCapOutputIsAccepted",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::oneByteOverCapTerminatesWithOutputLimitError",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::windowsFileCaptureReportsPostSpawnUnlinkFailureAs007",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::fileCaptureDrainsBothStreamsAtTheExactCapAndRemovesNames",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::fileCaptureDetectsOneByteOverCapAfterChildExit",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::fileCaptureKeepsTimeoutResponsiveWithoutPipeReads",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::cleanupFailureWinsAndPreservesInitiating007",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::stalledChildIsTerminatedAtRuntimeBound",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::childExitCodeIsRecoveredAfterTermination",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::timeoutWithFailedCleanupReports006AndPreservesInitiating002",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::overflowWithFailedCleanupReports006AndPreservesInitiating003",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::attachedModeDoesNotCaptureOutput",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::missingExecutableBinaryReturnsStartFailure",
+                "Waaseyaa\\CLI\\Tests\\Unit\\ProjectInit\\ProcOpenProjectInitProcessRunnerTest::missingWorkingDirectoryReturnsStartFailure"
+            ]
+        },
+        {
+            "id": "phpunit-integration",
+            "kind": "phpunit",
+            "argv": [
+                "php",
+                "vendor/bin/phpunit",
+                "--no-coverage",
+                "--do-not-cache-result",
+                "--fail-on-empty-test-suite",
+                "--fail-on-skipped",
+                "--fail-on-incomplete",
+                "--log-junit",
+                "build/native-host/integration.junit.xml",
+                "--log-otr",
+                "build/native-host/integration.otr.xml",
+                "packages/cli/tests/Integration/ProjectInitProcessTest.php",
+                "tests/Integration/LocalOperator"
+            ],
+            "expected_methods": [
+                "Waaseyaa\\CLI\\Tests\\Integration\\ProjectInitProcessTest::dryRunUsesRealProcOpenAgainstStubEntrypointWithoutCreatingDatabaseSidecar",
+                "Waaseyaa\\CLI\\Tests\\Integration\\ProjectInitProcessTest::fullCompositionRunsSiteThenInstallThroughInstalledEntrypoint",
+                "Waaseyaa\\CLI\\Tests\\Integration\\ProjectInitProcessTest::realInstalledCliPreservesTheDirectSiteEvaluationWithoutMaterializingState",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorHttpSapiRefusalTest::the_built_in_server_runs_under_the_cli_server_sapi",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorHttpSapiRefusalTest::passing_cli_for_the_seam_cannot_mint_a_principal_under_cli_server",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorHttpSapiRefusalTest::the_refusal_does_not_depend_on_what_the_seam_was_given",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::the_principal_is_not_the_dev_admin_account_and_the_fallback_is_off",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::dev_admin_account_is_constructible_here_and_is_a_wildcard",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::the_sentinel_is_not_the_anonymous_id",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::the_sentinel_resolves_to_no_persisted_user",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::it_produces_a_strict_audit_reservation_with_a_null_actor_uid",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::construction_is_refused_in_a_production_shaped_runtime_out_of_process",
+                "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::the_out_of_process_harness_constructs_under_an_explicit_development_config"
+            ]
+        },
+        {
+            "id": "phpunit-architecture",
+            "kind": "phpunit",
+            "argv": [
+                "php",
+                "vendor/bin/phpunit",
+                "--no-coverage",
+                "--do-not-cache-result",
+                "--fail-on-empty-test-suite",
+                "--fail-on-skipped",
+                "--fail-on-incomplete",
+                "--log-junit",
+                "build/native-host/architecture.junit.xml",
+                "--log-otr",
+                "build/native-host/architecture.otr.xml",
+                "--exclude-filter",
+                "/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\\w+)\\b/",
+                "tests/Architecture/RepositoryGitEntrypointTest.php",
+                "tests/Architecture/ProjectHooksLauncherTest.php",
+                "tests/Architecture/SkeletonDockerSecretExclusionTest.php",
+                "tests/Architecture/PhpunitTempDirGuardTest.php",
+                "tests/Architecture/NativeHostEvidenceTest.php"
+            ],
+            "expected_methods": [
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::the_tracked_contract_is_valid_and_its_digest_ignores_line_endings",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::contract_validation_rejects_weakened_or_unrenderable_commands",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::renderings_quote_exactly_what_each_replay_shell_would_reinterpret",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::every_argument_is_rendered_as_a_literal_that_parses_back_unchanged",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::every_contract_command_renders_to_tokens_each_replay_shell_parses_back",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::step_results_accept_only_one_successful_zero_exit_per_governed_step",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::the_subject_follows_the_event_and_never_substitutes_the_pull_request_head",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::phpunit_logs_fail_closed_on_skips_incomplete_empty_and_unlisted_methods",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::missing_logs_are_a_violation_not_an_empty_pass",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::collect_passes_only_with_complete_identity_steps_logs_and_round_trips",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::verify_set_accepts_exactly_one_passing_record_per_host_bound_to_one_source",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::the_cli_reports_unusable_arguments_as_a_harness_error",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::composer_is_started_the_way_the_host_resolves_it",
+                "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::phpunit_boots_through_the_guarded_bootstrap",
+                "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::the_guard_rejects_relative_and_root_temp_dirs",
+                "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::the_bootstrap_refuses_to_run_under_a_relative_tmpdir",
+                "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::the_bootstrap_loads_cleanly_under_an_absolute_tmpdir",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::posix_hosts_keep_bash_from_path",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::native_windows_starts_bash_from_the_git_for_windows_installation",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::native_windows_fails_closed_instead_of_falling_back_to_path_bash",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::the_exec_path_probe_starts_git_through_the_repository_git_entrypoint",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::bounded_output_returns_stdout_and_fails_closed_on_exit_overflow_start_or_deadline",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::a_child_past_its_deadline_is_stopped_and_an_exit_code_passes_through",
+                "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::the_launcher_accepts_only_install_and_doctor",
+                "Waaseyaa\\Tests\\Architecture\\RepositoryGitEntrypointTest::posix_hosts_keep_the_stash_refusing_repository_adapter",
+                "Waaseyaa\\Tests\\Architecture\\RepositoryGitEntrypointTest::native_windows_uses_the_windows_git_executable_instead_of_the_bash_adapter",
+                "Waaseyaa\\Tests\\Architecture\\RepositoryGitEntrypointTest::the_host_entrypoint_reads_repository_history_on_this_host",
+                "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionTest::the_subprocess_runner_is_platform_correct_on_every_host",
+                "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionTest::the_null_device_is_derived_from_the_runtime_not_hard_coded",
+                "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionTest::a_broken_launcher_is_never_reported_as_a_missing_docker_daemon",
+                "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionTest::a_docker_probe_that_cannot_start_is_never_classified_as_an_unavailable_daemon"
+            ]
+        },
+        {
+            "id": "root-hygiene-after",
+            "kind": "gate",
+            "argv": [
+                "php",
+                "bin/check-repo-root-hygiene"
+            ]
+        }
+    ]
+}

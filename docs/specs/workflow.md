@@ -266,15 +266,17 @@ consumed by branch protection. They must not be normalized independently of the
 fail-closed ruleset migration that runs old and replacement contexts in
 parallel. New jobs must not inherit an implicit job-key or matrix-derived name.
 
-Task 5 of `FW-CI-CHECK-ROSTER-AUDIT-01` adds nine `merge/*` contexts in shadow
-mode. They group the current 22 required contexts by owned invariant, with
-random-order kept separate from the other PHP behavior checks so its Task 8
-cadence decision cannot weaken ordinary test or coverage protection. Each
-shadow job uses `if: always()` and explicitly requires every prerequisite
-result to equal `success`; failed, cancelled, skipped, or missing evidence
-cannot produce a green decision. The `merge/*` contexts are visible but are
-not required until the Task 6 live audit proves their names and terminal-state
-parity and Task 7 performs the governed ruleset migration.
+Task 5 of `FW-CI-CHECK-ROSTER-AUDIT-01` added nine `merge/*` contexts that group
+the 22 legacy required contexts by owned invariant, with random-order kept
+separate from the other PHP behavior checks so its Task 8 cadence decision
+cannot weaken ordinary test or coverage protection. Each aggregate uses
+`if: always()` and explicitly requires every prerequisite result to equal
+`success`; failed, cancelled, skipped, or missing evidence cannot produce a
+green decision. Since the Task 7 migration these nine are the live ruleset's
+sole required-check interface. A prerequisite may be added behind an existing
+aggregate without renaming it, as #2678 added `ci/native-host-contract` behind
+`merge/platform-runtime-acceptance`; `tools/ci-check-roster.json` records the
+prerequisites, and the legacy baseline below is not extended.
 
 Task 6 adds `ci-roster-live-audit.yml`, scheduled weekly and available by manual
 dispatch only. `bin/audit-ci-roster-live` compares the manifest with the live
@@ -290,9 +292,13 @@ the 31-context legacy-plus-stable union, and the nine stable decisions. The
 command is a dry run unless `--apply`, the exact ruleset id, a fresh live payload
 hash, and an exact evidence SHA at current `main` are all supplied. It rejects non-status drift,
 an unexpected predecessor projection, missing or non-green exact-SHA evidence,
-and a post-write refetch whose hash differs from the plan. Rollback from either
-forward state restores the complete tracked 22-context payload and does not
-depend on green checks. During the bounded migration only those three exact
+and a post-write refetch whose hash differs from the plan. Forward evidence
+covers the legacy contexts with their tracked bindings, the nine stable
+decisions, and every aggregate prerequisite not already among them, bound to
+the GitHub Actions app; each must be a completed success on the evidence SHA
+(#2678). Rollback from either forward state restores the complete tracked
+22-context payload, byte-identical and never extended with later
+prerequisites, and does not depend on green checks. During the bounded migration only those three exact
 projections are accepted by the scheduled live audit. Task 9 narrows that
 temporary allowance to the final projection.
 

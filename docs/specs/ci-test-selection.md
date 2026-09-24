@@ -425,8 +425,15 @@ instead, via the shared `.github/actions/composer-install-retry` composite
 action (or an equivalent hand-rolled loop where the job's `run:` shape
 cannot cleanly call a composite action mid-script).
 
-`ci/skeleton-create-project-windows` (#2644) is the one job in this file that
-does not run on Linux. It proves the fresh-project lifecycle — create-project,
+Two jobs in this file run on native Windows. The `native-host-contract` matrix
+(#2678) runs the tracked native-host contract (`tools/native-host-contract.json`)
+on both `ubuntu-24.04` and `windows-2025` under PowerShell, with a curated,
+strict PHPUnit selection rather than the timing-balanced shards; see
+[native-host-support.md](native-host-support.md). Its locked `composer install`
+is a contract step, so it is not retried: a transient failure is recorded as a
+failed step and the leaf is re-run (its evidence upload overwrites the failed
+attempt's).
+`ci/skeleton-create-project-windows` (#2644) proves the fresh-project lifecycle — create-project,
 the pre-init verification refusal, `site:init`, `install:init`, and
 `composer site-verify` — on a native Windows development host, where the
 framework previously could not complete `site:init` at all. It cannot use the
