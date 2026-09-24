@@ -127,17 +127,19 @@ still determine the current disposition.
 
 ### Root `bin/` commands
 
-`bin/` contains 93 Git-tracked top-level entries at this contract revision.
-Every entry appears exactly once in the partition below. Interpreter choice is
-recorded to make the inventory reproducible, but is not itself portability
-evidence.
+`bin/` contains 103 Git-tracked top-level files at this contract revision. The
+`bin/lib/` helper directory is not an entry. Every file appears exactly once in
+the partition below, with the stated counts;
+`tests/Architecture/NativeHostBinInventoryTest.php` enforces both. Interpreter
+choice is recorded to make the inventory reproducible, but is not itself
+portability evidence.
 
 | Current disposition | Complete top-level inventory | Evidence/boundary |
 |---|---|---|
 | POSIX-only internal automation (29 Bash entries) | `audit-composer-deps`, `audit-require-dev-layers`, `build-admin-dist`, `build-exact-source-artifact`, `build-split-contribution-boundary`, `check-admin-coercion-patterns`, `check-contract-suite-coverage`, `check-ingestion-defaults`, `check-monorepo-release-shape`, `check-no-secrets`, `check-openapi`, `check-phpstan`, `check-phpstan-paths`, `check-phpunit-paths`, `check-release-publish-shape`, `check-release-require-parity`, `check-release-tag-parity`, `clean-package-vendors`, `configure-split-tag-protection`, `enable-governed-auto-merge`, `git`, `materialize-exact-source-artifact`, `project-hooks`, `promote-exact-source-artifact`, `test-isolated-package`, `verify-exact-source-artifact`, `verify-random-order-vendor-archive`, `waaseyaa`, `wait-for-green-ci` | Bash is required. Git Bash/WSL may run some entries but are not native Windows proof. |
 | WSL2/POSIX-only development runtime (2 PHP entries) | `dev-runtime`, `dev-runtime-consumer` | The implementation requires POSIX absolute paths and `HOME`/`XDG_CACHE_HOME`; the bootstrap additionally uses `/dev/null`, `tar`, symlinks, `chmod`, and the `wsl2-ubuntu-24.04-x86_64` profile. Neither entry is native Windows portable. |
 | POSIX aggregate despite PHP coordinator (1 PHP entry) | `check-pr-preflight` | It executes `tools/preflight-gates.json`, whose default roster includes Bash tools and shell scripts. On native Windows those Bash gates need Git for Windows Bash. |
-| Host-specific internal framework-maintainer tools with no native Windows support claim (57 PHP entries) | `adapt-consumer-promotions`, `admin-dist-acceptance`, `agent-checkpoint`, `build-phpunit-shards`, `changelog-fragments`, `check-admin-dist-fresh`, `check-changed-php-coverage`, `check-changelog-shape`, `check-composer-policy`, `check-covers-nothing-companions`, `check-dead-code`, `check-delivery-agent-events`, `check-dispatcher-keys`, `check-distribution-exclusion`, `check-distribution-extensions`, `check-external-consumers`, `check-getquery-bindings`, `check-governed-secret-access`, `check-landing-base`, `check-local-operator-tool-profile`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-php-coverage-baseline`, `check-portable-paths`, `check-repo-root-hygiene`, `check-runtime-policy-custody`, `check-s1-configuration-activation`, `check-s1-configuration-authority`, `check-s1-schema-authority`, `check-s1-sqlite-contract`, `check-skeleton-docker-secret-exclusion`, `check-stale-spec-deferrals`, `check-support-contract`, `check-symfony-imports`, `check-upgrade-contract`, `check-vendor-fresh`, `compile-spec-corpus`, `generate-surface-map`, `merge-clover-coverage`, `migrate-surface-map`, `normalize-admin-dist`, `phpstan-level-audit`, `project-board-sync`, `project-delivery-agent-events`, `qualify-candidate`, `refresh-governance-artifacts`, `refresh-phpunit-timings`, `resolve-split-main-targets`, `run-hermetic-admin-build`, `skeleton-unpublished-repositories`, `summarize-php-coverage`, `sync-internal-versions`, `test-mutation-pilot`, `test-quality-inventory`, `test-random-order`, `verify-k1-delivery-cutover`, `worktree-coordinator` | Some run in Linux CI or focused local checks; no current native Windows job executes these exact root entrypoints. They are not classified portable merely because they are PHP. |
+| Host-specific internal framework-maintainer tools with no native Windows support claim (67 PHP entries) | `adapt-consumer-promotions`, `admin-dist-acceptance`, `agent-checkpoint`, `audit-ci-roster-live`, `build-phpunit-shards`, `changelog-fragments`, `check-admin-dist-fresh`, `check-changed-php-coverage`, `check-changelog-shape`, `check-ci-roster-conformance`, `check-composer-policy`, `check-covers-nothing-companions`, `check-dead-code`, `check-delivery-agent-events`, `check-dispatcher-keys`, `check-distribution-exclusion`, `check-distribution-extensions`, `check-external-consumers`, `check-getquery-bindings`, `check-governed-secret-access`, `check-landing-base`, `check-local-operator-tool-profile`, `check-package-coverage-history`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-php-coverage-baseline`, `check-portable-paths`, `check-repo-root-hygiene`, `check-runtime-policy-custody`, `check-s1-configuration-activation`, `check-s1-configuration-authority`, `check-s1-schema-authority`, `check-s1-sqlite-contract`, `check-skeleton-docker-secret-exclusion`, `check-stale-spec-deferrals`, `check-support-contract`, `check-symfony-imports`, `check-upgrade-contract`, `check-vendor-fresh`, `classify-ci-run-evidence`, `collect-ci-run-evidence`, `compile-spec-corpus`, `generate-ci-workflow-inventory`, `generate-surface-map`, `maintainer-skills`, `merge-clover-coverage`, `migrate-surface-map`, `normalize-admin-dist`, `phpstan-level-audit`, `project-board-sync`, `project-ci-ruleset`, `project-delivery-agent-events`, `project-hooks-launcher`, `qualify-candidate`, `refresh-governance-artifacts`, `refresh-phpunit-timings`, `report-ci-measurement`, `resolve-split-main-targets`, `run-hermetic-admin-build`, `skeleton-unpublished-repositories`, `summarize-php-coverage`, `sync-internal-versions`, `test-mutation-pilot`, `test-quality-inventory`, `test-random-order`, `verify-k1-delivery-cutover`, `worktree-coordinator` | Some run in Linux CI or focused local checks; no current native Windows job executes these exact root entrypoints. They are not classified portable merely because they are PHP. `project-hooks-launcher` is the internal Composer entrypoint for `hooks:install` and `hooks:doctor` described in the Composer-script row above. |
 | Host-specific internal framework-maintainer tools with no native Windows support claim (2 PHP files without shebangs) | `check-access-hardening`, `check-phpunit-skip-policy` | These remain tracked `bin/` entries, but no current native Windows job proves them. |
 | Host-specific release helper (1 Node entry) | `generate-release-evidence` | Release automation, not a native consumer entrypoint; no cross-host claim is made. |
 | Host-specific Windows proof helper (1 PowerShell entry) | `check-bimaaji-junction-containment.ps1` | Executed on `windows-2025` to prove junction containment. It is not portable to Linux and is not a general consumer command. |
@@ -150,8 +152,14 @@ does not make any other POSIX-only `bin/` entrypoint portable.
 
 The four omissions found during review—`check-landing-base`,
 `check-skeleton-docker-secret-exclusion`, `check-vendor-fresh`, and
-`worktree-coordinator`—are included in the 57-entry row.
-`verify-k1-delivery-cutover` appears once.
+`worktree-coordinator`—are included in the 67-entry row.
+`verify-k1-delivery-cutover` appears once. The same row also holds the ten
+files that were missing until #2679 reconciled the inventory: the CI and
+governance tools `audit-ci-roster-live`, `check-ci-roster-conformance`,
+`classify-ci-run-evidence`, `collect-ci-run-evidence`,
+`generate-ci-workflow-inventory`, `project-ci-ruleset` and
+`report-ci-measurement`, plus `check-package-coverage-history`,
+`maintainer-skills` and `project-hooks-launcher`.
 
 ### Skeleton scripts and generated maintenance commands
 
