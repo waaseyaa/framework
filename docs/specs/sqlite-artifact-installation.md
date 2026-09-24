@@ -100,23 +100,36 @@ that no longer exists.
 
 When the artifact carries a fingerprinted manifest (`schema_fingerprint` and
 `ledger_fingerprint` both non-null), preparation requires the artifact's
-recorded values to equal its own computed schema and ledger fingerprints
-before touching anything, requires every schema object that differs between
-the artifact and the prepared candidate to belong to a non-`artifact`-policy
-catalogue table, and then conditionally re-records only `schema_fingerprint`
-to the candidate's computed value — `UPDATE ... WHERE authority_id = 1 AND
-schema_fingerprint = <artifact's recorded value>`, requiring exactly one
-affected row. `ledger_fingerprint`, `source_catalog_fingerprint`, and
-`generation` are left exactly as the artifact recorded them:
-`waaseyaa_migrations` is itself catalogued `artifact` and untouched by the
-handoff, so the candidate's ledger is already byte-identical to the
-artifact's, and `generation` counts governed schema-mutation transitions, not
-artifact handoffs. After commit, preparation asserts the candidate's recorded
-schema and ledger fingerprints equal their freshly computed values, using the
-identical computation the serving host's own schema-authority pre-state
-assertion and `migrate --verify` use, and discards the candidate on any
-mismatch. An artifact without a fingerprinted manifest — a fresh install or a
-pre-fingerprint adoption — is left completely untouched.
+recorded values to equal its own computed schema and ledger fingerprints —
+checked against the read-only artifact connection before the candidate file
+exists at all, so a stale manifest fails before a single row moves — and
+captures those values, together with the artifact's full schema object set.
+Inside the candidate transaction, after runtime preservation, preparation
+first requires the candidate's own (copied) manifest row to still equal
+exactly what was captured, then requires every schema object that differs
+between the captured artifact snapshot and the prepared candidate to belong
+to a non-`artifact`-policy catalogue table, then conditionally re-records
+only `schema_fingerprint` to the candidate's computed value — `UPDATE ...
+WHERE authority_id = 1 AND schema_fingerprint = <artifact's recorded
+value>`, requiring exactly one affected row. The bind check exists because a
+serving-only table's cloned schema can include a trigger that fires during
+row copying and mutates data anywhere, including this very manifest row; see
+`docs/change-records/FW-3149.md` for the reproduction. `ledger_fingerprint`,
+`source_catalog_fingerprint`, and `generation` are left exactly as the
+artifact recorded them: `waaseyaa_migrations` is itself catalogued `artifact`
+and untouched by the handoff, so the candidate's ledger is already
+byte-identical to the artifact's, and `generation` counts governed
+schema-mutation transitions, not artifact handoffs. After commit, preparation
+asserts the candidate's recorded schema and ledger fingerprints equal their
+freshly computed values, using the identical computation the serving host's
+own schema-authority pre-state assertion and `migrate --verify` use, and
+discards the candidate on any mismatch — this is the only guard that catches
+a cloned trigger mutating a *different* artifact-policy table's data, such as
+an extra row inserted into the migration ledger. An artifact without a
+fingerprinted manifest — a fresh install or a pre-fingerprint adoption — is
+left completely untouched. A manifest table present but missing a required
+fingerprint column is a different case again — an installation too old for
+this contract — and fails closed rather than being treated as no manifest.
 
 This fingerprint computation must describe exactly one algorithm. The
 deployer package computes it independently of the serving host's own
@@ -155,9 +168,11 @@ Installation fails before activation for:
 - dangling account references;
 - append-only row-count or digest changes;
 - failed integrity or foreign-key checks;
-- a stale artifact schema-authority manifest, an unbounded schema difference
-  outside runtime-policy tables, a schema-authority manifest that changed
-  concurrently, or a post-commit schema-authority verification mismatch;
+- a stale or too-old artifact schema-authority manifest, a candidate
+  schema-authority manifest that no longer matches the values captured from
+  the artifact, an unbounded schema difference outside runtime-policy tables,
+  a schema-authority manifest that changed concurrently, or a post-commit
+  schema-authority verification mismatch;
 - paths that are symlinks, aliases of one another, or outside the caller's
   approved deployment root.
 
