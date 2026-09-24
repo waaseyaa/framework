@@ -1,19 +1,23 @@
 # `waaseyaa/ai-vector` audit
 
-- **Audit state:** in progress. It isn't assessed yet, for three reasons:
-  1. the findings have no owner issues yet (that waits on the remediation split below);
-  2. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
-  3. the AIV-SEC-001 private report hasn't been filed.
-- **Remediation state:** not triaged
+- **Audit state:** in progress. It isn't assessed yet, for two reasons:
+  1. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
+  2. AIV-SEC-001 hasn't completed private triage.
+- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. #3138 (AIV-PERSIST-001, AIV-PERSIST-002) is implemented by FW-AIV-PERSIST-01.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
 - **Dependency identity:** `composer.lock` SHA-256 `1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48` at the base; PHP 8.5.5, native Windows 11
-- **Evidence freshness:** current at `bfba7f27d7a27a2228649bc75967fb1d261856c0`
-- **Owner issue:** program `waaseyaa/framework#3118` (no package audit issue yet)
+- **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. The one production change since then, FW-AIV-PERSIST-01 (#3138), is reconciled in the charter, roster and AIV-PERSIST entries:
+  - `SqliteEmbeddingStorage` was replaced by `DatabaseEmbeddingStorage`;
+  - the `embeddings` migration was added;
+  - `waaseyaa/database-legacy` was declared.
+
+  Nothing else was re-audited. The findings' observed evidence describes the base.
+- **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
 - **Profiles applied:** persistence-execution, kernel-runtime, domain-contracts, http-ui-contracts (the search route and its composition), distribution. **Not applied:** introspection-cli (ai-vector registers no commands; `semantic:warm` and `semantic:refresh` live in `waaseyaa/cli` and only call `SemanticIndexWarmer`), generation-build (the package generates nothing).
 
 ## Charter
 
-- **Owns:** computing text embeddings through a configured provider (Ollama, OpenAI), storing one vector per entity, similarity search over stored vectors, keeping vectors in step with entity lifecycle events, and the semantic search controller.
+- **Owns:** computing text embeddings through a configured provider (Ollama, OpenAI), storing one vector per entity in its migration-owned `embeddings` table, similarity search over stored vectors, keeping vectors in step with entity lifecycle events, and the semantic search controller.
 - **Does not own:** schema authority (Foundation), entity storage and access policy (entity, access), publication rules (workflows), route registration (Foundation `BuiltinRouteRegistrar`), the `vector.search` AI tool (ai-tools), CLI commands (cli).
 - **Consumers:**
   - Foundation `HttpKernel` registers its lifecycle listeners.
@@ -21,23 +25,25 @@
   - The CLI `semantic:warm` and `semantic:refresh` handlers use `SemanticIndexWarmer`.
   - ai-tools `VectorSearchTool` duck-types its interfaces.
   - It arrives in applications through `waaseyaa/cli` (a runtime `require`) and the `waaseyaa/full` metapackage; `core` and `cms` don't include it.
-- **Dependencies:** requires entity, entity-storage, queue, api, access, workflows and foundation, all used; there are no undeclared imports. Embedding providers are optional and chosen by config. Storage has one implementation (SQLite through raw PDO) and isn't configurable.
+- **Dependencies:** requires entity, entity-storage, queue, api, access, workflows, foundation and (since FW-AIV-PERSIST-01) database-legacy, all used; there are no undeclared imports. Embedding providers are optional and chosen by config.
+- **Storage:** there is one implementation. At the base it was SQLite through raw PDO. Since FW-AIV-PERSIST-01 it is `DatabaseEmbeddingStorage` over `DatabaseInterface`, on the migration-owned `embeddings` table. It isn't configurable (#3140).
 - **Public surface:** see AIV-PUBLIC-001. `public-surface.php` declares five symbols, but nine classes carry `@api` without a declaration, and `SearchController` states a "stable" v1.0 wire contract that isn't declared anywhere.
 - **Evidence it works:**
-  - Source: 89 package unit tests and 12 related integration tests pass.
+  - Source: at the base, 89 package unit tests and 12 related integration tests pass. With FW-AIV-PERSIST-01, 107 package tests pass, including the migration and serving-path schema-authority tests.
   - Distributed form: not qualified (see "Not reviewed").
 
 ## Roster
 
-All 21 PHP files under `src/`, plus `public-surface.php` (22 PHP files), the manifest and the README.
+All 21 PHP files under `src/`, the migration and `public-surface.php` (23 PHP files), plus the manifest and the README. The rows for `DatabaseEmbeddingStorage` and the migration reflect FW-AIV-PERSIST-01 and replace the base's `SqliteEmbeddingStorage` row.
 
 | File | Role | Classification | Evidence level | Notes |
 | --- | --- | --- | --- | --- |
 | `src/AiVectorServiceProvider.php` | Binds storage, provider and warmer | duplicated or drifting contract | reviewed | Its bindings are bypassed by Foundation (AIV-COMP-001) |
-| `src/SqliteEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation | missing refusal, lifecycle, compatibility or distribution evidence | reproduced | AIV-PERSIST-001, AIV-PERSIST-002 |
+| `src/DatabaseEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation, over `DatabaseInterface` | owned and coherent | reproduced | Replaced `SqliteEmbeddingStorage` (AIV-PERSIST-001, AIV-PERSIST-002) in FW-AIV-PERSIST-01; no DDL, no raw PDO |
+| `migrations/2026_09_24_000001_embeddings_schema.php` | Owns the `embeddings` table | owned and coherent | reproduced | Creates it, adopts a compatible table in place, refuses others with `[AIV-DB001]` (FW-AIV-PERSIST-01) |
 | `src/EmbeddingStorageInterface.php` | Storage contract used in production | owned and coherent | reviewed | Competes with `VectorStoreInterface` (AIV-PUBLIC-001) |
 | `src/EntityEmbeddingListener.php` | Re-index on save and revision moves | necessary but under-specified | reproduced | Synchronous remote call (AIV-EXEC-001); indexability rule (AIV-DOMAIN-001) |
-| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | necessary but under-specified | reproduced | Triggers the lazy DDL (AIV-PERSIST-001) |
+| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | necessary but under-specified | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001) |
 | `src/SearchController.php` | Semantic and keyword search, graph rerank | necessary but under-specified | reproduced (synthetic) | AIV-SEC-001, AIV-HTTP-001 |
 | `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reviewed | The CLI's only indexing path (AIV-COMP-002) |
 | `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places (AIV-COMP-001) |
@@ -118,7 +124,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 - **Observed, with evidence:**
   - `AiVectorServiceProvider` binds an `EmbeddingStorageInterface` singleton and a provider.
-  - `HttpKernel` builds another `SqliteEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners (`EventListenerRegistrar.php:147`).
+  - `HttpKernel` builds another `SqliteEmbeddingStorage` and calls `EmbeddingProviderFactory::fromConfig()` again for the listeners (`EventListenerRegistrar.php:147`). Since FW-AIV-PERSIST-01 it builds a `DatabaseEmbeddingStorage` instead; the duplication is unchanged.
   - `SearchRouter` builds a third storage and provider on every request.
   - All three are hard-wired to the SQLite class, so the interface binding can't substitute storage for HTTP.
 - **Expected contract:** one composition owner and one selected storage, shared by listeners, HTTP, CLI and tools.
@@ -146,7 +152,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 ### `AIV-BACKEND-001`: `pgvector` advertised but never used
 
-- **Observed, with evidence:** `SovereigntyDefaults` sets `embeddings` and `vector_store` to `pgvector` for the `northops` profile. No ai-vector or Foundation code reads either key; every composition path builds `SqliteEmbeddingStorage`, and `findSimilar()` scans every row of a type in PHP.
+- **Observed, with evidence:** `SovereigntyDefaults` sets `embeddings` and `vector_store` to `pgvector` for the `northops` profile. No ai-vector or Foundation code reads either key; every composition path builds `SqliteEmbeddingStorage` (`DatabaseEmbeddingStorage` since FW-AIV-PERSIST-01), and `findSimilar()` scans every row of a type in PHP.
 - **Expected contract:** an advertised backend is implemented, or a request for it is refused clearly.
 - **Consequence and consumers:** a northops deployment believes it has pgvector and silently gets SQLite storage in its application database, with full-scan search.
 - **Severity and confidence:** medium; confirmed.
@@ -161,7 +167,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 - **Observed, with evidence (safe summary):** under a specific configuration, the public search endpoint's response metadata can include identifiers and ranking data for entities that the visibility or access filters removed from the result list. Reproduced with a synthetic unit-level probe. The probe and details are withheld from this public record.
 - **Expected contract:** a search response reveals nothing about entities the caller can't see.
-- **Consequence and consumers:** applications that enable semantic search. Scope and severity will be assessed in a private report. **That report hasn't been filed**; filing waits on the maintainer's authorization.
+- **Consequence and consumers:** applications that enable semantic search. Scope and severity will be assessed in a private report. The report is in private triage.
 - **Severity and confidence:** withheld from this record; confirmed. Maintainer-side triage (2026-09-23): high static confidence, first in the exploitability queue.
 - **Refutation:** none found.
 - **Disposition and owner:** repair through the private reporting route (`SECURITY.md`).
@@ -344,7 +350,7 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 | `php vendor/bin/phpunit packages/ai-vector/tests --no-coverage` | same | same | same | source read (unit, mocked) | 89 tests, 306 assertions pass |
 | `php vendor/bin/phpunit tests/Integration/Phase8/VectorSearchIntegrationTest.php tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php --no-coverage` | same | same | same | injected integration | 12 tests, 62 assertions pass |
 | `php bin/check-package-layers` | same | same | same | declared dependency layers | pass |
-| Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept for the private report, which hasn't been filed |
+| Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept with the private report, which is in private triage |
 
 ## Proposed remediation split (for maintainer approval; no issues opened)
 

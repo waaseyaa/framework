@@ -154,11 +154,11 @@
             "path": "packages/ai-vector",
             "form": "library",
             "audit_state": "in progress",
-            "remediation_state": "not triaged",
+            "remediation_state": "in progress",
             "audit_base": "bfba7f27d7a27a2228649bc75967fb1d261856c0",
             "audit_date": "2026-09-23",
             "dependency_identity": "composer.lock sha256:1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48",
-            "owner_issue": "#3118",
+            "owner_issue": "#3137",
             "evidence": [
                 {
                     "kind": "repository-path",
@@ -169,7 +169,7 @@
                     "path": "tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php"
                 }
             ],
-            "notes": "Persistence calibration audit: 13 findings and 4 refuted leads. In progress until the remediation split has owner issues, the open profile items are closed or qualified, and the AIV-SEC-001 private report is filed."
+            "notes": "Persistence calibration audit: 13 findings and 4 refuted leads. Remediation umbrella #3137 with child issues #3138-#3143. The FW-AIV-PERSIST-01 (#3138) production change is reconciled in the audit record; nothing else was re-audited. In progress until the open profile items are closed or qualified and AIV-SEC-001 completes private triage."
         },
         {
             "package": "waaseyaa/analytics",
