@@ -231,6 +231,7 @@
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::the_tracked_contract_is_valid_and_its_digest_ignores_line_endings",
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::contract_validation_rejects_weakened_or_unrenderable_commands",
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::renderings_quote_exactly_what_each_replay_shell_would_reinterpret",
+                "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::every_argument_is_rendered_as_a_literal_that_parses_back_unchanged",
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::every_contract_command_renders_to_tokens_each_replay_shell_parses_back",
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::step_results_accept_only_one_successful_zero_exit_per_governed_step",
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::the_subject_follows_the_event_and_never_substitutes_the_pull_request_head",

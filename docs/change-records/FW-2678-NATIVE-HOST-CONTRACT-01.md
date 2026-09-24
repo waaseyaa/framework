@@ -60,8 +60,10 @@ Windows and produced a validated evidence record for each host.
   skipped or non-success steps. It then records and validates the evidence
   listed below. `verify-set` accepts exactly one passing record per contract
   host, bound to the verifier's checkout, the contract digest and the workflow
-  run. The Composer version is resolved through `cmd.exe` on Windows, because
-  an argument-array start cannot reach `composer.bat`.
+  run. On Windows the Composer shim is resolved on `PATH`/`PATHEXT` to an
+  absolute path and started through `cmd.exe`: an argument-array start cannot
+  reach `composer.bat`, and a bare name makes the shim's `%~dp0` the working
+  directory.
 - **Lineage.** `ci/native-host-contract` needs the matrix, requires its result
   to be `success` and runs `verify-set`. `merge/platform-runtime-acceptance`
   now needs `frankenphp-worker`, `skeleton-create-project-windows` and
@@ -105,7 +107,15 @@ Windows and produced a validated evidence record for each host.
 - JUnit and OTR counts, and that exactly the expected methods ran.
 - A replay rendering per host, round-tripped through the real shell. The
   PowerShell rendering goes through `pwsh` on both leaves; the POSIX `sh`
-  rendering also goes through `sh` on Linux.
+  rendering also goes through `sh` on Linux. Every element of either
+  rendering, the program included, is a single-quoted literal: PowerShell's
+  runs through the `&` call operator with each single quotation mark doubled,
+  and POSIX `sh`'s uses `'\''`. A fixed regression argument set
+  (`NHE_RENDERING_REGRESSION_ARGV`: `-Dfoo.bar`, `-Dfoo.bar=value`, spaces, an
+  embedded quote, an empty argument, a quoted Windows path ending in a
+  backslash, a UNC path, backslashes, `$HOME`, `a,b`) is round-tripped the
+  same way. The contract rejects PowerShell's stop-parsing token `--%`, which
+  Windows PowerShell drops even when quoted.
 
 Missing identity exits 3 (incomplete, never a pass). A violation exits 1.
 
@@ -147,6 +157,15 @@ Composer 2.9.5. This is local native evidence, not the reference host.
   - the round-trip comparison disabled (1 failure).
 - The `bin/check-skeleton-docker-secret-exclusion --self-test` null-device
   control passes natively (exit 0).
+- Review found that the first renderer left switch-shaped tokens such as
+  `-Dfoo.bar` bare, which PowerShell splits at the dot. The renderer now emits
+  every element as a literal. A real child-process round trip on this host
+  through Windows PowerShell 5.1 (no `pwsh` installed) preserved every contract
+  command and 8 of the 10 regression arguments, including both `-Dfoo.bar`
+  forms. 5.1's legacy argument passing lost the empty argument and the quoted
+  path ending in a backslash, and it also drops a quoted `--%`. Under WSL, the
+  real `sh` round trip preserved every regression argument and contract
+  command. The hosted `pwsh` round trip is the authoritative check.
 
 ## Residual limitations recorded, not fixed
 

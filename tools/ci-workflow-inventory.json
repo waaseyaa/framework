@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "74e736d8a8d8a11813f033bd3f562e1a24cae36fb272f32275bb0c9f87f7d28b"
+                "sha256": "773fc20400b5f0789fc33c635af2afdc0554acf242096543c8d2aeb358a997e9"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -1383,7 +1383,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "74e736d8a8d8a11813f033bd3f562e1a24cae36fb272f32275bb0c9f87f7d28b",
+            "source_sha256": "773fc20400b5f0789fc33c635af2afdc0554acf242096543c8d2aeb358a997e9",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -4752,10 +4752,6 @@
                             "bin/check-repo-root-hygiene",
                             "bin/check-skeleton-docker-secret-exclusion",
                             "bin/native-host-evidence",
-                            "composer install",
-                            "tests/Architecture/PhpunitTempDirGuardTest.php",
-                            "tests/Architecture/ProjectHooksLauncherTest.php",
-                            "tests/Integration/LocalOperator",
                             "vendor/bin/phpunit"
                         ],
                         "hosted_signals": []

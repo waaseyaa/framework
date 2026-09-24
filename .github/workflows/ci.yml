@@ -1540,7 +1540,7 @@ jobs:
         id: composer-install
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          composer install --no-interaction --no-progress --no-scripts
+          & 'composer' 'install' '--no-interaction' '--no-progress' '--no-scripts'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1549,7 +1549,7 @@ jobs:
         id: root-hygiene-before
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php bin/check-repo-root-hygiene
+          & 'php' 'bin/check-repo-root-hygiene'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1558,7 +1558,7 @@ jobs:
         id: composer-policy
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php bin/check-composer-policy
+          & 'php' 'bin/check-composer-policy'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1567,7 +1567,7 @@ jobs:
         id: portable-paths
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php bin/check-portable-paths
+          & 'php' 'bin/check-portable-paths'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1576,7 +1576,7 @@ jobs:
         id: null-device-self-test
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php bin/check-skeleton-docker-secret-exclusion --self-test
+          & 'php' 'bin/check-skeleton-docker-secret-exclusion' '--self-test'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1585,7 +1585,7 @@ jobs:
         id: phpunit-unit
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php vendor/bin/phpunit --no-coverage --do-not-cache-result --fail-on-empty-test-suite --fail-on-skipped --fail-on-incomplete --log-junit build/native-host/unit.junit.xml --log-otr build/native-host/unit.otr.xml --exclude-filter '/OnLinux$/' packages/cli/tests/Unit/ProjectInit/ProcOpenProjectInitProcessRunnerTest.php packages/ai-agent/tests/Unit/LocalOperator
+          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/unit.junit.xml' '--log-otr' 'build/native-host/unit.otr.xml' '--exclude-filter' '/OnLinux$/' 'packages/cli/tests/Unit/ProjectInit/ProcOpenProjectInitProcessRunnerTest.php' 'packages/ai-agent/tests/Unit/LocalOperator'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1594,7 +1594,7 @@ jobs:
         id: phpunit-integration
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php vendor/bin/phpunit --no-coverage --do-not-cache-result --fail-on-empty-test-suite --fail-on-skipped --fail-on-incomplete --log-junit build/native-host/integration.junit.xml --log-otr build/native-host/integration.otr.xml packages/cli/tests/Integration/ProjectInitProcessTest.php tests/Integration/LocalOperator
+          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/integration.junit.xml' '--log-otr' 'build/native-host/integration.otr.xml' 'packages/cli/tests/Integration/ProjectInitProcessTest.php' 'tests/Integration/LocalOperator'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1603,7 +1603,7 @@ jobs:
         id: phpunit-architecture
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php vendor/bin/phpunit --no-coverage --do-not-cache-result --fail-on-empty-test-suite --fail-on-skipped --fail-on-incomplete --log-junit build/native-host/architecture.junit.xml --log-otr build/native-host/architecture.otr.xml --exclude-filter '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\w+)\b/' tests/Architecture/RepositoryGitEntrypointTest.php tests/Architecture/ProjectHooksLauncherTest.php tests/Architecture/SkeletonDockerSecretExclusionTest.php tests/Architecture/PhpunitTempDirGuardTest.php tests/Architecture/NativeHostEvidenceTest.php
+          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/architecture.junit.xml' '--log-otr' 'build/native-host/architecture.otr.xml' '--exclude-filter' '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\w+)\b/' 'tests/Architecture/RepositoryGitEntrypointTest.php' 'tests/Architecture/ProjectHooksLauncherTest.php' 'tests/Architecture/SkeletonDockerSecretExclusionTest.php' 'tests/Architecture/PhpunitTempDirGuardTest.php' 'tests/Architecture/NativeHostEvidenceTest.php'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1612,7 +1612,7 @@ jobs:
         id: root-hygiene-after
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          php bin/check-repo-root-hygiene
+          & 'php' 'bin/check-repo-root-hygiene'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode

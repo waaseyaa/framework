@@ -152,6 +152,10 @@ function nhe_validate_contract(array $contract): array
         foreach ($argv as $position => $token) {
             if (!is_string($token) || $token === '' || preg_match('/^[\x20-\x7E]+$/', $token) !== 1 || str_contains($token, '"')) {
                 $errors[] = "{$id}: argv[{$position}] must be non-empty printable ASCII without a double quote";
+            } elseif ($token === '--%') {
+                // Windows PowerShell drops the stop-parsing token even when it
+                // is quoted, so no PowerShell rendering can claim to pass it.
+                $errors[] = "{$id}: argv[{$position}] is PowerShell's stop-parsing token, which no rendering passes literally";
             }
         }
         if (!in_array($argv[0], NHE_PROGRAMS, true)) {
@@ -228,43 +232,65 @@ function nhe_canonicalize(mixed $value): mixed
 }
 
 /**
- * Native PowerShell rendering: bare words where PowerShell passes them
- * through unchanged, single quotes (with '' for a quote) otherwise. The
- * program must be a bare word, or PowerShell would read a string expression.
+ * PowerShell quote characters: inside a single-quoted literal PowerShell ends
+ * the string at the ASCII apostrophe and at the Unicode single quotation marks
+ * alike, and reads any of them doubled as one literal character.
+ */
+const NHE_POWERSHELL_SINGLE_QUOTES = ["'", "\u{2018}", "\u{2019}", "\u{201A}", "\u{201B}"];
+
+/**
+ * Arguments whose rendering the hosted leaves round-trip through the real
+ * shells in addition to the contract commands (#2678): switch-shaped tokens
+ * PowerShell would split if they were bare, spaces, embedded quotes, an empty
+ * argument, and backslash-heavy Windows paths, including a trailing backslash
+ * inside a quoted path.
+ */
+const NHE_RENDERING_REGRESSION_ARGV = [
+    'php',
+    '-Dfoo.bar',
+    '-Dfoo.bar=value',
+    'two words',
+    "it's",
+    '',
+    'C:\\Program Files\\Waaseyaa\\',
+    '\\\\server\\share\\dir',
+    'back\\slash',
+    '$HOME',
+    'a,b',
+];
+
+/**
+ * Native PowerShell rendering. Every element, the program included, is a
+ * single-quoted literal (each quote character doubled), started through the
+ * call operator: no element is ever left for PowerShell to interpret, so
+ * switch-shaped, empty or special tokens reach the program unchanged.
  *
  * @param non-empty-list<string> $argv
  */
 function nhe_render_powershell(array $argv): string
 {
-    return nhe_render($argv, '~^[A-Za-z0-9_./-]+$~', static fn(string $token): string => "'" . str_replace("'", "''", $token) . "'");
+    $literals = array_map(
+        static fn(string $token): string => "'" . str_replace(
+            NHE_POWERSHELL_SINGLE_QUOTES,
+            array_map(static fn(string $quote): string => $quote . $quote, NHE_POWERSHELL_SINGLE_QUOTES),
+            $token,
+        ) . "'",
+        $argv,
+    );
+
+    return '& ' . implode(' ', $literals);
 }
 
 /**
- * POSIX sh rendering: bare words where sh passes them through unchanged,
- * single quotes (with '\'' for a quote) otherwise.
+ * POSIX sh rendering. Every element, the program included, is a
+ * single-quoted literal; an embedded quote closes the literal, is escaped,
+ * and reopens it ('\'').
  *
  * @param non-empty-list<string> $argv
  */
 function nhe_render_posix(array $argv): string
 {
-    return nhe_render($argv, '~^[A-Za-z0-9_./=:,@%+-]+$~', static fn(string $token): string => "'" . str_replace("'", "'\\''", $token) . "'");
-}
-
-/**
- * @param non-empty-list<string> $argv
- * @param callable(string): string $quote
- */
-function nhe_render(array $argv, string $bare, callable $quote): string
-{
-    if (preg_match($bare, $argv[0]) !== 1) {
-        throw new InvalidArgumentException("the program {$argv[0]} is not a bare word");
-    }
-    $rendered = [];
-    foreach ($argv as $token) {
-        $rendered[] = preg_match($bare, $token) === 1 ? $token : $quote($token);
-    }
-
-    return implode(' ', $rendered);
+    return implode(' ', array_map(static fn(string $token): string => "'" . str_replace("'", "'\\''", $token) . "'", $argv));
 }
 
 /**
@@ -718,8 +744,25 @@ function nhe_collect(array $contract, string $host, string $root, array $env, ca
     if ($probeScript === false || file_put_contents($probeScript, '<?php echo json_encode(array_slice($argv, 1), JSON_UNESCAPED_SLASHES);') === false) {
         throw new RuntimeException('cannot write the argument probe');
     }
+    $shells = ['pwsh'];
+    if ($definition['replay_shell'] === 'posix_sh') {
+        $shells[] = 'sh';
+    }
     $commands = [];
+    $regression = [];
     try {
+        foreach ($shells as $replayShell) {
+            $started = false;
+            $problem = nhe_round_trip(NHE_RENDERING_REGRESSION_ARGV, $replayShell, $probeScript, $runner, $started);
+            $regression[$replayShell] = $problem === null ? 'verified' : $problem;
+            if ($problem !== null) {
+                if ($started) {
+                    $violations[] = "rendering regression: {$problem}";
+                } else {
+                    $incomplete[] = "rendering regression: {$problem}";
+                }
+            }
+        }
         foreach ($contract['commands'] as $command) {
             $id = $command['id'];
             $record = [
@@ -733,10 +776,6 @@ function nhe_collect(array $contract, string $host, string $root, array $env, ca
                 ? nhe_render_powershell($command['argv'])
                 : nhe_render_posix($command['argv']);
 
-            $shells = ['pwsh'];
-            if ($definition['replay_shell'] === 'posix_sh') {
-                $shells[] = 'sh';
-            }
             foreach ($shells as $replayShell) {
                 $started = false;
                 $problem = nhe_round_trip($command['argv'], $replayShell, $probeScript, $runner, $started);
@@ -795,6 +834,7 @@ function nhe_collect(array $contract, string $host, string $root, array $env, ca
                 'composer' => sprintf('>=%s <%s', $contract['runtime']['composer']['min'], $contract['runtime']['composer']['below']),
             ],
         ],
+        'rendering_regression' => ['argv' => NHE_RENDERING_REGRESSION_ARGV, 'round_trip' => $regression],
         'commands' => $commands,
         'violations' => $violations,
         'incomplete' => $incomplete,

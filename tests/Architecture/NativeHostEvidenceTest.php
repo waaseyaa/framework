@@ -78,6 +78,7 @@ final class NativeHostEvidenceTest extends TestCase
         yield 'a program that is not php or composer' => ['bash-program', 'argv[0] must be one of php, composer'];
         yield 'a hosted shell other than pwsh' => ['cmd-shell', 'harness_shell must be pwsh'];
         yield 'an empty runtime range' => ['empty-range', 'runtime.composer must be {min, below}'];
+        yield 'the PowerShell stop-parsing token' => ['stop-parsing', 'which no rendering passes literally'];
     }
 
     #[Test]
@@ -102,6 +103,7 @@ final class NativeHostEvidenceTest extends TestCase
             'bash-program' => $contract['commands'][0]['argv'][0] = 'bash',
             'cmd-shell' => $contract['harness_shell'] = 'cmd',
             'empty-range' => $contract['runtime']['composer'] = ['min' => '2.10.0', 'below' => '2.10.0'],
+            'stop-parsing' => $contract['commands'][0]['argv'][] = '--%',
         };
 
         self::assertStringContainsString($expected, implode("\n", \nhe_validate_contract($contract)));
@@ -114,16 +116,43 @@ final class NativeHostEvidenceTest extends TestCase
         $argv = ['php', 'vendor/bin/phpunit', '--exclude-filter', '/OnLinux$/', "it's", 'a,b', 'C:\\Temp\\probe'];
 
         self::assertSame(
-            "php vendor/bin/phpunit --exclude-filter '/OnLinux$/' 'it''s' 'a,b' 'C:\\Temp\\probe'",
+            "& 'php' 'vendor/bin/phpunit' '--exclude-filter' '/OnLinux$/' 'it''s' 'a,b' 'C:\\Temp\\probe'",
             \nhe_render_powershell($argv),
         );
         self::assertSame(
-            "php vendor/bin/phpunit --exclude-filter '/OnLinux$/' 'it'\\''s' a,b 'C:\\Temp\\probe'",
+            "'php' 'vendor/bin/phpunit' '--exclude-filter' '/OnLinux$/' 'it'\\''s' 'a,b' 'C:\\Temp\\probe'",
             \nhe_render_posix($argv),
         );
+        self::assertSame("& 'C:\\php\\php.exe' '-v'", \nhe_render_powershell(['C:\\php\\php.exe', '-v']), 'A quoted program runs through the call operator.');
+        self::assertSame("& 'php' 'curly' 'it\u{2019}\u{2019}s'", \nhe_render_powershell(['php', 'curly', "it\u{2019}s"]), 'PowerShell also ends a literal at a Unicode single quote.');
+    }
 
-        $this->expectException(\InvalidArgumentException::class);
-        \nhe_render_powershell(['C:\\php\\php.exe', '-v']);
+    /** @return iterable<string, array{string, string, string}> */
+    public static function switchShapedAndSpecialArguments(): iterable
+    {
+        yield 'a dotted switch PowerShell would split if bare' => ['-Dfoo.bar', "'-Dfoo.bar'", "'-Dfoo.bar'"];
+        yield 'a dotted switch with a value' => ['-Dfoo.bar=value', "'-Dfoo.bar=value'", "'-Dfoo.bar=value'"];
+        yield 'spaces' => ['two words', "'two words'", "'two words'"];
+        yield 'an embedded single quote' => ["it's", "'it''s'", "'it'\\''s'"];
+        yield 'an empty argument' => ['', "''", "''"];
+        yield 'a Windows path with a space and a trailing backslash' => ['C:\\Program Files\\Waaseyaa\\', "'C:\\Program Files\\Waaseyaa\\'", "'C:\\Program Files\\Waaseyaa\\'"];
+        yield 'a UNC path' => ['\\\\server\\share\\dir', "'\\\\server\\share\\dir'", "'\\\\server\\share\\dir'"];
+        yield 'a backslash' => ['back\\slash', "'back\\slash'", "'back\\slash'"];
+        yield 'a variable reference' => ['$HOME', "'\$HOME'", "'\$HOME'"];
+        yield 'a PowerShell array separator' => ['a,b', "'a,b'", "'a,b'"];
+    }
+
+    #[Test]
+    #[DataProvider('switchShapedAndSpecialArguments')]
+    public function every_argument_is_rendered_as_a_literal_that_parses_back_unchanged(string $argument, string $powershell, string $posix): void
+    {
+        $argv = ['php', $argument, 'tail'];
+
+        self::assertSame("& 'php' {$powershell} 'tail'", \nhe_render_powershell($argv));
+        self::assertSame("'php' {$posix} 'tail'", \nhe_render_posix($argv));
+        self::assertSame($argv, self::parsePowerShell(\nhe_render_powershell($argv)));
+        self::assertSame($argv, self::parsePosix(\nhe_render_posix($argv)));
+        self::assertContains($argument, \NHE_RENDERING_REGRESSION_ARGV, 'The hosted leaves round-trip this argument through the real shells.');
     }
 
     #[Test]
@@ -317,8 +346,11 @@ final class NativeHostEvidenceTest extends TestCase
         self::assertArrayHasKey($replay, $evidence['commands'][0]);
         self::assertArrayNotHasKey($host === 'windows' ? 'posix_sh' : 'powershell', $evidence['commands'][0]);
         self::assertSame('verified', $evidence['commands'][0]['round_trip']['pwsh']);
+        self::assertSame(\NHE_RENDERING_REGRESSION_ARGV, $evidence['rendering_regression']['argv']);
+        self::assertSame('verified', $evidence['rendering_regression']['round_trip']['pwsh']);
         if ($host === 'linux') {
             self::assertSame('verified', $evidence['commands'][0]['round_trip']['sh']);
+            self::assertSame('verified', $evidence['rendering_regression']['round_trip']['sh']);
         }
 
         $noComposer = \nhe_collect($contract, $host, $root, self::hostEnvironment($host, $root . '/path'), self::shellModel(composer: null), self::MERGE_SHA);
@@ -553,38 +585,23 @@ final class NativeHostEvidenceTest extends TestCase
         };
     }
 
-    /** @return list<string> the words of a rendering built from bare words and '...' with '' */
+    /**
+     * The words of `& '...' '...'`: single-quoted literals in which any
+     * PowerShell single quotation mark is written doubled.
+     *
+     * @return list<string>
+     */
     private static function parsePowerShell(string $rendered): array
     {
-        $tokens = [];
-        $length = strlen($rendered);
-        for ($i = 0; $i < $length;) {
-            if ($rendered[$i] === ' ') {
-                $i++;
-                continue;
-            }
-            $token = '';
-            if ($rendered[$i] === "'") {
-                for ($i++; $i < $length; $i++) {
-                    if ($rendered[$i] === "'" && ($rendered[$i + 1] ?? '') === "'") {
-                        $token .= "'";
-                        $i++;
-                    } elseif ($rendered[$i] === "'") {
-                        $i++;
-                        break;
-                    } else {
-                        $token .= $rendered[$i];
-                    }
-                }
-            } else {
-                for (; $i < $length && $rendered[$i] !== ' '; $i++) {
-                    $token .= $rendered[$i];
-                }
-            }
-            $tokens[] = $token;
-        }
+        self::assertStringStartsWith('& ', $rendered);
+        $quote = "['\u{2018}\u{2019}\u{201A}\u{201B}]";
+        self::assertSame(1, preg_match("/^& (?:'(?:[^'\u{2018}-\u{201B}]|({$quote})\\1)*'(?: |\$))+\$/u", $rendered), $rendered);
+        preg_match_all("/'((?:[^'\u{2018}-\u{201B}]|({$quote})\\2)*)'/u", $rendered, $matches);
 
-        return $tokens;
+        return array_map(
+            static fn(string $literal): string => preg_replace("/({$quote})\\1/u", '$1', $literal) ?? $literal,
+            $matches[1],
+        );
     }
 
     /** @return list<string> the words of a rendering built from bare words, '...' and \' */

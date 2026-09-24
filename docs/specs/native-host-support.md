@@ -78,11 +78,17 @@ The hosted leaves run their steps under `pwsh`. That shell is CI harness
 machinery, not a Linux or Windows contributor or consumer prerequisite: the
 evidence records the shell that ran, and its replay data gives each command's
 canonical argument array, a native PowerShell rendering for Windows and a
-POSIX `sh` rendering for Linux. Each leaf round-trips the PowerShell rendering
-through the hosted `pwsh`, and the Linux leaf also round-trips the POSIX
-rendering through `sh`, so every recorded rendering delivered the exact
-argument array. No single quoted string is claimed to work in every shell, and
-`cmd.exe` renderings are not claimed.
+POSIX `sh` rendering for Linux. Every element of both renderings, the program
+included, is a single-quoted literal: PowerShell's through the `&` call
+operator with each single quotation mark doubled, POSIX `sh`'s with `'\''`. No
+element is left for either shell to interpret. Each leaf round-trips the
+PowerShell rendering of every command, and a fixed set of switch-shaped,
+spaced, quoted, empty and backslash-path arguments, through the hosted
+`pwsh`; the Linux leaf also round-trips the POSIX rendering through `sh`. So
+every recorded rendering delivered the exact argument array. No single quoted
+string is claimed to work in every shell, and neither `cmd.exe` nor Windows
+PowerShell 5.1 renderings are claimed: 5.1's legacy native-argument passing
+drops an empty argument and mangles a quoted path ending in a backslash.
 
 ## Materially equivalent behavior
 
