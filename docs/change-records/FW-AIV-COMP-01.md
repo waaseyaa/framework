@@ -2,7 +2,7 @@
 
 - Forge mirror: `waaseyaa/framework#3139` (parent #3137, program #3118)
 - Findings: AIV-COMP-001, AIV-COMP-002, AIV-EXEC-002 in `docs/audits/packages/ai-vector.md`
-- Base: `eafd7a3fb25290c9afeb871e7c49b5404629e413`
+- Base: `3479dec2fcce623e68fa9ad3fe21a0c0d2d9cc21`
 - Branch: `claude/ai-vector-composition-3139`
 - Depends on: #3138 (landed as `4512c0d9a`: `DatabaseEmbeddingStorage` and the migration-owned table)
 - Related: #3140 (backend selection), #3142 (execution model, including asynchronous indexing)
@@ -11,7 +11,7 @@
 
 ## Problem, reproduced at the base
 
-Red tests at `1e3baeb8a` pinned all three defects before the fix.
+Red tests at `55bbd6c5d` pinned all three defects before the fix.
 
 - **AIV-COMP-001, two compositions.** `HttpKernel::finalizeBoot()` built its own `DatabaseEmbeddingStorage` and called `EmbeddingProviderFactory::fromConfig()` again for the listeners. So the listeners never used the storage and provider bound by `AiVectorServiceProvider`. `SearchRouter` built a third pair on every request.
 - **AIV-COMP-002, no CLI lifecycle.** `ConsoleKernel` registered no ai-vector listeners. Entities deleted or unpublished from the CLI, imports or queue workers kept their vectors until `semantic:refresh` ran.
@@ -77,6 +77,7 @@ Red tests at `1e3baeb8a` pinned all three defects before the fix.
   - the S1 SQLite roster was regenerated for the new test-only constructions.
 - `check-pr-preflight --full`: 46 of 47 gates pass. The failure is `check-dead-code`, on the same three `config` and `scheduler` findings that fail on unmodified `main` on this host.
 - Both S1 installed-artifact contracts pass.
-- After the second review fix (`35936541c`, the per-interface rule): 148 tests and 630 assertions pass on the same set. `check-pr-preflight` passes 45 of 45 fast gates; `--full` fails only on the same host-only dead-code findings.
-- After the first review fix (`c89944b5a`): 147 tests and 613 assertions pass across `tests/Integration/AiVector`, the ai-vector package tests, `SearchRouterTest` and the Phase 8 and 15 integration tests. `HttpKernelTest`'s two search cases still hit only the Windows WAL teardown error. `check-pr-preflight --full` still passes 46 of 47 gates, with the same host-only dead-code findings, and both S1 installed-artifact contracts pass again.
+- Rebased onto `3479dec2f` after #3152 changed the lock and S1 authorities. The rebase kept all nine commits equivalent. Only the lock digest in `support/s1-sqlite-dependency-bytes.json` differs, regenerated with its governed writer; the lock and roster changes are the same lines as before. On the rebased head, 161 tests and 1515 assertions pass (the set below plus the coverage-index tests), `check-pr-preflight` passes 45 of 45 gates, and both S1 installed-artifact contracts pass. The runs in the two items below were made on the equivalent pre-rebase commits.
+- After the second review fix (`e743631a6`, the per-interface rule): 148 tests and 630 assertions pass on the same set. `check-pr-preflight` passes 45 of 45 fast gates; `--full` fails only on the same host-only dead-code findings.
+- After the first review fix (`416e9739c`): 147 tests and 613 assertions pass across `tests/Integration/AiVector`, the ai-vector package tests, `SearchRouterTest` and the Phase 8 and 15 integration tests. `HttpKernelTest`'s two search cases still hit only the Windows WAL teardown error. `check-pr-preflight --full` still passes 46 of 47 gates, with the same host-only dead-code findings, and both S1 installed-artifact contracts pass again.
 - The #3138 drift probe still passes all 5 cases.
