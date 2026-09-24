@@ -3,10 +3,10 @@
 - **Audit state:** in progress. It isn't assessed yet, for two reasons:
   1. some profile items are open or unqualified: the installed split-package and `--no-dev` behavior, search contract conformance (there's no declared schema to check against), and an end-to-end reproduction of AIV-EXEC-002 through a real repository;
   2. AIV-SEC-001 hasn't completed private triage.
-- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. #3138 (AIV-PERSIST-001, AIV-PERSIST-002) is implemented by FW-AIV-PERSIST-01.
+- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`).
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
 - **Dependency identity:** `composer.lock` SHA-256 `1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48` at the base; PHP 8.5.5, native Windows 11
-- **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. The one production change since then, FW-AIV-PERSIST-01 (#3138), is reconciled in the charter, roster and AIV-PERSIST entries:
+- **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. The one production change since then, FW-AIV-PERSIST-01 (#3138, landed as `4512c0d9a`), is reconciled in the charter, roster and AIV-PERSIST entries:
   - `SqliteEmbeddingStorage` was replaced by `DatabaseEmbeddingStorage`;
   - the `embeddings` migration was added;
   - `waaseyaa/database-legacy` was declared.
@@ -70,8 +70,8 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 
 | ID | Title | Severity | Confidence | Level | Disposition | Owner | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | repair | #3138 (FW-AIV-PERSIST-01) | Migration-owned table; remediation candidate in #3138 |
-| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | repair | #3138 (FW-AIV-PERSIST-01) | `DatabaseEmbeddingStorage` in #3138; server-database qualification in #3140 |
+| `AIV-PERSIST-001` | Lifecycle listeners create `embeddings` on the authoritative database outside schema authority | high | confirmed | reproduced | resolved | #3138/#3147 (`4512c0d9a`) | None; migration-owned table landed |
+| `AIV-PERSIST-002` | Raw PDO and SQLite-only SQL on a driver-agnostic connection | medium | confirmed | reviewed | resolved | #3138/#3147 (`4512c0d9a`) | None; server-database qualification in #3140 |
 | `AIV-COMP-001` | Three separately constructed storage and provider instances | medium | confirmed | reviewed | repair | #3139 | Define one composition path |
 | `AIV-COMP-002` | Lifecycle listeners exist only under `HttpKernel` | medium | confirmed | reviewed | repair | #3139 | Decide whether CLI and workers keep vectors in step |
 | `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reviewed | repair or document | #3140 | Implement and qualify, or stop advertising and refuse clearly |
@@ -101,11 +101,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** any application that installs `waaseyaa/cli` (AIV-DIST-001) and serves HTTP gets drift on its first qualifying delete or save. After that, every coordinated transition refuses, including `install:init` in a new release. This blocked FETDER's production release (fetder-waaseyaa#160) and is the ai-vector half of #3110.
 - **Severity and confidence:** high; confirmed by reproduction. The spec already names ai-vector as a drift source, so this was known but unowned.
 - **Refutation:** considered "the deployer catalogue classifies `embeddings` as a runtime artifact table, so it's intended". Not a refutation: `FrameworkRuntimeTableCatalogue` governs deploy handoff, not schema authority, and the spec requires migration ownership or a separate file.
-- **Disposition and owner:** repair; #3138 (FW-AIV-PERSIST-01). FETDER was unblocked on 2026-09-23 by a guarded one-time manifest re-record (fetder-waaseyaa#160); the repair prevents recurrence.
+- **Disposition and owner:** resolved by #3138/#3147 (FW-AIV-PERSIST-01, `4512c0d9a`). FETDER was unblocked on 2026-09-23 by a guarded one-time manifest re-record (fetder-waaseyaa#160); the repair prevents recurrence.
 - **Dependencies:** #3110 (Foundation schema adoption) and AIV-PERSIST-002.
 - **Acceptance:** the probe's two drift cases (the delete and the draft-node save) flip; save, delete and search leave the manifest fingerprint unchanged (search is source-reviewed here, not reproduced by the probe, so the repair needs its own search case); strict verification and the next coordinated transition stay green on a real SQLite file.
 - **Residual risk:** a database already drifted by the runtime table needs the documented re-adoption in `docs/specs/ai-integration.md` (embeddings-only drift). General adoption tooling remains #3110.
-- **Next action:** decided 2026-09-23: a migration-owned table on the authoritative database; already-drifted databases use the documented re-adoption procedure (`docs/specs/ai-integration.md`), with general adoption left to #3110. Remediation candidate in #3138.
+- **Next action:** decided 2026-09-23: a migration-owned table on the authoritative database; already-drifted databases use the documented re-adoption procedure (`docs/specs/ai-integration.md`), with general adoption left to #3110. Resolved by #3147.
 
 ### `AIV-PERSIST-002`: raw PDO and SQLite-only SQL on a driver-agnostic connection
 
@@ -114,11 +114,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** on MySQL or Postgres, `store()` fails. The listener logs the failure, so no vectors are ever written and semantic search silently returns nothing. The constructor also changes the shared connection's error mode.
 - **Severity and confidence:** medium; confirmed by source review. Not run against a non-SQLite database.
 - **Refutation:** none found.
-- **Disposition and owner:** repair; #3138 (FW-AIV-PERSIST-01).
+- **Disposition and owner:** resolved by #3138/#3147 (FW-AIV-PERSIST-01, `4512c0d9a`).
 - **Dependencies:** AIV-PERSIST-001's storage decision.
 - **Acceptance:** storage uses the framework database layer; the store/search/delete contract passes on SQLite; the shared connection's attributes are unchanged. Server-database qualification moved to #3140.
 - **Residual risk:** none after the repair.
-- **Next action:** remediation candidate in #3138. Server-database qualification moved to #3140.
+- **Next action:** none for this finding. Server-database qualification is owned by #3140.
 
 ### `AIV-COMP-001`: three separately constructed storage and provider instances
 
@@ -357,7 +357,7 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 
 The maintainer approved the split on 2026-09-23 with adjustments, replacing the WP-A to WP-D proposal. The umbrella issue is #3137, and qualification is part of the acceptance of each child and of the umbrella; it isn't a separate issue.
 
-- **#3138, persistence and the FETDER unblock:** AIV-PERSIST-001 and AIV-PERSIST-002. Implemented by FW-AIV-PERSIST-01.
+- **#3138, persistence and the FETDER unblock:** AIV-PERSIST-001 and AIV-PERSIST-002. Resolved by #3147 (`4512c0d9a`); closed.
 - **#3139, composition and lifecycle:** AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002.
 - **#3140, distribution and backend claims:** AIV-DIST-001 and AIV-BACKEND-001, plus server-database qualification. Depends on #3138 and #3139.
 - **#3141, public contract and indexing policy:** AIV-PUBLIC-001 and AIV-DOMAIN-001.
