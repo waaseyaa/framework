@@ -211,16 +211,13 @@ function pnd_occurrences(string $path, string $source): array
         // The token after a declaration keyword names it. A colon there means
         // the keyword was a named argument (`class:`, `function:`), and a class
         // keyword followed by anything but a name declares an anonymous class.
-        // A name token declares nothing itself, even when it is a keyword
+        // A function's name declares nothing itself, even when it is a keyword
         // (`function class()`, `function function()`).
         if ($pending !== null && $pending['name'] === null && $pending['kind'] !== 'closure' && $text !== '&') {
             if ($text === ':') {
                 $pending = null;
             } elseif ($pending['kind'] === 'class') {
                 $pending['name'] = $id === T_STRING ? $text : 'class@anonymous';
-                if ($id === T_STRING) {
-                    continue;
-                }
             } elseif ($text === '(') {
                 $pending['kind'] = 'closure';
             } else {
