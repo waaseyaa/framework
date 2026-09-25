@@ -143,12 +143,18 @@ function nhc_load_contract(string $path): array
 /**
  * The command names a `list --raw` output lists, in output order: the first
  * word of every line. A byte-order mark, carriage returns and colour codes
- * are ignored.
+ * are ignored. PowerShell 7.4+ redirects a native command's bytes unchanged;
+ * Windows PowerShell 5.1, the local replay shell where pwsh is absent, writes
+ * UTF-16LE with a byte-order mark, which is decoded first.
  *
  * @return list<string>
  */
 function nhc_catalogue(string $raw): array
 {
+    if (str_starts_with($raw, "\xFF\xFE")) {
+        $decoded = @iconv('UTF-16LE', 'UTF-8', substr($raw, 2));
+        $raw = is_string($decoded) ? $decoded : '';
+    }
     $raw = preg_replace(['/^\xEF\xBB\xBF/', '/\e\[[0-9;]*[A-Za-z]/'], '', $raw) ?? $raw;
     $names = [];
     foreach (preg_split('/\R/', $raw) ?: [] as $line) {

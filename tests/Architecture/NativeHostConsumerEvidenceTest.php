@@ -155,6 +155,11 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             \nhc_catalogue("\xEF\xBB\xBFabout    Display information\r\nlist  List commands\r\n\e[32mdb:init\e[39m  Initialize the database\n\n  indented continuation\nsite:init\n"),
         );
         self::assertSame([], \nhc_catalogue(''));
+        self::assertSame(
+            ['list', 'db:init'],
+            \nhc_catalogue("\xFF\xFE" . (string) iconv('UTF-8', 'UTF-16LE', "list      List commands\r\ndb:init   Initialize the database\r\n")),
+            'A Windows PowerShell 5.1 redirection (UTF-16LE with a byte-order mark) is decoded.',
+        );
     }
 
     #[Test]
