@@ -19,25 +19,29 @@ require_once __DIR__ . '/repository-files.php';
  * documentation and are ignored):
  *
  * - a direct descriptor, `['file', '/dev/null', ...]`, is always rejected,
- *   whether or not it is classified;
+ *   whether or not it is classified, even inside a host choice;
  * - every other occurrence must be classified in
  *   tools/portable-null-device-classifications.json by file, enclosing symbol
  *   and literal, with the exact occurrence count and one purpose. The anchor
  *   has no line number, so an unrelated edit cannot make it stale. The
- *   purposes are mutually exclusive syntactic shapes of the occurrence's
- *   statement, so a classification cannot claim the wrong one:
- *   - platform-derived: the statement also names the Windows NUL device and
- *     a Windows host signal;
+ *   purposes are mutually exclusive syntactic shapes of the occurrence and its
+ *   statement, so a classification can only claim the purpose whose shape the
+ *   occurrence has:
+ *   - platform-derived: the same statement also names the Windows NUL device
+ *     and a Windows host signal (the direction of the choice is not checked,
+ *     and a choice spread over several statements does not fit);
  *   - semantic-diff-marker: unified-diff data (a "--- /dev/null" or
  *     "+++ /dev/null" header, or a bare "/dev/null" label next to an a/ or b/
  *     label), never opened and never a redirection;
- *   - posix-only-shell: a shell redirection to /dev/null with no NUL
+ *   - posix-only-shell: shell command text that redirects to /dev/null or
+ *     passes it as a whitespace- or `=`-delimited word, with no NUL
  *     counterpart, in code the classification declares POSIX-only.
  *
  * Stale, duplicated, malformed, unsorted or overly broad classifications are
  * rejected. Line endings are normalized first, so a CRLF checkout scans
- * exactly as an LF one. Plain functions, no autoloader: the gate runs before
- * `composer install` as well as after it.
+ * exactly as an LF one. Plain functions, no autoloader and no extension
+ * beyond PHP's default build: the gate runs before `composer install` as well
+ * as after it.
  */
 
 const PND_SCHEMA = 'waaseyaa.portable_null_device_classifications';
@@ -63,6 +67,9 @@ const PND_ENTRY_KEYS = ['file', 'symbol', 'literal', 'occurrences', 'purpose', '
 
 const PND_RATIONALE_MAX = 500;
 
+/** Diagnostics survive a literal that is not valid UTF-8. */
+const PND_JSON = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+
 /**
  * Whether a repository-relative path is on the governed production surface.
  *
@@ -82,20 +89,20 @@ function pnd_is_governed_path(string $path): bool
 }
 
 /**
- * A `.php` file, or any file whose content opens as PHP: `<?php` first, or a
- * PHP shebang line followed by `<?php` (the extensionless `bin/` entrypoints).
+ * A `.php` file, or any file whose content opens as PHP: an open tag first
+ * (in any case, after an optional byte-order mark), or a PHP shebang line
+ * (`php`, `php8.5`, ...) followed, after any blank lines, by the open tag.
+ * $head is at least the first 256 bytes of the file.
  */
 function pnd_is_php_source(string $path, string $head): bool
 {
     if (str_ends_with($path, '.php')) {
         return true;
     }
-    if (str_starts_with($head, "\u{FEFF}")) {
-        $head = substr($head, 3);
-    }
+    $head = str_replace("\r\n", "\n", str_starts_with($head, "\u{FEFF}") ? substr($head, 3) : $head);
 
-    return str_starts_with($head, '<?php')
-        || preg_match('/\A#![^\n]*\bphp\b[^\n]*\n<\?php/', str_replace("\r\n", "\n", $head)) === 1;
+    return stripos($head, '<?php') === 0
+        || preg_match('/\A#![^\n]*\bphp[\d.]*\b[^\n]*\n(?:[ \t]*\n)*<\?php/i', $head) === 1;
 }
 
 /**
@@ -161,14 +168,15 @@ function pnd_token_content(array $token): string
 /**
  * Every string token in $source that spells /dev/null, with its enclosing
  * symbol, whether it is a direct proc_open() file descriptor, and the facts
- * of its statement that decide which purpose can fit it.
+ * of the token and its statement that decide which purpose can fit it.
  *
  * The symbol is `Class::method`, `function`, `Class` (a class-level
- * constant or property) or `{main}` (file scope). Closures and arrow
- * functions belong to the symbol that encloses them.
+ * constant or property) or `{main}` (file scope). An anonymous class is
+ * `class@anonymous`. Closures and arrow functions belong to the symbol that
+ * encloses them.
  *
  * @return list<array{file: string, line: int, symbol: string, literal: string, descriptor: bool,
- *     redirection: bool, diff_header: bool, bare: bool, nul: bool, windows: bool, diff_label: bool}>
+ *     redirection: bool, shell_word: bool, diff_header: bool, bare: bool, nul: bool, windows: bool, diff_label: bool}>
  */
 function pnd_occurrences(string $path, string $source): array
 {
@@ -199,20 +207,24 @@ function pnd_occurrences(string $path, string $source): array
             $candidates[] = [$index, count($significant) - 1, pnd_symbol($frames)];
         }
 
-        if ($pending !== null && $pending['kind'] === 'function' && $pending['name'] === null && $text !== '&') {
-            if ($text === '(') {
+        // The token after a declaration keyword names it. A colon there means
+        // the keyword was a named argument (`class:`, `function:`), and a class
+        // keyword followed by anything but a name declares an anonymous class.
+        if ($pending !== null && $pending['name'] === null && $pending['kind'] !== 'closure' && $text !== '&') {
+            if ($text === ':') {
+                $pending = null;
+            } elseif ($pending['kind'] === 'class') {
+                $pending['name'] = $id === T_STRING ? $text : 'class@anonymous';
+            } elseif ($text === '(') {
                 $pending['kind'] = 'closure';
             } else {
                 $pending['name'] = $text;
             }
-        } elseif ($pending !== null && $pending['kind'] === 'class' && $pending['name'] === null && $id === T_STRING) {
-            $pending['name'] = $text;
         }
 
         if (in_array($id, [T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], true)
             && !(is_array($previous) && $previous[0] === T_DOUBLE_COLON)) {
-            $anonymous = $id === T_CLASS && is_array($previous) && $previous[0] === T_NEW;
-            $pending = ['kind' => 'class', 'name' => $anonymous ? 'class@anonymous' : null];
+            $pending = ['kind' => 'class', 'name' => null];
         } elseif ($id === T_FUNCTION) {
             $pending = ['kind' => 'function', 'name' => null];
         } elseif ($id === T_CURLY_OPEN || $id === T_DOLLAR_OPEN_CURLY_BRACES) {
@@ -234,10 +246,12 @@ function pnd_occurrences(string $path, string $source): array
         }
     }
 
-    // A redirection (`2>`, `>`, `>>`, `&>`, `<`) or a unified-diff header line
+    // A redirection (`2>`, `>`, `>>`, `&>`, `<`), a whitespace- or
+    // `=`-delimited word of command text, or a unified-diff header line
     // (`--- ` or `+++ `, at the start or after a real or escaped newline).
     $device = preg_quote(PND_NULL_DEVICE, '#') . '(?![\w/.-])';
     $redirection = '#(?:[0-9&]?>{1,2}|<)\s*' . $device . '#';
+    $shellWord = '#(?:^|[\s=])' . $device . '#';
     $diffHeader = '#(?:^|\n|\\\\n)(?:---|\+\+\+) ' . $device . '#';
 
     $occurrences = [];
@@ -254,6 +268,7 @@ function pnd_occurrences(string $path, string $source): array
             'literal' => $content,
             'descriptor' => pnd_is_direct_descriptor($tokens, $significant, $position, $content),
             'redirection' => preg_match($redirection, $content) === 1,
+            'shell_word' => $content !== PND_NULL_DEVICE && preg_match($shellWord, $content) === 1,
             'diff_header' => preg_match($diffHeader, $content) === 1,
             'bare' => $content === PND_NULL_DEVICE,
             ...$facts[$statementId],
@@ -332,6 +347,9 @@ function pnd_is_direct_descriptor(array $tokens, array $significant, int $positi
  *   Windows-named identifier or a string naming Windows);
  * - diff_label: a string token is a unified-diff side label (a/..., b/...).
  *
+ * A statement ends at `;`, at a block brace and at an open or close tag;
+ * interpolation braces inside a string do not end it.
+ *
  * @param list<array{0: int, 1: string, 2: int}|string> $tokens
  * @param array<int, int> $statementOf
  *
@@ -365,7 +383,7 @@ function pnd_statement_facts(array $tokens, array $statementOf, int $statementId
  * Why an occurrence cannot carry $purpose, or null when it fits. The three
  * shapes are mutually exclusive, so at most one purpose fits an occurrence.
  *
- * @param array{redirection: bool, diff_header: bool, bare: bool, nul: bool, windows: bool, diff_label: bool} $occurrence
+ * @param array{redirection: bool, shell_word: bool, diff_header: bool, bare: bool, nul: bool, windows: bool, diff_label: bool} $occurrence
  */
 function pnd_purpose_misfit(string $purpose, array $occurrence): ?string
 {
@@ -383,8 +401,9 @@ function pnd_purpose_misfit(string $purpose, array $occurrence): ?string
         },
         'posix-only-shell' => match (true) {
             $occurrence['nul'] => 'its statement names the Windows NUL device, so it is a host choice, not a POSIX-only fragment',
-            $occurrence['redirection'] => null,
-            default => "it is not a shell redirection to {$device}",
+            $occurrence['diff_header'] => 'it is a unified-diff header, not a shell fragment',
+            $occurrence['redirection'] || $occurrence['shell_word'] => null,
+            default => "it neither redirects to {$device} nor passes it as a word of a shell command",
         },
         default => 'the purpose is not one of ' . implode(', ', PND_PURPOSES),
     };
@@ -393,7 +412,7 @@ function pnd_purpose_misfit(string $purpose, array $occurrence): ?string
 /**
  * The purpose whose shape the occurrence has, if any.
  *
- * @param array{redirection: bool, diff_header: bool, bare: bool, nul: bool, windows: bool, diff_label: bool} $occurrence
+ * @param array{redirection: bool, shell_word: bool, diff_header: bool, bare: bool, nul: bool, windows: bool, diff_label: bool} $occurrence
  */
 function pnd_fitting_purpose(array $occurrence): ?string
 {
@@ -498,8 +517,8 @@ function pnd_validate_manifest(mixed $manifest, array $files): array
         if (!is_string($purpose) || !in_array($purpose, PND_PURPOSES, true)) {
             $problems[] = 'purpose must be one of ' . implode(', ', PND_PURPOSES);
         }
-        if (!is_string($rationale) || trim($rationale) === '' || preg_match('/[\r\n]/', $rationale) === 1
-            || mb_strlen($rationale) > PND_RATIONALE_MAX) {
+        if (!is_string($rationale) || trim($rationale) === ''
+            || preg_match('/\A[^\r\n]{1,' . PND_RATIONALE_MAX . '}\z/u', $rationale) !== 1) {
             $problems[] = 'rationale must be one non-empty line of at most ' . PND_RATIONALE_MAX . ' characters';
         }
         foreach ($broad as $message) {
@@ -514,7 +533,7 @@ function pnd_validate_manifest(mixed $manifest, array $files): array
 
         $key = [$file, $symbol, $literal];
         if (isset($seen[pnd_key($file, $symbol, $literal)])) {
-            $invalid('duplicate', "classifies {$file} {$symbol} " . json_encode($literal, JSON_UNESCAPED_SLASHES) . ' again', $index);
+            $invalid('duplicate', "classifies {$file} {$symbol} " . json_encode($literal, PND_JSON) . ' again', $index);
             continue;
         }
         $seen[pnd_key($file, $symbol, $literal)] = true;
@@ -534,6 +553,13 @@ function pnd_validate_manifest(mixed $manifest, array $files): array
 
 /**
  * Match every occurrence against the classifications.
+ *
+ * An unclassified occurrence carries a `suggestion` for the manifest change
+ * that would classify it: on the first occurrence of each file, symbol and
+ * literal, either one new entry covering all of them (`add`), or a higher
+ * count for the entry that already covers the literal (`raise`); or why no
+ * classification can (`misfit`, `host`). Later occurrences of the same
+ * literal carry null, because the first suggestion covers them.
  *
  * @param list<string> $files governed PHP paths
  * @param array<string, string> $sources path => source, for every governed
@@ -556,8 +582,9 @@ function pnd_analyze(array $files, array $sources, mixed $manifest): array
                 $violations[] = [
                     'kind' => 'direct-descriptor',
                     'occurrence' => $occurrence,
-                    'message' => 'a hard-coded ' . PND_NULL_DEVICE . ' proc_open() descriptor cannot open on native Windows, '
-                        . 'and no classification can accept one. ' . pnd_host_derived_hint(),
+                    'message' => 'a proc_open() file descriptor must not hard-code ' . PND_NULL_DEVICE
+                        . ', which native Windows cannot open, not even inside a host choice; no classification can accept one. '
+                        . "Use the ['null'] descriptor, which PHP opens as the host's null device.",
                 ];
                 continue;
             }
@@ -570,7 +597,7 @@ function pnd_analyze(array $files, array $sources, mixed $manifest): array
         $key = pnd_key($entry['file'], $entry['symbol'], $entry['literal']);
         $found = $groups[$key] ?? [];
         unset($groups[$key]);
-        $label = "{$entry['file']} {$entry['symbol']} " . json_encode($entry['literal'], JSON_UNESCAPED_SLASHES);
+        $label = "{$entry['file']} {$entry['symbol']} " . json_encode($entry['literal'], PND_JSON);
         if ($found === []) {
             $violations[] = [
                 'kind' => 'stale',
@@ -588,12 +615,28 @@ function pnd_analyze(array $files, array $sources, mixed $manifest): array
                 'message' => sprintf('declares %d occurrence(s) of %s, found %d: a classified occurrence was removed', $entry['occurrences'], $label, count($found)),
             ];
         }
-        foreach (array_slice($found, $entry['occurrences']) as $extra) {
-            $violations[] = [
-                'kind' => 'unclassified',
-                'occurrence' => $extra,
-                'message' => sprintf('one more occurrence than the %d classified for this literal in this symbol', $entry['occurrences']),
-            ];
+        // The classification covers the occurrences that fit its purpose
+        // first (in source order), so a surplus is reported where it misfits.
+        usort($found, static fn(array $left, array $right): int => (pnd_purpose_misfit($entry['purpose'], $left) !== null)
+            <=> (pnd_purpose_misfit($entry['purpose'], $right) !== null));
+        $extras = array_slice($found, $entry['occurrences']);
+        if ($extras !== []) {
+            $misfits = array_values(array_filter(array_map(
+                static fn(array $extra): ?string => pnd_purpose_misfit($entry['purpose'], $extra),
+                $extras,
+            )));
+            $suggestion = $misfits === []
+                ? ['raise' => $entry['index'], 'from' => $entry['occurrences'], 'to' => count($found)]
+                : ['misfit' => $entry['purpose'], 'reason' => $misfits[0]];
+            foreach ($extras as $position => $extra) {
+                $violations[] = [
+                    'kind' => 'unclassified',
+                    'entry' => $entry['index'],
+                    'occurrence' => $extra,
+                    'message' => sprintf('%d occurrences of this literal in this symbol, %d classified', count($found), $entry['occurrences']),
+                    'suggestion' => $position === 0 ? $suggestion : null,
+                ];
+            }
         }
         foreach (array_slice($found, 0, $entry['occurrences']) as $occurrence) {
             $misfit = pnd_purpose_misfit($entry['purpose'], $occurrence);
@@ -610,8 +653,24 @@ function pnd_analyze(array $files, array $sources, mixed $manifest): array
         }
     }
     foreach ($groups as $occurrences) {
-        foreach ($occurrences as $occurrence) {
-            $violations[] = ['kind' => 'unclassified', 'occurrence' => $occurrence, 'message' => 'no classification covers this literal'];
+        $fits = array_values(array_unique(array_map(static fn(array $occurrence): string => pnd_fitting_purpose($occurrence) ?? '', $occurrences)));
+        $first = $occurrences[0];
+        $suggestion = count($fits) === 1 && $fits[0] !== ''
+            ? ['add' => [
+                'file' => $first['file'],
+                'symbol' => $first['symbol'],
+                'literal' => $first['literal'],
+                'occurrences' => count($occurrences),
+                'purpose' => $fits[0],
+            ]]
+            : ['host' => count($fits) > 1];
+        foreach ($occurrences as $position => $occurrence) {
+            $violations[] = [
+                'kind' => 'unclassified',
+                'occurrence' => $occurrence,
+                'message' => 'no classification covers this literal',
+                'suggestion' => $position === 0 ? $suggestion : null,
+            ];
         }
     }
 
@@ -627,9 +686,10 @@ function pnd_host_derived_hint(): string
         . "or PHP_OS_FAMILY === 'Windows' ? 'NUL' : '" . PND_NULL_DEVICE . "'.";
 }
 
+/** File and symbol cannot contain a NUL byte, so the key is unambiguous for any literal. */
 function pnd_key(string $file, string $symbol, string $literal): string
 {
-    return json_encode([$file, $symbol, $literal], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    return $file . "\0" . $symbol . "\0" . $literal;
 }
 
 /**
@@ -653,7 +713,7 @@ function pnd_sort_key(array $violation): array
 /**
  * Human-readable diagnostics. Every occurrence is named by file:line (for
  * navigation only), symbol and literal; an unclassified one also gets the
- * classification it would need and the purpose its shape fits, if any.
+ * manifest change that would classify it, or the reason none can.
  *
  * @param list<array<string, mixed>> $violations
  */
@@ -663,28 +723,15 @@ function pnd_format_violations(array $violations, string $manifestLabel): string
     foreach ($violations as $violation) {
         $occurrence = $violation['occurrence'] ?? null;
         $where = $occurrence !== null
-            ? sprintf('%s:%d %s %s', $occurrence['file'], $occurrence['line'], $occurrence['symbol'], json_encode($occurrence['literal'], JSON_UNESCAPED_SLASHES))
+            ? sprintf('%s:%d %s %s', $occurrence['file'], $occurrence['line'], $occurrence['symbol'], json_encode($occurrence['literal'], PND_JSON))
             : $manifestLabel . (isset($violation['entry']) ? " classifications[{$violation['entry']}]" : '');
         $lines[] = sprintf('  [%s] %s', $violation['kind'], $where);
         if ($occurrence !== null && isset($violation['entry'])) {
             $lines[] = "      {$manifestLabel} classifications[{$violation['entry']}]";
         }
         $lines[] = '      ' . $violation['message'];
-        if ($violation['kind'] === 'unclassified') {
-            $fit = pnd_fitting_purpose($occurrence);
-            $lines[] = $fit === null
-                ? '      No purpose fits its shape. ' . pnd_host_derived_hint()
-                : "      Its shape fits {$fit}. If that is what it is, classify it in {$manifestLabel}:";
-            if ($fit !== null) {
-                $lines[] = '      ' . json_encode([
-                    'file' => $occurrence['file'],
-                    'symbol' => $occurrence['symbol'],
-                    'literal' => $occurrence['literal'],
-                    'occurrences' => 1,
-                    'purpose' => $fit,
-                    'rationale' => '<why this is ' . $fit . '>',
-                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            }
+        if (array_key_exists('suggestion', $violation)) {
+            array_push($lines, ...pnd_format_suggestion($violation['suggestion'], $manifestLabel));
         }
     }
 
@@ -692,18 +739,73 @@ function pnd_format_violations(array $violations, string $manifestLabel): string
 }
 
 /**
- * Scan $root against the manifest at $manifestPath.
+ * @param array<string, mixed>|null $suggestion
+ *
+ * @return list<string>
+ */
+function pnd_format_suggestion(?array $suggestion, string $manifestLabel): array
+{
+    if ($suggestion === null) {
+        return ['      The suggestion for the first occurrence of this literal in this symbol covers this one too.'];
+    }
+    if (isset($suggestion['add'])) {
+        $add = $suggestion['add'];
+
+        return [
+            sprintf(
+                '      Its shape fits %s. If that is what it is, classify it in %s%s:',
+                $add['purpose'],
+                $manifestLabel,
+                $add['occurrences'] > 1 ? " (one entry covers all {$add['occurrences']} occurrences in this symbol)" : '',
+            ),
+            '      ' . json_encode([...$add, 'rationale' => "<why this is {$add['purpose']}>"], PND_JSON),
+        ];
+    }
+    if (isset($suggestion['raise'])) {
+        return [sprintf(
+            '      If it is the same kind of use, raise %s classifications[%d].occurrences from %d to %d.',
+            $manifestLabel,
+            $suggestion['raise'],
+            $suggestion['from'],
+            $suggestion['to'],
+        )];
+    }
+    if (isset($suggestion['misfit'])) {
+        return ["      It does not fit that classification's purpose, {$suggestion['misfit']}: {$suggestion['reason']}. " . pnd_host_derived_hint()];
+    }
+
+    return [$suggestion['host']
+        ? '      Its occurrences in this symbol do not share one shape, and one classification covers them all: give them one shape, or '
+            . lcfirst(pnd_host_derived_hint())
+        : '      No purpose fits its shape. ' . pnd_host_derived_hint()];
+}
+
+/**
+ * Scan $root against the manifest at $manifestPath. Any failure to scan is a
+ * harness error (exit 2), never an uncaught exception.
  *
  * @return array{exit: int, stdout: string, stderr: string}
  */
 function pnd_run(string $root, string $manifestPath): array
 {
-    $root = rtrim(str_replace('\\', '/', $root), '/');
     try {
-        $scan = pnd_governed_sources($root);
-    } catch (RuntimeException $exception) {
-        return ['exit' => PND_EXIT_HARNESS, 'stdout' => '', 'stderr' => "Portable null-device gate: {$exception->getMessage()}\n"];
+        return pnd_scan($root, $manifestPath);
+    } catch (Throwable $exception) {
+        return [
+            'exit' => PND_EXIT_HARNESS,
+            'stdout' => '',
+            'stderr' => sprintf("Portable null-device gate: %s: %s\n", $exception::class, $exception->getMessage()),
+        ];
     }
+}
+
+/**
+ * @return array{exit: int, stdout: string, stderr: string}
+ */
+function pnd_scan(string $root, string $manifestPath): array
+{
+    $root = rtrim(str_replace('\\', '/', $root), '/');
+    $scan = pnd_governed_sources($root);
 
     $label = str_replace('\\', '/', $manifestPath);
     if (str_starts_with($label, $root . '/')) {

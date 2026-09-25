@@ -122,6 +122,15 @@ final class PortableNullDeviceGateTest extends TestCase
         self::assertFalse($occurrences[0]['descriptor']);
         self::assertSame('platform-derived', \pnd_fitting_purpose($occurrences[0]));
 
+        // A whole descriptor chosen by host still hard-codes the POSIX path in
+        // a descriptor; ['null'] is the one accepted form, and the diagnostic
+        // says so without claiming this code fails.
+        $choice = "<?php\nproc_open(\$command, [0 => PHP_OS_FAMILY === 'Windows' ? ['file', 'NUL', 'r'] : ['file', '/dev/null', 'r']], \$pipes);\n";
+        $violations = \pnd_analyze([self::SYNTHETIC], [self::SYNTHETIC => $choice], self::withClassifications([]))['violations'];
+        self::assertSame(['direct-descriptor'], self::kinds($violations));
+        self::assertStringContainsString('not even inside a host choice', $violations[0]['message']);
+        self::assertStringContainsString("Use the ['null'] descriptor", $violations[0]['message']);
+
         $notFile = "<?php\n\$labels = ['pipe', '/dev/null'];\n";
         self::assertFalse(\pnd_occurrences(self::SYNTHETIC, $notFile)[0]['descriptor']);
     }
@@ -159,7 +168,51 @@ final class PortableNullDeviceGateTest extends TestCase
         $violations = self::analyze([self::DIFFER => $again]);
         self::assertSame(['unclassified'], self::kinds($violations));
         self::assertSame('ConfigDiffer::buildSyncOnlyResult', $violations[0]['occurrence']['symbol']);
-        self::assertStringContainsString('one more occurrence than the 1 classified', $violations[0]['message']);
+        self::assertStringContainsString('2 occurrences of this literal in this symbol, 1 classified', $violations[0]['message']);
+    }
+
+    #[Test]
+    public function every_suggestion_classifies_exactly_what_it_reports(): void
+    {
+        $source = self::source(self::DIFFER);
+        $index = self::entryIndex(self::DIFFER, 'ConfigDiffer::buildSyncOnlyResult', '/dev/null');
+
+        // Two identical new redirections in one symbol: one entry for both,
+        // and the second occurrence points back at it.
+        $twice = self::mutate($source, "final class ConfigDiffer\n{\n", "final class ConfigDiffer\n{\n    private function probe(): void\n    {\n        exec('git status 2>/dev/null');\n        exec('git status 2>/dev/null');\n    }\n\n");
+        $violations = self::analyze([self::DIFFER => $twice]);
+        self::assertSame(['unclassified', 'unclassified'], self::kinds($violations));
+        self::assertNull($violations[1]['suggestion']);
+        $report = \pnd_format_violations($violations, \PND_MANIFEST);
+        self::assertStringContainsString('one entry covers all 2 occurrences in this symbol', $report);
+        self::assertStringContainsString('covers this one too', $report);
+        self::assertSame([], self::analyze([self::DIFFER => $twice], self::applySuggestions(self::$manifest, $violations)), 'The pasted suggestion classifies both.');
+
+        // One more occurrence of a classified literal: raise the count; a
+        // second entry for the same literal would be a duplicate.
+        $again = self::mutate(
+            $source,
+            "diff: \$this->unifiedDiff('', \$syncYaml, '/dev/null', \"b/{\$ref}\"),",
+            "diff: \$this->unifiedDiff('', \$syncYaml, '/dev/null', \"b/{\$ref}\") . \$this->unifiedDiff('', \$syncYaml, '/dev/null', \"b/{\$ref}\"),",
+        );
+        $violations = self::analyze([self::DIFFER => $again]);
+        self::assertSame(['raise' => $index, 'from' => 1, 'to' => 2], $violations[0]['suggestion']);
+        self::assertStringContainsString("raise tools/portable-null-device-classifications.json classifications[{$index}].occurrences from 1 to 2", \pnd_format_violations($violations, \PND_MANIFEST));
+        self::assertSame([], self::analyze([self::DIFFER => $again], self::applySuggestions(self::$manifest, $violations)), 'The raised count classifies both.');
+
+        // An extra occurrence that does not fit the classification's purpose
+        // cannot be covered by raising its count.
+        $misfit = self::mutate($source, "        return new DiffResult(\n            ref: \$ref,\n            status: DiffResult::STATUS_SYNC_ONLY,", "        \$sink = fopen('/dev/null', 'w');\n        return new DiffResult(\n            ref: \$ref,\n            status: DiffResult::STATUS_SYNC_ONLY,");
+        $violations = self::analyze([self::DIFFER => $misfit]);
+        self::assertSame(['unclassified'], self::kinds($violations));
+        self::assertSame('semantic-diff-marker', $violations[0]['suggestion']['misfit']);
+        self::assertStringContainsString("It does not fit that classification's purpose, semantic-diff-marker", \pnd_format_violations($violations, \PND_MANIFEST));
+
+        // Occurrences of one literal in one symbol that do not share a shape.
+        $mixed = "<?php\nfunction probe(): void\n{\n    exec('tool 2>/dev/null');\n    \$log = 'Windows hosts use NUL: ' . 'tool 2>/dev/null';\n}\n";
+        $violations = \pnd_analyze([self::SYNTHETIC], [self::SYNTHETIC => $mixed], self::withClassifications([]))['violations'];
+        self::assertSame(['host' => true], $violations[0]['suggestion']);
+        self::assertStringContainsString('do not share one shape', \pnd_format_violations($violations, \PND_MANIFEST));
     }
 
     #[Test]
@@ -384,7 +437,7 @@ final class PortableNullDeviceGateTest extends TestCase
     }
 
     #[Test]
-    public function posix_only_shell_fragments_are_accepted_only_as_redirections_without_a_nul_counterpart(): void
+    public function posix_only_shell_fragments_are_accepted_as_command_text_without_a_nul_counterpart(): void
     {
         $recipe = 'packages/deployer/recipe/waaseyaa.php';
         $occurrences = \pnd_occurrences($recipe, self::$scan['sources'][$recipe]);
@@ -394,13 +447,97 @@ final class PortableNullDeviceGateTest extends TestCase
             self::assertSame('posix-only-shell', \pnd_fitting_purpose($occurrence));
         }
 
-        foreach (['cmd >/dev/null 2>&1', 'cmd &> /dev/null', 'cmd >> /dev/null', 'cmd < /dev/null'] as $fragment) {
-            $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\nexec('{$fragment}');\n")[0];
+        $fragments = [
+            // Redirections.
+            'cmd >/dev/null 2>&1', 'cmd &> /dev/null', 'cmd >> /dev/null', 'cmd < /dev/null',
+            // The device as a word of the command, which a remote POSIX host
+            // (Deployer's run()) resolves, never the local one.
+            'curl -s -o /dev/null https://example.test', 'GIT_CONFIG_GLOBAL=/dev/null git status', 'git diff --no-index /dev/null b.txt',
+        ];
+        foreach ($fragments as $fragment) {
+            $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\nrun('{$fragment}');\n")[0];
             self::assertSame('posix-only-shell', \pnd_fitting_purpose($occurrence), $fragment);
         }
 
-        $paired = \pnd_occurrences(self::SYNTHETIC, "<?php\nexec(\$windows ? 'cmd 2>NUL' : 'cmd 2>/dev/null');\n")[0];
-        self::assertNotNull(\pnd_purpose_misfit('posix-only-shell', $paired), 'A host pair must be classified as platform-derived.');
+        $notCommandText = [
+            'a host pair' => "exec(\$windows ? 'cmd 2>NUL' : 'cmd 2>/dev/null');",
+            'a bare argument' => "proc_open(['curl', '-o', '/dev/null', \$url], \$descriptors, \$pipes);",
+            'another path' => "\$path = 'cmd > /dev/nullable';",
+        ];
+        foreach ($notCommandText as $case => $statement) {
+            $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\n{$statement}\n")[0];
+            self::assertNotNull(\pnd_purpose_misfit('posix-only-shell', $occurrence), $case);
+        }
+    }
+
+    #[Test]
+    public function a_statement_ends_at_its_semicolon_and_block_braces(): void
+    {
+        // A host signal or NUL in a neighbouring statement never leaks into
+        // the occurrence's shape, whichever boundary separates them.
+        $fitsNothing = [
+            'after a semicolon' => "\$log = 'Windows hosts use NUL'; return fopen('/dev/null', 'w');",
+            'across an if/else' => "if (PHP_OS_FAMILY === 'Windows') { \$device = 'NUL'; } else { \$device = '/dev/null'; } return \$device;",
+        ];
+        foreach ($fitsNothing as $case => $body) {
+            $occurrences = \pnd_occurrences(self::SYNTHETIC, "<?php\nfunction probe()\n{\n    {$body}\n}\n");
+            self::assertCount(1, $occurrences, $case);
+            self::assertNull(\pnd_fitting_purpose($occurrences[0]), $case);
+        }
+
+        $stillPosix = [
+            'after a semicolon' => "\$device = PHP_OS_FAMILY === 'Windows' ? 'NUL' : 'nothing'; exec('cmd 2>/dev/null');",
+            'inside a block' => "if (PHP_OS_FAMILY === 'Windows' && \$device === 'NUL') { exec('cmd 2>/dev/null'); }",
+            'after a closing brace' => "\$command = match (PHP_OS_FAMILY) { 'Windows' => 'NUL', default => 'none' } . ' ' . 'cmd 2>/dev/null';",
+        ];
+        foreach ($stillPosix as $case => $body) {
+            $occurrences = \pnd_occurrences(self::SYNTHETIC, "<?php\nfunction probe()\n{\n    {$body}\n}\n");
+            self::assertCount(1, $occurrences, $case);
+            self::assertSame('posix-only-shell', \pnd_fitting_purpose($occurrences[0]), $case);
+        }
+
+        // Interpolation braces are not statement boundaries.
+        $interpolated = \pnd_occurrences(self::SYNTHETIC, "<?php\n\$diff = \$this->unifiedDiff(\$old, '', \"a/{\$ref}\", '/dev/null');\n");
+        self::assertSame('semantic-diff-marker', \pnd_fitting_purpose($interpolated[0]));
+    }
+
+    #[Test]
+    public function symbols_follow_declarations_not_keyword_arguments(): void
+    {
+        $sources = [
+            'function &byReference() { return \'/dev/null\'; }' => 'byReference',
+            '$o = new class { public function m() { return \'/dev/null\'; } };' => 'class@anonymous::m',
+            '$o = new readonly class { public function m() { return \'/dev/null\'; } };' => 'class@anonymous::m',
+            '$o = new #[Marker] class (1) extends Base { public function n() { return \'/dev/null\'; } };' => 'class@anonymous::n',
+            'function f($c) { if ($c === Foo::class) { return \'/dev/null\'; } }' => 'f',
+            'function g($x) { if ($x->has(class: 1)) { return \'/dev/null\'; } }' => 'g',
+            'class C { public function m($x) { if ($x->call(function: 1)) { return \'/dev/null\'; } } }' => 'C::m',
+            'enum Suit: string { case A = \'a\'; public function label(): string { return \'/dev/null\'; } }' => 'Suit::label',
+            'interface I { const DEVICE = \'/dev/null\'; }' => 'I',
+            'trait T { public function t() { return fn() => \'/dev/null\'; } }' => 'T::t',
+            'class K { private string $device = \'/dev/null\'; }' => 'K',
+            'task(\'clear\', function (): void { run(\'rm -f x 2>/dev/null\'); });' => '{main}',
+        ];
+        foreach ($sources as $source => $symbol) {
+            $occurrences = \pnd_occurrences(self::SYNTHETIC, "<?php\n{$source}\n");
+            self::assertCount(1, $occurrences, $source);
+            self::assertSame($symbol, $occurrences[0]['symbol'], $source);
+        }
+    }
+
+    #[Test]
+    public function invalid_utf8_and_unreadable_repositories_stay_within_the_exit_codes(): void
+    {
+        // A literal that is not valid UTF-8 is reported, never a crash.
+        $source = "<?php\nexec(\"tool \xFF 2>/dev/null\");\n";
+        $violations = \pnd_analyze([self::SYNTHETIC], [self::SYNTHETIC => $source], self::withClassifications([]))['violations'];
+        self::assertSame(['unclassified'], self::kinds($violations));
+        self::assertStringContainsString(self::SYNTHETIC . ':2 {main}', \pnd_format_violations($violations, \PND_MANIFEST));
+
+        // A root Git cannot enumerate is a harness error, exit 2.
+        $result = \pnd_run(sys_get_temp_dir() . '/waaseyaa-null-device-no-repository-' . bin2hex(random_bytes(6)), self::$root . '/' . \PND_MANIFEST);
+        self::assertSame(2, $result['exit'], $result['stderr']);
+        self::assertStringStartsWith('Portable null-device gate: ', $result['stderr']);
     }
 
     #[Test]
@@ -430,11 +567,22 @@ final class PortableNullDeviceGateTest extends TestCase
             self::assertSame($governed, \pnd_is_governed_path($path), $path);
         }
 
-        self::assertTrue(\pnd_is_php_source('bin/check-portable-null-device', "#!/usr/bin/env php\n<?php\n"));
-        self::assertTrue(\pnd_is_php_source('bin/check-portable-null-device', "#!/usr/bin/env php\r\n<?php\r\n"));
-        self::assertTrue(\pnd_is_php_source('packages/cli/stubs/job.stub', "<?php\n"));
+        $php = [
+            'a PHP shebang' => "#!/usr/bin/env php\n<?php\n",
+            'a CRLF PHP shebang' => "#!/usr/bin/env php\r\n<?php\r\n",
+            'a versioned PHP shebang' => "#!/usr/bin/env php8.5\n<?php\n",
+            'a blank line after the shebang' => "#!/usr/bin/php -d display_errors=1\n\n<?php\n",
+            'an open tag' => "<?php\n",
+            'an upper-case open tag' => "<?PHP\n",
+            'a byte-order mark' => "\u{FEFF}<?php\n",
+        ];
+        foreach ($php as $case => $head) {
+            self::assertTrue(\pnd_is_php_source('packages/cli/stubs/job.stub', $head), $case);
+        }
         self::assertTrue(\pnd_is_php_source('packages/demo/src/Demo.php', ''));
         self::assertFalse(\pnd_is_php_source('bin/check-no-secrets', "#!/usr/bin/env bash\nset -euo pipefail\n"));
+        self::assertFalse(\pnd_is_php_source('bin/tool', "#!/usr/bin/env bash\n# calls php later\nphp -v\n"));
+        self::assertFalse(\pnd_is_php_source('bin/tool', "#!/usr/bin/env phpunit\n"));
         self::assertFalse(\pnd_is_php_source('tools/native-host-contract.json', "{\n"));
 
         self::assertContains(self::GATE, self::$scan['files']);
@@ -476,9 +624,11 @@ final class PortableNullDeviceGateTest extends TestCase
         );
         self::assertSame([], self::analyze([self::DIFFER => $shifted]));
 
-        // A CRLF checkout (core.autocrlf on the hosted Windows runner) must
-        // scan exactly as an LF one, including a literal that spans lines,
-        // whose token would otherwise carry the carriage returns.
+        // A CRLF checkout must scan exactly as an LF one, including a literal
+        // that spans lines, whose token would otherwise carry the carriage
+        // returns. Most governed PHP is eol=lf, but core.autocrlf on the
+        // hosted Windows runner converts the governed files without an eol
+        // attribute (the CLI stubs and templates, for example).
         $crlf = array_map(static fn(string $source): string => str_replace("\n", "\r\n", $source), self::$scan['sources']);
         self::assertSame([], \pnd_analyze(self::$scan['files'], $crlf, self::$manifest)['violations']);
         foreach (self::$scan['sources'] as $path => $source) {
@@ -580,6 +730,31 @@ final class PortableNullDeviceGateTest extends TestCase
         sort($kinds, SORT_STRING);
 
         return $kinds;
+    }
+
+    /**
+     * The manifest with every suggestion in $violations applied, as a
+     * maintainer would paste it: a new entry goes in sorted position, and a
+     * raised count replaces the old one.
+     *
+     * @param array<string, mixed> $manifest
+     * @param list<array<string, mixed>> $violations
+     *
+     * @return array<string, mixed>
+     */
+    private static function applySuggestions(array $manifest, array $violations): array
+    {
+        foreach ($violations as $violation) {
+            $suggestion = $violation['suggestion'] ?? null;
+            if (isset($suggestion['raise'])) {
+                $manifest['classifications'][$suggestion['raise']]['occurrences'] = $suggestion['to'];
+            } elseif (isset($suggestion['add'])) {
+                $manifest['classifications'][] = [...$suggestion['add'], 'rationale' => 'Pasted from the gate suggestion.'];
+            }
+        }
+        $manifest['classifications'] = self::sorted($manifest['classifications']);
+
+        return $manifest;
     }
 
     /**

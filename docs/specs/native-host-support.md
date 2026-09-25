@@ -352,40 +352,49 @@ forms are PHP's `['null']` descriptor, which opens the host's null device, and
 a host-derived choice such as `PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null'`.
 
 `php bin/check-portable-null-device` is a static, fail-closed guard over the
-governed production PHP surface. That surface is every repository PHP file (a
-`.php` file, or a file that opens with `<?php` or a PHP shebang) except tests
-and their support code (`tests/`, `packages/<pkg>/tests/`,
+governed production PHP surface. That surface is every repository PHP file
+except tests and their support code (`tests/`, `packages/<pkg>/tests/`,
 `packages/<pkg>/testing/`, `packages/<pkg>/e2e/`, `skeleton/tests/`),
-`benchmarks/`, `docs/`, `kitty-specs/` and vendor trees. The guard enumerates
-files through Git (tracked files plus untracked, unignored ones) and inspects
-every string token that spells `/dev/null`. Comments are documentation and are
-ignored.
+`benchmarks/`, `docs/`, `kitty-specs/` and vendor trees. A PHP file is a
+`.php` file, or a file that opens with a PHP open tag or with a PHP shebang
+(`php`, `php8.5`, ...) followed by one. The guard enumerates files through Git
+(tracked files plus untracked, unignored ones) and inspects every string token
+that spells `/dev/null`. Comments are documentation and are ignored.
 
 - A direct descriptor, `['file', '/dev/null', ...]` in any array spelling, is
-  always rejected. No classification can accept one.
+  always rejected, even when a host choice picks between whole descriptors. No
+  classification can accept one; `['null']` is the accepted form.
 - Every other occurrence must be classified in
   [`tools/portable-null-device-classifications.json`](../../tools/portable-null-device-classifications.json)
-  by file, enclosing symbol (`Class::method`, a function, a class, or `{main}`)
-  and literal, with its exact occurrence count, one purpose and a one-line
-  rationale. The anchor has no line number, so an unrelated edit cannot make it
-  stale.
-- The purposes are mutually exclusive shapes of the occurrence's statement, so
-  a classification cannot claim the wrong one:
+  by file, enclosing symbol (`Class::method`, a function, a class,
+  `class@anonymous`, or `{main}`) and literal, with its exact occurrence count,
+  one purpose and a one-line rationale. The anchor has no line number, so an
+  unrelated edit cannot make it stale. A classification covers the occurrences
+  that fit its purpose first.
+- The purposes are mutually exclusive syntactic shapes of the occurrence and
+  its statement, so a classification can only claim the purpose whose shape
+  the occurrence has. A statement ends at `;`, at a block brace and at a PHP
+  tag; interpolation braces inside a string do not end it.
 
   | Purpose | Shape the guard requires |
   |---|---|
-  | `platform-derived` | The statement also names the Windows `NUL` device and a Windows host signal: `PHP_OS_FAMILY`, `PHP_OS`, `DIRECTORY_SEPARATOR`, a Windows-named identifier, or a string naming Windows. |
+  | `platform-derived` | The same statement also names the Windows `NUL` device and a Windows host signal: `PHP_OS_FAMILY`, `PHP_OS`, `DIRECTORY_SEPARATOR`, a Windows-named identifier, or a string naming Windows. The choice must be one statement: an `if`/`else` or `switch` spread over statements does not fit. Its direction is not checked, so a deliberately foreign choice (a self-test's negative control) fits too. |
   | `semantic-diff-marker` | Unified-diff data that is never opened: a `--- /dev/null` or `+++ /dev/null` header, or a bare `/dev/null` label beside an `a/` or `b/` label. The statement has no `NUL` counterpart and the literal is no redirection. |
-  | `posix-only-shell` | A shell redirection to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`) with no `NUL` counterpart, in code the classification declares POSIX-only. |
+  | `posix-only-shell` | Shell command text, not a bare path and not a diff header, that redirects to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`) or passes it as a whitespace- or `=`-delimited word (`curl -o /dev/null`, `GIT_CONFIG_GLOBAL=/dev/null git`), with no `NUL` counterpart, in code the classification declares POSIX-only. The shape cannot tell a command from prose, so the rationale must say where the command runs. |
 
 - An unclassified literal fails, and so do stale, duplicated, malformed,
   unsorted and overly broad classifications. Stale means the occurrence is gone
   or fewer remain; overly broad means a pattern, a directory or a wildcard
   symbol. Each diagnostic names the file, line, symbol and literal. For an
-  unclassified literal it also names the purpose its shape fits, if any, and
-  the exact entry it would need.
+  unclassified literal it also gives the manifest change that would classify
+  it: one new entry covering every occurrence of that literal in that symbol,
+  with the purpose their shape fits, or a raised count for the entry that
+  already covers the literal. Where no purpose fits, or the occurrences do not
+  share one, it gives the host-derived remedy instead.
 - The scan normalizes line endings and has no host-specific branch, so it runs
-  identically under native Windows and Linux PHP.
+  identically under native Windows and Linux PHP. It fails closed with exit 2,
+  never an uncaught error, when the repository cannot be enumerated or read,
+  and it needs no PHP extension beyond the default build.
 
 The guard does not decide which PHP is portable. `platform-derived` and
 `posix-only-shell` are reviewed assertions about the surrounding code; the
@@ -398,10 +407,13 @@ The guard is one more `gate` command in the contract. Both existing
 `native-host-contract` leaves run it as a step and publish its result in their
 evidence records, and `tests/Architecture/PortableNullDeviceGateTest.php`, whose
 cases are mutants of the tracked sources and classifications, joins the
-contract's Architecture selection as well as the Linux Architecture shards. No
+contract's Architecture selection as well as the Linux Architecture shards. As
+a fast repo-state gate it is also in the default pre-push preflight
+(`tools/preflight-gates.json`, [governed-gates.md](governed-gates.md) §1). No
 job, required context or `merge/*` name is added. One full scan took about
-1.6 s on a native Windows 11 workstation; the change record keeps the local and
-hosted measurements.
+1.6 s on a native Windows 11 workstation; the change record keeps the local
+measurements, and the hosted step durations are reported with the pull
+request.
 
 A branch-protection adapter decides which named CI checks enforce this policy;
 the adapter must be audited rather than inferred from this prose. A check cannot
