@@ -185,10 +185,11 @@ not the reference hosts.
   --version` with stdin `['file', '/dev/null', 'r']` made `proc_open()`
   return `false`. `['null']` and the host-derived descriptor both started it
   (exit 0).
-- **Mutation testing of the gate.** Forty-three injected mutants of the
-  library (40) and the entrypoint (3) were each killed by
-  `PortableNullDeviceGateTest`. The run used the disposable Linux clone and
-  restored every file; the unmutated control passed 15/15. The mutants
+- **Mutation testing of the gate.** Forty-four injected mutants of the
+  library (41) and the entrypoint (3) were each killed by
+  `PortableNullDeviceGateTest` at `0c242cd17`, whose library and tests this
+  record's commit leaves unchanged. The run used the disposable Linux clone
+  and restored every file; the unmutated control passed 15/15. The mutants
   removed or weakened: the descriptor rule and its `array()` and keyed
   spellings; stale, fewer, extra and unmatched occurrence checks; the
   purpose check; each purpose shape; duplicate, sort, pattern,
@@ -197,12 +198,12 @@ not the reference hosts.
   and fragment inspection; line-ending normalization; the closure scope
   rule; the Windows-named-variable signal; case-insensitive `NUL`; input
   redirection; the escaped-newline header; the `a/` label; unreadable
-  manifest handling; the descriptor-classification message; purpose
-  suggestions; the entrypoint's exit code, `--manifest` option and argument
-  refusal. The first run left one survivor: a file outside the governed
-  surface was still rejected, but only through the sort order its name
-  broke. Every malformed case now asserts its own diagnostic, and the rerun
-  killed all 43.
+  manifest handling and its finding filter; the descriptor-classification
+  message; purpose suggestions; the entrypoint's exit code, `--manifest`
+  option and argument refusal. The first run left one survivor: a file
+  outside the governed surface was still rejected, but only through the sort
+  order its name broke. Every malformed case now asserts its own diagnostic,
+  and every later run killed every mutant.
 - **Native Windows contract replay.** Each contract command ran in order
   through its contract PowerShell rendering. Every step exited 0, except
   that `ProjectHooksLauncherTest::a_child_past_its_deadline_is_stopped_and_an_exit_code_passes_through`
