@@ -31,10 +31,11 @@ require_once __DIR__ . '/repository-files.php';
  *     and a Windows host signal (the direction of the choice is not checked,
  *     and a choice spread over several statements does not fit);
  *   - semantic-diff-marker: unified-diff data (a "--- /dev/null" or
- *     "+++ /dev/null" header, or a bare "/dev/null" label next to an a/ or b/
- *     label), never opened and never a redirection;
- *   - posix-only-shell: shell command text that redirects to /dev/null or
- *     passes it as a whitespace- or `=`-delimited word, with no NUL
+ *     "+++ /dev/null" header, even in a patch whose added lines redirect, or
+ *     a bare "/dev/null" label next to an a/ or b/ label), never opened;
+ *   - posix-only-shell: shell command text, not a diff header, that
+ *     redirects to /dev/null or, in text of more than one word, passes it as
+ *     a whitespace- or `=`-delimited word (quoted or not), with no NUL
  *     counterpart, in code the classification declares POSIX-only.
  *
  * Stale, duplicated, malformed, unsorted or overly broad classifications are
@@ -210,15 +211,21 @@ function pnd_occurrences(string $path, string $source): array
         // The token after a declaration keyword names it. A colon there means
         // the keyword was a named argument (`class:`, `function:`), and a class
         // keyword followed by anything but a name declares an anonymous class.
+        // A name token declares nothing itself, even when it is a keyword
+        // (`function class()`, `function function()`).
         if ($pending !== null && $pending['name'] === null && $pending['kind'] !== 'closure' && $text !== '&') {
             if ($text === ':') {
                 $pending = null;
             } elseif ($pending['kind'] === 'class') {
                 $pending['name'] = $id === T_STRING ? $text : 'class@anonymous';
+                if ($id === T_STRING) {
+                    continue;
+                }
             } elseif ($text === '(') {
                 $pending['kind'] = 'closure';
             } else {
                 $pending['name'] = $text;
+                continue;
             }
         }
 
@@ -249,9 +256,11 @@ function pnd_occurrences(string $path, string $source): array
     // A redirection (`2>`, `>`, `>>`, `&>`, `<`), a whitespace- or
     // `=`-delimited word of command text, or a unified-diff header line
     // (`--- ` or `+++ `, at the start or after a real or escaped newline).
+    // Command text may quote the path, with or without an escaped quote.
     $device = preg_quote(PND_NULL_DEVICE, '#') . '(?![\w/.-])';
-    $redirection = '#(?:[0-9&]?>{1,2}|<)\s*' . $device . '#';
-    $shellWord = '#(?:^|[\s=])' . $device . '#';
+    $quote = '(?:\\\\?[\'"])?';
+    $redirection = '#(?:[0-9&]?>{1,2}|<)\s*' . $quote . $device . '#';
+    $shellWord = '#(?:^|[\s=])' . $quote . $device . '#';
     $diffHeader = '#(?:^|\n|\\\\n)(?:---|\+\+\+) ' . $device . '#';
 
     $occurrences = [];
@@ -268,7 +277,9 @@ function pnd_occurrences(string $path, string $source): array
             'literal' => $content,
             'descriptor' => pnd_is_direct_descriptor($tokens, $significant, $position, $content),
             'redirection' => preg_match($redirection, $content) === 1,
-            'shell_word' => $content !== PND_NULL_DEVICE && preg_match($shellWord, $content) === 1,
+            // Command text has more than one word; `key=/dev/null` alone is an
+            // argument or environment value that never reaches a shell.
+            'shell_word' => preg_match('/\s/', $content) === 1 && preg_match($shellWord, $content) === 1,
             'diff_header' => preg_match($diffHeader, $content) === 1,
             'bare' => $content === PND_NULL_DEVICE,
             ...$facts[$statementId],
@@ -395,8 +406,9 @@ function pnd_purpose_misfit(string $purpose, array $occurrence): ?string
             : 'its statement does not also name the Windows NUL device and a Windows host signal',
         'semantic-diff-marker' => match (true) {
             $occurrence['nul'] => 'its statement names the Windows NUL device, so it is a host choice, not diff data',
-            $occurrence['redirection'] => 'it is a shell redirection, not diff data',
+            // A patch is diff data even when a line it adds redirects.
             $occurrence['diff_header'] || ($occurrence['bare'] && $occurrence['diff_label']) => null,
+            $occurrence['redirection'] => 'it is a shell redirection, not diff data',
             default => "it is neither a \"--- {$device}\" or \"+++ {$device}\" diff header nor a bare {$device} label beside an a/ or b/ label",
         },
         'posix-only-shell' => match (true) {
@@ -554,12 +566,17 @@ function pnd_validate_manifest(mixed $manifest, array $files): array
 /**
  * Match every occurrence against the classifications.
  *
- * An unclassified occurrence carries a `suggestion` for the manifest change
- * that would classify it: on the first occurrence of each file, symbol and
- * literal, either one new entry covering all of them (`add`), or a higher
- * count for the entry that already covers the literal (`raise`); or why no
- * classification can (`misfit`, `host`). Later occurrences of the same
- * literal carry null, because the first suggestion covers them.
+ * An unclassified occurrence carries a `suggestion`: the manifest change that
+ * would classify it, or why none can.
+ * - Without an entry for its file, symbol and literal, the first occurrence
+ *   gets one new entry covering all of them (`add`), or `host` when no single
+ *   purpose fits them, or `unencodable` when the literal is not UTF-8.
+ * - A surplus over an existing entry that fits its purpose gets one higher
+ *   count for that entry (`raise`), on the first such occurrence. A surplus
+ *   that misfits gets `conflict` when it fits another purpose (one
+ *   classification per file, symbol and literal) and `misfit` otherwise.
+ * - Every other occurrence points at the line whose suggestion covers it
+ *   (`see`), which is never below it.
  *
  * @param list<string> $files governed PHP paths
  * @param array<string, string> $sources path => source, for every governed
@@ -620,23 +637,32 @@ function pnd_analyze(array $files, array $sources, mixed $manifest): array
         usort($found, static fn(array $left, array $right): int => (pnd_purpose_misfit($entry['purpose'], $left) !== null)
             <=> (pnd_purpose_misfit($entry['purpose'], $right) !== null));
         $extras = array_slice($found, $entry['occurrences']);
-        if ($extras !== []) {
-            $misfits = array_values(array_filter(array_map(
-                static fn(array $extra): ?string => pnd_purpose_misfit($entry['purpose'], $extra),
-                $extras,
-            )));
-            $suggestion = $misfits === []
-                ? ['raise' => $entry['index'], 'from' => $entry['occurrences'], 'to' => count($found)]
-                : ['misfit' => $entry['purpose'], 'reason' => $misfits[0]];
-            foreach ($extras as $position => $extra) {
-                $violations[] = [
-                    'kind' => 'unclassified',
-                    'entry' => $entry['index'],
-                    'occurrence' => $extra,
-                    'message' => sprintf('%d occurrences of this literal in this symbol, %d classified', count($found), $entry['occurrences']),
-                    'suggestion' => $position === 0 ? $suggestion : null,
-                ];
+        $fitting = count(array_filter($extras, static fn(array $extra): bool => pnd_purpose_misfit($entry['purpose'], $extra) === null));
+        $message = sprintf('%d occurrences of this literal in this symbol, %d classified', count($found), $entry['occurrences']);
+        $raisedAt = null;
+        foreach ($extras as $extra) {
+            $misfit = pnd_purpose_misfit($entry['purpose'], $extra);
+            if ($misfit === null) {
+                // Every surplus that fits: one raise, on the first of them.
+                $suggestion = $raisedAt === null
+                    ? ['raise' => $entry['index'], 'from' => $entry['occurrences'], 'to' => $entry['occurrences'] + $fitting]
+                    : ['see' => $raisedAt];
+                $raisedAt ??= $extra['line'];
+            } else {
+                // One classification per file, symbol and literal: a surplus
+                // of another shape cannot join it, whatever that shape is.
+                $other = pnd_fitting_purpose($extra);
+                $suggestion = $other !== null
+                    ? ['conflict' => $entry['index'], 'purpose' => $entry['purpose'], 'fits' => $other]
+                    : ['misfit' => $entry['purpose'], 'reason' => $misfit];
             }
+            $violations[] = [
+                'kind' => 'unclassified',
+                'entry' => $entry['index'],
+                'occurrence' => $extra,
+                'message' => $message,
+                'suggestion' => $suggestion,
+            ];
         }
         foreach (array_slice($found, 0, $entry['occurrences']) as $occurrence) {
             $misfit = pnd_purpose_misfit($entry['purpose'], $occurrence);
@@ -655,21 +681,24 @@ function pnd_analyze(array $files, array $sources, mixed $manifest): array
     foreach ($groups as $occurrences) {
         $fits = array_values(array_unique(array_map(static fn(array $occurrence): string => pnd_fitting_purpose($occurrence) ?? '', $occurrences)));
         $first = $occurrences[0];
-        $suggestion = count($fits) === 1 && $fits[0] !== ''
-            ? ['add' => [
+        $suggestion = match (true) {
+            // The JSON manifest cannot hold a literal that is not UTF-8.
+            preg_match('//u', $first['literal']) !== 1 => ['unencodable' => true],
+            count($fits) === 1 && $fits[0] !== '' => ['add' => [
                 'file' => $first['file'],
                 'symbol' => $first['symbol'],
                 'literal' => $first['literal'],
                 'occurrences' => count($occurrences),
                 'purpose' => $fits[0],
-            ]]
-            : ['host' => count($fits) > 1];
+            ]],
+            default => ['host' => count($fits) > 1],
+        };
         foreach ($occurrences as $position => $occurrence) {
             $violations[] = [
                 'kind' => 'unclassified',
                 'occurrence' => $occurrence,
                 'message' => 'no classification covers this literal',
-                'suggestion' => $position === 0 ? $suggestion : null,
+                'suggestion' => $position === 0 ? $suggestion : ['see' => $first['line']],
             ];
         }
     }
@@ -739,14 +768,28 @@ function pnd_format_violations(array $violations, string $manifestLabel): string
 }
 
 /**
- * @param array<string, mixed>|null $suggestion
+ * @param array<string, mixed> $suggestion
  *
  * @return list<string>
  */
-function pnd_format_suggestion(?array $suggestion, string $manifestLabel): array
+function pnd_format_suggestion(array $suggestion, string $manifestLabel): array
 {
-    if ($suggestion === null) {
-        return ['      The suggestion for the first occurrence of this literal in this symbol covers this one too.'];
+    if (isset($suggestion['see'])) {
+        return ["      The suggestion at line {$suggestion['see']} covers this occurrence too."];
+    }
+    if (isset($suggestion['unencodable'])) {
+        return ['      Its literal is not valid UTF-8, which the JSON manifest cannot hold, so no entry can classify it: '
+            . 'make the literal valid UTF-8, or ' . lcfirst(pnd_host_derived_hint())];
+    }
+    if (isset($suggestion['conflict'])) {
+        return [sprintf(
+            '      Its shape fits %s, but %s classifications[%d] classifies this literal in this symbol as %s, and one '
+                . 'classification covers every such occurrence: give this one another literal or symbol, or the same shape.',
+            $suggestion['fits'],
+            $manifestLabel,
+            $suggestion['conflict'],
+            $suggestion['purpose'],
+        )];
     }
     if (isset($suggestion['add'])) {
         $add = $suggestion['add'];

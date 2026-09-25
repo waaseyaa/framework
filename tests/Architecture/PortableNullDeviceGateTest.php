@@ -182,10 +182,11 @@ final class PortableNullDeviceGateTest extends TestCase
         $twice = self::mutate($source, "final class ConfigDiffer\n{\n", "final class ConfigDiffer\n{\n    private function probe(): void\n    {\n        exec('git status 2>/dev/null');\n        exec('git status 2>/dev/null');\n    }\n\n");
         $violations = self::analyze([self::DIFFER => $twice]);
         self::assertSame(['unclassified', 'unclassified'], self::kinds($violations));
-        self::assertNull($violations[1]['suggestion']);
+        $first = $violations[0]['occurrence']['line'];
+        self::assertSame(['see' => $first], $violations[1]['suggestion']);
         $report = \pnd_format_violations($violations, \PND_MANIFEST);
         self::assertStringContainsString('one entry covers all 2 occurrences in this symbol', $report);
-        self::assertStringContainsString('covers this one too', $report);
+        self::assertStringContainsString("The suggestion at line {$first} covers this occurrence too.", $report);
         self::assertSame([], self::analyze([self::DIFFER => $twice], self::applySuggestions(self::$manifest, $violations)), 'The pasted suggestion classifies both.');
 
         // One more occurrence of a classified literal: raise the count; a
@@ -202,11 +203,36 @@ final class PortableNullDeviceGateTest extends TestCase
 
         // An extra occurrence that does not fit the classification's purpose
         // cannot be covered by raising its count.
-        $misfit = self::mutate($source, "        return new DiffResult(\n            ref: \$ref,\n            status: DiffResult::STATUS_SYNC_ONLY,", "        \$sink = fopen('/dev/null', 'w');\n        return new DiffResult(\n            ref: \$ref,\n            status: DiffResult::STATUS_SYNC_ONLY,");
+        $sink = "        \$sink = fopen('/dev/null', 'w');\n";
+        $returnSyncOnly = "        return new DiffResult(\n            ref: \$ref,\n            status: DiffResult::STATUS_SYNC_ONLY,";
+        $misfit = self::mutate($source, $returnSyncOnly, $sink . $returnSyncOnly);
         $violations = self::analyze([self::DIFFER => $misfit]);
         self::assertSame(['unclassified'], self::kinds($violations));
         self::assertSame('semantic-diff-marker', $violations[0]['suggestion']['misfit']);
         self::assertStringContainsString("It does not fit that classification's purpose, semantic-diff-marker", \pnd_format_violations($violations, \PND_MANIFEST));
+
+        // A surplus that mixes both: the raise sits on the label that fits and
+        // counts only fitting labels, and the misfit gets its own remedy, even
+        // though it comes first in the file.
+        $mixedSurplus = self::mutate($misfit, "diff: \$this->unifiedDiff('', \$syncYaml, '/dev/null', \"b/{\$ref}\"),", "diff: \$this->unifiedDiff('', \$syncYaml, '/dev/null', \"b/{\$ref}\") . \$this->unifiedDiff('', \$syncYaml, '/dev/null', \"b/{\$ref}\"),");
+        $violations = self::analyze([self::DIFFER => $mixedSurplus]);
+        self::assertSame(['unclassified', 'unclassified'], self::kinds($violations));
+        self::assertSame('semantic-diff-marker', $violations[0]['suggestion']['misfit'], 'The fopen() line, first in the file, keeps its own remedy.');
+        self::assertSame(['raise' => $index, 'from' => 1, 'to' => 2], $violations[1]['suggestion']);
+        $repaired = str_replace($sink, "        \$sink = fopen('php://memory', 'w');\n", $mixedSurplus);
+        self::assertSame([], self::analyze([self::DIFFER => $repaired], self::applySuggestions(self::$manifest, $violations)), 'Removing the misfit and raising the count classifies the rest.');
+
+        // A surplus of another purpose conflicts with the one classification
+        // its file, symbol and literal can have; host-deriving it again would
+        // not help.
+        $audit = 'tools/audit/GenerateLayerAudit.php';
+        $probe = "    \$hasRg = trim((string) shell_exec('command -v rg 2>/dev/null || true'));\n";
+        $conflict = self::mutate(self::source($audit), $probe, "    \$probe = PHP_OS_FAMILY === 'Windows' ? 'where rg 2>NUL' : 'command -v rg 2>/dev/null || true';\n" . $probe);
+        $violations = self::analyze([$audit => $conflict]);
+        self::assertSame(['unclassified'], self::kinds($violations));
+        self::assertSame('platform-derived', $violations[0]['suggestion']['fits']);
+        self::assertStringContainsString('Its shape fits platform-derived, but tools/portable-null-device-classifications.json classifications[', \pnd_format_violations($violations, \PND_MANIFEST));
+        self::assertStringNotContainsString('Take the device from the host', \pnd_format_violations($violations, \PND_MANIFEST));
 
         // Occurrences of one literal in one symbol that do not share a shape.
         $mixed = "<?php\nfunction probe(): void\n{\n    exec('tool 2>/dev/null');\n    \$log = 'Windows hosts use NUL: ' . 'tool 2>/dev/null';\n}\n";
@@ -425,6 +451,8 @@ final class PortableNullDeviceGateTest extends TestCase
         $forms = [
             'return "diff --git a/{$path} b/{$path}\\ndeleted file\\n--- a/{$path}\\n+++ /dev/null\\n";',
             "return \$this->header('/dev/null', 'b/' . \$path);",
+            // A patch stays diff data even when a line it adds redirects.
+            'return "--- /dev/null\\n+++ b/bin/setup\\n@@ -0,0 +1 @@\\n+command -v git >/dev/null || exit 1\\n";',
         ];
         foreach ($forms as $form) {
             $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\nfunction header(string \$path): string\n{\n    {$form}\n}\n")[0];
@@ -448,20 +476,26 @@ final class PortableNullDeviceGateTest extends TestCase
         }
 
         $fragments = [
-            // Redirections, spaced or not.
-            'cmd >/dev/null 2>&1', 'cmd &> /dev/null', 'cmd >> /dev/null', 'cmd < /dev/null', 'cmd </dev/null',
+            // Redirections, spaced or not, quoted or not.
+            'cmd >/dev/null 2>&1', 'cmd &> /dev/null', 'cmd >> /dev/null', 'cmd < /dev/null', 'cmd </dev/null', 'tool >"/dev/null" 2>&1',
             // The device as a word of the command, which a remote POSIX host
             // (Deployer's run()) resolves, never the local one.
             'curl -s -o /dev/null https://example.test', 'GIT_CONFIG_GLOBAL=/dev/null git status', 'git diff --no-index /dev/null b.txt',
+            "curl -s -o '/dev/null' https://example.test",
         ];
         foreach ($fragments as $fragment) {
-            $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\nrun('{$fragment}');\n")[0];
+            // var_export() writes a valid single-quoted literal, escaping any quote.
+            $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\nrun(" . var_export($fragment, true) . ");\n")[0];
             self::assertSame('posix-only-shell', \pnd_fitting_purpose($occurrence), $fragment);
         }
+        $doubleQuoted = \pnd_occurrences(self::SYNTHETIC, "<?php\nrun(\"curl -s -o '/dev/null' \$url\");\n")[0];
+        self::assertSame('posix-only-shell', \pnd_fitting_purpose($doubleQuoted));
 
         $notCommandText = [
             'a host pair' => "exec(\$windows ? 'cmd 2>NUL' : 'cmd 2>/dev/null');",
             'a bare argument' => "proc_open(['curl', '-o', '/dev/null', \$url], \$descriptors, \$pipes);",
+            'an argument word' => "proc_open(['git', '-c', 'core.hooksPath=/dev/null', 'status'], \$descriptors, \$pipes);",
+            'an environment value' => "putenv('GIT_CONFIG_GLOBAL=/dev/null');",
             'another path' => "\$path = 'cmd > /dev/nullable';",
         ];
         foreach ($notCommandText as $case => $statement) {
@@ -516,6 +550,10 @@ final class PortableNullDeviceGateTest extends TestCase
             'interface I { const DEVICE = \'/dev/null\'; }' => 'I',
             'trait T { public function t() { return fn() => \'/dev/null\'; } }' => 'T::t',
             'class K { private string $device = \'/dev/null\'; }' => 'K',
+            'class Html { public function class() { return \'/dev/null\'; } }' => 'Html::class',
+            'class Html { public function function() { return \'/dev/null\'; } }' => 'Html::function',
+            'class Html { public function interface() { return \'/dev/null\'; } }' => 'Html::interface',
+            'class Html { public function trait() { return \'/dev/null\'; } }' => 'Html::trait',
             'task(\'clear\', function (): void { run(\'rm -f x 2>/dev/null\'); });' => '{main}',
         ];
         foreach ($sources as $source => $symbol) {
@@ -534,7 +572,11 @@ final class PortableNullDeviceGateTest extends TestCase
         self::assertSame(['unclassified'], self::kinds($violations));
         $report = \pnd_format_violations($violations, \PND_MANIFEST);
         self::assertStringContainsString(self::SYNTHETIC . ":2 {main} \"tool \u{FFFD} 2>/dev/null\"", $report);
-        self::assertStringContainsString("\"literal\":\"tool \u{FFFD} 2>/dev/null\"", $report);
+        // JSON cannot carry the raw byte, so no pasted entry could ever match
+        // it: the gate says so instead of suggesting one.
+        self::assertSame(['unencodable' => true], $violations[0]['suggestion']);
+        self::assertStringContainsString('not valid UTF-8, which the JSON manifest cannot hold', $report);
+        self::assertStringNotContainsString('"literal":', $report);
 
         // A root Git cannot enumerate is a harness error, exit 2.
         $result = \pnd_run(sys_get_temp_dir() . '/waaseyaa-null-device-no-repository-' . bin2hex(random_bytes(6)), self::$root . '/' . \PND_MANIFEST);

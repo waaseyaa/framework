@@ -379,8 +379,8 @@ that spells `/dev/null`. Comments are documentation and are ignored.
   | Purpose | Shape the guard requires |
   |---|---|
   | `platform-derived` | The same statement also names the Windows `NUL` device and a Windows host signal: `PHP_OS_FAMILY`, `PHP_OS`, `DIRECTORY_SEPARATOR`, a Windows-named identifier, or a string naming Windows. The choice must be one statement: an `if`/`else` or `switch` spread over statements does not fit. Its direction is not checked, so a deliberately foreign choice (a self-test's negative control) fits too. |
-  | `semantic-diff-marker` | Unified-diff data that is never opened: a `--- /dev/null` or `+++ /dev/null` header, or a bare `/dev/null` label beside an `a/` or `b/` label. The statement has no `NUL` counterpart and the literal is no redirection. |
-  | `posix-only-shell` | Shell command text, not a bare path and not a diff header, that redirects to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`) or passes it as a whitespace- or `=`-delimited word (`curl -o /dev/null`, `GIT_CONFIG_GLOBAL=/dev/null git`), with no `NUL` counterpart, in code the classification declares POSIX-only. The shape cannot tell a command from prose, so the rationale must say where the command runs. |
+  | `semantic-diff-marker` | Unified-diff data that is never opened: a `--- /dev/null` or `+++ /dev/null` header (a patch stays diff data even when a line it adds redirects), or a bare `/dev/null` label beside an `a/` or `b/` label. The statement has no `NUL` counterpart. |
+  | `posix-only-shell` | Shell command text, not a diff header, that redirects to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`) or, in text of more than one word, passes it as a whitespace- or `=`-delimited word (`curl -o /dev/null`, `GIT_CONFIG_GLOBAL=/dev/null git`), quoted or not, with no `NUL` counterpart, in code the classification declares POSIX-only. A bare path or a lone `key=/dev/null` argument or environment value never reaches a shell and does not fit. The shape cannot tell a command from prose, so the rationale must say where the command runs. |
 
 - An unclassified literal fails, and so do stale, duplicated, malformed,
   unsorted and overly broad classifications. Stale means the occurrence is gone
@@ -389,8 +389,12 @@ that spells `/dev/null`. Comments are documentation and are ignored.
   unclassified literal it also gives the manifest change that would classify
   it: one new entry covering every occurrence of that literal in that symbol,
   with the purpose their shape fits, or a raised count for the entry that
-  already covers the literal. Where no purpose fits, or the occurrences do not
-  share one, it gives the host-derived remedy instead.
+  already covers the literal, counting only the surplus that fits its purpose.
+  One file, symbol and literal has one classification, so a surplus of
+  another shape is reported as a conflict. Where no purpose fits, or the new
+  occurrences do not share one, it gives the host-derived remedy instead, and
+  a literal that is not valid UTF-8, which the JSON manifest cannot hold, can
+  only be rewritten or host-derived.
 - The scan normalizes line endings and has no host-specific branch, so it runs
   identically under native Windows and Linux PHP. It fails closed with exit 2,
   never an uncaught error, when the repository cannot be enumerated or read,
