@@ -190,17 +190,13 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         }
 
         self::assertSame($checkout['evidence']['cohort'], $archive['evidence']['cohort'], 'The same candidate content is the same cohort, whatever the lane.');
-        self::assertSame('created-from-candidate-checkout-skeleton', $checkout['evidence']['root_package']['relation']);
+        self::assertSame(['name' => 'waaseyaa/waaseyaa', 'pretty_version' => '1.0.0+no-version-set', 'reference' => null], $checkout['evidence']['root_package']);
+        self::assertSame($checkout['evidence']['root_package'], $archive['evidence']['root_package'], 'Composer keeps no root reference through the update on either host.');
+        self::assertSame(['relation' => \NHC_CHECKOUT_SKELETON_RELATION, 'revision' => null, 'tree' => null], $checkout['evidence']['project_source']);
         self::assertSame(
-            [
-                'name' => 'waaseyaa/waaseyaa',
-                'pretty_version' => 'dev-main',
-                'reference' => self::SCRATCH_SHA,
-                'relation' => \NHC_SCRATCH_RELATION,
-                'scratch_commit' => ['revision' => self::SCRATCH_SHA, 'tree' => self::SKELETON_TREE],
-            ],
-            $archive['evidence']['root_package'],
-            'The Linux root reference is the scratch commit, recorded as such and bound to the candidate by its tree.',
+            ['relation' => \NHC_SCRATCH_RELATION, 'revision' => self::SCRATCH_SHA, 'tree' => self::SKELETON_TREE],
+            $archive['evidence']['project_source'],
+            'The Linux project source is the scratch commit, recorded as such and bound to the candidate by its tree.',
         );
         self::assertSame(['app_env' => 'local', 'source' => 'consumer-dotenv', 'app_secret' => 'present'], $checkout['evidence']['boot_environment']);
         self::assertSame(['app_env' => 'testing', 'source' => 'process', 'app_secret' => 'present'], $archive['evidence']['boot_environment']);
@@ -225,7 +221,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'an uncaptured CLI output' => ['checkout', 'no-stdout', 'fail','the consumer CLI output was not captured'];
         yield 'a missing catalogue entry' => ['checkout', 'no-install-init', 'fail','the consumer catalogue does not list install:init'];
         yield 'another scratch tree' => ['harness-archive', 'other-scratch-tree', 'fail','is not the candidate skeleton tree ' . self::SKELETON_TREE];
-        yield 'a root reference that is not the scratch commit' => ['harness-archive', 'root-is-candidate', 'fail','is not the scratch project commit ' . self::SCRATCH_SHA];
+        yield 'a scratch commit claimed to be the candidate' => ['harness-archive', 'scratch-is-candidate', 'fail', 'the scratch project commit ' . self::CANDIDATE_SHA . ' claims to be the candidate revision'];
         yield 'no scratch handoff' => ['harness-archive', 'no-scratch', 'incomplete','the harness did not hand over its scratch project commit'];
         yield 'a process APP_ENV over the consumer .env' => ['checkout', 'process-app-env', 'fail','the consumer booted with APP_ENV "production" from "process"'];
         yield 'no application secret' => ['harness-archive', 'no-secret', 'fail','and no application secret, not APP_ENV testing from process'];
@@ -338,7 +334,8 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'another runner' => ['other-runner', 'the windows consumer record fails the runner check'];
         yield 'another boot environment' => ['other-boot', 'the linux consumer record fails the boot environment check'];
         yield 'another lane job' => ['other-lane', 'the linux consumer record fails the lane check'];
-        yield 'a Linux root reference claimed equal to the candidate' => ['scratch-equals-candidate', 'the linux consumer record fails the scratch project commit check'];
+        yield 'a Linux scratch commit claimed equal to the candidate' => ['scratch-equals-candidate', 'the linux consumer record fails the scratch project commit check'];
+        yield 'a Windows project source that claims a scratch commit' => ['windows-scratch', 'the windows consumer record fails the project source check'];
         yield 'a Linux scratch tree that is not the skeleton' => ['scratch-tree', 'the linux consumer record fails the scratch project commit check'];
     }
 
@@ -372,8 +369,9 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'other-runner' => $records['windows']['runner']['label'] = 'windows-2022',
             'other-boot' => $records['linux']['boot_environment']['app_env'] = 'production',
             'other-lane' => $records['linux']['lane']['job'] = 'skeleton-create-project',
-            'scratch-equals-candidate' => $records['linux']['root_package']['reference'] = $records['linux']['root_package']['scratch_commit']['revision'] = self::CANDIDATE_SHA,
-            'scratch-tree' => $records['linux']['root_package']['scratch_commit']['tree'] = self::OTHER_SHA,
+            'scratch-equals-candidate' => $records['linux']['project_source']['revision'] = self::CANDIDATE_SHA,
+            'scratch-tree' => $records['linux']['project_source']['tree'] = self::OTHER_SHA,
+            'windows-scratch' => $records['windows']['project_source'] = $records['linux']['project_source'],
         };
         foreach ($records as $host => $record) {
             if ($mutation === 'missing-windows' && $host === 'windows') {
@@ -465,7 +463,6 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             ['name' => 'waaseyaa/foundation', 'version' => 'dev-main', 'type' => 'library', 'dist' => ['type' => 'path', 'reference' => '94e3f4b'], 'install-path' => '../waaseyaa/foundation'],
             ['name' => 'waaseyaa/framework', 'version' => 'dev-main', 'type' => 'project', 'dist' => ['type' => 'path', 'reference' => '9ec6754'], 'install-path' => '../waaseyaa/framework'],
         ]];
-        $rootReference = $binding === 'harness-archive' ? self::SCRATCH_SHA : '2f1e0c7d4b5a69788796a5b4c3d2e1f0a9b8c7d6';
         foreach (['.waaseyaa/generated.json' => '{}', 'bin/maintenance/site-verify' => '<?php', 'storage/waaseyaa.sqlite' => 'SQLite format 3'] as $path => $bytes) {
             self::write("{$consumer}/{$path}", $bytes);
         }
@@ -486,7 +483,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             if ($arguments === ['rev-parse', '--verify', self::CANDIDATE_SHA . ':skeleton']) {
                 return self::SKELETON_TREE . "\n";
             }
-            if (($arguments[0] ?? null) === '-C' && $arguments[2] === 'rev-parse' && $arguments[4] === self::SCRATCH_SHA . '^{tree}') {
+            if (($arguments[0] ?? null) === '-C' && $arguments[2] === 'rev-parse' && str_ends_with($arguments[4], '^{tree}')) {
                 return $scratchTree . "\n";
             }
 
@@ -528,7 +525,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'no-stdout' => unlink("{$scratch}/list-raw.stdout"),
             'no-install-init' => self::write("{$scratch}/list-raw.stdout", str_replace("install:init           Initialize a fresh installation\n", '', self::CATALOGUE)),
             'other-scratch-tree' => $scratchTree = self::OTHER_SHA,
-            'root-is-candidate' => $rootReference = self::CANDIDATE_SHA,
+            'scratch-is-candidate' => $env['WAASEYAA_CONSUMER_PROJECT_REVISION'] = self::CANDIDATE_SHA,
             'no-scratch' => $env['WAASEYAA_CONSUMER_PROJECT_REVISION'] = '',
             'process-app-env' => $env['APP_ENV'] = 'production',
             'no-secret' => $env['WAASEYAA_APP_SECRET'] = '',
@@ -541,7 +538,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         }
         self::write(
             "{$consumer}/vendor/composer/installed.php",
-            '<?php return ' . var_export(['root' => ['name' => 'waaseyaa/waaseyaa', 'pretty_version' => 'dev-main', 'reference' => $rootReference]], true) . ';',
+            '<?php return ' . var_export(['root' => ['name' => 'waaseyaa/waaseyaa', 'pretty_version' => '1.0.0+no-version-set', 'reference' => null]], true) . ';',
         );
 
         return \nhc_collect($contract, $host, $checkout, $env, self::composerModel(), $git, self::CANDIDATE_SHA);
@@ -577,7 +574,8 @@ final class NativeHostConsumerEvidenceTest extends TestCase
                 'repository' => 'waaseyaa/framework',
             ],
             'candidate' => ['revision' => self::CANDIDATE_SHA, 'binding' => $lane['candidate_binding'], 'skeleton_tree' => self::SKELETON_TREE],
-            'root_package' => ['name' => 'waaseyaa/waaseyaa', 'pretty_version' => 'dev-main', 'reference' => '2f1e0c7d4b5a69788796a5b4c3d2e1f0a9b8c7d6', 'relation' => 'created-from-candidate-checkout-skeleton'],
+            'root_package' => ['name' => 'waaseyaa/waaseyaa', 'pretty_version' => '1.0.0+no-version-set', 'reference' => null],
+            'project_source' => ['relation' => \NHC_CHECKOUT_SKELETON_RELATION, 'revision' => null, 'tree' => null],
             'cohort' => [
                 'digest' => str_repeat('1', 64),
                 'package_count' => 1,
@@ -612,13 +610,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'incomplete' => [],
         ];
         if ($lane['candidate_binding'] === 'harness-archive') {
-            $record['root_package'] = [
-                'name' => 'waaseyaa/waaseyaa',
-                'pretty_version' => 'dev-main',
-                'reference' => self::SCRATCH_SHA,
-                'relation' => \NHC_SCRATCH_RELATION,
-                'scratch_commit' => ['revision' => self::SCRATCH_SHA, 'tree' => self::SKELETON_TREE],
-            ];
+            $record['project_source'] = ['relation' => \NHC_SCRATCH_RELATION, 'revision' => self::SCRATCH_SHA, 'tree' => self::SKELETON_TREE];
         }
 
         return $record;

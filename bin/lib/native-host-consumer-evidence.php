@@ -25,10 +25,12 @@ require_once __DIR__ . '/native-host-evidence.php';
  *
  * The shared subject is the originating checked-out candidate, never a
  * scratch commit. Linux archives the checkout it runs in (the harness's
- * candidate_revision) and recommits only the skeleton as a scratch project,
- * so its consumer root-package reference is that scratch commit; the record
- * proves the scratch commit's tree is the candidate's `skeleton/` tree and
- * never claims the two references are equal.
+ * candidate_revision) and creates its consumer from a scratch commit of only
+ * the skeleton, so the project's source revision differs from the candidate.
+ * The record carries that scratch commit as the project source, proves its
+ * tree is the candidate's `skeleton/` tree, and never claims the two revisions
+ * are equal. Composer keeps no root reference through the consumer's later
+ * update on either host; the observed root package is recorded as-is.
  *
  * Composer path-repository references hash a package's manifest and the
  * repository options, not its code, so they cannot identify the installed
@@ -45,8 +47,9 @@ const NHC_STEP_IDS = ['lifecycle', 'consumer-cli'];
 const NHC_CANDIDATE_BINDINGS = ['harness-archive', 'checkout'];
 const NHC_BOOT_SOURCES = ['process', 'consumer-dotenv'];
 
-/** Scratch-commit relation recorded for a harness-archive (Linux) lane. */
+/** Project-source relations: the Linux scratch recommit and the Windows checkout skeleton. */
 const NHC_SCRATCH_RELATION = 'scratch-commit-of-candidate-skeleton';
+const NHC_CHECKOUT_SKELETON_RELATION = 'candidate-checkout-skeleton';
 
 /** Git's 40-hex object name. */
 const NHC_SHA_PATTERN = '/^[0-9a-f]{40}$/D';
@@ -609,31 +612,33 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
         }
     }
 
-    // The Linux scratch commit: a different reference, the candidate skeleton tree.
-    if ($rootPackage !== null) {
-        if ($lane['candidate_binding'] === 'harness-archive') {
-            $projectRevision = $value('WAASEYAA_CONSUMER_PROJECT_REVISION');
-            $projectSource = $value('WAASEYAA_CONSUMER_PROJECT_SOURCE');
-            $scratchTree = $projectRevision !== null && $projectSource !== null && preg_match(NHC_SHA_PATTERN, $projectRevision) === 1
-                ? $git(['-C', $projectSource, 'rev-parse', '--verify', "{$projectRevision}^{tree}"])
-                : null;
-            $scratchTree = is_string($scratchTree) && preg_match(NHC_SHA_PATTERN, trim($scratchTree)) === 1 ? trim($scratchTree) : null;
-            $rootPackage['relation'] = NHC_SCRATCH_RELATION;
-            $rootPackage['scratch_commit'] = ['revision' => $projectRevision, 'tree' => $scratchTree];
-            if ($projectRevision === null || $projectSource === null) {
-                $incomplete[] = 'the harness did not hand over its scratch project commit';
-            } elseif ($scratchTree === null) {
-                $incomplete[] = 'the scratch project commit tree could not be resolved';
-            } else {
-                if ($rootPackage['reference'] !== $projectRevision) {
-                    $violations[] = 'the consumer root package reference ' . json_encode($rootPackage['reference']) . " is not the scratch project commit {$projectRevision}";
-                }
-                if ($candidate['skeleton_tree'] !== null && $scratchTree !== $candidate['skeleton_tree']) {
-                    $violations[] = "the scratch project commit tree {$scratchTree} is not the candidate skeleton tree {$candidate['skeleton_tree']}";
-                }
-            }
+    // Where the root project came from. Composer does not persist a root
+    // reference through the consumer's later update, so the observed root
+    // package is recorded as-is. The Linux harness created its project from a
+    // scratch recommit of the candidate skeleton: that commit is a different
+    // revision from the candidate, and its tree must be the candidate's
+    // skeleton tree. The Windows lane creates its project from the checkout's
+    // skeleton directory itself.
+    $projectSource = ['relation' => NHC_CHECKOUT_SKELETON_RELATION, 'revision' => null, 'tree' => null];
+    if ($lane['candidate_binding'] === 'harness-archive') {
+        $projectRevision = $value('WAASEYAA_CONSUMER_PROJECT_REVISION');
+        $projectDirectory = $value('WAASEYAA_CONSUMER_PROJECT_SOURCE');
+        $scratchTree = $projectRevision !== null && $projectDirectory !== null && preg_match(NHC_SHA_PATTERN, $projectRevision) === 1
+            ? $git(['-C', $projectDirectory, 'rev-parse', '--verify', "{$projectRevision}^{tree}"])
+            : null;
+        $scratchTree = is_string($scratchTree) && preg_match(NHC_SHA_PATTERN, trim($scratchTree)) === 1 ? trim($scratchTree) : null;
+        $projectSource = ['relation' => NHC_SCRATCH_RELATION, 'revision' => $projectRevision, 'tree' => $scratchTree];
+        if ($projectRevision === null || $projectDirectory === null) {
+            $incomplete[] = 'the harness did not hand over its scratch project commit';
+        } elseif ($scratchTree === null) {
+            $incomplete[] = 'the scratch project commit tree could not be resolved';
         } else {
-            $rootPackage['relation'] = 'created-from-candidate-checkout-skeleton';
+            if ($projectRevision === $candidateRevision) {
+                $violations[] = "the scratch project commit {$projectRevision} claims to be the candidate revision";
+            }
+            if ($candidate['skeleton_tree'] !== null && $scratchTree !== $candidate['skeleton_tree']) {
+                $violations[] = "the scratch project commit tree {$scratchTree} is not the candidate skeleton tree {$candidate['skeleton_tree']}";
+            }
         }
     }
 
@@ -648,6 +653,7 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
         'subject' => $subject['subject'] + ['repository' => $repository],
         'candidate' => $candidate,
         'root_package' => $rootPackage,
+        'project_source' => $projectSource,
         'cohort' => $cohort,
         'lifecycle' => ['artifacts' => $lifecycle],
         'cli' => $cli,
@@ -737,11 +743,12 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
     if ($lane['candidate_binding'] === 'harness-archive') {
         // The scratch recommit: its reference is recorded, never equated with
         // the candidate; its tree must be the candidate's skeleton tree.
-        $checks['scratch project commit'] = $at('root_package.relation') === NHC_SCRATCH_RELATION
-            && $sha($at('root_package.scratch_commit.revision'))
-            && $at('root_package.reference') === $at('root_package.scratch_commit.revision')
-            && $at('root_package.reference') !== $at('candidate.revision')
-            && $at('root_package.scratch_commit.tree') === $at('candidate.skeleton_tree');
+        $checks['scratch project commit'] = $at('project_source.relation') === NHC_SCRATCH_RELATION
+            && $sha($at('project_source.revision'))
+            && $at('project_source.revision') !== $at('candidate.revision')
+            && $at('project_source.tree') === $at('candidate.skeleton_tree');
+    } else {
+        $checks['project source'] = $at('project_source') === ['relation' => NHC_CHECKOUT_SKELETON_RELATION, 'revision' => null, 'tree' => null];
     }
 
     $problems = [];

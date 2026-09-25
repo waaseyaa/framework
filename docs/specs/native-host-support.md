@@ -304,11 +304,13 @@ required check names and the frozen rollback baseline are unchanged; the
 gate is a proved prerequisite, never projected.
 
 The shared subject is the checked-out candidate. The Linux harness archives
-the checkout it runs in and records that revision; it recommits only the
-skeleton as a scratch project, so its consumer's root-package reference is
-the scratch commit. The record keeps that reference, proves the scratch
-commit's tree equals the candidate's `skeleton/` tree, and never claims the
-two references are equal. Composer path-repository references hash a
+the checkout it runs in and records that revision; it creates its consumer
+from a scratch commit of only the skeleton, so the project's source revision
+differs from the candidate. The record carries that scratch commit as the
+project source, proves its tree equals the candidate's `skeleton/` tree, and
+never claims the two revisions are equal. (Composer keeps no root reference
+through the consumer's later update on either host, so the observed root
+package is recorded as-is.) Composer path-repository references hash a
 package manifest and the repository options, not its code, so each installed
 `waaseyaa/*` package is instead bound by content: every installed file must
 equal the candidate blob at its path (line endings normalized, and matched
