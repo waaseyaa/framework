@@ -274,9 +274,10 @@ cannot weaken ordinary test or coverage protection. Each aggregate uses
 `success`; failed, cancelled, skipped, or missing evidence cannot produce a
 green decision. Since the Task 7 migration these nine are the live ruleset's
 sole required-check interface. A prerequisite may be added behind an existing
-aggregate without renaming it, as #2678 added `ci/native-host-contract` behind
-`merge/platform-runtime-acceptance`; `tools/ci-check-roster.json` records the
-prerequisites, and the legacy baseline below is not extended.
+aggregate without renaming it, as #2678 added `ci/native-host-contract` and
+then `ci/native-host-consumer-cli` behind `merge/platform-runtime-acceptance`;
+`tools/ci-check-roster.json` records the prerequisites, and the legacy baseline
+below is not extended.
 
 Task 6 adds `ci-roster-live-audit.yml`, scheduled weekly and available by manual
 dispatch only. `bin/audit-ci-roster-live` compares the manifest with the live

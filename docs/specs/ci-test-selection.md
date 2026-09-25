@@ -445,6 +445,15 @@ POSIX-only by design, so running them there would be a guaranteed red for
 environmental reasons. It makes no serving claim, and `support/s1-v1.json`'s
 `platform.framework_os` remains the ubuntu-24.04 serving runtime.
 
+Since FW-2678-NATIVE-HOST-SKELETON-CLI-02 that lane and the Linux
+`site-reference-consumer` lane are the two consumer CLI lanes: after each
+consumer completes `site:init` and `install:init`, both run the contract's
+`consumer_cli` command (`php vendor/bin/waaseyaa list --raw`) as the same
+PowerShell step, and `ci/native-host-consumer-cli` pairs their evidence behind
+`merge/platform-runtime-acceptance`. Both lanes pin Composer to the 2.10 line.
+`ci/skeleton-create-project` is not a consumer CLI lane: on ordinary runs it
+proves the published release line, not the candidate.
+
 The `check-dead-code` job's PHPStan result cache has a separate, stricter
 custody rule. Dead-code reachability is a global property of the analyzed PHP
 universe: a source or PHPDoc change can alter the usage graph without changing

@@ -671,68 +671,18 @@ function nhe_round_trip(array $argv, string $shell, string $probeScript, callabl
  */
 function nhe_collect(array $contract, string $host, string $root, array $env, callable $runner, ?string $checkedOutHead): array
 {
-    $violations = [];
-    $incomplete = [];
     $definition = $contract['hosts'][$host] ?? null;
     if (!is_array($definition)) {
         throw new InvalidArgumentException("host {$host} is not in the contract");
     }
-    $value = static fn(string $name): ?string => is_string($env[$name] ?? null) && $env[$name] !== '' ? $env[$name] : null;
-
-    // Host and runner identity.
-    $runnerOs = $value('RUNNER_OS');
-    $runnerLabel = $value('NATIVE_HOST_RUNNER_LABEL');
-    $architecture = nhe_normalize_architecture(php_uname('m'));
-    foreach (['RUNNER_OS' => $runnerOs, 'NATIVE_HOST_RUNNER_LABEL' => $runnerLabel, 'ImageOS' => $value('ImageOS'), 'ImageVersion' => $value('ImageVersion')] as $name => $present) {
-        if ($present === null) {
-            $incomplete[] = "{$name} is not set";
-        }
-    }
-    if (PHP_OS_FAMILY !== $definition['php_os_family']) {
-        $violations[] = "the {$host} leaf ran on PHP OS family " . PHP_OS_FAMILY;
-    }
-    if ($runnerOs !== null && $runnerOs !== $definition['runner_os']) {
-        $violations[] = "the {$host} leaf ran on RUNNER_OS {$runnerOs}";
-    }
-    if ($runnerLabel !== null && $runnerLabel !== $definition['runner']) {
-        $violations[] = "the {$host} leaf ran on runner {$runnerLabel}, not {$definition['runner']}";
-    }
-    if ($architecture !== $definition['architecture']) {
-        $violations[] = "the {$host} leaf ran on architecture {$architecture}, not {$definition['architecture']}";
-    }
-
-    // Hosted harness shell: CI machinery, never a contributor prerequisite.
-    $shell = $value('NATIVE_HOST_SHELL');
-    $shellVersion = $value('NATIVE_HOST_SHELL_VERSION');
-    if ($shell !== $contract['harness_shell']) {
-        $violations[] = 'the hosted shell is ' . json_encode($shell) . ", not {$contract['harness_shell']}";
-    }
-    if ($shellVersion === null || preg_match('/^\d+\.\d+/', $shellVersion) !== 1) {
-        $incomplete[] = 'the hosted shell version was not recorded';
-    }
+    $identity = nhe_host_identity($contract, $host, $env, $runner);
+    $violations = $identity['violations'];
+    $incomplete = $identity['incomplete'];
 
     // Source subject.
     $subject = nhe_subject($env, $checkedOutHead);
     array_push($violations, ...$subject['violations']);
     array_push($incomplete, ...$subject['incomplete']);
-
-    // Runtime.
-    $sqlite = class_exists(SQLite3::class) ? (SQLite3::version()['versionString'] ?? null) : null;
-    $runtime = [
-        'php' => PHP_VERSION,
-        'composer' => nhe_composer_version(nhe_composer_command(PHP_OS_FAMILY, $env), $runner),
-        'sqlite' => is_string($sqlite) ? $sqlite : null,
-        'node' => null,
-        'node_required' => false,
-    ];
-    foreach (['php', 'composer', 'sqlite'] as $tool) {
-        $range = $contract['runtime'][$tool];
-        if ($runtime[$tool] === null) {
-            $incomplete[] = "the {$tool} version could not be resolved";
-        } elseif (!nhe_version_in_range($runtime[$tool], $range['min'], $range['below'])) {
-            $violations[] = "{$tool} {$runtime[$tool]} is outside >={$range['min']} <{$range['below']}";
-        }
-    }
 
     // Governed step results.
     $ids = array_column($contract['commands'], 'id');
@@ -813,19 +763,9 @@ function nhe_collect(array $contract, string $host, string $root, array $env, ca
         'host' => $host,
         'contract' => ['path' => 'tools/native-host-contract.json', 'sha256' => nhe_contract_digest($contract)],
         'subject' => $subject['subject'],
-        'runner' => [
-            'label' => $runnerLabel,
-            'runner_os' => $runnerOs,
-            'runner_arch' => $value('RUNNER_ARCH'),
-            'runner_environment' => $value('RUNNER_ENVIRONMENT'),
-            'image_os' => $value('ImageOS'),
-            'image_version' => $value('ImageVersion'),
-            'os_family' => PHP_OS_FAMILY,
-            'os' => php_uname('s') . ' ' . php_uname('r') . ' ' . php_uname('v'),
-            'architecture' => $architecture,
-        ],
-        'hosted_shell' => ['name' => $shell, 'version' => $shellVersion, 'role' => 'hosted-harness-only'],
-        'runtime' => $runtime,
+        'runner' => $identity['runner'],
+        'hosted_shell' => $identity['hosted_shell'],
+        'runtime' => $identity['runtime'],
         'replay' => [
             'shell' => $definition['replay_shell'],
             'preconditions' => [
@@ -843,6 +783,95 @@ function nhe_collect(array $contract, string $host, string $root, array $env, ca
     return [
         'evidence' => $evidence,
         'exit' => $violations !== [] ? NHE_EXIT_VIOLATION : ($incomplete !== [] ? NHE_EXIT_INCOMPLETE : NHE_EXIT_PASS),
+    ];
+}
+
+/**
+ * The runner, hosted shell and runtime identity of one leaf, checked against
+ * its contract host. Shared by the contract and consumer collectors.
+ *
+ * @param array<string, mixed> $contract
+ * @param array<string, string|false> $env
+ * @param callable(non-empty-list<string>): ?string $runner
+ *
+ * @return array{runner: array<string, mixed>, hosted_shell: array<string, mixed>, runtime: array<string, mixed>, violations: list<string>, incomplete: list<string>}
+ */
+function nhe_host_identity(array $contract, string $host, array $env, callable $runner): array
+{
+    $violations = [];
+    $incomplete = [];
+    $definition = $contract['hosts'][$host] ?? null;
+    if (!is_array($definition)) {
+        throw new InvalidArgumentException("host {$host} is not in the contract");
+    }
+    $value = static fn(string $name): ?string => is_string($env[$name] ?? null) && $env[$name] !== '' ? $env[$name] : null;
+
+    // Host and runner identity.
+    $runnerOs = $value('RUNNER_OS');
+    $runnerLabel = $value('NATIVE_HOST_RUNNER_LABEL');
+    $architecture = nhe_normalize_architecture(php_uname('m'));
+    foreach (['RUNNER_OS' => $runnerOs, 'NATIVE_HOST_RUNNER_LABEL' => $runnerLabel, 'ImageOS' => $value('ImageOS'), 'ImageVersion' => $value('ImageVersion')] as $name => $present) {
+        if ($present === null) {
+            $incomplete[] = "{$name} is not set";
+        }
+    }
+    if (PHP_OS_FAMILY !== $definition['php_os_family']) {
+        $violations[] = "the {$host} leaf ran on PHP OS family " . PHP_OS_FAMILY;
+    }
+    if ($runnerOs !== null && $runnerOs !== $definition['runner_os']) {
+        $violations[] = "the {$host} leaf ran on RUNNER_OS {$runnerOs}";
+    }
+    if ($runnerLabel !== null && $runnerLabel !== $definition['runner']) {
+        $violations[] = "the {$host} leaf ran on runner {$runnerLabel}, not {$definition['runner']}";
+    }
+    if ($architecture !== $definition['architecture']) {
+        $violations[] = "the {$host} leaf ran on architecture {$architecture}, not {$definition['architecture']}";
+    }
+
+    // Hosted harness shell: CI machinery, never a contributor prerequisite.
+    $shell = $value('NATIVE_HOST_SHELL');
+    $shellVersion = $value('NATIVE_HOST_SHELL_VERSION');
+    if ($shell !== $contract['harness_shell']) {
+        $violations[] = 'the hosted shell is ' . json_encode($shell) . ", not {$contract['harness_shell']}";
+    }
+    if ($shellVersion === null || preg_match('/^\d+\.\d+/', $shellVersion) !== 1) {
+        $incomplete[] = 'the hosted shell version was not recorded';
+    }
+
+    // Runtime.
+    $sqlite = class_exists(SQLite3::class) ? (SQLite3::version()['versionString'] ?? null) : null;
+    $runtime = [
+        'php' => PHP_VERSION,
+        'composer' => nhe_composer_version(nhe_composer_command(PHP_OS_FAMILY, $env), $runner),
+        'sqlite' => is_string($sqlite) ? $sqlite : null,
+        'node' => null,
+        'node_required' => false,
+    ];
+    foreach (['php', 'composer', 'sqlite'] as $tool) {
+        $range = $contract['runtime'][$tool];
+        if ($runtime[$tool] === null) {
+            $incomplete[] = "the {$tool} version could not be resolved";
+        } elseif (!nhe_version_in_range($runtime[$tool], $range['min'], $range['below'])) {
+            $violations[] = "{$tool} {$runtime[$tool]} is outside >={$range['min']} <{$range['below']}";
+        }
+    }
+
+    return [
+        'runner' => [
+            'label' => $runnerLabel,
+            'runner_os' => $runnerOs,
+            'runner_arch' => $value('RUNNER_ARCH'),
+            'runner_environment' => $value('RUNNER_ENVIRONMENT'),
+            'image_os' => $value('ImageOS'),
+            'image_version' => $value('ImageVersion'),
+            'os_family' => PHP_OS_FAMILY,
+            'os' => php_uname('s') . ' ' . php_uname('r') . ' ' . php_uname('v'),
+            'architecture' => $architecture,
+        ],
+        'hosted_shell' => ['name' => $shell, 'version' => $shellVersion, 'role' => 'hosted-harness-only'],
+        'runtime' => $runtime,
+        'violations' => $violations,
+        'incomplete' => $incomplete,
     ];
 }
 

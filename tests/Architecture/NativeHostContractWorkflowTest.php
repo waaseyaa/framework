@@ -164,7 +164,7 @@ final class NativeHostContractWorkflowTest extends TestCase
         );
 
         $platform = self::$jobs['merge-platform-runtime-acceptance'];
-        self::assertSame(['frankenphp-worker', 'skeleton-create-project-windows', 'native-host-contract-evidence'], $platform['needs']);
+        self::assertSame(['frankenphp-worker', 'skeleton-create-project-windows', 'native-host-contract-evidence', 'native-host-consumer-cli-evidence'], $platform['needs']);
         self::assertStringContainsString('"native-host-contract-evidence=$NATIVE_HOST_CONTRACT"', $platform['steps'][0]['run']);
         self::assertArrayNotHasKey('local-operator-windows', self::$jobs, 'The contract matrix replaces ci/local-operator-windows.');
     }

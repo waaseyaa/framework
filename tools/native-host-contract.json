@@ -269,5 +269,45 @@
                 "bin/check-repo-root-hygiene"
             ]
         }
-    ]
+    ],
+    "consumer_cli": {
+        "change_record": "FW-2678-NATIVE-HOST-SKELETON-CLI-02",
+        "statement": "After each consumer lane completes site:init and install:init in a fresh project built from the candidate, it runs argv in that consumer as its own pwsh step, rendered exactly as the contract commands are. The installed catalogue must list every required command; the entries are registered unconditionally by the waaseyaa/cli providers SiteServiceProvider (site:init, site:doctor), MigrateServiceProvider (install:init) and ConfigCacheDbAuditServiceProvider (db:init), and list is the console application built-in. bin/native-host-evidence consumer-collect validates each lane; consumer-verify-set requires one passing record per lane from one run, bound to one candidate and an equivalent installed cohort.",
+        "argv": [
+            "php",
+            "vendor/bin/waaseyaa",
+            "list",
+            "--raw"
+        ],
+        "required_commands": [
+            "list",
+            "db:init",
+            "site:init",
+            "site:doctor",
+            "install:init"
+        ],
+        "lifecycle_artifacts": [
+            ".waaseyaa/generated.json",
+            "bin/maintenance/site-verify",
+            "storage/waaseyaa.sqlite"
+        ],
+        "lanes": {
+            "linux": {
+                "job": "site-reference-consumer",
+                "candidate_binding": "harness-archive",
+                "boot_environment": {
+                    "app_env": "testing",
+                    "source": "process"
+                }
+            },
+            "windows": {
+                "job": "skeleton-create-project-windows",
+                "candidate_binding": "checkout",
+                "boot_environment": {
+                    "app_env": "local",
+                    "source": "consumer-dotenv"
+                }
+            }
+        }
+    }
 }
