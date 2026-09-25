@@ -448,8 +448,8 @@ final class PortableNullDeviceGateTest extends TestCase
         }
 
         $fragments = [
-            // Redirections.
-            'cmd >/dev/null 2>&1', 'cmd &> /dev/null', 'cmd >> /dev/null', 'cmd < /dev/null',
+            // Redirections, spaced or not.
+            'cmd >/dev/null 2>&1', 'cmd &> /dev/null', 'cmd >> /dev/null', 'cmd < /dev/null', 'cmd </dev/null',
             // The device as a word of the command, which a remote POSIX host
             // (Deployer's run()) resolves, never the local one.
             'curl -s -o /dev/null https://example.test', 'GIT_CONFIG_GLOBAL=/dev/null git status', 'git diff --no-index /dev/null b.txt',
