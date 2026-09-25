@@ -243,57 +243,65 @@ final class PortableNullDeviceGateTest extends TestCase
     #[Test]
     public function malformed_or_overly_broad_classifications_are_rejected(): void
     {
+        // Each case must be rejected for its own reason, not for a side
+        // effect such as the sort order its replacement file name breaks.
         $index = self::entryIndex(self::DIFFER, 'ConfigDiffer::buildSyncOnlyResult', '/dev/null');
         $entry = static fn(array $changes): array => array_replace(self::$manifest['classifications'][$index], $changes);
         $broad = [
-            'a glob' => ['file' => 'packages/config/src/Sync/*.php'],
-            'a directory' => ['file' => 'packages/config/src/Sync'],
-            'a trailing slash' => ['file' => 'packages/config/src/Sync/'],
-            'a symbol pattern' => ['symbol' => 'ConfigDiffer::*'],
+            'a glob' => [['file' => 'packages/config/src/Sync/*.php'], 'is a pattern or a directory'],
+            'a directory' => [['file' => 'packages/config/src/Sync'], 'is a pattern or a directory'],
+            'a trailing slash' => [['file' => 'packages/config/src/Sync/'], 'is a pattern or a directory'],
+            'a symbol pattern' => [['symbol' => 'ConfigDiffer::*'], 'is a pattern; name exactly one symbol'],
         ];
-        foreach ($broad as $case => $changes) {
+        foreach ($broad as $case => [$changes, $reason]) {
             $violations = self::analyze([], self::withEntryAt($index, $entry($changes)));
-            self::assertContains('overly-broad', self::kinds($violations), $case);
+            self::assertRejectedFor($violations, 'overly-broad', $reason, $case);
             self::assertNotContains('purpose-mismatch', self::kinds($violations), $case);
         }
 
+        $relative = 'must be a repository-relative path with / separators';
+        $outside = 'is outside the governed surface';
+        $rationale = 'rationale must be one non-empty line';
         $malformed = [
-            'an absolute path' => ['file' => '/packages/config/src/Sync/ConfigDiffer.php'],
-            'a drive path' => ['file' => 'C:/packages/config/src/Sync/ConfigDiffer.php'],
-            'backslashes' => ['file' => 'packages\\config\\src\\Sync\\ConfigDiffer.php'],
-            'a dot segment' => ['file' => 'packages/config/../config/src/Sync/ConfigDiffer.php'],
-            'a test file' => ['file' => 'tests/Architecture/PortableNullDeviceGateTest.php'],
-            'a vendor file' => ['file' => 'vendor/acme/lib/src/Lib.php'],
-            'an empty symbol' => ['symbol' => ''],
-            'a malformed symbol' => ['symbol' => 'ConfigDiffer->buildSyncOnlyResult'],
-            'a literal without the device' => ['literal' => 'b/'],
-            'zero occurrences' => ['occurrences' => 0],
-            'a string count' => ['occurrences' => '1'],
-            'an unknown purpose' => ['purpose' => 'legacy'],
-            'an empty rationale' => ['rationale' => '  '],
-            'a multi-line rationale' => ['rationale' => "line one\nline two"],
-            'an overlong rationale' => ['rationale' => str_repeat('x', 501)],
+            'an absolute path' => [['file' => '/packages/config/src/Sync/ConfigDiffer.php'], $relative],
+            'a drive path' => [['file' => 'C:/packages/config/src/Sync/ConfigDiffer.php'], $relative],
+            'backslashes' => [['file' => 'packages\\config\\src\\Sync\\ConfigDiffer.php'], $relative],
+            'a dot segment' => [['file' => 'packages/config/../config/src/Sync/ConfigDiffer.php'], $relative],
+            'a test file' => [['file' => 'tests/Architecture/PortableNullDeviceGateTest.php'], $outside],
+            'a vendor file' => [['file' => 'vendor/acme/lib/src/Lib.php'], $outside],
+            'an empty symbol' => [['symbol' => ''], 'symbol must be a non-empty string'],
+            'a malformed symbol' => [['symbol' => 'ConfigDiffer->buildSyncOnlyResult'], 'must be {main}, a function, a class, or Class::method'],
+            'a literal without the device' => [['literal' => 'b/'], 'literal must be the content of a string token'],
+            'zero occurrences' => [['occurrences' => 0], 'occurrences must be a positive integer'],
+            'a string count' => [['occurrences' => '1'], 'occurrences must be a positive integer'],
+            'an unknown purpose' => [['purpose' => 'legacy'], 'purpose must be one of'],
+            'an empty rationale' => [['rationale' => '  '], $rationale],
+            'a multi-line rationale' => [['rationale' => "line one\nline two"], $rationale],
+            'an overlong rationale' => [['rationale' => str_repeat('x', 501)], $rationale],
         ];
-        foreach ($malformed as $case => $changes) {
-            self::assertContains('malformed', self::kinds(self::analyze([], self::withEntryAt($index, $entry($changes)))), $case);
+        foreach ($malformed as $case => [$changes, $reason]) {
+            self::assertRejectedFor(self::analyze([], self::withEntryAt($index, $entry($changes))), 'malformed', $reason, $case);
         }
 
+        $keys = 'a classification must have exactly the keys';
+        $schema = 'schema must be ';
+        $object = 'the manifest must be a JSON object';
         $shapes = [
-            'an unknown entry key' => self::withEntryAt($index, [...$entry([]), 'line' => 210]),
-            'a missing entry key' => self::withEntryAt($index, array_diff_key($entry([]), ['rationale' => true])),
-            'a list entry' => self::withEntryAt($index, ['file', 'symbol']),
-            'unsorted entries' => self::withClassifications(array_reverse(self::$manifest['classifications'])),
-            'another schema' => [...self::$manifest, 'schema' => 'waaseyaa.other'],
-            'another schema version' => [...self::$manifest, 'schema_version' => 2],
-            'an unknown manifest key' => [...self::$manifest, 'exemptions' => []],
-            'a missing statement' => array_diff_key(self::$manifest, ['statement' => true]),
-            'a purpose vocabulary that drifted' => [...self::$manifest, 'purposes' => ['platform-derived' => 'x', 'legacy' => 'y']],
-            'classifications that are not a list' => [...self::$manifest, 'classifications' => ['a' => $entry([])]],
-            'a list for a manifest' => [self::$manifest],
-            'a scalar for a manifest' => 'classifications',
+            'an unknown entry key' => [self::withEntryAt($index, [...$entry([]), 'line' => 210]), $keys],
+            'a missing entry key' => [self::withEntryAt($index, array_diff_key($entry([]), ['rationale' => true])), $keys],
+            'a list entry' => [self::withEntryAt($index, ['file', 'symbol']), 'a classification must be an object'],
+            'unsorted entries' => [self::withClassifications(array_reverse(self::$manifest['classifications'])), 'must be sorted by file, then symbol, then literal'],
+            'another schema' => [[...self::$manifest, 'schema' => 'waaseyaa.other'], $schema],
+            'another schema version' => [[...self::$manifest, 'schema_version' => 2], $schema],
+            'an unknown manifest key' => [[...self::$manifest, 'exemptions' => []], 'the manifest must have exactly the keys'],
+            'a missing statement' => [array_diff_key(self::$manifest, ['statement' => true]), 'statement must be a non-empty string'],
+            'a purpose vocabulary that drifted' => [[...self::$manifest, 'purposes' => ['platform-derived' => 'x', 'legacy' => 'y']], 'purposes must define exactly'],
+            'classifications that are not a list' => [[...self::$manifest, 'classifications' => ['a' => $entry([])]], 'classifications must be a list'],
+            'a list for a manifest' => [[self::$manifest], $object],
+            'a scalar for a manifest' => ['classifications', $object],
         ];
-        foreach ($shapes as $case => $manifest) {
-            self::assertContains('malformed', self::kinds(self::analyze([], $manifest)), $case);
+        foreach ($shapes as $case => [$manifest, $reason]) {
+            self::assertRejectedFor(self::analyze([], $manifest), 'malformed', $reason, $case);
         }
     }
 
@@ -570,6 +578,19 @@ final class PortableNullDeviceGateTest extends TestCase
         sort($kinds, SORT_STRING);
 
         return $kinds;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $violations
+     */
+    private static function assertRejectedFor(array $violations, string $kind, string $reason, string $case): void
+    {
+        foreach (self::byKind($violations, $kind) as $violation) {
+            if (str_contains($violation['message'], $reason)) {
+                return;
+            }
+        }
+        self::fail("{$case}: expected a {$kind} violation for \"{$reason}\"; got:\n" . \pnd_format_violations($violations, \PND_MANIFEST));
     }
 
     /**
