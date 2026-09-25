@@ -172,9 +172,13 @@ same workflow run.
     fields, with:
     - a unique `waaseyaa/*` name in canonical byte order;
     - a Composer version string and package type;
-    - a root or `packages/<dir>` candidate path;
+    - a root or `packages/<dir>` candidate path, unique to the package,
+      with only `waaseyaa/framework` at the root;
+    - a withheld list of sorted, distinct, `/`-separated relative paths;
     - a 64-lowercase-hex content digest;
-    - non-negative file, export-ignored and EOL counts within their bounds:
+    - non-negative integer file, export-ignored and EOL counts within
+      their documented relative bounds (no absolute cap; the counts are not
+      part of the cohort identity):
       no files for a metapackage and at least one otherwise, no more
       withheld than export-ignored, and EOL normalization only on
       Windows, never above the file count;
@@ -184,7 +188,10 @@ same workflow run.
       `[name, version, content_digest]` projection with the collector's
       own function.
 
-  Root-package metadata stays informational.
+  Root-package metadata stays informational. The collector applies the
+  same cohort validation to what it collected, so a lane can never pass a
+  record the verifier would reject. Package names follow Composer's own
+  grammar.
 
   It re-derives each check from the record's fields and does not trust the
   record's `result`.
@@ -244,7 +251,7 @@ proxy only, and no billed cost is claimed.
 Native Windows 11, PHP 8.5.5, Composer 2.9.5; local evidence, not the
 reference hosts.
 
-- `NativeHostConsumerEvidenceTest` (101 cases, 51 of them verifier-set
+- `NativeHostConsumerEvidenceTest` (109 cases, 57 of them verifier-set
   cases) and
   `NativeHostConsumerCliWorkflowTest` (10 cases) pass. The collector cases
   cover:
@@ -294,9 +301,9 @@ reference hosts.
   - a Linux scratch commit claimed equal to the candidate, a Linux scratch
     tree that is not the skeleton tree, and a Windows record that claims a
     scratch commit.
-- Twenty-one injected mutants were each killed by the new tests. The run used a
+- Twenty-five injected mutants were each killed by the new tests. The run used a
   scratch copy of the library, and the worktree was not modified. The
-  unmutated control passed 100/100. The mutants removed:
+  unmutated control passed 108/108. The mutants removed:
   - the harness-revision binding;
   - the installed-content comparison;
   - the cross-lane cohort comparison;
@@ -317,7 +324,17 @@ reference hosts.
   - the duplicate-package rejection;
   - the canonical-order check;
   - the binding of the repository to the verifier's own;
-  - the package count bounds.
+  - the package count bounds;
+  - the collector's self-check against the verifier's cohort rules;
+  - the shared-candidate-path rejection;
+  - the framework-at-root binding;
+  - the canonical withheld-list check.
+- A focused independent re-review of the repaired verifier found nothing
+  blocking: 37 adversarial record pairs were all rejected, and nothing in
+  the validator can throw. Its findings are fixed here: the collector
+  self-check (should-fix), Composer's name grammar, candidate-path and
+  withheld-list canonicality, an unmasked null digest, and a string-only
+  catalogue comparison.
 - The two real qualification records (68 packages each) pass the new
   cohort validation, and their recorded digests equal the recomputed ones.
 - An exploratory Windows consumer built from the working tree completed the

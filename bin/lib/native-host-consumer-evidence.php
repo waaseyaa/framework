@@ -468,6 +468,7 @@ function nhc_cohort_problems(mixed $cohort, string $osFamily): array
     }
     $count = static fn(mixed $value): bool => is_int($value) && $value >= 0;
     $names = [];
+    $paths = [];
     $previous = null;
     foreach ($packages as $index => $package) {
         $label = "package {$index}";
@@ -476,7 +477,7 @@ function nhc_cohort_problems(mixed $cohort, string $osFamily): array
             continue;
         }
         $name = $package['name'];
-        if (!is_string($name) || preg_match('#^waaseyaa/[a-z0-9]([_.-]?[a-z0-9]+)*$#D', $name) !== 1) {
+        if (!is_string($name) || preg_match('#^waaseyaa/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$#D', $name) !== 1) {
             $problems[] = "{$label} name " . nhc_show($name) . ' is not a waaseyaa/* package name';
         } else {
             $label = $name;
@@ -499,16 +500,28 @@ function nhc_cohort_problems(mixed $cohort, string $osFamily): array
                 $problems[] = "{$label} {$field} must be a non-empty string or null";
             }
         }
-        if (!is_string($package['candidate_path']) || preg_match('#^(\.|packages/[A-Za-z0-9._-]+)$#D', $package['candidate_path']) !== 1) {
-            $problems[] = "{$label} candidate_path " . nhc_show($package['candidate_path']) . ' is not the root or a packages/<dir> path';
+        $path = $package['candidate_path'];
+        if (!is_string($path) || preg_match('#^(\.|packages/[A-Za-z0-9._-]+)$#D', $path) !== 1 || in_array($path, ['packages/.', 'packages/..'], true)) {
+            $problems[] = "{$label} candidate_path " . nhc_show($path) . ' is not the root or a packages/<dir> path';
+        } else {
+            if (isset($paths[$path])) {
+                $problems[] = "{$label} shares candidate_path {$path} with {$paths[$path]}";
+            }
+            $paths[$path] = $label;
+            if (($name === 'waaseyaa/framework') !== ($path === '.')) {
+                $problems[] = "{$label} candidate_path {$path} is not its package's: only waaseyaa/framework is the root";
+            }
         }
         if (!is_string($package['content_digest']) || preg_match('/^[0-9a-f]{64}$/D', $package['content_digest']) !== 1) {
             $problems[] = "{$label} content_digest " . nhc_show($package['content_digest']) . ' is not 64 lowercase hexadecimal characters';
         }
         $withheld = $package['withheld'];
-        if (!is_array($withheld) || !array_is_list($withheld)
-            || array_filter($withheld, static fn(mixed $path): bool => !is_string($path) || $path === '' || str_starts_with($path, '/') || in_array('..', explode('/', $path), true)) !== []) {
-            $problems[] = "{$label} withheld must be a list of package-relative paths";
+        $relative = static fn(mixed $path): bool => is_string($path) && !str_contains($path, '\\')
+            && array_filter(explode('/', $path), static fn(string $segment): bool => in_array($segment, ['', '.', '..'], true)) === [];
+        $canonical = is_array($withheld) ? array_values(array_unique(array_filter($withheld, 'is_string'))) : [];
+        sort($canonical, SORT_STRING);
+        if (!is_array($withheld) || !array_is_list($withheld) || array_filter($withheld, static fn(mixed $path): bool => !$relative($path)) !== [] || $withheld !== $canonical) {
+            $problems[] = "{$label} withheld must be a sorted list of distinct package-relative paths";
             $withheld = [];
         }
         foreach (['files', 'export_ignored', 'eol_normalized'] as $field) {
@@ -649,7 +662,7 @@ function nhc_cohort(string $consumerRoot, array $tree, array $exportIgnored, cal
 
     return [
         'cohort' => [
-            'digest' => (string) nhc_cohort_digest(array_values($records)),
+            'digest' => nhc_cohort_digest(array_values($records)),
             'package_count' => count($records),
             'path_comparison' => $comparison,
             'packages' => array_values($records),
@@ -872,6 +885,12 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
             $cohort = $collected['cohort'];
             array_push($violations, ...$collected['violations']);
             array_push($incomplete, ...$collected['incomplete']);
+            // Never pass a lane record the paired verifier would reject.
+            if ($collected['incomplete'] === []) {
+                foreach (nhc_cohort_problems($cohort, PHP_OS_FAMILY) as $problem) {
+                    $violations[] = "the collected cohort fails the verifier's cohort check: {$problem}";
+                }
+            }
         }
 
         $skeletonTree = $git(['rev-parse', '--verify', "{$candidateRevision}:skeleton"]);
@@ -1005,7 +1024,7 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
             && is_int($at('lifecycle.activated_generations')) && $at('lifecycle.activated_generations') >= 1,
         'CLI argv' => $at('cli.argv') === $section['argv'],
         'CLI exit code' => $at('cli.exit_code') === 0 && $at('cli.outcome') === 'success',
-        'required catalogue entries' => is_array($catalogue) && array_diff($section['required_commands'], $catalogue) === [],
+        'required catalogue entries' => is_array($catalogue) && array_diff($section['required_commands'], array_filter($catalogue, 'is_string')) === [],
         'boot environment' => $at('boot_environment') === ['app_env' => $lane['boot_environment']['app_env'], 'source' => $lane['boot_environment']['source'], 'app_secret' => 'present'],
         'runner' => $at('runner.label') === $definition['runner'] && $at('runner.runner_os') === $definition['runner_os']
             && $at('runner.os_family') === $definition['php_os_family'] && is_string($at('runner.os')) && $at('runner.os') !== ''

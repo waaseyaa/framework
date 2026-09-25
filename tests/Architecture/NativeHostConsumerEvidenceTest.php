@@ -224,6 +224,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'another collecting job' => ['checkout', 'other-job', 'fail', 'consumer record was collected by job ci-lint, not '];
         yield 'no collecting job' => ['checkout', 'no-job', 'incomplete', 'GITHUB_JOB is not set'];
         yield 'unreadable export-ignore attributes' => ['checkout', 'no-attributes', 'incomplete', 'the export-ignore attributes of ' . self::CANDIDATE_SHA . ' could not be read'];
+        yield 'a cohort the verifier would reject' => ['checkout', 'odd-candidate-dir', 'fail', "the collected cohort fails the verifier's cohort check: waaseyaa/odd candidate_path \"packages/odd+dir\" is not the root or a packages/<dir> path"];
         yield 'a .env.local that overrides APP_ENV' => ['checkout', 'env-local', 'fail', 'the consumer booted with APP_ENV "production" from "consumer-dotenv"'];
         yield 'a skipped lifecycle' => ['checkout', 'lifecycle-skipped', 'fail','step lifecycle finished skipped'];
         yield 'a skipped CLI' => ['checkout', 'cli-skipped', 'fail','step consumer-cli finished skipped'];
@@ -414,6 +415,12 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield "another host's path comparison" => ['other-path-comparison', 'the linux consumer record fails the cohort check: the path comparison "case-insensitive" is not this host\'s'];
         yield 'a cohort without the framework' => ['no-framework', 'the cohort does not include waaseyaa/framework'];
         yield 'a metapackage that records installed files' => ['metapackage-files', 'waaseyaa/foundation records 2 installed files for a "metapackage"'];
+        yield 'an unsorted withheld list' => ['withheld-unsorted', 'waaseyaa/framework withheld must be a sorted list of distinct package-relative paths'];
+        yield 'a duplicated withheld path' => ['withheld-duplicate', 'waaseyaa/framework withheld must be a sorted list of distinct package-relative paths'];
+        yield 'a backslash withheld path' => ['withheld-backslash', 'waaseyaa/framework withheld must be a sorted list of distinct package-relative paths'];
+        yield 'a dot-only candidate directory' => ['dot-candidate-path', 'waaseyaa/foundation candidate_path "packages/.." is not the root or a packages/<dir> path'];
+        yield 'two packages at one candidate path' => ['shared-candidate-path', 'waaseyaa/framework shares candidate_path . with waaseyaa/foundation'];
+        yield 'the framework away from the root' => ['framework-not-root', 'waaseyaa/framework candidate_path packages/framework is not its package\'s: only waaseyaa/framework is the root'];
         yield 'a non-zero CLI exit' => ['cli-exit', 'the windows consumer record fails the CLI exit code check'];
         yield 'a missing catalogue entry' => ['no-site-doctor', 'the linux consumer record fails the required catalogue entries check'];
         yield 'another argv' => ['other-argv', 'the windows consumer record fails the CLI argv check'];
@@ -478,6 +485,12 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'other-path-comparison' => $records['linux']['cohort']['path_comparison'] = 'case-insensitive',
             'no-framework' => $rehash($records['windows'], static fn(array &$packages): array => $packages = [$packages[0]], 1),
             'metapackage-files' => $records['windows']['cohort']['packages'][0]['type'] = 'metapackage',
+            'withheld-unsorted' => $records['windows']['cohort']['packages'][1] = array_replace($records['windows']['cohort']['packages'][1], ['withheld' => ['README.md', '.mcp.json'], 'export_ignored' => 2]),
+            'withheld-duplicate' => $records['windows']['cohort']['packages'][1] = array_replace($records['windows']['cohort']['packages'][1], ['withheld' => ['.mcp.json', '.mcp.json'], 'export_ignored' => 2]),
+            'withheld-backslash' => $records['windows']['cohort']['packages'][1]['withheld'] = ['..\\outside'],
+            'dot-candidate-path' => $records['windows']['cohort']['packages'][0]['candidate_path'] = 'packages/..',
+            'shared-candidate-path' => $records['windows']['cohort']['packages'][0]['candidate_path'] = '.',
+            'framework-not-root' => $records['windows']['cohort']['packages'][1]['candidate_path'] = 'packages/framework',
             'cli-exit' => $records['windows']['cli']['exit_code'] = 1,
             'no-site-doctor' => $records['linux']['cli']['catalogue'] = ['list', 'db:init', 'site:init', 'install:init'],
             'other-argv' => $records['windows']['cli']['argv'] = ['php', 'vendor/bin/waaseyaa', 'list'],
@@ -523,6 +536,17 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             self::assertSame(\NHE_EXIT_VIOLATION, $verified['exit']);
             self::assertStringContainsString($expected, implode("\n", $verified['violations']));
         }
+    }
+
+    #[Test]
+    public function the_cohort_check_accepts_composer_package_names_with_double_dashes(): void
+    {
+        $packages = [
+            ['name' => 'waaseyaa/a--b', 'version' => 'dev-main', 'type' => 'library', 'dist_type' => 'path', 'dist_reference' => null, 'candidate_path' => 'packages/a--b', 'files' => 1, 'withheld' => [], 'export_ignored' => 0, 'content_digest' => str_repeat('a', 64), 'eol_normalized' => 0],
+            ['name' => 'waaseyaa/framework', 'version' => 'dev-main', 'type' => 'project', 'dist_type' => 'path', 'dist_reference' => null, 'candidate_path' => '.', 'files' => 1, 'withheld' => [], 'export_ignored' => 0, 'content_digest' => str_repeat('b', 64), 'eol_normalized' => 0],
+        ];
+
+        self::assertSame([], \nhc_cohort_problems(['digest' => \nhc_cohort_digest($packages), 'package_count' => 2, 'path_comparison' => 'exact', 'packages' => $packages], 'Linux'));
     }
 
     #[Test]
@@ -671,6 +695,14 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'other-job' => $env['GITHUB_JOB'] = 'ci-lint',
             'no-job' => $env['GITHUB_JOB'] = '',
             'no-attributes' => $exportIgnored = null,
+            'odd-candidate-dir' => (static function () use (&$tree, &$installed, $checkout, $consumer): void {
+                $manifest = "{\"name\": \"waaseyaa/odd\"}\n";
+                self::write("{$checkout}/packages/odd+dir/composer.json", $manifest);
+                self::write("{$consumer}/vendor/waaseyaa/framework/packages/odd+dir/composer.json", $manifest);
+                self::write("{$consumer}/vendor/waaseyaa/odd/composer.json", $manifest);
+                $tree['packages/odd+dir/composer.json'] = \nhc_blob_sha($manifest);
+                $installed['packages'][] = ['name' => 'waaseyaa/odd', 'version' => 'dev-main', 'type' => 'library', 'dist' => ['type' => 'path', 'reference' => 'abc'], 'install-path' => '../waaseyaa/odd'];
+            })(),
             'env-local' => self::write("{$consumer}/.env.local", "APP_ENV=production\n"),
             'lifecycle-skipped' => $env['NATIVE_HOST_STEP_RESULTS'] = "lifecycle skipped 0\nconsumer-cli success 0\n",
             'cli-skipped' => $env['NATIVE_HOST_STEP_RESULTS'] = "lifecycle success 0\nconsumer-cli skipped 0\n",
