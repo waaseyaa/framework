@@ -179,9 +179,11 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             self::assertSame(['waaseyaa/ai-development', 'waaseyaa/foundation', 'waaseyaa/framework'], array_column($evidence['cohort']['packages'], 'name'));
             self::assertSame(['packages/ai-development', 'packages/foundation', '.'], array_column($evidence['cohort']['packages'], 'candidate_path'));
             self::assertSame([0, 2, 6], array_column($evidence['cohort']['packages'], 'files'), 'A metapackage installs no files.');
-            self::assertSame([[], [], []], array_column($evidence['cohort']['packages'], 'withheld'));
+            self::assertSame([[], [], ['.agents/README.md', '.mcp.json']], array_column($evidence['cohort']['packages'], 'withheld'), 'Only export-ignored candidate files are withheld.');
+            self::assertSame([0, 0, 2], array_column($evidence['cohort']['packages'], 'export_ignored'));
             self::assertSame(PHP_OS_FAMILY === 'Windows' ? 'case-insensitive' : 'exact', $evidence['cohort']['path_comparison']);
-            self::assertSame(['.waaseyaa/generated.json' => true, 'bin/maintenance/site-verify' => true, 'storage/waaseyaa.sqlite' => true], $evidence['lifecycle']['artifacts']);
+            self::assertSame(['artifacts' => ['.waaseyaa/generated.json' => true, 'bin/maintenance/site-verify' => true], 'activated_generations' => 1], $evidence['lifecycle']);
+            self::assertSame(['job' => self::fixtureContract()['consumer_cli']['lanes'][$evidence['host']]['job'], 'candidate_binding' => $binding], $evidence['lane']);
             self::assertSame("& 'php' 'vendor/bin/waaseyaa' 'list' '--raw'", $evidence['cli']['powershell']);
             self::assertSame(0, $evidence['cli']['exit_code']);
             self::assertSame([], $evidence['cli']['missing_commands']);
@@ -214,7 +216,14 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'a non-candidate waaseyaa package' => ['checkout', 'foreign-package', 'fail','the consumer installed waaseyaa/ghost, which is not a candidate package'];
         yield 'a dirty checkout manifest' => ['checkout', 'dirty-manifest', 'fail',"the checkout's packages/foundation/composer.json is not the candidate revision's"];
         yield 'no installed metadata' => ['checkout', 'no-installed-json', 'incomplete','no readable vendor/composer/installed.json'];
-        yield 'an incomplete lifecycle' => ['checkout', 'no-database', 'fail','the consumer lacks storage/waaseyaa.sqlite, so its lifecycle did not complete'];
+        yield 'no database' => ['checkout', 'no-database', 'fail', 'the consumer database has no activated configuration generation, so install:init did not complete'];
+        yield 'a database without an activated generation' => ['checkout', 'empty-activation', 'fail', 'the consumer database has no activated configuration generation'];
+        yield 'a missing site:init publication' => ['checkout', 'no-generated', 'fail', 'the consumer lacks .waaseyaa/generated.json, so its lifecycle did not complete'];
+        yield 'a candidate file neither installed nor export-ignored' => ['checkout', 'missing-file', 'fail', 'waaseyaa/framework: 1 candidate file(s) is missing and not export-ignored: README.md'];
+        yield 'another collecting job' => ['checkout', 'other-job', 'fail', 'consumer record was collected by job ci-lint, not '];
+        yield 'no collecting job' => ['checkout', 'no-job', 'incomplete', 'GITHUB_JOB is not set'];
+        yield 'unreadable export-ignore attributes' => ['checkout', 'no-attributes', 'incomplete', 'the export-ignore attributes of ' . self::CANDIDATE_SHA . ' could not be read'];
+        yield 'a .env.local that overrides APP_ENV' => ['checkout', 'env-local', 'fail', 'the consumer booted with APP_ENV "production" from "consumer-dotenv"'];
         yield 'a skipped lifecycle' => ['checkout', 'lifecycle-skipped', 'fail','step lifecycle finished skipped'];
         yield 'a skipped CLI' => ['checkout', 'cli-skipped', 'fail','step consumer-cli finished skipped'];
         yield 'a non-zero CLI exit' => ['checkout', 'cli-failed', 'fail','step consumer-cli exited 1'];
@@ -242,35 +251,97 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         self::assertStringContainsString($expected, implode("\n", [...$evidence['violations'], ...$evidence['incomplete']]));
     }
 
+    /**
+     * A Windows checkout (core.autocrlf) of an LF blob is the same content; on
+     * a Linux host, which has no such checkout, CRLF is a different file.
+     */
     #[Test]
-    public function a_crlf_checkout_of_an_lf_blob_is_the_same_content(): void
+    public function only_a_windows_host_normalizes_a_crlf_checkout_of_an_lf_blob(): void
     {
-        $collected = $this->collect('checkout', 'crlf-file');
-        $foundation = $collected['evidence']['cohort']['packages'][1];
+        $installed = $this->scratch() . '/foundation';
+        self::write($installed . '/composer.json', "{}\n");
+        self::write($installed . '/src/Kernel.php', "<?php\r\n\r\nfinal class Kernel {}\r\n");
+        $tree = [
+            'packages/foundation/composer.json' => \nhc_blob_sha("{}\n"),
+            'packages/foundation/src/Kernel.php' => \nhc_blob_sha("<?php\n\nfinal class Kernel {}\n"),
+        ];
 
-        self::assertSame(\NHE_EXIT_PASS, $collected['exit'], implode("\n", $collected['evidence']['violations']));
-        self::assertSame('waaseyaa/foundation', $foundation['name']);
-        self::assertSame(1, $foundation['eol_normalized']);
-        self::assertSame($this->collect('checkout')['evidence']['cohort']['digest'], $collected['evidence']['cohort']['digest']);
+        $windows = \nhc_compare_package($installed, 'packages/foundation/', $tree, [], true);
+        $linux = \nhc_compare_package($installed, 'packages/foundation/', $tree, [], false);
+
+        self::assertSame([], $windows['problems']);
+        self::assertSame(1, $windows['eol_normalized']);
+        self::assertSame(\nhc_package_digest(['composer.json' => $tree['packages/foundation/composer.json'], 'src/Kernel.php' => $tree['packages/foundation/src/Kernel.php']]), $windows['digest']);
+        self::assertSame(['1 installed file(s) differs from the candidate: src/Kernel.php'], $linux['problems']);
+        self::assertSame(0, $linux['eol_normalized']);
     }
 
     /**
-     * A candidate file Composer did not install (the export-ignore policy
-     * withholds such files from the archive and the mirror alike) is recorded,
-     * not failed in-lane; the digest covers only installed files, so a lane
-     * that withheld a different set cannot pair with the other.
+     * `git archive` (Linux) applies the root .gitattributes to package paths;
+     * Composer's Windows path mirror reads only the mirrored directory's own.
+     * An export-ignored package file may therefore be installed on one host
+     * and not the other: it is left out of the digest on both, so the lanes
+     * still agree. A withheld file that is not export-ignored fails.
      */
     #[Test]
-    public function a_withheld_candidate_file_is_recorded_and_changes_the_cohort_digest(): void
+    public function export_ignored_files_leave_the_digest_and_nothing_else_may_be_withheld(): void
     {
-        $collected = $this->collect('checkout', 'withheld-file');
-        $framework = $collected['evidence']['cohort']['packages'][2];
+        $blob = static fn(string $bytes): string => \nhc_blob_sha($bytes);
+        $tree = [
+            'packages/foundation/composer.json' => $blob("{}\n"),
+            'packages/foundation/src/Kernel.php' => $blob("<?php\n"),
+            'packages/foundation/storage/seed.sqlite' => $blob('seed'),
+        ];
+        $ignored = ['packages/foundation/storage/seed.sqlite' => true];
+        $linux = $this->scratch() . '/linux';
+        $windows = $this->scratch() . '/windows';
+        foreach ([$linux, $windows] as $directory) {
+            self::write($directory . '/composer.json', "{}\n");
+            self::write($directory . '/src/Kernel.php', "<?php\n");
+        }
+        self::write($windows . '/storage/seed.sqlite', 'seed');
 
-        self::assertSame(\NHE_EXIT_PASS, $collected['exit'], implode("\n", $collected['evidence']['violations']));
-        self::assertSame('waaseyaa/framework', $framework['name']);
-        self::assertSame(['README.md'], $framework['withheld']);
-        self::assertSame(5, $framework['files']);
-        self::assertNotSame($this->collect('checkout')['evidence']['cohort']['digest'], $collected['evidence']['cohort']['digest']);
+        $withheld = \nhc_compare_package($linux, 'packages/foundation/', $tree, $ignored, false);
+        $installed = \nhc_compare_package($windows, 'packages/foundation/', $tree, $ignored, true);
+        $unignored = \nhc_compare_package($linux, 'packages/foundation/', $tree, [], false);
+
+        self::assertSame([], $withheld['problems']);
+        self::assertSame([], $installed['problems']);
+        self::assertSame(['storage/seed.sqlite'], $withheld['withheld']);
+        self::assertSame([], $installed['withheld']);
+        self::assertSame(1, $withheld['export_ignored']);
+        self::assertSame($withheld['digest'], $installed['digest'], 'Both hosts agree whether or not the export-ignored file was installed.');
+        self::assertSame(['1 candidate file(s) is missing and not export-ignored: storage/seed.sqlite'], $unignored['problems']);
+    }
+
+    /**
+     * The export-ignore set is what `git archive` leaves out: a file whose own
+     * attribute is set, or any file under a directory whose attribute is set
+     * (which Git reports only for `<dir>/`). Queries are batched, and a Git
+     * failure is unknown, never an empty set.
+     */
+    #[Test]
+    public function the_export_ignore_set_follows_directory_rules_and_fails_closed(): void
+    {
+        $tree = ['.agents/skills/README.md' => 'a', '.mcp.json' => 'b', 'README.md' => 'c', 'packages/x/.agents/y.md' => 'd'];
+        for ($index = 0; $index < 600; $index++) {
+            $tree[sprintf('packages/bulk/src/File%03d.php', $index)] = 'e';
+        }
+        $calls = 0;
+        $git = static function (array $arguments) use (&$calls): ?string {
+            $calls++;
+            self::assertSame(['check-attr', '-z', '--source', self::CANDIDATE_SHA, 'export-ignore', '--'], array_slice($arguments, 0, 6));
+            $output = '';
+            foreach (array_slice($arguments, 6) as $path) {
+                $output .= $path . "\0export-ignore\0" . (in_array($path, ['.agents/', '.mcp.json'], true) ? 'set' : 'unspecified') . "\0";
+            }
+
+            return $output;
+        };
+
+        self::assertSame(['.agents/skills/README.md' => true, '.mcp.json' => true], \nhc_export_ignored($tree, $git, self::CANDIDATE_SHA));
+        self::assertGreaterThan(1, $calls, 'Large trees are queried in batches.');
+        self::assertNull(\nhc_export_ignored($tree, static fn(array $arguments): ?string => null, self::CANDIDATE_SHA));
     }
 
     /**
@@ -291,8 +362,8 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'packages/ssr/tests/fixtures/greeting.twig' => \nhc_blob_sha("Hi\n"),
         ];
 
-        $insensitive = \nhc_compare_package($installed, 'packages/ssr/', $tree, true);
-        $exact = \nhc_compare_package($installed, 'packages/ssr/', $tree, false);
+        $insensitive = \nhc_compare_package($installed, 'packages/ssr/', $tree, [], true);
+        $exact = \nhc_compare_package($installed, 'packages/ssr/', $tree, [], false);
 
         self::assertSame([], $insensitive['problems']);
         self::assertSame(3, $insensitive['files']);
@@ -300,7 +371,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             ['composer.json', 'tests/Fixtures/Annotated.php', 'tests/fixtures/greeting.twig'],
             array_values($tree),
         )), $insensitive['digest'], 'The digest uses the candidate paths, so it is the same on every host.');
-        self::assertSame(['1 installed file(s) is not a candidate file: tests/Fixtures/greeting.twig'], $exact['problems']);
+        self::assertSame(['1 installed file(s) is not a candidate file: tests/Fixtures/greeting.twig', '1 candidate file(s) is missing and not export-ignored: tests/fixtures/greeting.twig'], $exact['problems']);
         self::assertSame(['tests/fixtures/greeting.twig'], $exact['withheld']);
     }
 
@@ -337,6 +408,8 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'a Linux scratch commit claimed equal to the candidate' => ['scratch-equals-candidate', 'the linux consumer record fails the scratch project commit check'];
         yield 'a Windows project source that claims a scratch commit' => ['windows-scratch', 'the windows consumer record fails the project source check'];
         yield 'a Linux scratch tree that is not the skeleton' => ['scratch-tree', 'the linux consumer record fails the scratch project commit check'];
+        yield 'no activated generation' => ['no-activation', 'the windows consumer record fails the lifecycle artifacts check'];
+        yield 'another skeleton tree than the verifier resolves' => ['other-skeleton', 'the linux consumer record fails the candidate skeleton tree check'];
     }
 
     #[Test]
@@ -371,6 +444,8 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'other-lane' => $records['linux']['lane']['job'] = 'skeleton-create-project',
             'scratch-equals-candidate' => $records['linux']['project_source']['revision'] = self::CANDIDATE_SHA,
             'scratch-tree' => $records['linux']['project_source']['tree'] = self::OTHER_SHA,
+            'no-activation' => $records['windows']['lifecycle']['activated_generations'] = 0,
+            'other-skeleton' => $records['linux']['candidate']['skeleton_tree'] = $records['linux']['project_source']['tree'] = self::OTHER_SHA,
             'windows-scratch' => $records['windows']['project_source'] = $records['linux']['project_source'],
         };
         foreach ($records as $host => $record) {
@@ -392,7 +467,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             mkdir($directory . '/' . \NHC_ARTIFACT_PREFIX . 'macos');
         }
 
-        $verified = \nhc_verify_set($directory, ['linux', 'windows'], $contract, ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '2'], self::CANDIDATE_SHA);
+        $verified = \nhc_verify_set($directory, ['linux', 'windows'], $contract, ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '2'], self::CANDIDATE_SHA, self::verifierGit());
 
         if ($expected === '') {
             self::assertSame(\NHE_EXIT_PASS, $verified['exit'], implode("\n", $verified['violations']));
@@ -406,7 +481,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
     #[Test]
     public function verify_set_rejects_a_host_list_that_is_not_the_consumer_lanes(): void
     {
-        $verified = \nhc_verify_set($this->scratch(), ['linux'], self::fixtureContract(), ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '1'], self::CANDIDATE_SHA);
+        $verified = \nhc_verify_set($this->scratch(), ['linux'], self::fixtureContract(), ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '1'], self::CANDIDATE_SHA, self::verifierGit());
 
         self::assertSame(\NHE_EXIT_VIOLATION, $verified['exit']);
         self::assertStringContainsString('the verified hosts must be exactly the consumer lanes: linux, windows', implode("\n", $verified['violations']));
@@ -421,6 +496,12 @@ final class NativeHostConsumerEvidenceTest extends TestCase
 
             self::assertSame(\NHE_EXIT_HARNESS, $process->getExitCode(), implode(' ', $arguments) . ': ' . $process->getErrorOutput());
         }
+    }
+
+    /** The verifier's Git: it resolves the candidate skeleton tree itself. */
+    private static function verifierGit(): \Closure
+    {
+        return static fn(array $arguments): ?string => $arguments === ['rev-parse', '--verify', self::CANDIDATE_SHA . ':skeleton'] ? self::SKELETON_TREE . "\n" : null;
     }
 
     /**
@@ -444,15 +525,22 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         $candidate = [
             'composer.json' => "{\"name\": \"waaseyaa/framework\"}\n",
             'README.md' => "# Waaseyaa\n",
+            '.mcp.json' => "{}\n",
+            '.agents/README.md' => "# Agents\n",
             'packages/ai-development/composer.json' => "{\"name\": \"waaseyaa/ai-development\", \"type\": \"metapackage\"}\n",
             'packages/foundation/composer.json' => "{\"name\": \"waaseyaa/foundation\"}\n",
             'packages/foundation/src/Kernel.php' => "<?php\n\nfinal class Kernel {}\n",
             'skeleton/composer.json' => "{\"name\": \"waaseyaa/waaseyaa\"}\n",
         ];
         $tree = array_map(\nhc_blob_sha(...), $candidate);
+        // The candidate export-ignores .mcp.json and the .agents/ directory,
+        // so neither is mirrored into the framework package.
+        $exportIgnored = ['.mcp.json', '.agents/'];
         foreach ($candidate as $path => $bytes) {
             self::write("{$checkout}/{$path}", $bytes);
-            self::write("{$consumer}/vendor/waaseyaa/framework/{$path}", $bytes);
+            if ($path !== '.mcp.json' && !str_starts_with($path, '.agents/')) {
+                self::write("{$consumer}/vendor/waaseyaa/framework/{$path}", $bytes);
+            }
             if (str_starts_with($path, 'packages/foundation/')) {
                 self::write("{$consumer}/vendor/waaseyaa/foundation/" . substr($path, strlen('packages/foundation/')), $bytes);
             }
@@ -463,15 +551,27 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             ['name' => 'waaseyaa/foundation', 'version' => 'dev-main', 'type' => 'library', 'dist' => ['type' => 'path', 'reference' => '94e3f4b'], 'install-path' => '../waaseyaa/foundation'],
             ['name' => 'waaseyaa/framework', 'version' => 'dev-main', 'type' => 'project', 'dist' => ['type' => 'path', 'reference' => '9ec6754'], 'install-path' => '../waaseyaa/framework'],
         ]];
-        foreach (['.waaseyaa/generated.json' => '{}', 'bin/maintenance/site-verify' => '<?php', 'storage/waaseyaa.sqlite' => 'SQLite format 3'] as $path => $bytes) {
+        foreach (['.waaseyaa/generated.json' => '{}', 'bin/maintenance/site-verify' => '<?php'] as $path => $bytes) {
             self::write("{$consumer}/{$path}", $bytes);
         }
+        self::activatedDatabase("{$consumer}/storage/waaseyaa.sqlite", 1);
         self::write("{$consumer}/.env", "APP_ENV=local\nAPP_DEBUG=true\nWAASEYAA_APP_SECRET=base64:c2VjcmV0\n");
         self::write("{$scratch}/list-raw.stdout", self::CATALOGUE);
         // A Windows host resolves Composer's batch shim from PATH.
         self::write("{$scratch}/path/composer.bat", '');
         $scratchTree = self::SKELETON_TREE;
-        $git = static function (array $arguments) use (&$tree, &$scratchTree): ?string {
+        $git = static function (array $arguments) use (&$tree, &$scratchTree, &$exportIgnored): ?string {
+            if (($arguments[0] ?? null) === 'check-attr') {
+                if ($exportIgnored === null) {
+                    return null;
+                }
+                $output = '';
+                foreach (array_slice($arguments, 6) as $path) {
+                    $output .= $path . "\0export-ignore\0" . (in_array($path, $exportIgnored, true) ? 'set' : 'unspecified') . "\0";
+                }
+
+                return $output;
+            }
             if ($arguments === ['ls-tree', '-r', '-z', '--full-tree', self::CANDIDATE_SHA]) {
                 $listing = '';
                 foreach ($tree as $path => $blob) {
@@ -492,6 +592,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
 
         $env = ['PATH' => "{$scratch}/path"] + self::hostEnvironment($host) + [
             'GITHUB_REPOSITORY' => 'waaseyaa/framework',
+            'GITHUB_JOB' => $contract['consumer_cli']['lanes'][$host]['job'],
             'WAASEYAA_CONSUMER_ROOT' => $consumer,
             'NATIVE_HOST_CLI_STDOUT' => "{$scratch}/list-raw.stdout",
             'NATIVE_HOST_STEP_RESULTS' => "lifecycle success 0\nconsumer-cli success 0\n",
@@ -511,14 +612,19 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'other-archive' => $env['WAASEYAA_CONSUMER_CANDIDATE_REVISION'] = self::OTHER_SHA,
             'no-archive' => $env['WAASEYAA_CONSUMER_CANDIDATE_REVISION'] = '',
             'changed-file' => self::write("{$consumer}/vendor/waaseyaa/foundation/src/Kernel.php", "<?php\n\nfinal class Kernel { public const TAMPERED = true; }\n"),
-            'crlf-file' => self::write("{$consumer}/vendor/waaseyaa/foundation/src/Kernel.php", "<?php\r\n\r\nfinal class Kernel {}\r\n"),
-            'withheld-file' => unlink("{$consumer}/vendor/waaseyaa/framework/README.md"),
+            'missing-file' => unlink("{$consumer}/vendor/waaseyaa/framework/README.md"),
             'no-manifest' => unlink("{$consumer}/vendor/waaseyaa/foundation/composer.json"),
             'extra-file' => self::write("{$consumer}/vendor/waaseyaa/foundation/src/Injected.php", "<?php\n"),
             'foreign-package' => $installed['packages'][] = ['name' => 'waaseyaa/ghost', 'version' => 'v1.0.0', 'install-path' => '../waaseyaa/ghost'],
             'dirty-manifest' => self::write("{$checkout}/packages/foundation/composer.json", "{\"name\": \"waaseyaa/foundation\", \"dirty\": true}\n"),
             'no-installed-json' => $installed = null,
             'no-database' => unlink("{$consumer}/storage/waaseyaa.sqlite"),
+            'empty-activation' => self::activatedDatabase("{$consumer}/storage/waaseyaa.sqlite", 0),
+            'no-generated' => unlink("{$consumer}/.waaseyaa/generated.json"),
+            'other-job' => $env['GITHUB_JOB'] = 'ci-lint',
+            'no-job' => $env['GITHUB_JOB'] = '',
+            'no-attributes' => $exportIgnored = null,
+            'env-local' => self::write("{$consumer}/.env.local", "APP_ENV=production\n"),
             'lifecycle-skipped' => $env['NATIVE_HOST_STEP_RESULTS'] = "lifecycle skipped 0\nconsumer-cli success 0\n",
             'cli-skipped' => $env['NATIVE_HOST_STEP_RESULTS'] = "lifecycle success 0\nconsumer-cli skipped 0\n",
             'cli-failed' => $env['NATIVE_HOST_STEP_RESULTS'] = "lifecycle success 0\nconsumer-cli failure 1\n",
@@ -581,7 +687,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
                 'package_count' => 1,
                 'packages' => [['name' => 'waaseyaa/framework', 'version' => 'dev-main', 'type' => 'project', 'dist_type' => 'path', 'dist_reference' => '9ec6754', 'candidate_path' => '.', 'files' => 3, 'content_digest' => str_repeat('2', 64), 'eol_normalized' => 0]],
             ],
-            'lifecycle' => ['artifacts' => array_fill_keys($contract['consumer_cli']['lifecycle_artifacts'], true)],
+            'lifecycle' => ['artifacts' => array_fill_keys($contract['consumer_cli']['lifecycle_artifacts'], true), 'activated_generations' => 1],
             'cli' => [
                 'argv' => $contract['consumer_cli']['argv'],
                 'powershell' => \nhe_render_powershell($contract['consumer_cli']['argv']),
@@ -639,7 +745,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'consumer_cli' => [
                 'argv' => ['php', 'vendor/bin/waaseyaa', 'list', '--raw'],
                 'required_commands' => ['list', 'db:init', 'site:init', 'site:doctor', 'install:init'],
-                'lifecycle_artifacts' => ['.waaseyaa/generated.json', 'bin/maintenance/site-verify', 'storage/waaseyaa.sqlite'],
+                'lifecycle_artifacts' => ['.waaseyaa/generated.json', 'bin/maintenance/site-verify'],
                 'lanes' => [
                     'linux' => ['job' => 'site-reference-consumer', 'candidate_binding' => 'harness-archive', 'boot_environment' => ['app_env' => 'testing', 'source' => 'process']],
                     'windows' => ['job' => 'skeleton-create-project-windows', 'candidate_binding' => 'checkout', 'boot_environment' => ['app_env' => 'local', 'source' => 'consumer-dotenv']],
@@ -679,6 +785,23 @@ final class NativeHostConsumerEvidenceTest extends TestCase
     private static function composerModel(): \Closure
     {
         return static fn(array $command): ?string => in_array('--version', $command, true) ? "Composer version 2.10.3 2026-09-01 00:00:00\n" : null;
+    }
+
+    /** A consumer database holding $activations activated configuration generations. */
+    private static function activatedDatabase(string $path, int $activations): void
+    {
+        if (is_file($path)) {
+            unlink($path);
+        }
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0o777, true);
+        }
+        $database = new \SQLite3($path);
+        $database->exec('CREATE TABLE waaseyaa_config_activation_v2 (authority_id TEXT, generation_id TEXT, activation_sequence INTEGER)');
+        for ($sequence = 1; $sequence <= $activations; $sequence++) {
+            $database->exec("INSERT INTO waaseyaa_config_activation_v2 VALUES ('site', 'generation', {$sequence})");
+        }
+        $database->close();
     }
 
     private static function write(string $path, string $bytes): void

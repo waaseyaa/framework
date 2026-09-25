@@ -64,6 +64,11 @@ foreach ($arguments as $argument) {
 }
 
 $runner = static fn(array $command): ?string => repository_bounded_output($command, 60.0, 65536);
+$git = static fn(array $arguments): ?string => repository_bounded_output(
+    [...repository_git_command($root), '-C', $root, ...$arguments],
+    120.0,
+    64 * 1024 * 1024,
+);
 $head = static function () use ($root): ?string {
     $output = repository_bounded_output([...repository_git_command($root), '-C', $root, 'rev-parse', '--verify', 'HEAD^{commit}'], 30.0);
 
@@ -122,11 +127,6 @@ try {
             fwrite(STDERR, "native-host-evidence: consumer-collect needs --host=<consumer lane> and --out=<file>\n");
             exit(NHE_EXIT_HARNESS);
         }
-        $git = static fn(array $arguments): ?string => repository_bounded_output(
-            [...repository_git_command($root), '-C', $root, ...$arguments],
-            120.0,
-            64 * 1024 * 1024,
-        );
         $collected = nhc_collect($contract, $host, $root, getenv(), $runner, $git, $head());
         $directory = dirname($out);
         if (!is_dir($directory) && !mkdir($directory, 0o777, true) && !is_dir($directory)) {
@@ -151,7 +151,7 @@ try {
             fwrite(STDERR, "native-host-evidence: consumer-verify-set needs --dir=<directory> and --hosts=<h1,h2>\n");
             exit(NHE_EXIT_HARNESS);
         }
-        $verified = nhc_verify_set($directory, $hosts, $contract, getenv(), $head());
+        $verified = nhc_verify_set($directory, $hosts, $contract, getenv(), $head(), $git);
         foreach ($verified['hosts'] as $host => $result) {
             fwrite(STDOUT, "native-host consumer evidence {$host}: {$result}\n");
         }

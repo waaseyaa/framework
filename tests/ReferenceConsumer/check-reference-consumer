@@ -7,12 +7,9 @@ consumer_root="$work_root/consumer"
 project_source="$work_root/project-source"
 framework_source="$work_root/framework-source"
 keep=${WAASEYAA_REFERENCE_KEEP:-0}
-# #2678: an optional env-file path (GITHUB_ENV in CI). When set, the consumer
-# is kept and handed over after the final PASS; see the end of this script.
+# #2678: an optional env-file path (GITHUB_ENV in CI). When set, a consumer that
+# passed is kept and handed over after the final PASS; see the end of this script.
 handoff=${WAASEYAA_REFERENCE_HANDOFF:-}
-if [[ -n "$handoff" ]]; then
-  keep=1
-fi
 export APP_ENV=testing
 export WAASEYAA_APP_SECRET=base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
 composer_bin=$(command -v composer)
@@ -249,6 +246,14 @@ echo "reference-consumer: PASS (offline regeneration, framework upgrade continui
 # scratch commit the skeleton was recommitted as, and the environment this
 # script ran the whole lifecycle under.
 if [[ -n "$handoff" ]]; then
+  for handed in "$consumer_root" "$project_source" "$candidate_revision" "$project_revision"; do
+    if [[ "$handed" == *$'\n'* ]]; then
+      echo "reference-consumer: a handed-over value contains a newline" >&2
+      exit 1
+    fi
+  done
+  # Only a passing consumer is kept; the cleanup trap reads keep at exit.
+  keep=1
   {
     printf 'WAASEYAA_CONSUMER_ROOT=%s\n' "$consumer_root"
     printf 'WAASEYAA_CONSUMER_CANDIDATE_REVISION=%s\n' "$candidate_revision"

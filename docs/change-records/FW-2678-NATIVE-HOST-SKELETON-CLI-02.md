@@ -67,9 +67,18 @@ same workflow run.
 - **Contract.** The `consumer_cli` section of
   [`tools/native-host-contract.json`](../../tools/native-host-contract.json)
   holds the argv, the required catalogue entries, the lifecycle artifacts
-  (`.waaseyaa/generated.json`, `bin/maintenance/site-verify`,
-  `storage/waaseyaa.sqlite`) and each lane's job, candidate binding and boot
+  (`.waaseyaa/generated.json` and `bin/maintenance/site-verify`, which only
+  `site:init` publishes) and each lane's job, candidate binding and boot
   environment. It shares the contract digest with the first slice.
+- **Lifecycle completion, observed.** Each lifecycle step must succeed with
+  exit 0. The collector then observes the result rather than trusting the
+  step. The `site:init` publications must exist, and the consumer database
+  must hold an activated configuration generation, which only `install:init`
+  creates. The database is opened read-only, using the table
+  `tests/ReferenceConsumer/prepare.php` inspects. The database file alone
+  would prove nothing, because a CLI boot can create an empty one.
+- **Job binding.** Each record carries the `GITHUB_JOB` that collected it, and
+  the collector rejects a job other than the lane's.
 - **One step text.** Both lanes run the argv as the same PowerShell step,
   immediately after the lifecycle, with the first slice's literal rendering
   (`& 'php' 'vendor/bin/waaseyaa' 'list' '--raw'`) and exit capture. stdout is
@@ -97,19 +106,29 @@ same workflow run.
   package manifest and the repository options, not its code, so they are
   recorded but never compared.
   - Every installed `waaseyaa/*` file must equal the candidate revision's blob
-    at the same path (`git ls-tree -r`). A CRLF checkout of an LF blob matches
-    after normalization and is counted.
+    at the same path (`git ls-tree -r`).
+  - On Windows only, a CRLF checkout of an LF blob (`core.autocrlf`) matches
+    after normalization and is counted. Linux compares bytes.
   - Paths match without case on Windows. The candidate tracks both
     `packages/ssr/tests/Fixtures/` and `packages/ssr/tests/fixtures/`, which
     share one directory on NTFS.
-  - Candidate files Composer did not install are recorded as withheld. The
-    distribution export-ignore policy (#2648) withholds `.agents/`, `.claude/`
-    and `.mcp.json` from the Linux `git archive` and from Composer's Windows
-    path mirror alike. The two sets were compared: 8,968 of 8,988 tracked
-    files, identical on both hosts.
-  - Each package digest covers the candidate paths and blobs it installed.
-    The cohort digest covers name, version and package digest. A metapackage
-    (`waaseyaa/ai-development`) is identified by its candidate manifest.
+  - A candidate file Composer did not install must be export-ignored by the
+    candidate; otherwise it is a violation. The export-ignore set is what
+    `git archive` leaves out: a file with the attribute set, or any file
+    under a directory with it set. It is read with
+    `git check-attr --source <candidate>`, including `<dir>/` queries.
+  - The distribution export-ignore policy (#2648) withholds `.agents/`,
+    `.claude/` and `.mcp.json`: 20 of the tracked files, the same set on both
+    hosts.
+  - Export-ignored files are left out of every digest, whether or not they
+    were installed. `git archive` applies the root `.gitattributes` to package
+    paths, while Composer's Windows path mirror reads only the mirrored
+    directory's own. Without this, a future export-ignored package file would
+    be installed on one host and not the other, a false red.
+  - Each package digest covers the candidate paths and blobs of its
+    non-export-ignored files. The cohort digest covers name, version and
+    package digest. A metapackage (`waaseyaa/ai-development`) is identified
+    by its candidate manifest.
 - **The Linux scratch commit.** The harness recommits only the skeleton as a
   scratch project and creates its consumer from that commit, so the Linux
   project's source revision is the scratch commit, not the candidate. The
@@ -124,16 +143,21 @@ same workflow run.
   whole lifecycle under an exported `APP_ENV=testing` and a fixed test
   secret, and hands both to the CLI step through `GITHUB_ENV`. The Windows
   consumer boots from its own post-create `.env` (`APP_ENV=local`, generated
-  secret). Both are development environments. The record names the
-  environment, its source and whether a secret was present, never its value.
+  secret). The collector reads `.env` then `.env.local`, and the last
+  assignment wins, as in Symfony Dotenv. Both are development environments.
+  The record names the environment, its source and whether a secret was
+  present, never its value. The harness keeps its consumer only when it
+  hands it over, after PASS; a failed harness still cleans up.
 - **Gate.** `ci/native-host-consumer-cli` needs both lanes, requires both
   results to be `success`, and downloads each lane's artifact by its single
   name. `consumer-verify-set` then fails closed unless it receives exactly
   one Linux and one Windows record from this run with:
-  - the same subject, candidate and skeleton tree;
+  - the same subject and candidate, and the skeleton tree that the verifier
+    resolves from its own checkout;
   - an equivalent installed cohort;
   - successful lifecycle and CLI steps, with exact argv and exit 0;
-  - every required catalogue entry and every lifecycle artifact;
+  - every required catalogue entry, every lifecycle artifact and an
+    activated generation;
   - the contract's boot environment;
   - recorded PHP, Composer and SQLite versions in range;
   - the expected OS, runner and hosted shell;
@@ -160,15 +184,16 @@ Envelope compatible with the first slice (`schema`, `schema_version`,
 `result`, `host`, `contract`, `subject`, `runner`, `hosted_shell`, `runtime`,
 `violations`, `incomplete`), plus:
 
-- `lane` {`job`, `candidate_binding`};
+- `lane` {`job` (the collecting `GITHUB_JOB`), `candidate_binding`};
 - `candidate` {`revision`, `binding`, `skeleton_tree`};
 - `root_package` {`name`, `pretty_version`, `reference`}, as observed;
 - `project_source` {`relation`, `revision`, `tree`}: the Linux scratch
   commit and its tree, or the Windows checkout skeleton;
 - `cohort` {`digest`, `package_count`, `path_comparison`, `packages`}. Each
   package records name, version, type, dist type and reference, candidate
-  path, files, withheld, content digest and EOL-normalized count;
-- `lifecycle.artifacts`;
+  path, files, withheld, export-ignored count, content digest and
+  EOL-normalized count;
+- `lifecycle` {`artifacts`, `activated_generations`};
 - `cli` {`argv`, `powershell`, `outcome`, `exit_code`, `required_commands`,
   `missing_commands`, `catalogue`};
 - `boot_environment` {`app_env`, `source`, `app_secret`: present or absent};
@@ -183,7 +208,8 @@ In the last main run before the change (36073541055),
 `site-reference-consumer` took 27 s and `ci/skeleton-create-project-windows`
 68 s. The change adds the following to each lane: a PowerShell identity step,
 the CLI step, the collector (which hashes about fifteen thousand installed
-files) and one upload. It also adds the Linux gate job. Both lanes and the
+files and resolves the candidate's export-ignore set) and one upload. It also
+adds the Linux gate job. Both lanes and the
 gate finish inside the Linux PHPUnit shards that pace every run. The measured
 hosted durations are reported with the pull request. This is a job-wall cost
 proxy only, and no billed cost is claimed.
@@ -195,19 +221,29 @@ proxy only, and no billed cost is claimed.
 Native Windows 11, PHP 8.5.5, Composer 2.9.5; local evidence, not the
 reference hosts.
 
-- `NativeHostConsumerEvidenceTest` (72 cases) and
+- `NativeHostConsumerEvidenceTest` (82 cases) and
   `NativeHostConsumerCliWorkflowTest` (10 cases) pass. The collector cases
   cover:
   - an archive of another revision and a missing revision handover;
-  - changed, unexpected and CRLF-only files, a withheld file, and an
-    uninstalled manifest;
+  - changed and unexpected files, and an uninstalled manifest;
+  - a candidate file neither installed nor export-ignored;
+  - CRLF, normalized only on Windows;
+  - an export-ignored file installed on one host but not the other, which
+    must not change the digest;
+  - export-ignore resolution through directory rules and batches, failing
+    closed;
   - a non-candidate package and a dirty checkout manifest;
-  - missing installed metadata and missing lifecycle artifacts;
+  - missing installed metadata;
+  - a missing `site:init` publication, no database, and a database without
+    an activated generation;
+  - another or a missing collecting job;
+  - unreadable export-ignore attributes;
   - skipped lifecycle or CLI steps and a non-zero CLI exit;
   - an uncaptured catalogue and a missing catalogue entry;
   - a scratch tree that is not the skeleton tree, and a scratch commit
     claimed to be the candidate;
-  - a process `APP_ENV` over the consumer `.env`, and no secret;
+  - a process `APP_ENV` over the consumer `.env`, a `.env.local` that
+    overrides it, and no secret;
   - missing handover, repository or tree.
 
   The verifier cases cover:
@@ -218,14 +254,15 @@ reference hosts.
   - another cohort digest or package version;
   - a non-zero CLI exit, a missing catalogue entry, another argv, and a
     skipped lifecycle or CLI;
-  - a missing lifecycle artifact, missing Composer or shell version, and
-    another runner, boot environment or lane;
+  - a missing lifecycle artifact or activated generation, missing Composer
+    or shell version, and another runner, boot environment or lane;
+  - a skeleton tree other than the one the verifier resolves;
   - a Linux scratch commit claimed equal to the candidate, a Linux scratch
     tree that is not the skeleton tree, and a Windows record that claims a
     scratch commit.
-- Nine injected mutants were each killed by the new tests. The run used a
+- Fifteen injected mutants were each killed by the new tests. The run used a
   scratch copy of the library, and the worktree was not modified. The
-  unmutated control passed 58/58. The mutants removed:
+  unmutated control passed 81/81. The mutants removed:
   - the harness-revision binding;
   - the installed-content comparison;
   - the cross-lane cohort comparison;
@@ -234,7 +271,13 @@ reference hosts.
   - the CLI exit check;
   - the lifecycle-step check;
   - the duplicate-lane rejection;
-  - the run binding.
+  - the run binding;
+  - the rule that a withheld file must be export-ignored;
+  - the activated-generation check;
+  - the collecting-job binding;
+  - the verifier's skeleton-tree recomputation;
+  - the exclusion of export-ignored files from the digest;
+  - the Windows-only CRLF normalization.
 - An exploratory Windows consumer built from the working tree completed the
   lifecycle; `list --raw` exited 0 and listed all five required commands
   among 126. The probe exposed three facts the design now handles:
@@ -251,12 +294,15 @@ reference hosts.
   - `consumer-collect --host=windows` recorded two expected local-only
     violations, and nothing else: the shell is `powershell` 5.1, not the
     hosted `pwsh`, and Composer is 2.9.5, not 2.10.
-  - It installed 68 `waaseyaa/*` packages and 8,972 framework files, with 20
-    withheld. It matched paths without case and normalized line endings on
-    440 files.
-  - The collector took 144 s on this workstation, hashing about fifteen
-    thousand installed files under `%TEMP%`. The hosted duration is measured
-    in CI.
+  - It installed 68 `waaseyaa/*` packages and 8,972 framework files. It
+    withheld 20 files, all 20 export-ignored.
+  - It matched paths without case, normalized line endings on 440 files, and
+    found one activated generation.
+  - The collector took 144 to 196 s on this workstation, hashing about
+    fifteen thousand installed files under `%TEMP%`. Resolving export-ignore
+    with real Git took 55 batched calls, about 5 s, and reproduced exactly
+    the 20 files `git archive` leaves out. The hosted duration is measured in
+    CI.
 - **WSL diagnostic (not Linux acceptance).** PHP 8.5.8, from the same bundle;
   WSL Git read only the bundle file.
   - The unmodified `site-reference-consumer` harness passed with the handover
@@ -282,6 +328,18 @@ reference hosts.
   update. That corrected an audit reading that had taken the
   `waaseyaa/framework` reference for the root reference; hence
   `project_source`.
+- An independent exact-diff review found nothing blocking. Its three
+  should-fix findings are fixed here:
+  - withheld files not checked against export-ignore;
+  - a latent cross-host false red from package-level export-ignore;
+  - a lifecycle check that a CLI boot could satisfy.
+
+  So are its applicable nits: job binding, Windows-only CRLF, dotenv
+  precedence, keeping the consumer only on handover, a newline guard, the
+  failed-record cohort shape, and verifier-side skeleton-tree
+  recomputation. Both qualifications were re-collected with the fixed
+  collector, with the same cohort digest and only the environment
+  violations.
 
 ## Residual limitations recorded, not fixed
 
@@ -293,9 +351,8 @@ reference hosts.
   - `bin/worktree-coordinator` has no Windows support.
 - The collector checks the collect step's environment as the proxy for the
   CLI step's; both inherit the same job environment and `GITHUB_ENV`.
-- Withheld candidate files are recorded, not attributed to a specific
-  export-ignore rule; a file both lanes failed to install alike would pair.
-  The lifecycle and CLI results remain the functional check.
+- The CLI argv in a record is the contract's; the workflow-shape test, not
+  the collector, binds the step text to it.
 
 ## Residual #2678 acceptance
 

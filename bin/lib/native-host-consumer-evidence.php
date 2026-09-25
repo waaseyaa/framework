@@ -200,11 +200,86 @@ function nhc_parse_tree(string $raw): ?array
 }
 
 /**
- * Deterministic digest of one package's installed candidate files: SHA-256
- * over the sorted `<path>\0<blob>` lines, with the candidate tree's paths
- * (relative to the package) and blob names. It is computed only from files
- * already proven equal to the candidate, so every host that installed the
- * same candidate files computes the same digest.
+ * The candidate paths `git archive` would leave out: every tracked file whose
+ * own export-ignore attribute is set, or any of whose parent directories has
+ * it set (a directory rule such as `/.agents/ export-ignore` applies to the
+ * directory, which Git only reports when asked about `<dir>/`). Attributes are
+ * read from the candidate revision itself (`--source`), not the working tree.
+ * Returns path => true, or null when Git could not answer.
+ *
+ * @param array<string, string> $tree candidate path => blob
+ * @param callable(list<string>): ?string $git
+ *
+ * @return array<string, true>|null
+ */
+function nhc_export_ignored(array $tree, callable $git, string $revision): ?array
+{
+    $queries = [];
+    foreach (array_keys($tree) as $path) {
+        $queries[$path] = true;
+        $directory = $path;
+        while (($slash = strrpos($directory, '/')) !== false) {
+            $directory = substr($directory, 0, $slash);
+            $queries[$directory . '/'] = true;
+        }
+    }
+
+    // Batched so a Windows command line stays well inside its length limit.
+    $set = [];
+    $batch = [];
+    $length = 0;
+    $flush = static function () use (&$batch, &$length, &$set, $git, $revision): bool {
+        if ($batch === []) {
+            return true;
+        }
+        $output = $git(['check-attr', '-z', '--source', $revision, 'export-ignore', '--', ...$batch]);
+        $batch = [];
+        $length = 0;
+        if (!is_string($output)) {
+            return false;
+        }
+        $fields = explode("\0", rtrim($output, "\0"));
+        for ($index = 0; $index + 2 < count($fields); $index += 3) {
+            if ($fields[$index + 1] === 'export-ignore' && $fields[$index + 2] === 'set') {
+                $set[$fields[$index]] = true;
+            }
+        }
+
+        return true;
+    };
+    foreach (array_keys($queries) as $query) {
+        $batch[] = $query;
+        $length += strlen($query) + 3;
+        if ($length > 12000 && !$flush()) {
+            return null;
+        }
+    }
+    if (!$flush()) {
+        return null;
+    }
+
+    $ignored = [];
+    foreach (array_keys($tree) as $path) {
+        $excluded = isset($set[$path]);
+        $directory = $path;
+        while (!$excluded && ($slash = strrpos($directory, '/')) !== false) {
+            $directory = substr($directory, 0, $slash);
+            $excluded = isset($set[$directory . '/']);
+        }
+        if ($excluded) {
+            $ignored[$path] = true;
+        }
+    }
+
+    return $ignored;
+}
+
+/**
+ * Deterministic digest of one package's candidate files: SHA-256 over the
+ * sorted `<path>\0<blob>` lines, with the candidate tree's paths (relative to
+ * the package) and blob names. It is computed only from files already proven
+ * equal to the candidate, so every host that installed the same candidate
+ * files computes the same digest.
  *
  * @param array<string, string> $files package-relative candidate path => blob
  */
@@ -222,29 +297,38 @@ function nhc_package_digest(array $files): string
 /**
  * Compare one installed package directory with the candidate files under its
  * prefix. Every installed file must be a candidate file with the candidate's
- * content; a text file whose only difference is CRLF line endings (a Windows
- * checkout of an LF blob) matches after normalization and is counted.
+ * content, and every candidate file must be installed unless the candidate
+ * export-ignores it. Export-ignored files are left out of the digest whether
+ * or not they were installed: `git archive` (Linux) applies the root
+ * `.gitattributes` to every path, while Composer's Windows path mirror reads
+ * only the mirrored directory's own `.gitattributes`, so the two hosts may
+ * differ there and must still agree.
  *
- * Candidate files Composer did not install are withheld, not missing: the
- * candidate's export-ignore policy withholds them from both the Linux archive
- * and Composer's path mirror. They are recorded, and the digest covers only
- * what was installed, so the two lanes agree only when they installed the same
- * files. On a case-insensitive filesystem two candidate directories that
- * differ only in case share one directory, so paths are matched without case.
+ * On a Windows host a text file whose only difference is CRLF line endings (a
+ * checkout of an LF blob with core.autocrlf) matches after normalization and
+ * is counted, and paths match without case: two candidate directories that
+ * differ only in case share one directory there. A Linux host compares bytes
+ * and paths exactly.
  *
  * @param array<string, string> $tree candidate path => blob
+ * @param array<string, true> $exportIgnored candidate paths the candidate export-ignores
  *
- * @return array{files: int, withheld: list<string>, digest: string, eol_normalized: int, problems: list<string>}
+ * @return array{files: int, withheld: list<string>, export_ignored: int, digest: string, eol_normalized: int, problems: list<string>}
  */
-function nhc_compare_package(string $installedDirectory, string $prefix, array $tree, bool $caseInsensitive): array
+function nhc_compare_package(string $installedDirectory, string $prefix, array $tree, array $exportIgnored, bool $windowsHost): array
 {
     $candidate = [];
+    $ignored = [];
     foreach ($tree as $path => $blob) {
         if ($prefix === '' || str_starts_with($path, $prefix)) {
-            $candidate[substr($path, strlen($prefix))] = $blob;
+            $relative = substr($path, strlen($prefix));
+            $candidate[$relative] = $blob;
+            if (isset($exportIgnored[$path])) {
+                $ignored[$relative] = true;
+            }
         }
     }
-    $key = static fn(string $path): string => $caseInsensitive ? strtolower($path) : $path;
+    $key = static fn(string $path): string => $windowsHost ? strtolower($path) : $path;
     $lookup = [];
     $ambiguous = [];
     foreach (array_keys($candidate) as $relative) {
@@ -270,6 +354,7 @@ function nhc_compare_package(string $installedDirectory, string $prefix, array $
     $verified = [];
     $unexpected = [];
     $changed = [];
+    $attempted = [];
     $normalized = 0;
     foreach ($installed as $relative => $absolute) {
         $path = $lookup[$key($relative)] ?? null;
@@ -277,31 +362,33 @@ function nhc_compare_package(string $installedDirectory, string $prefix, array $
             $unexpected[] = $relative;
             continue;
         }
+        $attempted[$path] = true;
         $bytes = is_link($absolute) || isset($ambiguous[$key($relative)]) ? null : @file_get_contents($absolute);
         if (is_string($bytes) && nhc_blob_sha($bytes) === $candidate[$path]) {
             $verified[$path] = $candidate[$path];
-        } elseif (is_string($bytes) && str_contains($bytes, "\r\n") && nhc_blob_sha(str_replace("\r\n", "\n", $bytes)) === $candidate[$path]) {
+        } elseif ($windowsHost && is_string($bytes) && str_contains($bytes, "\r\n") && nhc_blob_sha(str_replace("\r\n", "\n", $bytes)) === $candidate[$path]) {
             $verified[$path] = $candidate[$path];
             $normalized++;
         } else {
             $changed[] = $relative;
         }
     }
-    $attempted = array_flip(array_map(static fn(string $relative): string => $lookup[$key($relative)], $changed));
-    $withheld = array_keys(array_diff_key($candidate, $verified, $attempted));
+    $withheld = array_keys(array_diff_key($candidate, $attempted));
     sort($withheld, SORT_STRING);
+    $missing = array_values(array_filter($withheld, static fn(string $relative): bool => !isset($ignored[$relative])));
 
     $problems = [];
     if (!isset($verified['composer.json'])) {
         $problems[] = 'its composer.json is not the installed candidate manifest';
     }
-    foreach (['is not a candidate file' => $unexpected, 'differs from the candidate' => $changed] as $problem => $paths) {
+    foreach (['is not a candidate file' => $unexpected, 'differs from the candidate' => $changed, 'is missing and not export-ignored' => $missing] as $problem => $paths) {
         if ($paths !== []) {
             sort($paths, SORT_STRING);
             $shown = array_slice($paths, 0, 5);
             $problems[] = sprintf(
-                '%d installed file(s) %s: %s%s',
+                '%d %s %s: %s%s',
                 count($paths),
+                $problem === 'is missing and not export-ignored' ? 'candidate file(s)' : 'installed file(s)',
                 $problem,
                 implode(', ', $shown),
                 count($paths) > count($shown) ? ', ...' : '',
@@ -309,7 +396,24 @@ function nhc_compare_package(string $installedDirectory, string $prefix, array $
         }
     }
 
-    return ['files' => count($verified), 'withheld' => $withheld, 'digest' => nhc_package_digest($verified), 'eol_normalized' => $normalized, 'problems' => $problems];
+    return [
+        'files' => count($verified),
+        'withheld' => $withheld,
+        'export_ignored' => count($ignored),
+        'digest' => nhc_package_digest(array_diff_key($verified, $ignored)),
+        'eol_normalized' => $normalized,
+        'problems' => $problems,
+    ];
+}
+
+/**
+ * The cohort shape of a record that could not bind one.
+ *
+ * @return array{digest: null, package_count: 0, path_comparison: string, packages: array{}}
+ */
+function nhc_empty_cohort(bool $windowsHost): array
+{
+    return ['digest' => null, 'package_count' => 0, 'path_comparison' => $windowsHost ? 'case-insensitive' : 'exact', 'packages' => []];
 }
 
 /**
@@ -318,16 +422,17 @@ function nhc_compare_package(string $installedDirectory, string $prefix, array $
  * candidate manifest.
  *
  * @param array<string, string> $tree candidate path => blob
+ * @param array<string, true> $exportIgnored candidate paths the candidate export-ignores
  * @param callable(string): ?string $readCandidate reads a candidate file by path
  *
  * @return array{cohort: array<string, mixed>, violations: list<string>, incomplete: list<string>}
  */
-function nhc_cohort(string $consumerRoot, array $tree, callable $readCandidate, bool $caseInsensitive): array
+function nhc_cohort(string $consumerRoot, array $tree, array $exportIgnored, callable $readCandidate, bool $windowsHost): array
 {
     $violations = [];
     $incomplete = [];
-    $comparison = $caseInsensitive ? 'case-insensitive' : 'exact';
-    $empty = ['digest' => null, 'package_count' => 0, 'path_comparison' => $comparison, 'packages' => []];
+    $empty = nhc_empty_cohort($windowsHost);
+    $comparison = $empty['path_comparison'];
 
     // Candidate package names: the root manifest and every packages/<dir>/.
     $sources = [];
@@ -371,6 +476,7 @@ function nhc_cohort(string $consumerRoot, array $tree, callable $readCandidate, 
             'candidate_path' => null,
             'files' => 0,
             'withheld' => [],
+            'export_ignored' => 0,
             'content_digest' => null,
             'eol_normalized' => 0,
         ];
@@ -392,9 +498,10 @@ function nhc_cohort(string $consumerRoot, array $tree, callable $readCandidate, 
             $records[$name] = $record;
             continue;
         }
-        $compared = nhc_compare_package($directory, $sources[$name], $tree, $caseInsensitive);
+        $compared = nhc_compare_package($directory, $sources[$name], $tree, $exportIgnored, $windowsHost);
         $record['files'] = $compared['files'];
         $record['withheld'] = $compared['withheld'];
+        $record['export_ignored'] = $compared['export_ignored'];
         $record['content_digest'] = $compared['digest'];
         $record['eol_normalized'] = $compared['eol_normalized'];
         foreach ($compared['problems'] as $problem) {
@@ -453,11 +560,42 @@ function nhc_root_package(string $consumerRoot): ?array
 }
 
 /**
- * The APP_ENV a dotenv file assigns, without reading any other value.
+ * The APP_ENV the given dotenv contents assign, in load order (`.env`, then
+ * `.env.local`): the last assignment wins, as it does for Symfony Dotenv. No
+ * other value is read.
  */
 function nhc_dotenv_app_env(string $bytes): ?string
 {
-    return preg_match('/^[ \t]*(?:export[ \t]+)?APP_ENV[ \t]*=[ \t]*["\']?([A-Za-z]+)["\']?[ \t]*\r?$/m', $bytes, $match) === 1 ? $match[1] : null;
+    return preg_match_all('/^[ \t]*(?:export[ \t]+)?APP_ENV[ \t]*=[ \t]*["\']?([A-Za-z]+)["\']?[ \t]*\r?$/m', $bytes, $matches) > 0 ? end($matches[1]) : null;
+}
+
+/**
+ * How many configuration generations install:init activated in the
+ * consumer's database, read without writing; null when the database or its
+ * activation table cannot be read. The table is the one
+ * tests/ReferenceConsumer/prepare.php inspects.
+ */
+function nhc_activated_generations(string $consumerRoot): ?int
+{
+    $path = $consumerRoot . '/storage/waaseyaa.sqlite';
+    if (!class_exists(SQLite3::class) || !is_file($path) || is_link($path)) {
+        return null;
+    }
+    try {
+        $database = new SQLite3($path, SQLITE3_OPEN_READONLY);
+    } catch (Throwable) {
+        return null;
+    }
+    try {
+        $database->enableExceptions(true);
+        $count = $database->querySingle('SELECT COUNT(*) FROM waaseyaa_config_activation_v2');
+
+        return is_int($count) ? $count : null;
+    } catch (Throwable) {
+        return null;
+    } finally {
+        $database->close();
+    }
 }
 
 /** Whether a dotenv file assigns a non-empty WAASEYAA_APP_SECRET. The value is never returned. */
@@ -497,6 +635,12 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
     if ($repository === null) {
         $incomplete[] = 'GITHUB_REPOSITORY is not set';
     }
+    $githubJob = $value('GITHUB_JOB');
+    if ($githubJob === null) {
+        $incomplete[] = 'GITHUB_JOB is not set';
+    } elseif ($githubJob !== $lane['job']) {
+        $violations[] = "the {$host} consumer record was collected by job {$githubJob}, not {$lane['job']}";
+    }
 
     // The candidate the consumer was built from.
     $candidateRevision = $checkedOutHead;
@@ -524,13 +668,20 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
         $incomplete[] = 'the lane did not hand over its consumer root';
     }
 
-    // Lifecycle completion: the artifacts site:init and install:init leave.
+    // Lifecycle completion. The artifacts are what site:init publishes; a CLI
+    // boot cannot create them. install:init is observed through the database
+    // it initialized: a CLI boot can create an empty database file but cannot
+    // activate a configuration generation.
     $lifecycle = [];
     foreach ($section['lifecycle_artifacts'] as $artifact) {
         $lifecycle[$artifact] = $consumerRoot !== null && is_file($consumerRoot . '/' . $artifact);
         if ($consumerRoot !== null && !$lifecycle[$artifact]) {
             $violations[] = "the consumer lacks {$artifact}, so its lifecycle did not complete";
         }
+    }
+    $activations = $consumerRoot === null ? null : nhc_activated_generations($consumerRoot);
+    if ($consumerRoot !== null && ($activations ?? 0) < 1) {
+        $violations[] = 'the consumer database has no activated configuration generation, so install:init did not complete';
     }
 
     // The CLI result and catalogue.
@@ -567,6 +718,8 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
     } elseif ($consumerRoot !== null) {
         $dotenv = @file_get_contents($consumerRoot . '/.env');
         if (is_string($dotenv)) {
+            $local = @file_get_contents($consumerRoot . '/.env.local');
+            $dotenv .= "\n" . (is_string($local) ? $local : '');
             $observedBoot = ['app_env' => nhc_dotenv_app_env($dotenv), 'source' => 'consumer-dotenv', 'app_secret' => nhc_dotenv_has_secret($dotenv) ? 'present' : 'absent'];
         }
     }
@@ -583,18 +736,23 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
         );
     }
 
-    // Installed cohort, bound to the candidate tree by content.
-    $cohort = ['digest' => null, 'package_count' => 0, 'packages' => []];
+    // Installed cohort, bound to the candidate tree by content. A Windows
+    // host has a case-insensitive filesystem and a CRLF (core.autocrlf)
+    // checkout; a Linux host has neither.
+    $windowsHost = PHP_OS_FAMILY === 'Windows';
+    $cohort = nhc_empty_cohort($windowsHost);
     $rootPackage = null;
     if (is_string($candidateRevision) && preg_match(NHC_SHA_PATTERN, $candidateRevision) === 1 && $consumerRoot !== null) {
         $listing = $git(['ls-tree', '-r', '-z', '--full-tree', $candidateRevision]);
         $tree = is_string($listing) ? nhc_parse_tree($listing) : null;
+        $exportIgnored = $tree === null || $tree === [] ? null : nhc_export_ignored($tree, $git, $candidateRevision);
         if ($tree === null || $tree === []) {
             $incomplete[] = "the candidate tree of {$candidateRevision} could not be listed";
+        } elseif ($exportIgnored === null) {
+            $incomplete[] = "the export-ignore attributes of {$candidateRevision} could not be read";
         } else {
             $readCandidate = static fn(string $path): ?string => is_string($bytes = @file_get_contents($root . '/' . $path)) ? $bytes : null;
-            // Windows filesystems are case-insensitive; Linux ones are not.
-            $collected = nhc_cohort($consumerRoot, $tree, $readCandidate, PHP_OS_FAMILY === 'Windows');
+            $collected = nhc_cohort($consumerRoot, $tree, $exportIgnored, $readCandidate, $windowsHost);
             $cohort = $collected['cohort'];
             array_push($violations, ...$collected['violations']);
             array_push($incomplete, ...$collected['incomplete']);
@@ -648,14 +806,14 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
         'schema_version' => NHE_SCHEMA_VERSION,
         'result' => $result,
         'host' => $host,
-        'lane' => ['job' => $lane['job'], 'candidate_binding' => $lane['candidate_binding']],
+        'lane' => ['job' => $githubJob, 'candidate_binding' => $lane['candidate_binding']],
         'contract' => ['path' => 'tools/native-host-contract.json', 'section' => 'consumer_cli', 'sha256' => nhe_contract_digest($contract)],
         'subject' => $subject['subject'] + ['repository' => $repository],
         'candidate' => $candidate,
         'root_package' => $rootPackage,
         'project_source' => $projectSource,
         'cohort' => $cohort,
-        'lifecycle' => ['artifacts' => $lifecycle],
+        'lifecycle' => ['artifacts' => $lifecycle, 'activated_generations' => $activations],
         'cli' => $cli,
         'boot_environment' => $observedBoot,
         'runner' => $identity['runner'],
@@ -684,7 +842,7 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
  *
  * @return list<string>
  */
-function nhc_record_problems(array $record, string $host, array $contract, ?string $verifierHead, ?int $runId, ?int $runAttempt): array
+function nhc_record_problems(array $record, string $host, array $contract, ?string $verifierHead, ?int $runId, ?int $runAttempt, ?string $skeletonTree): array
 {
     $section = $contract['consumer_cli'];
     $lane = $section['lanes'][$host];
@@ -724,10 +882,11 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
         'run id' => $runId !== null && $at('subject.run_id') === $runId,
         'run attempt' => is_int($at('subject.run_attempt')) && $runAttempt !== null && $at('subject.run_attempt') <= $runAttempt,
         'candidate revision' => $sha($verifierHead) && $at('candidate.revision') === $verifierHead && $at('candidate.binding') === $lane['candidate_binding'],
-        'candidate skeleton tree' => $sha($at('candidate.skeleton_tree')),
+        'candidate skeleton tree' => $sha($skeletonTree) && $at('candidate.skeleton_tree') === $skeletonTree,
         'lifecycle step' => count($steps['lifecycle'] ?? []) === 1 && ($steps['lifecycle'][0]['outcome'] ?? null) === 'success' && ($steps['lifecycle'][0]['exit_code'] ?? null) === 0,
         'consumer-cli step' => count($steps['consumer-cli'] ?? []) === 1 && ($steps['consumer-cli'][0]['outcome'] ?? null) === 'success' && ($steps['consumer-cli'][0]['exit_code'] ?? null) === 0,
-        'lifecycle artifacts' => $at('lifecycle.artifacts') === array_fill_keys($section['lifecycle_artifacts'], true),
+        'lifecycle artifacts' => $at('lifecycle.artifacts') === array_fill_keys($section['lifecycle_artifacts'], true)
+            && is_int($at('lifecycle.activated_generations')) && $at('lifecycle.activated_generations') >= 1,
         'CLI argv' => $at('cli.argv') === $section['argv'],
         'CLI exit code' => $at('cli.exit_code') === 0 && $at('cli.outcome') === 'success',
         'required catalogue entries' => is_array($catalogue) && array_diff($section['required_commands'], $catalogue) === [],
@@ -770,10 +929,11 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
  * @param array<string, mixed> $contract
  * @param list<string> $hosts
  * @param array<string, string|false> $env
+ * @param callable(list<string>): ?string $git Git in the verifier's checkout
  *
  * @return array{hosts: array<string, string>, violations: list<string>, exit: int}
  */
-function nhc_verify_set(string $directory, array $hosts, array $contract, array $env, ?string $verifierHead): array
+function nhc_verify_set(string $directory, array $hosts, array $contract, array $env, ?string $verifierHead, callable $git): array
 {
     $violations = [];
     $lanes = array_keys($contract['consumer_cli']['lanes']);
@@ -787,6 +947,15 @@ function nhc_verify_set(string $directory, array $hosts, array $contract, array 
     $runAttempt = is_string($env['GITHUB_RUN_ATTEMPT'] ?? null) && preg_match('/^\d+$/D', $env['GITHUB_RUN_ATTEMPT']) === 1 ? (int) $env['GITHUB_RUN_ATTEMPT'] : null;
     if ($runId === null || $runAttempt === null) {
         $violations[] = 'GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT must be set for the verifier';
+    }
+    // The skeleton tree is recomputed here, not taken from a record.
+    $skeletonTree = null;
+    if (is_string($verifierHead) && preg_match(NHC_SHA_PATTERN, $verifierHead) === 1) {
+        $resolved = $git(['rev-parse', '--verify', "{$verifierHead}:skeleton"]);
+        $skeletonTree = is_string($resolved) && preg_match(NHC_SHA_PATTERN, trim($resolved)) === 1 ? trim($resolved) : null;
+        if ($skeletonTree === null) {
+            $violations[] = "the verifier could not resolve the skeleton tree of {$verifierHead}";
+        }
     }
 
     // One artifact per lane, each holding one record for that lane's host.
@@ -832,7 +1001,7 @@ function nhc_verify_set(string $directory, array $hosts, array $contract, array 
         $records[$host] = $found[0];
         $summary[$host] = is_string($found[0]['result'] ?? null) ? $found[0]['result'] : 'unknown';
         if (isset($contract['consumer_cli']['lanes'][$host])) {
-            array_push($violations, ...nhc_record_problems($found[0], $host, $contract, $verifierHead, $runId, $runAttempt));
+            array_push($violations, ...nhc_record_problems($found[0], $host, $contract, $verifierHead, $runId, $runAttempt, $skeletonTree));
         }
     }
 
