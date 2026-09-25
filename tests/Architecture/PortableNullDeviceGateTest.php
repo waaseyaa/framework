@@ -532,7 +532,9 @@ final class PortableNullDeviceGateTest extends TestCase
         $source = "<?php\nexec(\"tool \xFF 2>/dev/null\");\n";
         $violations = \pnd_analyze([self::SYNTHETIC], [self::SYNTHETIC => $source], self::withClassifications([]))['violations'];
         self::assertSame(['unclassified'], self::kinds($violations));
-        self::assertStringContainsString(self::SYNTHETIC . ':2 {main}', \pnd_format_violations($violations, \PND_MANIFEST));
+        $report = \pnd_format_violations($violations, \PND_MANIFEST);
+        self::assertStringContainsString(self::SYNTHETIC . ":2 {main} \"tool \u{FFFD} 2>/dev/null\"", $report);
+        self::assertStringContainsString("\"literal\":\"tool \u{FFFD} 2>/dev/null\"", $report);
 
         // A root Git cannot enumerate is a harness error, exit 2.
         $result = \pnd_run(sys_get_temp_dir() . '/waaseyaa-null-device-no-repository-' . bin2hex(random_bytes(6)), self::$root . '/' . \PND_MANIFEST);
