@@ -19,7 +19,7 @@ The required merge interface is:
 | `merge/public-package-contracts` | Fails closed over frontend build, packaged-form, and package-isolation contracts | aggregate only |
 | `merge/consumer-acceptance` | Fails closed over fresh, minimal, skeleton, ingestion, and Bimaaji consumer boundaries | aggregate only |
 | `merge/browser-acceptance` | Fails closed over the hosted Chromium and Firefox smoke proof | aggregate only |
-| `merge/platform-runtime-acceptance` | Fails closed over the FrankenPHP worker, the native Windows skeleton lifecycle, and the native-host contract on Linux and Windows (`ci/native-host-contract`) | aggregate only |
+| `merge/platform-runtime-acceptance` | Fails closed over the FrankenPHP worker, the native Windows skeleton lifecycle, the native-host contract on Linux and Windows (`ci/native-host-contract`), and the paired installed-consumer CLI on Linux and Windows (`ci/native-host-consumer-cli`, which makes `site-reference-consumer` merge-blocking) | aggregate only |
 | `merge/release-integrity` | Fails closed over release publication shape | aggregate only |
 
 The aggregate jobs use `if: always()` and explicitly require every prerequisite
@@ -59,6 +59,7 @@ exists, so moving it to main or nightly would weaken pre-merge protection. See
 | `frontend-coverage` | V8/Istanbul JSON, JSON summary, text, and LCOV reports | 30 days |
 | `frontend-build` | `packages/admin/.output/` | 14 days |
 | `native-host-evidence-linux`, `native-host-evidence-windows` | One `native-host-contract` leaf's validated evidence record (`evidence.json`: exact source subject, runner and hosted-shell identity, PHP/Composer/SQLite versions, per-step exit codes, per-command test counts, replay renderings) plus its PHPUnit JUnit and OTR logs; overwritten when the leaf is re-run. `ci/native-host-contract` verifies one passing record per host. See [native-host-support.md](../specs/native-host-support.md) | 30 days |
+| `native-host-consumer-evidence-linux`, `native-host-consumer-evidence-windows` | One consumer lane's validated consumer CLI record (`evidence.json`: originating candidate subject, installed `waaseyaa/*` cohort with per-package content digests, lifecycle artifacts and activated generations, the exact `list --raw` argv, exit code and catalogue, boot environment, runner, shell and runtime identity) plus the raw `list-raw.stdout`, from `site-reference-consumer` and `ci/skeleton-create-project-windows` respectively. `ci/native-host-consumer-cli` downloads each by its single name and verifies one passing record per lane. See [native-host-support.md](../specs/native-host-support.md) | 30 days |
 | `playwright-smoke-results` | `packages/admin/test-results/`, `packages/admin/playwright-report/` | 30 days |
 | `server-logs` | `/tmp/php-server.log`, `/tmp/nuxt-server.log` (on failure only) | 7 days |
 

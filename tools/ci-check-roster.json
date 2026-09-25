@@ -189,6 +189,36 @@
         ]
       },
       {
+        "id": "native-host-consumer-linux", "workflow_policy_id": "primary-ci", "role": "execution", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "platform-runtime-acceptance",
+        "subject_profiles": [
+          {"id": "pull-request-merge-ref-artifact", "cadences": ["pull-request"], "sha_subject": "merge-ref-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "native-host-consumer-windows", "workflow_policy_id": "primary-ci", "role": "execution", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "diagnostic", "authority": "informational", "cadence": ["pull-request", "main"],
+        "invariant": "platform-runtime-acceptance",
+        "subject_profiles": [
+          {"id": "pull-request-merge-ref-artifact", "cadences": ["pull-request"], "sha_subject": "merge-ref-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
+        "id": "native-host-consumer-aggregate", "workflow_policy_id": "primary-ci", "role": "aggregate", "expansion": "singleton",
+        "selection": {"composition": "all_of", "selectors": [{"type": "unconditional"}]},
+        "disposition": "required", "authority": "merge", "cadence": ["pull-request", "main"],
+        "invariant": "platform-runtime-acceptance",
+        "subject_profiles": [
+          {"id": "pull-request-merge-ref-artifact", "cadences": ["pull-request"], "sha_subject": "merge-ref-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"},
+          {"id": "main-artifact", "cadences": ["main"], "sha_subject": "main-sha", "run_attempt_subject": "run-attempt", "artifact_subject": "artifact-source-sha"}
+        ]
+      },
+      {
         "id": "release-publish-evidence", "workflow_policy_id": "release-publication", "role": "publication", "expansion": "singleton",
         "selection": {
           "composition": "any_of",
@@ -241,7 +271,8 @@
         {"producer_id": "php-behavior-aggregate", "prerequisites": [{"producer_id": "php-test-shards", "required_result": "success"}]},
         {"producer_id": "php-coverage-aggregate", "prerequisites": [{"producer_id": "php-test-shards", "required_result": "success"}]},
         {"producer_id": "random-order-aggregate", "prerequisites": [{"producer_id": "random-order-shards", "required_result": "success"}, {"producer_id": "random-order-plan", "required_result": "success"}]},
-        {"producer_id": "native-host-contract-aggregate", "prerequisites": [{"producer_id": "native-host-contract-leaves", "required_result": "success"}]}
+        {"producer_id": "native-host-contract-aggregate", "prerequisites": [{"producer_id": "native-host-contract-leaves", "required_result": "success"}]},
+        {"producer_id": "native-host-consumer-aggregate", "prerequisites": [{"producer_id": "native-host-consumer-linux", "required_result": "success"}, {"producer_id": "native-host-consumer-windows", "required_result": "success"}]}
       ]
     },
     "artifact_contracts": [
@@ -256,10 +287,22 @@
         "producer_pattern": "native-host-evidence-*",
         "bounded_expansion": ["native-host-evidence-linux", "native-host-evidence-windows"],
         "subject": "artifact-source-sha", "require_exact_subject_match": true
+      },
+      {
+        "id": "native-host-consumer-evidence-linux", "producer_id": "native-host-consumer-linux", "consumer_id": "native-host-consumer-aggregate",
+        "producer_pattern": "native-host-consumer-evidence-linux",
+        "bounded_expansion": ["native-host-consumer-evidence-linux"],
+        "subject": "artifact-source-sha", "require_exact_subject_match": true
+      },
+      {
+        "id": "native-host-consumer-evidence-windows", "producer_id": "native-host-consumer-windows", "consumer_id": "native-host-consumer-aggregate",
+        "producer_pattern": "native-host-consumer-evidence-windows",
+        "bounded_expansion": ["native-host-consumer-evidence-windows"],
+        "subject": "artifact-source-sha", "require_exact_subject_match": true
       }
     ],
     "artifact_contract_scope": {
-      "modelled": ["php-shard-coverage", "native-host-evidence"],
+      "modelled": ["php-shard-coverage", "native-host-evidence", "native-host-consumer-evidence-linux", "native-host-consumer-evidence-windows"],
       "unmodelled": ["phpunit-shard-plan", "vendor-archive", "random-order-plan"],
       "reason": "The contract shape is one producer, one consumer, one bounded family. ci.yml#prepare-test-plan uploads two families (phpunit-shard-plan and vendor-archive) and vendor-archive has two consumer jobs (ci-test-shards and ci-random-order-shard), so the plan and vendor flows cannot be expressed without widening the shape. Widening it is deferred rather than half-modelled; the offline verifier reports the unmodelled flows as coverage notices."
     },
@@ -336,8 +379,8 @@
         },
         "merge-platform-runtime-acceptance": {
           "context": "merge/platform-runtime-acceptance", "invariant": "platform-runtime-acceptance", "failure_owner": "runtime-maintainers", "required": true,
-          "prerequisite_contexts": ["ci/frankenphp-worker", "ci/skeleton-create-project-windows", "ci/native-host-contract"],
-          "prerequisite_jobs": ["frankenphp-worker", "skeleton-create-project-windows", "native-host-contract-evidence"]
+          "prerequisite_contexts": ["ci/frankenphp-worker", "ci/skeleton-create-project-windows", "ci/native-host-contract", "ci/native-host-consumer-cli"],
+          "prerequisite_jobs": ["frankenphp-worker", "skeleton-create-project-windows", "native-host-contract-evidence", "native-host-consumer-cli-evidence"]
         },
         "merge-release-integrity": {
           "context": "merge/release-integrity", "invariant": "release-integrity", "failure_owner": "release-engineering", "required": true,
@@ -415,6 +458,9 @@
       "mutation-pilot": {"workflow": "ci.yml", "job": "mutation-pilot"},
       "native-host-contract-leaves": {"workflow": "ci.yml", "job": "native-host-contract"},
       "native-host-contract-aggregate": {"workflow": "ci.yml", "job": "native-host-contract-evidence"},
+      "native-host-consumer-linux": {"workflow": "ci.yml", "job": "site-reference-consumer"},
+      "native-host-consumer-windows": {"workflow": "ci.yml", "job": "skeleton-create-project-windows"},
+      "native-host-consumer-aggregate": {"workflow": "ci.yml", "job": "native-host-consumer-cli-evidence"},
       "release-publish-evidence": {"workflow": "split.yml", "job": "assemble-release-evidence"},
       "enable-native-auto-merge": {"workflow": "auto-merge.yml", "job": "enable-auto-merge"}
     },

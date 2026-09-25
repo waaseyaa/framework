@@ -53,7 +53,7 @@ final class CiStableAggregateShadowTest extends TestCase
         'merge-platform-runtime-acceptance' => [
             'context' => 'merge/platform-runtime-acceptance',
             'invariant' => 'platform-runtime-acceptance',
-            'prerequisites' => ['frankenphp-worker', 'skeleton-create-project-windows', 'native-host-contract-evidence'],
+            'prerequisites' => ['frankenphp-worker', 'skeleton-create-project-windows', 'native-host-contract-evidence', 'native-host-consumer-cli-evidence'],
         ],
         'merge-release-integrity' => [
             'context' => 'merge/release-integrity',
@@ -105,10 +105,11 @@ final class CiStableAggregateShadowTest extends TestCase
             }
         }
 
-        // The 22 legacy required contexts plus ci/native-host-contract (#2678),
-        // added behind the existing merge/platform-runtime-acceptance decision.
-        self::assertCount(23, $covered);
-        self::assertCount(23, array_unique($covered));
+        // The 22 legacy required contexts plus ci/native-host-contract and
+        // ci/native-host-consumer-cli (#2678), added behind the existing
+        // merge/platform-runtime-acceptance decision.
+        self::assertCount(24, $covered);
+        self::assertCount(24, array_unique($covered));
     }
 
     #[Test]
@@ -179,7 +180,7 @@ final class CiStableAggregateShadowTest extends TestCase
         sort($requiredNames);
         sort($interfaceContexts);
         self::assertSame($requiredNames, $interfaceContexts);
-        self::assertCount(23, array_unique($prerequisiteContexts));
+        self::assertCount(24, array_unique($prerequisiteContexts));
     }
 
     #[Test]

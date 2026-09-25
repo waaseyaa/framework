@@ -1267,12 +1267,15 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
+      # Composer is pinned to the 2.10 feature line of the native-host contract,
+      # whose consumer evidence validates the observed version (#2678).
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml, sodium, fileinfo, zip
           coverage: none
+          tools: composer:2.10
 
       # Composer's download cache. The key is already OS-scoped by runner.os,
       # and the path is the Windows cache location, not the Linux one.
@@ -1282,7 +1285,12 @@ jobs:
           path: ~\AppData\Local\Composer\files
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
 
+      - name: Record the hosted harness shell
+        id: harness-shell
+        run: '"version=$($PSVersionTable.PSVersion)" >> $env:GITHUB_OUTPUT'
+
       - name: Fresh create-project completes the lifecycle on Windows
+        id: lifecycle
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandArgumentPassing = 'Standard'
@@ -1441,6 +1449,57 @@ jobs:
           # consumer that has completed install:init and which owns the
           # cleanup this block used to do.
           "BIMAAJI_WINDOWS_CONSUMER=$work" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # And to the consumer CLI evidence (#2678). Reached only when every
+          # checked command above exited 0, so the recorded exit code is the
+          # lifecycle's.
+          "WAASEYAA_CONSUMER_ROOT=$work" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "exit_code=0" >> $env:GITHUB_OUTPUT
+
+      # #2678 (FW-2678-NATIVE-HOST-SKELETON-CLI-02). The consumer CLI contract:
+      # tools/native-host-contract.json consumer_cli.argv, run in the consumer
+      # that has just completed site:init and install:init, with the same
+      # literal rendering and exit capture as the native-host contract steps.
+      # site-reference-consumer runs the same step text on Linux. The consumer
+      # boots from its own post-create .env (APP_ENV=local); the evidence
+      # records that. The collector then binds the result to this checkout,
+      # the installed waaseyaa/* cohort and this runner; ci/native-host-consumer-cli
+      # pairs it with the Linux record from the same run.
+      - name: 'Consumer CLI: list --raw'
+        id: consumer-cli
+        env:
+          NATIVE_HOST_CLI_STDOUT: ${{ github.workspace }}/build/native-host-consumer/list-raw.stdout
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $env:NATIVE_HOST_CLI_STDOUT) | Out-Null
+          Set-Location -LiteralPath $env:WAASEYAA_CONSUMER_ROOT
+          & 'php' 'vendor/bin/waaseyaa' 'list' '--raw' > $env:NATIVE_HOST_CLI_STDOUT
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: Collect and validate native-host consumer evidence
+        if: always()
+        env:
+          NATIVE_HOST_SHELL: pwsh
+          NATIVE_HOST_SHELL_VERSION: ${{ steps.harness-shell.outputs.version }}
+          NATIVE_HOST_RUNNER_LABEL: windows-2025
+          NATIVE_HOST_DISPATCH_SHA: ${{ inputs.sha }}
+          NATIVE_HOST_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          NATIVE_HOST_CLI_STDOUT: ${{ github.workspace }}/build/native-host-consumer/list-raw.stdout
+          NATIVE_HOST_STEP_RESULTS: |
+            lifecycle ${{ steps.lifecycle.outcome }} ${{ steps.lifecycle.outputs.exit_code }}
+            consumer-cli ${{ steps.consumer-cli.outcome }} ${{ steps.consumer-cli.outputs.exit_code }}
+        run: php bin/native-host-evidence consumer-collect --host=windows --out=build/native-host-consumer/evidence.json
+
+      - name: Upload native-host consumer evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-host-consumer-evidence-windows
+          path: build/native-host-consumer/
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
 
       # #2656. resolvePathInSandbox() resolves paths with realpath() rather
       # than trusting is_link(), precisely because is_link() does not report a
@@ -1685,6 +1744,55 @@ jobs:
       - name: Verify exactly one passing record per host
         run: php bin/native-host-evidence verify-set --dir=build/native-host-evidence --hosts=linux,windows
 
+  # The single stable gate over the two consumer CLI lanes (#2678,
+  # FW-2678-NATIVE-HOST-SKELETON-CLI-02). consumer-verify-set accepts exactly
+  # one passing Linux and one passing Windows record from this run, each
+  # bound to this checkout as the originating candidate, with an equivalent
+  # installed waaseyaa/* cohort (compared by content, not by Composer
+  # reference), a completed lifecycle, the exact contract argv, exit 0 and
+  # every required catalogue entry. merge/platform-runtime-acceptance requires
+  # this job, which makes site-reference-consumer merge-blocking.
+  native-host-consumer-cli-evidence:
+    name: ci/native-host-consumer-cli
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [site-reference-consumer, skeleton-create-project-windows]
+    if: always()
+    steps:
+      - name: Require both consumer lanes
+        env:
+          LINUX_CONSUMER: ${{ needs.site-reference-consumer.result }}
+          WINDOWS_CONSUMER: ${{ needs.skeleton-create-project-windows.result }}
+        run: test "$LINUX_CONSUMER" = success && test "$WINDOWS_CONSUMER" = success
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: none
+
+      # One single-name download per lane: each lane's artifact is its own
+      # producer's, so neither can stand in for the other.
+      - name: Download the Linux consumer evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-host-consumer-evidence-linux
+          path: build/native-host-consumer-evidence/native-host-consumer-evidence-linux
+
+      - name: Download the Windows consumer evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-host-consumer-evidence-windows
+          path: build/native-host-consumer-evidence/native-host-consumer-evidence-windows
+
+      - name: Verify exactly one passing record per consumer lane
+        run: php bin/native-host-evidence consumer-verify-set --dir=build/native-host-consumer-evidence --hosts=linux,windows
+
   packaged-form:
     name: packaged-form
     runs-on: ubuntu-24.04
@@ -1720,6 +1828,12 @@ jobs:
         working-directory: tests/PackagedForm/skeleton
         run: ./vendor/bin/phpunit --configuration phpunit.xml.dist
 
+  # The Linux consumer lane of the #2678 consumer CLI contract
+  # (FW-2678-NATIVE-HOST-SKELETON-CLI-02), paired with
+  # ci/skeleton-create-project-windows by ci/native-host-consumer-cli. Unlike
+  # ci/skeleton-create-project, which proves the published release line on
+  # ordinary runs, this harness builds its consumer from an archive of this
+  # exact checkout, so both lanes install the same candidate.
   site-reference-consumer:
     name: site-reference-consumer
     runs-on: ubuntu-24.04
@@ -1729,17 +1843,74 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
+      # Composer is pinned to the 2.10 feature line of the native-host contract,
+      # whose consumer evidence validates the observed version (#2678).
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
+          tools: composer:2.10
+
+      - name: Record the hosted harness shell
+        id: harness-shell
+        shell: pwsh
+        run: '"version=$($PSVersionTable.PSVersion)" >> $env:GITHUB_OUTPUT'
 
       # GitHub is only a hosted adapter. This same executable is the authority
       # locally and on Forgejo, Gitea, GitLab, Jenkins, or another runner.
+      # WAASEYAA_REFERENCE_HANDOFF makes the harness keep its consumer and, only
+      # after its final PASS, append the consumer root, the candidate revision
+      # it archived, its scratch project commit and the environment it ran the
+      # lifecycle under to GITHUB_ENV for the consumer CLI step.
       - name: Prove the clean provider-neutral reference consumer
-        run: tests/ReferenceConsumer/check-reference-consumer
+        id: lifecycle
+        run: |
+          exit_status=0
+          WAASEYAA_REFERENCE_HANDOFF="$GITHUB_ENV" tests/ReferenceConsumer/check-reference-consumer || exit_status=$?
+          echo "exit_code=$exit_status" >> "$GITHUB_OUTPUT"
+          exit "$exit_status"
+
+      # The same step text as ci/skeleton-create-project-windows (#2678).
+      - name: 'Consumer CLI: list --raw'
+        id: consumer-cli
+        shell: pwsh
+        env:
+          NATIVE_HOST_CLI_STDOUT: ${{ github.workspace }}/build/native-host-consumer/list-raw.stdout
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $env:NATIVE_HOST_CLI_STDOUT) | Out-Null
+          Set-Location -LiteralPath $env:WAASEYAA_CONSUMER_ROOT
+          & 'php' 'vendor/bin/waaseyaa' 'list' '--raw' > $env:NATIVE_HOST_CLI_STDOUT
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
+      - name: Collect and validate native-host consumer evidence
+        if: always()
+        shell: pwsh
+        env:
+          NATIVE_HOST_SHELL: pwsh
+          NATIVE_HOST_SHELL_VERSION: ${{ steps.harness-shell.outputs.version }}
+          NATIVE_HOST_RUNNER_LABEL: ubuntu-24.04
+          NATIVE_HOST_DISPATCH_SHA: ${{ inputs.sha }}
+          NATIVE_HOST_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          NATIVE_HOST_CLI_STDOUT: ${{ github.workspace }}/build/native-host-consumer/list-raw.stdout
+          NATIVE_HOST_STEP_RESULTS: |
+            lifecycle ${{ steps.lifecycle.outcome }} ${{ steps.lifecycle.outputs.exit_code }}
+            consumer-cli ${{ steps.consumer-cli.outcome }} ${{ steps.consumer-cli.outputs.exit_code }}
+        run: php bin/native-host-evidence consumer-collect --host=linux --out=build/native-host-consumer/evidence.json
+
+      - name: Upload native-host consumer evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-host-consumer-evidence-linux
+          path: build/native-host-consumer/
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
 
   fresh-install-boot:
     # #2426: a fresh packaged-form consumer must boot. Access-policy discovery
@@ -2879,7 +3050,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
-    needs: [frankenphp-worker, skeleton-create-project-windows, native-host-contract-evidence]
+    needs: [frankenphp-worker, skeleton-create-project-windows, native-host-contract-evidence, native-host-consumer-cli-evidence]
     if: always()
     steps:
       - name: Require platform and runtime acceptance
@@ -2887,12 +3058,14 @@ jobs:
           FRANKENPHP_WORKER: ${{ needs.frankenphp-worker.result }}
           SKELETON_WINDOWS: ${{ needs.skeleton-create-project-windows.result }}
           NATIVE_HOST_CONTRACT: ${{ needs.native-host-contract-evidence.result }}
+          NATIVE_HOST_CONSUMER_CLI: ${{ needs.native-host-consumer-cli-evidence.result }}
         run: |
           failed=0
           for item in \
             "frankenphp-worker=$FRANKENPHP_WORKER" \
             "skeleton-create-project-windows=$SKELETON_WINDOWS" \
-            "native-host-contract-evidence=$NATIVE_HOST_CONTRACT"; do
+            "native-host-contract-evidence=$NATIVE_HOST_CONTRACT" \
+            "native-host-consumer-cli-evidence=$NATIVE_HOST_CONSUMER_CLI"; do
             if [ "${item#*=}" != success ]; then
               echo "::error title=Platform and runtime acceptance::${item%%=*} finished ${item#*=}"
               failed=1

@@ -190,10 +190,22 @@ final class SiteReferenceConsumerContractTest extends TestCase
         $windowsGate = implode("\n", array_values(array_filter(
             array_column($frameworkWorkflow['jobs']['skeleton-create-project-windows']['steps'], 'run'),
         )));
+        // #2678: the provider-neutral harness is still the lane's one lifecycle
+        // authority, run once, only wrapped to record its exit status and hand
+        // its passing consumer to the consumer CLI evidence. The remaining steps
+        // are that evidence (NativeHostConsumerCliWorkflowTest binds them).
+        $referenceRuns = array_values(array_filter(array_column($frameworkWorkflow['jobs']['site-reference-consumer']['steps'], 'run')));
+        self::assertCount(1, array_filter($referenceRuns, static fn(string $run): bool => str_contains($run, 'check-reference-consumer')));
         self::assertSame(
-            ['tests/ReferenceConsumer/check-reference-consumer'],
-            array_values(array_filter(array_column($frameworkWorkflow['jobs']['site-reference-consumer']['steps'], 'run'))),
+            [
+                '"version=$($PSVersionTable.PSVersion)" >> $env:GITHUB_OUTPUT',
+                "exit_status=0\nWAASEYAA_REFERENCE_HANDOFF=\"\$GITHUB_ENV\" tests/ReferenceConsumer/check-reference-consumer || exit_status=\$?\necho \"exit_code=\$exit_status\" >> \"\$GITHUB_OUTPUT\"\nexit \"\$exit_status\"\n",
+                'php bin/native-host-evidence consumer-collect --host=linux --out=build/native-host-consumer/evidence.json',
+            ],
+            [$referenceRuns[0], $referenceRuns[1], $referenceRuns[3]],
         );
+        self::assertCount(4, $referenceRuns);
+        self::assertStringContainsString("& 'php' 'vendor/bin/waaseyaa' 'list' '--raw'", $referenceRuns[2]);
 
         // #2644: the create-project proof is a two-platform matrix. Reducing it
         // to Linux alone would silently restore the state this issue fixed —

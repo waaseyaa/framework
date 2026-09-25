@@ -29,11 +29,27 @@ declare(strict_types=1);
  * exactly one passing record per contract host, all bound to the verifier's
  * checkout, contract digest and run.
  *
+ * Consumer CLI evidence (FW-2678-NATIVE-HOST-SKELETON-CLI-02):
+ *
+ *   php bin/native-host-evidence consumer-collect --host=<linux|windows> --out=<file>
+ *   php bin/native-host-evidence consumer-verify-set --dir=<directory> --hosts=linux,windows
+ *
+ * `consumer-collect` runs in site-reference-consumer (Linux) and
+ * ci/skeleton-create-project-windows after each lane's consumer completed
+ * site:init and install:init and ran the contract's consumer_cli command. It
+ * additionally reads WAASEYAA_CONSUMER_ROOT, NATIVE_HOST_CLI_STDOUT and, for
+ * the Linux harness, WAASEYAA_CONSUMER_CANDIDATE_REVISION,
+ * WAASEYAA_CONSUMER_PROJECT_SOURCE and WAASEYAA_CONSUMER_PROJECT_REVISION, and
+ * uses the same exit codes. `consumer-verify-set` runs in the
+ * ci/native-host-consumer-cli gate and exits 0 only for exactly one passing
+ * Linux and one passing Windows record from this run, bound to one subject,
+ * one candidate and an equivalent installed package cohort.
+ *
  * This tool validates hosted evidence. It is not a test runner and selects
  * nothing: the workflow executes every command.
  */
 
-require_once __DIR__ . '/lib/native-host-evidence.php';
+require_once __DIR__ . '/lib/native-host-consumer-evidence.php';
 
 $root = dirname(__DIR__);
 $arguments = array_slice($argv, 1);
@@ -48,6 +64,11 @@ foreach ($arguments as $argument) {
 }
 
 $runner = static fn(array $command): ?string => repository_bounded_output($command, 60.0, 65536);
+$git = static fn(array $arguments): ?string => repository_bounded_output(
+    [...repository_git_command($root), '-C', $root, ...$arguments],
+    120.0,
+    64 * 1024 * 1024,
+);
 $head = static function () use ($root): ?string {
     $output = repository_bounded_output([...repository_git_command($root), '-C', $root, 'rev-parse', '--verify', 'HEAD^{commit}'], 30.0);
 
@@ -98,7 +119,50 @@ try {
         exit($verified['exit']);
     }
 
-    fwrite(STDERR, "native-host-evidence: the action must be collect or verify-set\n");
+    if ($action === 'consumer-collect') {
+        $contract = nhc_load_contract($options['contract'] ?? $root . '/tools/native-host-contract.json');
+        $host = $options['host'] ?? '';
+        $out = $options['out'] ?? '';
+        if (!isset($contract['consumer_cli']['lanes'][$host]) || $out === '') {
+            fwrite(STDERR, "native-host-evidence: consumer-collect needs --host=<consumer lane> and --out=<file>\n");
+            exit(NHE_EXIT_HARNESS);
+        }
+        $collected = nhc_collect($contract, $host, $root, getenv(), $runner, $git, $head());
+        $directory = dirname($out);
+        if (!is_dir($directory) && !mkdir($directory, 0o777, true) && !is_dir($directory)) {
+            throw new RuntimeException("cannot create {$directory}");
+        }
+        file_put_contents($out, json_encode($collected['evidence'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        fwrite(STDOUT, "native-host consumer evidence for {$host}: {$collected['evidence']['result']} ({$out})\n");
+        foreach ($collected['evidence']['violations'] as $violation) {
+            fwrite(STDERR, "VIOLATION {$violation}\n");
+        }
+        foreach ($collected['evidence']['incomplete'] as $missing) {
+            fwrite(STDERR, "INCOMPLETE {$missing}\n");
+        }
+        exit($collected['exit']);
+    }
+
+    if ($action === 'consumer-verify-set') {
+        $contract = nhc_load_contract($options['contract'] ?? $root . '/tools/native-host-contract.json');
+        $directory = $options['dir'] ?? '';
+        $hosts = array_values(array_filter(explode(',', $options['hosts'] ?? '')));
+        if ($directory === '' || $hosts === []) {
+            fwrite(STDERR, "native-host-evidence: consumer-verify-set needs --dir=<directory> and --hosts=<h1,h2>\n");
+            exit(NHE_EXIT_HARNESS);
+        }
+        $verified = nhc_verify_set($directory, $hosts, $contract, getenv(), $head(), $git);
+        foreach ($verified['hosts'] as $host => $result) {
+            fwrite(STDOUT, "native-host consumer evidence {$host}: {$result}\n");
+        }
+        foreach ($verified['violations'] as $violation) {
+            fwrite(STDERR, "VIOLATION {$violation}\n");
+        }
+        fwrite(STDOUT, $verified['exit'] === NHE_EXIT_PASS ? "native-host consumer evidence set verified\n" : "native-host consumer evidence set rejected\n");
+        exit($verified['exit']);
+    }
+
+    fwrite(STDERR, "native-host-evidence: the action must be collect, verify-set, consumer-collect or consumer-verify-set\n");
     exit(NHE_EXIT_HARNESS);
 } catch (Throwable $exception) {
     fwrite(STDERR, 'native-host-evidence: ' . $exception->getMessage() . "\n");

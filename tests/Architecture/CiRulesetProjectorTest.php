@@ -30,9 +30,10 @@ final class CiRulesetProjectorTest extends TestCase
 
         self::assertSame(22, $plan['before']['required_context_count']);
         self::assertSame(31, $plan['after']['required_context_count']);
-        // The 31 projected contexts plus ci/native-host-contract, an aggregate
-        // prerequisite added after the migration (#2678): proved, never projected.
-        self::assertSame(32, $plan['verified_check_count']);
+        // The 31 projected contexts plus ci/native-host-contract and
+        // ci/native-host-consumer-cli, aggregate prerequisites added after the
+        // migration (#2678): proved, never projected.
+        self::assertSame(33, $plan['verified_check_count']);
         self::assertSame(
             \crp_hash(\crp_non_context_shape(\crp_write_payload($live))),
             \crp_hash(\crp_non_context_shape($plan['payload'])),
@@ -75,7 +76,7 @@ final class CiRulesetProjectorTest extends TestCase
 
         self::assertSame(31, $plan['before']['required_context_count']);
         self::assertSame(9, $plan['after']['required_context_count']);
-        self::assertSame(32, $plan['verified_check_count']);
+        self::assertSame(33, $plan['verified_check_count']);
     }
 
     #[Test]
@@ -115,22 +116,24 @@ final class CiRulesetProjectorTest extends TestCase
         \crp_plan('union', $baseline, $policy, $live, $runs, 'waaseyaa/framework', str_repeat('e', 40));
     }
 
-    /** @return iterable<string, array{string, string}> */
+    /** @return iterable<string, array{string, string, string}> */
     public static function newPrerequisiteEvidence(): iterable
     {
-        yield 'missing' => ['missing', 'Exact-SHA evidence is missing ci/native-host-contract.'];
-        yield 'red' => ['red', 'Exact-SHA evidence for ci/native-host-contract is not a completed success.'];
-        yield 'produced by another app' => ['wrong-app', 'Exact-SHA evidence for ci/native-host-contract has app id 99, expected 15368.'];
+        foreach (['ci/native-host-contract', 'ci/native-host-consumer-cli'] as $context) {
+            yield "{$context} missing" => [$context, 'missing', "Exact-SHA evidence is missing {$context}."];
+            yield "{$context} red" => [$context, 'red', "Exact-SHA evidence for {$context} is not a completed success."];
+            yield "{$context} produced by another app" => [$context, 'wrong-app', "Exact-SHA evidence for {$context} has app id 99, expected 15368."];
+        }
     }
 
     #[Test]
     #[DataProvider('newPrerequisiteEvidence')]
-    public function a_prerequisite_added_after_migration_must_be_proved_on_the_evidence_sha(string $case, string $message): void
+    public function a_prerequisite_added_after_migration_must_be_proved_on_the_evidence_sha(string $context, string $case, string $message): void
     {
         [$policy, $baseline, $live, $runs] = self::fixtures();
-        self::assertNotContains('ci/native-host-contract', array_column(\crp_required_contexts($baseline), 'context'), 'The prerequisite is not a legacy context.');
+        self::assertNotContains($context, array_column(\crp_required_contexts($baseline), 'context'), 'The prerequisite is not a legacy context.');
         foreach ($runs as $index => $run) {
-            if ($run['name'] !== 'ci/native-host-contract') {
+            if ($run['name'] !== $context) {
                 continue;
             }
             match ($case) {
@@ -159,10 +162,12 @@ final class CiRulesetProjectorTest extends TestCase
 
         $plan = \crp_plan('union', $baseline, $policy, $live, $runs, 'waaseyaa/framework', str_repeat('a', 40));
 
-        self::assertContains(['context' => 'ci/native-host-contract', 'app_id' => 15368], $plan['verified_checks']);
-        self::assertArrayNotHasKey('ci/native-host-contract', $plan['after']['required_contexts']);
-        self::assertArrayNotHasKey('ci/native-host-contract', \crp_context_map(\crp_phase_projection('final', $baseline, $policy)['target']));
-        self::assertArrayNotHasKey('ci/native-host-contract', \crp_context_map(\crp_phase_projection('rollback', $baseline, $policy)['target']));
+        foreach (['ci/native-host-contract', 'ci/native-host-consumer-cli'] as $context) {
+            self::assertContains(['context' => $context, 'app_id' => 15368], $plan['verified_checks']);
+            self::assertArrayNotHasKey($context, $plan['after']['required_contexts']);
+            self::assertArrayNotHasKey($context, \crp_context_map(\crp_phase_projection('final', $baseline, $policy)['target']));
+            self::assertArrayNotHasKey($context, \crp_context_map(\crp_phase_projection('rollback', $baseline, $policy)['target']));
+        }
     }
 
     #[Test]
@@ -172,7 +177,7 @@ final class CiRulesetProjectorTest extends TestCase
         $policy['policy']['stable_aggregate_interface']['contexts']['merge-release-integrity']['prerequisite_contexts'][] = 'ci/native-host-contract';
 
         $plan = \crp_plan('union', $baseline, $policy, $live, $runs, 'waaseyaa/framework', str_repeat('a', 40));
-        self::assertSame(32, $plan['verified_check_count']);
+        self::assertSame(33, $plan['verified_check_count']);
         self::assertCount(1, array_filter($plan['verified_checks'], static fn(array $check): bool => $check['context'] === 'ci/native-host-contract'));
 
         $older = ['started_at' => '2026-09-19T00:00:00Z', 'completed_at' => '2026-09-19T00:00:03Z'];
@@ -182,7 +187,7 @@ final class CiRulesetProjectorTest extends TestCase
         $withoutPrerequisite = array_values(array_filter($runs, static fn(array $run): bool => $run['name'] !== 'ci/native-host-contract'));
 
         $recovered = \crp_plan('union', $baseline, $policy, $live, [...$withoutPrerequisite, $red + $older, $green + $newer], 'waaseyaa/framework', str_repeat('a', 40));
-        self::assertSame(32, $recovered['verified_check_count']);
+        self::assertSame(33, $recovered['verified_check_count']);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Exact-SHA evidence for ci/native-host-contract is not a completed success.');

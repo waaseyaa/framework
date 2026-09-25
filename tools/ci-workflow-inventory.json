@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "773fc20400b5f0789fc33c635af2afdc0554acf242096543c8d2aeb358a997e9"
+                "sha256": "89eb6f3c427fd51be9cdedf1f655139677106b3c9b99dd813c92dd9e32e1d0a5"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -122,8 +122,8 @@
     },
     "summary": {
         "workflow_count": 23,
-        "job_count": 97,
-        "visible_context_count": 173,
+        "job_count": 98,
+        "visible_context_count": 174,
         "unresolved_expression_count": 18
     },
     "workflows": [
@@ -1383,7 +1383,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "773fc20400b5f0789fc33c635af2afdc0554acf242096543c8d2aeb358a997e9",
+            "source_sha256": "89eb6f3c427fd51be9cdedf1f655139677106b3c9b99dd813c92dd9e32e1d0a5",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -3899,6 +3899,7 @@
                     },
                     "needs": [
                         "frankenphp-worker",
+                        "native-host-consumer-cli-evidence",
                         "native-host-contract-evidence",
                         "skeleton-create-project-windows"
                     ],
@@ -3922,11 +3923,13 @@
                         "gate": "always",
                         "prerequisites": [
                             "frankenphp-worker",
+                            "native-host-consumer-cli-evidence",
                             "native-host-contract-evidence",
                             "skeleton-create-project-windows"
                         ],
                         "result_checked_prerequisites": [
                             "frankenphp-worker",
+                            "native-host-consumer-cli-evidence",
                             "native-host-contract-evidence",
                             "skeleton-create-project-windows"
                         ],
@@ -3935,6 +3938,12 @@
                     "dependency_result_references": [
                         {
                             "job": "frankenphp-worker",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "native-host-consumer-cli-evidence",
                             "locations": [
                                 "steps.env"
                             ]
@@ -4595,6 +4604,147 @@
                         "status": "discoverable",
                         "commands": [
                             "bin/test-mutation-pilot"
+                        ],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "native-host-consumer-cli-evidence",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "ci/native-host-consumer-cli",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "ci/native-host-consumer-cli",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 10
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": null,
+                    "effective_permissions": {
+                        "scope": "workflow",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [
+                        "site-reference-consumer",
+                        "skeleton-create-project-windows"
+                    ],
+                    "needed_by": [
+                        "merge-platform-runtime-acceptance"
+                    ],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always()",
+                        "normalized": "always()",
+                        "classification": [
+                            "always"
+                        ],
+                        "references": [],
+                        "literals": []
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "site-reference-consumer",
+                            "skeleton-create-project-windows"
+                        ],
+                        "result_checked_prerequisites": [
+                            "site-reference-consumer",
+                            "skeleton-create-project-windows"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "site-reference-consumer",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "skeleton-create-project-windows",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": [
+                            {
+                                "step_index": 3,
+                                "name": "native-host-consumer-evidence-linux",
+                                "pattern": null,
+                                "kind": "literal",
+                                "expansion": [
+                                    "native-host-consumer-evidence-linux"
+                                ],
+                                "path": "build/native-host-consumer-evidence/native-host-consumer-evidence-linux",
+                                "merge_multiple": null,
+                                "cross_run": false,
+                                "run_id": null,
+                                "if": null
+                            },
+                            {
+                                "step_index": 4,
+                                "name": "native-host-consumer-evidence-windows",
+                                "pattern": null,
+                                "kind": "literal",
+                                "expansion": [
+                                    "native-host-consumer-evidence-windows"
+                                ],
+                                "path": "build/native-host-consumer-evidence/native-host-consumer-evidence-windows",
+                                "merge_multiple": null,
+                                "cross_run": false,
+                                "run_id": null,
+                                "if": null
+                            }
+                        ]
+                    },
+                    "action_uses": [
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 6,
+                    "local_equivalent": {
+                        "status": "discoverable",
+                        "commands": [
+                            "bin/native-host-evidence"
                         ],
                         "hosted_signals": []
                     }
@@ -5637,12 +5787,12 @@
                             "matrix": null
                         }
                     ],
-                    "structural_role": "execution",
+                    "structural_role": "setup",
                     "role_evidence": {
                         "publication_signals": [],
                         "orchestration_signals": [],
                         "aggregate_condition_with_needs": false,
-                        "feeds_same_workflow_consumer": false
+                        "feeds_same_workflow_consumer": true
                     },
                     "expansion": "singleton",
                     "strategy": null,
@@ -5669,7 +5819,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "native-host-consumer-cli-evidence"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -5680,18 +5832,36 @@
                     "dependency_result_references": [],
                     "outputs": [],
                     "artifacts": {
-                        "produces": [],
+                        "produces": [
+                            {
+                                "step_index": 6,
+                                "name": "native-host-consumer-evidence-linux",
+                                "kind": "literal",
+                                "expansion": [
+                                    "native-host-consumer-evidence-linux"
+                                ],
+                                "path": [
+                                    "build/native-host-consumer/"
+                                ],
+                                "if": "always()",
+                                "if_no_files_found": "error",
+                                "retention_days": 30,
+                                "overwrite": true
+                            }
+                        ],
                         "consumes": []
                     },
                     "action_uses": [
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
                         "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
                     ],
-                    "step_count": 3,
+                    "step_count": 7,
                     "local_equivalent": {
                         "status": "discoverable",
                         "commands": [
-                            "tests/ReferenceConsumer/check-reference-consumer"
+                            "bin/native-host-evidence",
+                            "vendor/bin/waaseyaa"
                         ],
                         "hosted_signals": []
                     }
@@ -5797,12 +5967,12 @@
                             "matrix": null
                         }
                     ],
-                    "structural_role": "execution",
+                    "structural_role": "setup",
                     "role_evidence": {
                         "publication_signals": [],
                         "orchestration_signals": [],
                         "aggregate_condition_with_needs": false,
-                        "feeds_same_workflow_consumer": false
+                        "feeds_same_workflow_consumer": true
                     },
                     "expansion": "singleton",
                     "strategy": null,
@@ -5834,7 +6004,8 @@
                     },
                     "needs": [],
                     "needed_by": [
-                        "merge-platform-runtime-acceptance"
+                        "merge-platform-runtime-acceptance",
+                        "native-host-consumer-cli-evidence"
                     ],
                     "if": null,
                     "expected_skip": {
@@ -5846,20 +6017,38 @@
                     "dependency_result_references": [],
                     "outputs": [],
                     "artifacts": {
-                        "produces": [],
+                        "produces": [
+                            {
+                                "step_index": 7,
+                                "name": "native-host-consumer-evidence-windows",
+                                "kind": "literal",
+                                "expansion": [
+                                    "native-host-consumer-evidence-windows"
+                                ],
+                                "path": [
+                                    "build/native-host-consumer/"
+                                ],
+                                "if": "always()",
+                                "if_no_files_found": "error",
+                                "retention_days": 30,
+                                "overwrite": true
+                            }
+                        ],
                         "consumes": []
                     },
                     "action_uses": [
                         "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
                         "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
                     ],
-                    "step_count": 6,
+                    "step_count": 10,
                     "local_equivalent": {
                         "status": "discoverable",
                         "commands": [
                             "bin/check-bimaaji-junction-containment.ps1",
                             "bin/maintenance",
+                            "bin/native-host-evidence",
                             "composer create-project",
                             "composer run-script",
                             "composer site-verify",
@@ -6383,6 +6572,58 @@
                         }
                     ],
                     "consumers": [],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                },
+                {
+                    "id": "native-host-consumer-evidence-linux",
+                    "producers": [
+                        {
+                            "job": "site-reference-consumer",
+                            "kind": "literal",
+                            "expansion": [
+                                "native-host-consumer-evidence-linux"
+                            ],
+                            "if": "always()"
+                        }
+                    ],
+                    "consumers": [
+                        {
+                            "job": "native-host-consumer-cli-evidence",
+                            "via": "name",
+                            "kind": "literal",
+                            "matched_producers": [
+                                "site-reference-consumer"
+                            ],
+                            "if": null
+                        }
+                    ],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                },
+                {
+                    "id": "native-host-consumer-evidence-windows",
+                    "producers": [
+                        {
+                            "job": "skeleton-create-project-windows",
+                            "kind": "literal",
+                            "expansion": [
+                                "native-host-consumer-evidence-windows"
+                            ],
+                            "if": "always()"
+                        }
+                    ],
+                    "consumers": [
+                        {
+                            "job": "native-host-consumer-cli-evidence",
+                            "via": "name",
+                            "kind": "literal",
+                            "matched_producers": [
+                                "skeleton-create-project-windows"
+                            ],
+                            "if": null
+                        }
+                    ],
                     "cross_run_consumers": [],
                     "cross_run_producer_candidates": []
                 },

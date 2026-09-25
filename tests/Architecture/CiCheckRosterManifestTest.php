@@ -56,6 +56,9 @@ final class CiCheckRosterManifestTest extends TestCase
         'mutation-pilot',
         'native-host-contract-leaves',
         'native-host-contract-aggregate',
+        'native-host-consumer-linux',
+        'native-host-consumer-windows',
+        'native-host-consumer-aggregate',
         'release-publish-evidence',
         'enable-native-auto-merge',
     ];
@@ -237,6 +240,11 @@ final class CiCheckRosterManifestTest extends TestCase
             'residual-status' => $mutated['residual_tasks'][2]['status'] = 'pending',
             'native-host-width' => $mutated['policy']['artifact_contracts'][1]['bounded_expansion'] = ['native-host-evidence-linux'],
             'native-host-subject' => $mutated['policy']['producers'][$producerIndex('native-host-contract-leaves')]['subject_profiles'][0]['artifact_subject'] = 'pr-head-sha',
+            'native-host-consumer-pattern' => $mutated['policy']['artifact_contracts'][2]['producer_pattern'] = 'native-host-consumer-evidence-*',
+            'native-host-consumer-subject' => $mutated['policy']['producers'][$producerIndex('native-host-consumer-windows')]['subject_profiles'][0]['artifact_subject'] = 'pr-head-sha',
+            'native-host-consumer-lineage' => $mutated['policy']['aggregate_lineage_contract']['aggregates'][4]['prerequisites'] = [
+                ['producer_id' => 'native-host-consumer-windows', 'required_result' => 'success'],
+            ],
             default => self::fail(sprintf('Unknown fixture %s.', $case)),
         };
 
@@ -273,6 +281,9 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'artifact subject matching' => ['artifact-subject', 'php shard coverage producer and consumer profiles must bind artifact-source-sha'];
         yield 'native-host evidence width' => ['native-host-width', 'native-host evidence must use the bounded native-host-evidence-* contract from the leaves to the gate'];
         yield 'native-host evidence subject' => ['native-host-subject', 'native-host evidence producer and consumer profiles must bind artifact-source-sha'];
+        yield 'native-host consumer evidence pattern' => ['native-host-consumer-pattern', 'native-host consumer evidence must be one single-name artifact per lane from that lane to the gate'];
+        yield 'native-host consumer evidence subject' => ['native-host-consumer-subject', 'native-host consumer evidence producer and consumer profiles must bind artifact-source-sha'];
+        yield 'native-host consumer lineage' => ['native-host-consumer-lineage', 'native-host-consumer-aggregate lineage prerequisites must be exactly [native-host-consumer-linux, native-host-consumer-windows]'];
         yield 'inventory pointer' => ['unbound-inventory-pointer', 'generated workflow inventory pointer must name the tracked inventory path'];
         yield 'verifier pointer' => ['unbound-verifier-pointer', 'offline workflow conformance pointer must name the task 3 verifier'];
         yield 'producer roster' => ['producer-roster', 'policy must define the governed producer roster in order'];
@@ -621,6 +632,7 @@ final class CiCheckRosterManifestTest extends TestCase
             'php-coverage-aggregate' => ['php-test-shards'],
             'random-order-aggregate' => ['random-order-shards', 'random-order-plan'],
             'native-host-contract-aggregate' => ['native-host-contract-leaves'],
+            'native-host-consumer-aggregate' => ['native-host-consumer-linux', 'native-host-consumer-windows'],
         ];
         foreach ($contract['aggregates'] ?? [] as $aggregate) {
             $ownerId = $aggregate['producer_id'] ?? '?';
@@ -680,6 +692,31 @@ final class CiCheckRosterManifestTest extends TestCase
             $profiles = $this->producer($manifest, $producerId)['subject_profiles'] ?? [];
             if ($profiles === [] || array_filter($profiles, static fn(array $profile): bool => ($profile['artifact_subject'] ?? null) !== 'artifact-source-sha') !== []) {
                 $errors[] = 'native-host evidence producer and consumer profiles must bind artifact-source-sha';
+            }
+        }
+
+        // #2678 (FW-2678-NATIVE-HOST-SKELETON-CLI-02): each consumer CLI lane
+        // uploads one single-name record, consumed by the
+        // ci/native-host-consumer-cli gate; neither lane can stand in for the other.
+        foreach (['linux', 'windows'] as $host) {
+            $name = "native-host-consumer-evidence-{$host}";
+            $consumer = array_values(array_filter(
+                $manifest['policy']['artifact_contracts'] ?? [],
+                static fn(mixed $contract): bool => is_array($contract) && ($contract['id'] ?? null) === $name,
+            ))[0] ?? [];
+            if (($consumer['producer_id'] ?? null) !== "native-host-consumer-{$host}"
+                || ($consumer['consumer_id'] ?? null) !== 'native-host-consumer-aggregate'
+                || ($consumer['producer_pattern'] ?? null) !== $name
+                || ($consumer['bounded_expansion'] ?? null) !== [$name]
+                || ($consumer['subject'] ?? null) !== 'artifact-source-sha'
+                || ($consumer['require_exact_subject_match'] ?? null) !== true) {
+                $errors[] = 'native-host consumer evidence must be one single-name artifact per lane from that lane to the gate';
+            }
+        }
+        foreach (['native-host-consumer-linux', 'native-host-consumer-windows', 'native-host-consumer-aggregate'] as $producerId) {
+            $profiles = $this->producer($manifest, $producerId)['subject_profiles'] ?? [];
+            if ($profiles === [] || array_filter($profiles, static fn(array $profile): bool => ($profile['artifact_subject'] ?? null) !== 'artifact-source-sha') !== []) {
+                $errors[] = 'native-host consumer evidence producer and consumer profiles must bind artifact-source-sha';
             }
         }
     }
