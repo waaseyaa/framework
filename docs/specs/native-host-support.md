@@ -415,9 +415,8 @@ contract's Architecture selection as well as the Linux Architecture shards. As
 a fast repo-state gate it is also in the default pre-push preflight
 (`tools/preflight-gates.json`, [governed-gates.md](governed-gates.md) §1). No
 job, required context or `merge/*` name is added. One full scan took about
-1.6 s on a native Windows 11 workstation; the change record keeps the local
-measurements, and the hosted step durations are reported with the pull
-request.
+1.6 s on a native Windows 11 workstation and 1–2 s as a hosted step on either
+leaf; the change record keeps the measurements.
 
 A branch-protection adapter decides which named CI checks enforce this policy;
 the adapter must be audited rather than inferred from this prose. A check cannot

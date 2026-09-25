@@ -110,7 +110,8 @@ No semantic diff marker and no POSIX-only fragment was treated as a defect.
     is `class@anonymous`, including `new readonly class` and an attributed
     anonymous class.
   - A keyword used as a named argument (`class:`, `function:`) declares
-    nothing, and `Foo::class` is not a declaration.
+    nothing, `Foo::class` is not a declaration, and a method named after a
+    keyword (`function class()`, `function function()`) keeps its symbol.
   - A classification covers the occurrences that fit its purpose first, so a
     surplus is reported where it misfits.
 - **Purpose shapes.** The three purposes are mutually exclusive syntactic
@@ -120,11 +121,14 @@ No semantic diff marker and no POSIX-only fragment was treated as a defect.
   - platform-derived: the same statement also names `NUL` and a Windows host
     signal. The choice must be one statement, and its direction is not
     checked;
-  - semantic-diff-marker: a diff header, or a bare `/dev/null` beside an
-    `a/` or `b/` label, with no `NUL` counterpart and no redirection;
-  - posix-only-shell: command text, neither a bare path nor a diff header,
-    that redirects to `/dev/null` or passes it as a whitespace- or
-    `=`-delimited word, with no `NUL` counterpart.
+  - semantic-diff-marker: a diff header (even in a patch whose added lines
+    redirect), or a bare `/dev/null` beside an `a/` or `b/` label, with no
+    `NUL` counterpart;
+  - posix-only-shell: command text, not a diff header, that redirects to
+    `/dev/null` or, in text of more than one word, passes it as a
+    whitespace- or `=`-delimited word, quoted or not, with no `NUL`
+    counterpart. A bare path or a lone `key=/dev/null` argument or
+    environment value does not fit.
 - **Manifest validation.**
   - Exact top-level and entry keys, schema
     `waaseyaa.portable_null_device_classifications` version 1, and a purpose
@@ -141,16 +145,22 @@ No semantic diff marker and no POSIX-only fragment was treated as a defect.
 - **Diagnostics.** Each violation names the file, line (for navigation only),
   symbol, literal and, where relevant, the classification index; a literal
   that is not valid UTF-8 is rendered with replacement characters. An
-  unclassified literal also gets the manifest change that would classify it,
-  on its first occurrence in the symbol:
-  - one new entry, as exact JSON, covering every occurrence of that literal
-    in that symbol, with the purpose their shape fits;
-  - or, for a surplus over an existing entry, "raise
-    `classifications[i].occurrences` from N to M".
-
-  Where no purpose fits, the surplus misfits the entry's purpose, or the
-  occurrences do not share one shape, it gives the host-derived remedy
-  instead.
+  unclassified occurrence also gets the manifest change that would classify
+  it, or the reason none can:
+  - without an entry for its file, symbol and literal: one new entry, as
+    exact JSON, covering every occurrence of that literal in that symbol with
+    the purpose their shape fits, on the first of them. If no purpose fits,
+    or they do not share one, the host-derived remedy is given instead. A
+    literal that is not valid UTF-8 cannot be held by the JSON manifest, so
+    the diagnostic says it can only be rewritten or host-derived;
+  - for a surplus over an existing entry, each occurrence is judged on its
+    own. The ones that fit the entry's purpose get one "raise
+    `classifications[i].occurrences` from N to M", counting only them. A
+    misfit that fits another purpose is a conflict: one file, symbol and
+    literal has one classification. Any other misfit gets its reason and the
+    host-derived remedy;
+  - every other occurrence names the line whose suggestion covers it, which
+    is never below it.
 - **No self-exemption.** The gate's own files are governed like any other.
   The library spells the device by construction (`'/dev/' . 'null'`), because
   it never opens it and holds no literal it would have to classify.
@@ -209,6 +219,22 @@ Nits applied:
 - invalid UTF-8 and the exit-code catch-all, with no `mbstring`;
 - the measurement wording.
 
+A focused re-review of the repair delta (`3ce71a5b8..dcd1bf23f`) found no
+blocking issue. Every earlier surviving mutant was killed, and it confirmed
+the purposes stay exclusive across all 128 fact combinations. Its one
+should-fix is repaired: a surplus mixing fitting and misfitting occurrences
+got a single suggestion on the wrong occurrence. Surplus occurrences are now
+judged one by one, and the mixed case and the conflict case are pasted back
+in the tests. Its nits are applied:
+
+- methods named after declaration keywords keep their symbol;
+- command words need text of more than one word, so argument and
+  environment values never fit;
+- quoted paths in command text fit;
+- a patch whose added line redirects stays a semantic diff marker;
+- a literal that is not valid UTF-8 is declared unclassifiable instead of
+  getting a suggestion that could never match.
+
 ## Discriminating evidence
 
 Native Windows 11, PHP 8.5.5, Composer 2.9.5, Windows PowerShell 5.1 (no
@@ -224,9 +250,10 @@ not the reference hosts.
     `['null']` and a host-derived path are not;
   - new unclassified literal: `fopen('/dev/null', 'w')` in package code (no
     purpose fits), a host-shell redirection (the diagnostic proposes the
-    `posix-only-shell` entry), and a surplus occurrence in a classified
-    symbol. Every suggestion, pasted back, classifies exactly what it
-    reported;
+    `posix-only-shell` entry), and surplus occurrences in a classified
+    symbol that fit, misfit, mix both, or fit another purpose. Every add or
+    raise suggestion, pasted back after the misfits are removed, classifies
+    exactly what it reported;
   - deleted classified occurrence: a removed `ConfigDiffer` label and one
     fewer self-test oracle entry make their classifications stale;
   - altered purpose or file: every relabelling of every tracked
@@ -236,8 +263,9 @@ not the reference hosts.
   - platform-aware implementation accepted: the five tracked host-derived
     symbols and four more host-choice forms, but not two devices without a
     host signal, nor a choice split across statements;
-  - semantic diff marker accepted: the three tracked markers and two more
-    diff forms, but not a bare path without a label.
+  - semantic diff marker accepted: the three tracked markers and three more
+    diff forms, one a patch whose added line redirects, but not a bare path
+    without a label.
 
   The class, 19 cases, also covers:
   - malformed and overly broad classifications, each rejected for its own
@@ -260,31 +288,34 @@ not the reference hosts.
   --version` with stdin `['file', '/dev/null', 'r']` made `proc_open()`
   return `false`. `['null']` and the host-derived descriptor both started it
   (exit 0).
-- **Mutation testing of the gate.** Sixty-four injected mutants were each
-  killed by `PortableNullDeviceGateTest` at `38ea9933e`: 61 of the library
+- **Mutation testing of the gate.** Seventy-two injected mutants were each
+  killed by `PortableNullDeviceGateTest` at `5fb4ded3b`: 69 of the library
   and 3 of the entrypoint. The later commits of this record leave the
   library and tests unchanged. The run used the disposable Linux clone and
   restored every file; the unmutated control passed 19/19. The mutants
   removed or weakened:
   - the descriptor rule and its `array()` and keyed spellings;
   - the stale, fewer, extra and unmatched occurrence checks;
-  - the purpose check and each purpose shape, including command words, the
-    diff-header exclusion and the bare-path exclusion;
+  - the purpose check and each purpose shape, including command words, their
+    more-than-one-word rule, quoted and escaped-quoted paths, the
+    diff-header exclusion and the precedence of a header over a redirection;
   - the duplicate, sort, pattern, directory-symbol and surface checks, and
     each path-spelling check;
   - the count type, symbol, rationale, schema and vocabulary checks;
   - comment, inline-text and fragment inspection, and line-ending
     normalization;
   - each statement boundary and the interpolation exception;
-  - the closure, anonymous-class, `::class`, by-reference and named-argument
-    symbol rules;
+  - the closure, anonymous-class, `::class`, by-reference, named-argument and
+    keyword-named-method symbol rules;
   - the Windows-named-variable signal, case-insensitive `NUL`, spaced and
     unspaced input redirection, the escaped-newline header and the `a/`
     label;
   - unreadable-manifest handling and its finding filter;
   - the descriptor-classification message;
-  - purpose suggestions, their grouped count, the raised count, the
-    once-per-group rule, and fitting occurrences first;
+  - purpose suggestions, their grouped count, the raised count and its
+    fitting-only surplus, the per-occurrence judgement of a surplus, the
+    conflict case, the line pointers, fitting occurrences first, and the
+    unencodable literal;
   - the scan's exit-code catch-all and UTF-8 substitution;
   - case-insensitive open tags, versioned shebangs and blank lines after the
     shebang;
@@ -298,8 +329,8 @@ not the reference hosts.
     needed the redirection rule, so an unspaced `</dev/null` case was added.
 - **Native Windows contract replay.** Each contract command ran in order
   through its contract PowerShell rendering.
-  - On the final code, `38ea9933e`, every step exited 0; `phpunit-architecture`
-    took 19.1 s.
+  - On the final code, `5fb4ded3b`, every step exited 0; `phpunit-architecture`
+    took 19.2 s.
   - The hosted collector's own functions found exactly the expected methods
     for the three PHPUnit commands (59, 13 and 50), with no violation.
   - An earlier replay, at `b10b97e7a`, had one load-induced miss:
@@ -307,7 +338,7 @@ not the reference hosts.
     exceeded its 1.8 s wall-clock bound once (2.22 s). It passed 3/3 in
     isolation and on the rerun, and neither that test nor its subject is
     changed here.
-- **Linux replay (WSL, not Linux acceptance), at `38ea9933e`.**
+- **Linux replay (WSL, not Linux acceptance), at `5fb4ded3b`.**
   - Every contract command exited 0 from its argument array, with the same
     exact method sets and no violation.
   - 243/243 passed across the affected architecture classes, including:
@@ -322,6 +353,14 @@ not the reference hosts.
     cache exists, and it created none.
 - **Both hosts, one answer.** The gate reported 2,978 governed PHP files and
   21 classified literals (11, 3 and 7) on Windows and on Linux.
+- **Hosted, first run.** Pull-request run 36201933115, on the first review
+  repair `dcd1bf23f`, passed all 59 checks:
+  - both `native-host-contract` leaves ran the `portable-null-device` step
+    and the enlarged Architecture selection;
+  - `ci/native-host-contract` verified one passing record per host;
+  - `merge/platform-runtime-acceptance` passed.
+
+  The hosted run on the final head is reported with the pull request.
 
 ## Cost
 
@@ -331,12 +370,18 @@ not the reference hosts.
 | `PortableNullDeviceGateTest` (19 cases) | about 8 s; the entrypoint case, three real gate runs, takes 5 s | about 3 s wall |
 | `phpunit-architecture` contract command | 8–11 s before, 19–20 s after | 7 s after |
 
-On Windows the scan's time goes mostly to Git enumeration with a stat per
-path (0.7 s) and reading the PHP files (0.5 s). The default preflight gains
-the same one scan. The hosted step and PHPUnit durations are reported with
-the pull request. Both leaves finish inside the Linux PHPUnit shards that
-pace every run, so the critical path should not change. As in the earlier
-slices, this is a job-wall cost proxy only, and no billed cost is claimed.
+Hosted run 36201933115 (`dcd1bf23f`) measured:
+
+| Job | Leaf | `portable-null-device` step | `phpunit-architecture` step |
+|---|---|---|---|
+| `ci/native-host-contract-linux` (`ubuntu-24.04`) | 46 s | 1 s | 6 s |
+| `ci/native-host-contract-windows` (`windows-2025`) | 110 s | 2 s | 18 s |
+
+The run's Linux PHPUnit shards took 136–417 s, so both leaves stayed off the
+critical path. On Windows the scan's time goes mostly to Git enumeration
+with a stat per path (0.7 s locally) and reading the PHP files (0.5 s). The
+default preflight gains the same one scan. As in the earlier slices, this is
+a job-wall cost proxy only, and no billed cost is claimed.
 
 ## Residual limitations recorded, not fixed
 
@@ -346,7 +391,9 @@ slices, this is a job-wall cost proxy only, and no billed cost is claimed.
   - The platform-derived shape does not check a choice's direction, and a
     choice spread over several statements does not fit it.
   - The command-text shape cannot tell a shell command from prose, so the
-    rationale must say where the command runs.
+    rationale must say where the command runs. A lone `key=/dev/null`
+    argument or environment value (`putenv()`, a `proc_open()` argument)
+    never fits, so such code must take the device from the host.
 - It matches the spelling `/dev/null` in string tokens. A path assembled at
   run time (by concatenation, escape sequences or `sprintf`) is outside a
   static guard, and so is a hard-coded `NUL` on POSIX, which Linux CI would
