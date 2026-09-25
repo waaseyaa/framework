@@ -182,6 +182,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             self::assertSame([[], [], ['.agents/README.md', '.mcp.json']], array_column($evidence['cohort']['packages'], 'withheld'), 'Only export-ignored candidate files are withheld.');
             self::assertSame([0, 0, 2], array_column($evidence['cohort']['packages'], 'export_ignored'));
             self::assertSame(PHP_OS_FAMILY === 'Windows' ? 'case-insensitive' : 'exact', $evidence['cohort']['path_comparison']);
+            self::assertSame([], \nhc_cohort_problems($evidence['cohort'], PHP_OS_FAMILY), 'The collector writes exactly the cohort shape the verifier accepts.');
             self::assertSame(['artifacts' => ['.waaseyaa/generated.json' => true, 'bin/maintenance/site-verify' => true], 'activated_generations' => 1], $evidence['lifecycle']);
             self::assertSame(['job' => self::fixtureContract()['consumer_cli']['lanes'][$evidence['host']]['job'], 'candidate_binding' => $binding], $evidence['lane']);
             self::assertSame("& 'php' 'vendor/bin/waaseyaa' 'list' '--raw'", $evidence['cli']['powershell']);
@@ -391,9 +392,28 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'another checkout' => ['other-head', 'the linux consumer record fails the checked-out HEAD check'];
         yield 'another candidate' => ['other-candidate', 'the linux consumer record fails the candidate revision check'];
         yield 'different pull-request heads' => ['other-pr-head', 'bind different subjects'];
-        yield 'different repositories' => ['other-repository', 'bind different subjects'];
-        yield 'a different cohort digest' => ['other-cohort', 'bind different installed package cohorts'];
-        yield 'a different package version' => ['other-version', 'bind different installed package cohorts'];
+        yield 'different repositories' => ['other-repository', 'the windows consumer record fails the repository check'];
+        yield 'both records naming another repository' => ['both-other-repository', 'the linux consumer record fails the repository check'];
+        yield 'no verifier repository' => ['no-verifier-repository', 'GITHUB_REPOSITORY must be set for the verifier'];
+        yield 'a first attempt below one' => ['zero-attempt', 'the linux consumer record fails the run attempt check'];
+        yield 'a different, self-consistent cohort' => ['other-cohort', 'bind different installed package cohorts'];
+        yield 'a different, self-consistent package version' => ['other-version', 'bind different installed package cohorts'];
+        yield 'a null package digest' => ['null-package-digest', 'the windows consumer record fails the cohort check: waaseyaa/foundation content_digest null is not 64 lowercase hexadecimal characters'];
+        yield 'an uppercase package digest' => ['uppercase-package-digest', 'waaseyaa/foundation content_digest "' . str_repeat('A', 64) . '" is not 64 lowercase hexadecimal characters'];
+        yield 'a short package digest' => ['short-package-digest', 'waaseyaa/framework content_digest "' . str_repeat('3', 63) . '" is not 64 lowercase hexadecimal characters'];
+        yield 'a duplicate package name' => ['duplicate-package', 'the windows consumer record fails the cohort check: waaseyaa/foundation is recorded more than once'];
+        yield 'a noncanonical package order' => ['noncanonical-order', 'the linux consumer record fails the cohort check: waaseyaa/foundation is out of canonical name order after waaseyaa/framework'];
+        yield 'a cohort digest inconsistent with its packages' => ['inconsistent-digest', 'the windows consumer record fails the cohort check: the cohort digest is not the digest of its package entries'];
+        yield 'a non-waaseyaa package name' => ['foreign-package-name', 'package 0 name "acme/foundation" is not a waaseyaa/* package name'];
+        yield 'a malformed package version' => ['malformed-version', 'waaseyaa/foundation version ["dev-main"] is not a Composer version string'];
+        yield 'a negative file count' => ['negative-files', 'waaseyaa/foundation files must be a non-negative integer'];
+        yield 'more withheld files than export-ignored' => ['withheld-beyond-ignored', 'waaseyaa/framework withholds more files than it export-ignores'];
+        yield 'EOL normalization on Linux' => ['linux-eol', 'the linux consumer record fails the cohort check: waaseyaa/foundation eol_normalized 1 is out of bounds for this host'];
+        yield 'a package count that is not the entries' => ['wrong-package-count', 'package_count 3 is not the 2 recorded packages'];
+        yield 'an undocumented package field' => ['extra-package-field', 'package 0 must carry exactly name, version, type'];
+        yield "another host's path comparison" => ['other-path-comparison', 'the linux consumer record fails the cohort check: the path comparison "case-insensitive" is not this host\'s'];
+        yield 'a cohort without the framework' => ['no-framework', 'the cohort does not include waaseyaa/framework'];
+        yield 'a metapackage that records installed files' => ['metapackage-files', 'waaseyaa/foundation records 2 installed files for a "metapackage"'];
         yield 'a non-zero CLI exit' => ['cli-exit', 'the windows consumer record fails the CLI exit code check'];
         yield 'a missing catalogue entry' => ['no-site-doctor', 'the linux consumer record fails the required catalogue entries check'];
         yield 'another argv' => ['other-argv', 'the windows consumer record fails the CLI argv check'];
@@ -419,6 +439,14 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         $contract = self::fixtureContract();
         $directory = $this->scratch();
         $records = ['linux' => self::passingRecord('linux', $contract), 'windows' => self::passingRecord('windows', $contract)];
+        $env = ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '2', 'GITHUB_REPOSITORY' => 'waaseyaa/framework'];
+        // Change the packages, then re-derive the digest and count exactly as
+        // the collector would, so only the targeted check can fail.
+        $rehash = static function (array &$record, \Closure $change, ?int $count = null): void {
+            $change($record['cohort']['packages']);
+            $record['cohort']['package_count'] = $count ?? count($record['cohort']['packages']);
+            $record['cohort']['digest'] = \nhc_cohort_digest($record['cohort']['packages']);
+        };
         match ($mutation) {
             'none', 'missing-windows', 'duplicate-windows', 'extra-artifact', 'unreadable' => null,
             'malformed-cohort' => $records['windows']['cohort'] = 'not an object',
@@ -429,8 +457,27 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'other-candidate' => $records['linux']['candidate']['revision'] = self::OTHER_SHA,
             'other-pr-head' => $records['windows']['subject']['pull_request_head_sha'] = self::OTHER_SHA,
             'other-repository' => $records['windows']['subject']['repository'] = 'someone/fork',
-            'other-cohort' => $records['windows']['cohort']['digest'] = str_repeat('f', 64),
-            'other-version' => $records['windows']['cohort']['packages'][0]['version'] = 'dev-other',
+            'both-other-repository' => $records['linux']['subject']['repository'] = $records['windows']['subject']['repository'] = 'someone/fork',
+            'no-verifier-repository' => $env['GITHUB_REPOSITORY'] = '',
+            'zero-attempt' => $records['linux']['subject']['run_attempt'] = 0,
+            'other-cohort' => $rehash($records['windows'], static fn(array &$packages): string => $packages[0]['content_digest'] = str_repeat('4', 64)),
+            'other-version' => $rehash($records['windows'], static fn(array &$packages): string => $packages[0]['version'] = 'dev-other'),
+            'null-package-digest' => $rehash($records['windows'], static fn(array &$packages): null => $packages[0]['content_digest'] = null),
+            'uppercase-package-digest' => $rehash($records['windows'], static fn(array &$packages): string => $packages[0]['content_digest'] = str_repeat('A', 64)),
+            'short-package-digest' => $rehash($records['linux'], static fn(array &$packages): string => $packages[1]['content_digest'] = str_repeat('3', 63)),
+            'duplicate-package' => $rehash($records['windows'], static fn(array &$packages): string => $packages[1]['name'] = 'waaseyaa/foundation'),
+            'noncanonical-order' => $rehash($records['linux'], static fn(array &$packages): array => $packages = array_reverse($packages)),
+            'inconsistent-digest' => $records['windows']['cohort']['packages'][0]['content_digest'] = str_repeat('4', 64),
+            'foreign-package-name' => $rehash($records['windows'], static fn(array &$packages): string => $packages[0]['name'] = 'acme/foundation'),
+            'malformed-version' => $rehash($records['windows'], static fn(array &$packages): array => $packages[0]['version'] = ['dev-main']),
+            'negative-files' => $records['linux']['cohort']['packages'][0]['files'] = -1,
+            'withheld-beyond-ignored' => $records['windows']['cohort']['packages'][1]['withheld'] = ['.mcp.json', 'README.md'],
+            'linux-eol' => $records['linux']['cohort']['packages'][0]['eol_normalized'] = 1,
+            'wrong-package-count' => $records['windows']['cohort']['package_count'] = 3,
+            'extra-package-field' => $records['windows']['cohort']['packages'][0]['trusted'] = true,
+            'other-path-comparison' => $records['linux']['cohort']['path_comparison'] = 'case-insensitive',
+            'no-framework' => $rehash($records['windows'], static fn(array &$packages): array => $packages = [$packages[0]], 1),
+            'metapackage-files' => $records['windows']['cohort']['packages'][0]['type'] = 'metapackage',
             'cli-exit' => $records['windows']['cli']['exit_code'] = 1,
             'no-site-doctor' => $records['linux']['cli']['catalogue'] = ['list', 'db:init', 'site:init', 'install:init'],
             'other-argv' => $records['windows']['cli']['argv'] = ['php', 'vendor/bin/waaseyaa', 'list'],
@@ -467,7 +514,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             mkdir($directory . '/' . \NHC_ARTIFACT_PREFIX . 'macos');
         }
 
-        $verified = \nhc_verify_set($directory, ['linux', 'windows'], $contract, ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '2'], self::CANDIDATE_SHA, self::verifierGit());
+        $verified = \nhc_verify_set($directory, ['linux', 'windows'], $contract, $env, self::CANDIDATE_SHA, self::verifierGit());
 
         if ($expected === '') {
             self::assertSame(\NHE_EXIT_PASS, $verified['exit'], implode("\n", $verified['violations']));
@@ -481,7 +528,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
     #[Test]
     public function verify_set_rejects_a_host_list_that_is_not_the_consumer_lanes(): void
     {
-        $verified = \nhc_verify_set($this->scratch(), ['linux'], self::fixtureContract(), ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '1'], self::CANDIDATE_SHA, self::verifierGit());
+        $verified = \nhc_verify_set($this->scratch(), ['linux'], self::fixtureContract(), ['GITHUB_RUN_ID' => '42', 'GITHUB_RUN_ATTEMPT' => '1', 'GITHUB_REPOSITORY' => 'waaseyaa/framework'], self::CANDIDATE_SHA, self::verifierGit());
 
         self::assertSame(\NHE_EXIT_VIOLATION, $verified['exit']);
         self::assertStringContainsString('the verified hosts must be exactly the consumer lanes: linux, windows', implode("\n", $verified['violations']));
@@ -661,6 +708,11 @@ final class NativeHostConsumerEvidenceTest extends TestCase
     {
         $lane = $contract['consumer_cli']['lanes'][$host];
         $definition = $contract['hosts'][$host];
+        // Composer path references differ per host; the content does not.
+        $packages = [
+            ['name' => 'waaseyaa/foundation', 'version' => 'dev-main', 'type' => 'library', 'dist_type' => 'path', 'dist_reference' => $host === 'windows' ? '1269e97a371a2e53777a4f23254437cd7361fa78' : '94e3f4b', 'candidate_path' => 'packages/foundation', 'files' => 2, 'withheld' => [], 'export_ignored' => 0, 'content_digest' => str_repeat('2', 64), 'eol_normalized' => $host === 'windows' ? 1 : 0],
+            ['name' => 'waaseyaa/framework', 'version' => 'dev-main', 'type' => 'project', 'dist_type' => 'path', 'dist_reference' => '9ec6754', 'candidate_path' => '.', 'files' => 6, 'withheld' => ['.mcp.json'], 'export_ignored' => 1, 'content_digest' => str_repeat('3', 64), 'eol_normalized' => 0],
+        ];
         $record = [
             'schema' => \NHC_EVIDENCE_SCHEMA,
             'schema_version' => \NHE_SCHEMA_VERSION,
@@ -683,9 +735,10 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'root_package' => ['name' => 'waaseyaa/waaseyaa', 'pretty_version' => '1.0.0+no-version-set', 'reference' => null],
             'project_source' => ['relation' => \NHC_CHECKOUT_SKELETON_RELATION, 'revision' => null, 'tree' => null],
             'cohort' => [
-                'digest' => str_repeat('1', 64),
-                'package_count' => 1,
-                'packages' => [['name' => 'waaseyaa/framework', 'version' => 'dev-main', 'type' => 'project', 'dist_type' => 'path', 'dist_reference' => '9ec6754', 'candidate_path' => '.', 'files' => 3, 'content_digest' => str_repeat('2', 64), 'eol_normalized' => 0]],
+                'digest' => \nhc_cohort_digest($packages),
+                'package_count' => count($packages),
+                'path_comparison' => $host === 'windows' ? 'case-insensitive' : 'exact',
+                'packages' => $packages,
             ],
             'lifecycle' => ['artifacts' => array_fill_keys($contract['consumer_cli']['lifecycle_artifacts'], true), 'activated_generations' => 1],
             'cli' => [

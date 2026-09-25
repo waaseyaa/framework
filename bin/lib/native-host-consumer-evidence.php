@@ -407,6 +407,139 @@ function nhc_compare_package(string $installedDirectory, string $prefix, array $
 }
 
 /**
+ * The cohort digest: SHA-256 of the canonical JSON of each package's
+ * `[name, version, content_digest]`, in the packages' own (canonical name)
+ * order. The collector writes it and the verifier recomputes it.
+ *
+ * Returns null when an entry cannot be projected (a malformed record).
+ *
+ * @param list<mixed> $packages
+ */
+function nhc_cohort_digest(array $packages): ?string
+{
+    $identity = [];
+    foreach ($packages as $package) {
+        if (!is_array($package)) {
+            return null;
+        }
+        $identity[] = [$package['name'] ?? null, $package['version'] ?? null, $package['content_digest'] ?? null];
+    }
+    $encoded = json_encode($identity, JSON_UNESCAPED_SLASHES);
+
+    return is_string($encoded) ? hash('sha256', $encoded) : null;
+}
+
+/** The documented keys of one cohort package entry, in record order. */
+const NHC_PACKAGE_KEYS = ['name', 'version', 'type', 'dist_type', 'dist_reference', 'candidate_path', 'files', 'withheld', 'export_ignored', 'content_digest', 'eol_normalized'];
+
+/** A value rendered for a violation message. */
+function nhc_show(mixed $value): string
+{
+    return (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+}
+
+/**
+ * Why a recorded cohort is not a well-formed, self-consistent cohort for a
+ * passing record on a host whose PHP OS family is $osFamily. Every package
+ * entry must carry exactly the documented fields with their documented
+ * types and bounds, the names must be unique `waaseyaa/*` names in canonical
+ * (byte) order, and the recorded digest must be the one recomputed from the
+ * entries.
+ *
+ * @return list<string>
+ */
+function nhc_cohort_problems(mixed $cohort, string $osFamily): array
+{
+    if (!is_array($cohort) || array_keys($cohort) !== ['digest', 'package_count', 'path_comparison', 'packages']) {
+        return ['the cohort must be {digest, package_count, path_comparison, packages}'];
+    }
+    $packages = $cohort['packages'];
+    if (!is_array($packages) || $packages === [] || !array_is_list($packages)) {
+        return ['the cohort packages must be a non-empty list'];
+    }
+
+    $windows = $osFamily === 'Windows';
+    $problems = [];
+    if ($cohort['path_comparison'] !== ($windows ? 'case-insensitive' : 'exact')) {
+        $problems[] = 'the path comparison ' . nhc_show($cohort['path_comparison']) . " is not this host's";
+    }
+    if ($cohort['package_count'] !== count($packages)) {
+        $problems[] = 'package_count ' . nhc_show($cohort['package_count']) . ' is not the ' . count($packages) . ' recorded packages';
+    }
+    $count = static fn(mixed $value): bool => is_int($value) && $value >= 0;
+    $names = [];
+    $previous = null;
+    foreach ($packages as $index => $package) {
+        $label = "package {$index}";
+        if (!is_array($package) || array_keys($package) !== NHC_PACKAGE_KEYS) {
+            $problems[] = "{$label} must carry exactly " . implode(', ', NHC_PACKAGE_KEYS);
+            continue;
+        }
+        $name = $package['name'];
+        if (!is_string($name) || preg_match('#^waaseyaa/[a-z0-9]([_.-]?[a-z0-9]+)*$#D', $name) !== 1) {
+            $problems[] = "{$label} name " . nhc_show($name) . ' is not a waaseyaa/* package name';
+        } else {
+            $label = $name;
+            if (isset($names[$name])) {
+                $problems[] = "{$name} is recorded more than once";
+            } elseif ($previous !== null && strcmp($previous, $name) > 0) {
+                $problems[] = "{$name} is out of canonical name order after {$previous}";
+            }
+            $names[$name] = true;
+            $previous = $name;
+        }
+        if (!is_string($package['version']) || preg_match('#^[A-Za-z0-9][A-Za-z0-9._+/-]{0,99}$#D', $package['version']) !== 1) {
+            $problems[] = "{$label} version " . nhc_show($package['version']) . ' is not a Composer version string';
+        }
+        if (!is_string($package['type']) || preg_match('/^[a-z][a-z0-9-]*$/D', $package['type']) !== 1) {
+            $problems[] = "{$label} type " . nhc_show($package['type']) . ' is not a Composer package type';
+        }
+        foreach (['dist_type', 'dist_reference'] as $field) {
+            if ($package[$field] !== null && (!is_string($package[$field]) || $package[$field] === '')) {
+                $problems[] = "{$label} {$field} must be a non-empty string or null";
+            }
+        }
+        if (!is_string($package['candidate_path']) || preg_match('#^(\.|packages/[A-Za-z0-9._-]+)$#D', $package['candidate_path']) !== 1) {
+            $problems[] = "{$label} candidate_path " . nhc_show($package['candidate_path']) . ' is not the root or a packages/<dir> path';
+        }
+        if (!is_string($package['content_digest']) || preg_match('/^[0-9a-f]{64}$/D', $package['content_digest']) !== 1) {
+            $problems[] = "{$label} content_digest " . nhc_show($package['content_digest']) . ' is not 64 lowercase hexadecimal characters';
+        }
+        $withheld = $package['withheld'];
+        if (!is_array($withheld) || !array_is_list($withheld)
+            || array_filter($withheld, static fn(mixed $path): bool => !is_string($path) || $path === '' || str_starts_with($path, '/') || in_array('..', explode('/', $path), true)) !== []) {
+            $problems[] = "{$label} withheld must be a list of package-relative paths";
+            $withheld = [];
+        }
+        foreach (['files', 'export_ignored', 'eol_normalized'] as $field) {
+            if (!$count($package[$field])) {
+                $problems[] = "{$label} {$field} must be a non-negative integer";
+            }
+        }
+        if ($count($package['files']) && $count($package['export_ignored']) && $count($package['eol_normalized'])) {
+            if ($package['type'] === 'metapackage' ? $package['files'] !== 0 : $package['files'] < 1) {
+                $problems[] = "{$label} records {$package['files']} installed files for a " . nhc_show($package['type']);
+            }
+            if (count($withheld) > $package['export_ignored']) {
+                $problems[] = "{$label} withholds more files than it export-ignores";
+            }
+            if ($package['eol_normalized'] > $package['files'] || (!$windows && $package['eol_normalized'] !== 0)) {
+                $problems[] = "{$label} eol_normalized {$package['eol_normalized']} is out of bounds for this host";
+            }
+        }
+    }
+    if (!isset($names['waaseyaa/framework'])) {
+        $problems[] = 'the cohort does not include waaseyaa/framework';
+    }
+    $recomputed = nhc_cohort_digest($packages);
+    if ($recomputed === null || !is_string($cohort['digest']) || $cohort['digest'] !== $recomputed) {
+        $problems[] = 'the cohort digest is not the digest of its package entries';
+    }
+
+    return $problems;
+}
+
+/**
  * The cohort shape of a record that could not bind one.
  *
  * @return array{digest: null, package_count: 0, path_comparison: string, packages: array{}}
@@ -514,14 +647,9 @@ function nhc_cohort(string $consumerRoot, array $tree, array $exportIgnored, cal
         $violations[] = 'the consumer did not install waaseyaa/framework';
     }
 
-    $identity = array_map(
-        static fn(array $record): array => [$record['name'], $record['version'], $record['content_digest']],
-        array_values($records),
-    );
-
     return [
         'cohort' => [
-            'digest' => hash('sha256', json_encode($identity, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+            'digest' => (string) nhc_cohort_digest(array_values($records)),
             'package_count' => count($records),
             'path_comparison' => $comparison,
             'packages' => array_values($records),
@@ -830,7 +958,7 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
  *
  * @return list<string>
  */
-function nhc_record_problems(array $record, string $host, array $contract, ?string $verifierHead, ?int $runId, ?int $runAttempt, ?string $skeletonTree): array
+function nhc_record_problems(array $record, string $host, array $contract, ?string $verifierHead, ?int $runId, ?int $runAttempt, ?string $skeletonTree, ?string $repository): array
 {
     $section = $contract['consumer_cli'];
     $lane = $section['lanes'][$host];
@@ -866,9 +994,9 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
         'lane' => $at('lane.job') === $lane['job'] && $at('lane.candidate_binding') === $lane['candidate_binding'],
         'contract digest' => $at('contract.sha256') === nhe_contract_digest($contract),
         'checked-out HEAD' => $sha($verifierHead) && $at('subject.checked_out_head') === $verifierHead,
-        'repository' => is_string($at('subject.repository')) && $at('subject.repository') !== '',
+        'repository' => is_string($repository) && $repository !== '' && $at('subject.repository') === $repository,
         'run id' => $runId !== null && $at('subject.run_id') === $runId,
-        'run attempt' => is_int($at('subject.run_attempt')) && $runAttempt !== null && $at('subject.run_attempt') <= $runAttempt,
+        'run attempt' => is_int($at('subject.run_attempt')) && $at('subject.run_attempt') >= 1 && $runAttempt !== null && $at('subject.run_attempt') <= $runAttempt,
         'candidate revision' => $sha($verifierHead) && $at('candidate.revision') === $verifierHead && $at('candidate.binding') === $lane['candidate_binding'],
         'candidate skeleton tree' => $sha($skeletonTree) && $at('candidate.skeleton_tree') === $skeletonTree,
         'lifecycle step' => count($steps['lifecycle'] ?? []) === 1 && ($steps['lifecycle'][0]['outcome'] ?? null) === 'success' && ($steps['lifecycle'][0]['exit_code'] ?? null) === 0,
@@ -878,8 +1006,6 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
         'CLI argv' => $at('cli.argv') === $section['argv'],
         'CLI exit code' => $at('cli.exit_code') === 0 && $at('cli.outcome') === 'success',
         'required catalogue entries' => is_array($catalogue) && array_diff($section['required_commands'], $catalogue) === [],
-        'cohort' => is_string($at('cohort.digest')) && preg_match('/^[0-9a-f]{64}$/D', $at('cohort.digest')) === 1
-            && is_array($at('cohort.packages')) && $at('cohort.packages') !== [] && $at('cohort.package_count') === count($at('cohort.packages')),
         'boot environment' => $at('boot_environment') === ['app_env' => $lane['boot_environment']['app_env'], 'source' => $lane['boot_environment']['source'], 'app_secret' => 'present'],
         'runner' => $at('runner.label') === $definition['runner'] && $at('runner.runner_os') === $definition['runner_os']
             && $at('runner.os_family') === $definition['php_os_family'] && is_string($at('runner.os')) && $at('runner.os') !== ''
@@ -903,6 +1029,9 @@ function nhc_record_problems(array $record, string $host, array $contract, ?stri
         if (!$passed) {
             $problems[] = "the {$host} consumer record fails the {$check} check";
         }
+    }
+    foreach (nhc_cohort_problems($at('cohort'), $definition['php_os_family']) as $problem) {
+        $problems[] = "the {$host} consumer record fails the cohort check: {$problem}";
     }
 
     return $problems;
@@ -935,6 +1064,12 @@ function nhc_verify_set(string $directory, array $hosts, array $contract, array 
     $runAttempt = is_string($env['GITHUB_RUN_ATTEMPT'] ?? null) && preg_match('/^\d+$/D', $env['GITHUB_RUN_ATTEMPT']) === 1 ? (int) $env['GITHUB_RUN_ATTEMPT'] : null;
     if ($runId === null || $runAttempt === null) {
         $violations[] = 'GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT must be set for the verifier';
+    }
+    // Both records must name the repository this verifier runs in, not merely
+    // agree with each other.
+    $repository = is_string($env['GITHUB_REPOSITORY'] ?? null) && $env['GITHUB_REPOSITORY'] !== '' ? $env['GITHUB_REPOSITORY'] : null;
+    if ($repository === null) {
+        $violations[] = 'GITHUB_REPOSITORY must be set for the verifier';
     }
     // The skeleton tree is recomputed here, not taken from a record.
     $skeletonTree = null;
@@ -989,7 +1124,7 @@ function nhc_verify_set(string $directory, array $hosts, array $contract, array 
         $records[$host] = $found[0];
         $summary[$host] = is_string($found[0]['result'] ?? null) ? $found[0]['result'] : 'unknown';
         if (isset($contract['consumer_cli']['lanes'][$host])) {
-            array_push($violations, ...nhc_record_problems($found[0], $host, $contract, $verifierHead, $runId, $runAttempt, $skeletonTree));
+            array_push($violations, ...nhc_record_problems($found[0], $host, $contract, $verifierHead, $runId, $runAttempt, $skeletonTree, $repository));
         }
     }
 

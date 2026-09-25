@@ -155,6 +155,8 @@ same workflow run.
   results to be `success`, and downloads each lane's artifact by its single
   name. `consumer-verify-set` then fails closed unless it receives exactly
   one Linux and one Windows record from this run with:
+  - `subject.repository` equal to the verifier's own `GITHUB_REPOSITORY`,
+    not merely to the other record's;
   - the same subject and candidate, and the skeleton tree that the verifier
     resolves from its own checkout;
   - an equivalent installed cohort;
@@ -165,6 +167,24 @@ same workflow run.
   - recorded PHP, Composer and SQLite versions in range;
   - the expected OS, runner and hosted shell;
   - no violation or incomplete entry.
+
+  - a cohort whose every package entry carries exactly the documented
+    fields, with:
+    - a unique `waaseyaa/*` name in canonical byte order;
+    - a Composer version string and package type;
+    - a root or `packages/<dir>` candidate path;
+    - a 64-lowercase-hex content digest;
+    - non-negative file, export-ignored and EOL counts within their bounds:
+      no files for a metapackage and at least one otherwise, no more
+      withheld than export-ignored, and EOL normalization only on
+      Windows, never above the file count;
+    - the host's path comparison, and a package count equal to the
+      entries;
+    - a cohort digest that the verifier recomputes from the canonical
+      `[name, version, content_digest]` projection with the collector's
+      own function.
+
+  Root-package metadata stays informational.
 
   It re-derives each check from the record's fields and does not trust the
   record's `result`.
@@ -224,7 +244,8 @@ proxy only, and no billed cost is claimed.
 Native Windows 11, PHP 8.5.5, Composer 2.9.5; local evidence, not the
 reference hosts.
 
-- `NativeHostConsumerEvidenceTest` (82 cases) and
+- `NativeHostConsumerEvidenceTest` (101 cases, 51 of them verifier-set
+  cases) and
   `NativeHostConsumerCliWorkflowTest` (10 cases) pass. The collector cases
   cover:
   - an archive of another revision and a missing revision handover;
@@ -260,12 +281,22 @@ reference hosts.
   - a missing lifecycle artifact or activated generation, missing Composer
     or shell version, and another runner, boot environment or lane;
   - a skeleton tree other than the one the verifier resolves;
+  - a repository other than the verifier's, on one record or on both, and
+    a verifier without `GITHUB_REPOSITORY`;
+  - a null, uppercase or short package digest, a duplicate package name,
+    noncanonical order, and a cohort digest inconsistent with its entries;
+  - a non-`waaseyaa/*` name and a malformed version;
+  - a negative count, more withheld than export-ignored files, EOL
+    normalization on Linux, and a metapackage with installed files;
+  - a wrong package count, an undocumented package field, another host's
+    path comparison, and a cohort without `waaseyaa/framework`;
+  - two self-consistent cohorts that differ between the lanes;
   - a Linux scratch commit claimed equal to the candidate, a Linux scratch
     tree that is not the skeleton tree, and a Windows record that claims a
     scratch commit.
-- Fifteen injected mutants were each killed by the new tests. The run used a
+- Twenty-one injected mutants were each killed by the new tests. The run used a
   scratch copy of the library, and the worktree was not modified. The
-  unmutated control passed 81/81. The mutants removed:
+  unmutated control passed 100/100. The mutants removed:
   - the harness-revision binding;
   - the installed-content comparison;
   - the cross-lane cohort comparison;
@@ -280,7 +311,15 @@ reference hosts.
   - the collecting-job binding;
   - the verifier's skeleton-tree recomputation;
   - the exclusion of export-ignored files from the digest;
-  - the Windows-only CRLF normalization.
+  - the Windows-only CRLF normalization;
+  - the verifier's recomputation of the cohort digest;
+  - the package-digest shape check;
+  - the duplicate-package rejection;
+  - the canonical-order check;
+  - the binding of the repository to the verifier's own;
+  - the package count bounds.
+- The two real qualification records (68 packages each) pass the new
+  cohort validation, and their recorded digests equal the recomputed ones.
 - An exploratory Windows consumer built from the working tree completed the
   lifecycle; `list --raw` exited 0 and listed all five required commands
   among 126. The probe exposed three facts the design now handles:

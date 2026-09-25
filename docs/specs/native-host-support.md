@@ -299,7 +299,9 @@ which succeeds only when `site-reference-consumer` and
 `ci/skeleton-create-project-windows` both succeeded and
 `bin/native-host-evidence consumer-verify-set` accepts exactly one passing
 record per lane from the same run, bound to the verifier's checkout as the
-originating candidate, with an equivalent installed cohort. The nine
+originating candidate and to the verifier's own repository, with an
+equivalent installed cohort whose entries it validates and whose digest it
+recomputes. The nine
 required check names and the frozen rollback baseline are unchanged; the
 gate is a proved prerequisite, never projected.
 
