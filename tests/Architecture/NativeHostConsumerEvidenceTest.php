@@ -216,7 +216,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         yield 'a non-candidate waaseyaa package' => ['checkout', 'foreign-package', 'fail','the consumer installed waaseyaa/ghost, which is not a candidate package'];
         yield 'a dirty checkout manifest' => ['checkout', 'dirty-manifest', 'fail',"the checkout's packages/foundation/composer.json is not the candidate revision's"];
         yield 'no installed metadata' => ['checkout', 'no-installed-json', 'incomplete','no readable vendor/composer/installed.json'];
-        yield 'no database' => ['checkout', 'no-database', 'fail', 'the consumer database has no activated configuration generation, so install:init did not complete'];
+        yield 'an unreadable consumer database' => ['checkout', 'no-database', 'fail', 'the consumer database has no activated configuration generation, so install:init did not complete'];
         yield 'a database without an activated generation' => ['checkout', 'empty-activation', 'fail', 'the consumer database has no activated configuration generation'];
         yield 'a missing site:init publication' => ['checkout', 'no-generated', 'fail', 'the consumer lacks .waaseyaa/generated.json, so its lifecycle did not complete'];
         yield 'a candidate file neither installed nor export-ignored' => ['checkout', 'missing-file', 'fail', 'waaseyaa/framework: 1 candidate file(s) is missing and not export-ignored: README.md'];
@@ -554,7 +554,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
         foreach (['.waaseyaa/generated.json' => '{}', 'bin/maintenance/site-verify' => '<?php'] as $path => $bytes) {
             self::write("{$consumer}/{$path}", $bytes);
         }
-        self::activatedDatabase("{$consumer}/storage/waaseyaa.sqlite", 1);
+        $activations = 1;
         self::write("{$consumer}/.env", "APP_ENV=local\nAPP_DEBUG=true\nWAASEYAA_APP_SECRET=base64:c2VjcmV0\n");
         self::write("{$scratch}/list-raw.stdout", self::CATALOGUE);
         // A Windows host resolves Composer's batch shim from PATH.
@@ -618,8 +618,8 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             'foreign-package' => $installed['packages'][] = ['name' => 'waaseyaa/ghost', 'version' => 'v1.0.0', 'install-path' => '../waaseyaa/ghost'],
             'dirty-manifest' => self::write("{$checkout}/packages/foundation/composer.json", "{\"name\": \"waaseyaa/foundation\", \"dirty\": true}\n"),
             'no-installed-json' => $installed = null,
-            'no-database' => unlink("{$consumer}/storage/waaseyaa.sqlite"),
-            'empty-activation' => self::activatedDatabase("{$consumer}/storage/waaseyaa.sqlite", 0),
+            'no-database' => $activations = null,
+            'empty-activation' => $activations = 0,
             'no-generated' => unlink("{$consumer}/.waaseyaa/generated.json"),
             'other-job' => $env['GITHUB_JOB'] = 'ci-lint',
             'no-job' => $env['GITHUB_JOB'] = '',
@@ -647,7 +647,7 @@ final class NativeHostConsumerEvidenceTest extends TestCase
             '<?php return ' . var_export(['root' => ['name' => 'waaseyaa/waaseyaa', 'pretty_version' => '1.0.0+no-version-set', 'reference' => null]], true) . ';',
         );
 
-        return \nhc_collect($contract, $host, $checkout, $env, self::composerModel(), $git, self::CANDIDATE_SHA);
+        return \nhc_collect($contract, $host, $checkout, $env, self::childModel($checkout, $consumer, $activations), $git, self::CANDIDATE_SHA);
     }
 
     /**
@@ -777,31 +777,24 @@ final class NativeHostConsumerEvidenceTest extends TestCase
     }
 
     /**
-     * Composer's version on any host: the collector's only child process
-     * besides Git.
+     * The collector's child processes besides Git: Composer's version, and
+     * the reference-consumer helper's read-only generation state. A null
+     * activation count models a helper that cannot read the database.
      *
      * @return \Closure(list<string>): ?string
      */
-    private static function composerModel(): \Closure
+    private static function childModel(string $checkout = '', string $consumer = '', ?int $activations = 1): \Closure
     {
-        return static fn(array $command): ?string => in_array('--version', $command, true) ? "Composer version 2.10.3 2026-09-01 00:00:00\n" : null;
-    }
+        return static function (array $command) use ($checkout, $consumer, $activations): ?string {
+            if (in_array('--version', $command, true)) {
+                return "Composer version 2.10.3 2026-09-01 00:00:00\n";
+            }
+            if ($command === [PHP_BINARY, $checkout . '/tests/ReferenceConsumer/prepare.php', 'generation-state', $checkout, $consumer]) {
+                return $activations === null ? null : json_encode(['generation_count' => $activations, 'activation_count' => $activations, 'generations' => [], 'activations' => []], JSON_THROW_ON_ERROR) . "\n";
+            }
 
-    /** A consumer database holding $activations activated configuration generations. */
-    private static function activatedDatabase(string $path, int $activations): void
-    {
-        if (is_file($path)) {
-            unlink($path);
-        }
-        if (!is_dir(dirname($path))) {
-            mkdir(dirname($path), 0o777, true);
-        }
-        $database = new \SQLite3($path);
-        $database->exec('CREATE TABLE waaseyaa_config_activation_v2 (authority_id TEXT, generation_id TEXT, activation_sequence INTEGER)');
-        for ($sequence = 1; $sequence <= $activations; $sequence++) {
-            $database->exec("INSERT INTO waaseyaa_config_activation_v2 VALUES ('site', 'generation', {$sequence})");
-        }
-        $database->close();
+            return null;
+        };
     }
 
     private static function write(string $path, string $bytes): void

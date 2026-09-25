@@ -74,9 +74,12 @@ same workflow run.
   exit 0. The collector then observes the result rather than trusting the
   step. The `site:init` publications must exist, and the consumer database
   must hold an activated configuration generation, which only `install:init`
-  creates. The database is opened read-only, using the table
-  `tests/ReferenceConsumer/prepare.php` inspects. The database file alone
-  would prove nothing, because a CLI boot can create an empty one.
+  creates. The database is read through the read-only `generation-state`
+  command of `tests/ReferenceConsumer/prepare.php`, the same authority the
+  Linux harness asserts the fresh installation with. The collector therefore
+  opens no SQLite database itself and adds nothing to the S1 SQLite
+  construction roster. The database file alone would prove nothing, because
+  a CLI boot can create an empty one.
 - **Job binding.** Each record carries the `GITHUB_JOB` that collected it, and
   the collector rejects a job other than the lane's.
 - **One step text.** Both lanes run the argv as the same PowerShell step,

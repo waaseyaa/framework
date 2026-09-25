@@ -571,31 +571,19 @@ function nhc_dotenv_app_env(string $bytes): ?string
 
 /**
  * How many configuration generations install:init activated in the
- * consumer's database, read without writing; null when the database or its
- * activation table cannot be read. The table is the one
- * tests/ReferenceConsumer/prepare.php inspects.
+ * consumer's database, or null when it cannot be read. The reading is the
+ * reference-consumer helper's own read-only `generation-state`, the authority
+ * the Linux harness asserts the fresh installation with, run as a child
+ * process.
+ *
+ * @param callable(non-empty-list<string>): ?string $runner
  */
-function nhc_activated_generations(string $consumerRoot): ?int
+function nhc_activated_generations(string $root, string $consumerRoot, callable $runner): ?int
 {
-    $path = $consumerRoot . '/storage/waaseyaa.sqlite';
-    if (!class_exists(SQLite3::class) || !is_file($path) || is_link($path)) {
-        return null;
-    }
-    try {
-        $database = new SQLite3($path, SQLITE3_OPEN_READONLY);
-    } catch (Throwable) {
-        return null;
-    }
-    try {
-        $database->enableExceptions(true);
-        $count = $database->querySingle('SELECT COUNT(*) FROM waaseyaa_config_activation_v2');
+    $output = $runner([PHP_BINARY, $root . '/tests/ReferenceConsumer/prepare.php', 'generation-state', $root, $consumerRoot]);
+    $state = is_string($output) ? json_decode(trim($output), true) : null;
 
-        return is_int($count) ? $count : null;
-    } catch (Throwable) {
-        return null;
-    } finally {
-        $database->close();
-    }
+    return is_array($state) && is_int($state['activation_count'] ?? null) ? $state['activation_count'] : null;
 }
 
 /** Whether a dotenv file assigns a non-empty WAASEYAA_APP_SECRET. The value is never returned. */
@@ -679,7 +667,7 @@ function nhc_collect(array $contract, string $host, string $root, array $env, ca
             $violations[] = "the consumer lacks {$artifact}, so its lifecycle did not complete";
         }
     }
-    $activations = $consumerRoot === null ? null : nhc_activated_generations($consumerRoot);
+    $activations = $consumerRoot === null ? null : nhc_activated_generations($root, $consumerRoot, $runner);
     if ($consumerRoot !== null && ($activations ?? 0) < 1) {
         $violations[] = 'the consumer database has no activated configuration generation, so install:init did not complete';
     }
