@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.302] - 2026-09-25
+
+### Added
+
+- **Added a required native-host contract on Linux and Windows (#2678):** a new `native-host-contract` CI matrix runs every command in `tools/native-host-contract.json` on `ubuntu-24.04` and `windows-2025`, one step each. The commands are the locked `composer install`, repository-root hygiene before and after the tests, the Composer policy and portable-path gates, the Docker-free null-device self-test, and a curated PHPUnit selection. PHPUnit fails on skipped tests, incomplete tests and empty selections. The selection covers native paths and temporary directories, subprocess exit and error handling, the Windows null device, host-aware Git and executable resolution, and the existing local-operator trust boundary. `bin/native-host-evidence` records a validated evidence file for each host: exact source subject, runner and shell identity, PHP, Composer and SQLite versions, per-step exit codes, test counts and replay commands. The new `ci/native-host-contract` gate accepts exactly one passing record per host, and `merge/platform-runtime-acceptance` now requires it. The nine required check names and the frozen rollback baseline are unchanged. The matrix replaces `ci/local-operator-windows`. Two POSIX-shaped test fixtures that the native Windows run exposed were repaired, and the temp-directory guard now names `TMP` and `TEMP` on Windows.
+
+- **Maintainer skills are versioned in the repository (#3080):** the Waaseyaa maintainer skills now live in `.agents/skills/`, and `php bin/maintainer-skills install|verify` installs them into the Codex and Claude Code user skill directories with a per-file SHA-256 provenance manifest, refusing to overwrite drifted, unmanaged or untrustworthy copies. Maintainer tooling only: the directory is excluded from the published package.
+
+### Changed
+
+- Finalized the governed CI roster with nine fail-closed required aggregate checks, retained complete random-order testing on every pull request from measured evidence, narrowed live drift auditing to the final ruleset projection, and taught the governed merge adapter to require the source-policy aggregate that contains `ci/verify-gates`.
+
+- CI governance now includes a scheduled or manually dispatched live roster audit that compares the exact-SHA check runs and GitHub ruleset integration bindings with the governed manifest, publishes reviewable evidence, and remains outside the pull-request critical path.
+
+- Add a dry-run-first, fail-closed projector and exact rollback baseline for the governed migration from 22 legacy required checks through a 31-context union to nine stable merge decisions.
+
+- Record the exact 31-context required-check union, its hosted live audit, and the verified 22-context rollback plan before final ruleset migration.
+
+- Nine fail-closed `merge/*` shadow decisions now group the existing 22 required CI contexts without changing the live ruleset, preserving random-order as a separately governed cadence decision.
+
+- GitHub Actions jobs now fail within explicit, evidence-backed time limits instead of inheriting the six-hour platform default, with longer budgets retained for governed release and publication polling.
+
+- Shared Packagist submission and exact-tag verification now preserve release, recovery, registration, and skeleton protections through two tested composite actions, while the standalone verifier runs only when manually dispatched.
+
+- GitHub Actions workflows now declare explicit top-level token permissions, keep dependency-executing Admin SPA builds read-only, scope write grants to publication jobs, and refuse force-moving the application skeleton release branch or tag.
+
+- GitHub Actions jobs now expose explicit, unique names, including distinct release-pipeline and manual-recovery publication contexts.
+
+### Fixed
+
+- **Fixed `composer hooks:install` and `composer hooks:doctor` on native Windows (#2679):** From PowerShell or cmd, both scripts started `bash`, which `cmd.exe` resolves to the WSL launcher. In a linked worktree, WSL's Git could not read the checkout, so install exited 0 after writing its shims into the worktree root and doctor then approved them. Both scripts now start the PHP `bin/project-hooks-launcher`, which runs `bin/project-hooks` with Git for Windows Bash on native Windows (found from the Windows Git executable, never from `PATH`) and with `bash` from `PATH` elsewhere, and returns the runner's exit status. The runner also treats Git for Windows' drive-letter hook paths as absolute, so a linked worktree installs into and diagnoses the common hook directory. Linux behaviour and the pre-push gate are unchanged.
+
+- **Fixed the native-host `bin/` inventory and guarded it against drift (#2679):** `docs/specs/native-host-support.md` counted 93 top-level `bin/` entries while 103 files are tracked. Ten PHP maintainer tools had no disposition. They now sit in the host-specific internal maintainer-tools row, with the stated total and row counts corrected. `NativeHostBinInventoryTest` fails whenever a tracked top-level `bin/` file is missing from the partition, listed twice or not tracked, or a stated count is wrong. The consumer `skeleton/CLAUDE.md` now runs the provenance command as `php bin/maintenance/waaseyaa-version`, and it marks `waaseyaa-audit-site` as POSIX-only and outside the portable native Windows workflow. No runtime behaviour or support claim changes.
+
+- **Fixed `php bin/check-pr-preflight` from a native Windows shell (#2679):** From PowerShell or cmd, the preflight's 13 Bash gates started `bash` through `cmd.exe`, which resolves it to the WSL launcher. In a linked worktree WSL's Git could not read the checkout, so `check-access-hardening`, `spec-drift` and `changelog-discipline` failed with repository repair hints for a host fault. On native Windows the runner now starts gates that begin with `bash` with Git for Windows Bash, resolved once per run from the Windows Git executable. When that Bash is unavailable, the run stops before any gate with exit 3 and an actionable host message. List mode, POSIX command strings, gate results and the pre-push path are unchanged.
+
+- **Fixed project-hook directory resolution when Git cannot answer (#2679):** `composer hooks:install` and `composer hooks:doctor` took the hook directory from `git rev-parse --git-path hooks` without checking the result. When Git failed, answered nothing, or answered more than one line, install exited 0 after writing its shims into the checkout root (or a newline-named directory there), and doctor then reported them installed and current. Both now exit 1 with an actionable `project-hooks: could not resolve the Git hook directory` message and create or change nothing. A native-spelling drive-letter answer (`C:\...`), which Git for Windows echoes for an absolute `core.hooksPath`, is now treated as absolute instead of being joined to the checkout root. Normal-checkout and linked-worktree resolution are unchanged.
+
+- **Fixed the skeleton's `composer regen-lock` on native Windows (#2679):** The script passed `'waaseyaa/*'` in POSIX single quotes. From PowerShell or cmd, `cmd.exe` delivered the quotes to Composer, which reported that the pattern "does not match any locked packages", changed nothing, and exited 0. The pattern is now double-quoted, so Composer receives exactly `waaseyaa/*` from both `cmd.exe` and POSIX shells, with no glob expansion. `--no-plugins`, `--no-install` and `--no-scripts` are unchanged. Existing projects generated from the skeleton keep the old script until they apply the same one-line change to their `composer.json`.
+
+- **Fixed the split-artifact symlink negative control on native Windows (#3081):** Without the symlink privilege, `tests/PackagedForm/check-split-artifact-acceptance` could not plant the `source-symlink-installed` corruption and reported it as an undetected survivor. A control the host cannot seed is now `not-run-here`: it is never counted as detected and never masks an undetected control. A native Windows run reports itself incomplete (exit 3), not passed. Every other host fails closed, so hosted Linux CI still executes the control and proves the installed-source symlink refusal.
+
+- **Fixed native-Windows preflight false failures (#3096):** `bin/check-pr-preflight` and a Git pre-push hook no longer fail five gates on native Windows for environmental reasons. The PL008 self-test and the runner's drift-base lookup start their child processes without a POSIX shell string. The delivery-ledger and covers-nothing gates start Git through a host-aware entrypoint (the `bin/git` adapter on POSIX, the Windows Git executable on native Windows). The admin coercion scan no longer needs PCRE `grep`, and the ingestion-defaults check no longer hands MSYS paths to a native Python. Linux gate behaviour is unchanged, except that the admin coercion self-test now fails instead of passing when its scan errors.
+
+- **Fixed permission catalogue composition (#3119):** Framework packages now declare their fixed policy permissions and expose canonical factories for application bundle, media-type, vocabulary, and workflow permission families, so composed roles validate without weakening unknown or duplicate grant refusals.
+
+- **Fixed (#3127):** The deployer now accepts the declared legacy six-column to
+  current eight-column `user` schema transition and performs stable-UUID
+  identity merges without `INSERT OR REPLACE` collateral replacement.
+
+- **Fixed (#3138):** ai-vector no longer creates the `embeddings` table at
+  runtime on the authoritative database, which made the next coordinated schema
+  transition refuse with `[S1-DB109]`.
+  - A package migration now owns the table. It adopts an existing compatible
+    table in place with its rows and refuses any other shape with
+    `[AIV-DB001]`.
+  - Storage goes through `DatabaseInterface` (`DatabaseEmbeddingStorage`
+    replaces `SqliteEmbeddingStorage`).
+  - Databases that already drifted have a documented, verified re-adoption
+    procedure in `docs/specs/ai-integration.md`.
+
+- **Fixed (#3139):** ai-vector's embedding storage and provider now come from
+  one composition owner, `AiVectorServiceProvider`. Its lifecycle listeners
+  run in every kernel, not just HTTP.
+  - **HTTP with a configured provider:** saves embed served content.
+  - **Everywhere else (CLI, imports, workers):** saves and deletes remove any
+    existing vector without calling the embedding provider; `semantic:refresh`
+    re-indexes.
+  - **Post-commit failures:** vector storage failures after a committed save
+    or delete are logged and no longer reported as a failure of the mutation.
+  - **Removed API:** `EventListenerRegistrar::registerEmbeddingLifecycleListeners()`.
+  - **Constructor change:** `SearchRouter`'s constructor now takes an
+    embedding-services resolver.
+
+- **Fixed (#3149):** `SqliteArtifactPreparer` now re-records and verifies the
+  aggregate `waaseyaa_schema_authority.schema_fingerprint` after preserving
+  runtime state during an artifact handoff, so the next code-only deployment's
+  `[S1-DB109]` pre-state check no longer refuses a correctly prepared
+  candidate.
 ## [0.1.0-alpha.301] - 2026-09-20
 
 ### Added
