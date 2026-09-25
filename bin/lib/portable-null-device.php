@@ -725,7 +725,9 @@ function pnd_run(string $root, string $manifestPath): array
     $result = pnd_analyze($scan['files'], $scan['sources'], $manifest);
     $violations = $result['violations'];
     if ($unreadable !== null) {
-        $violations = array_values(array_filter($violations, static fn(array $violation): bool => isset($violation['occurrence'])));
+        // Without a manifest nothing can be classified, so only the findings
+        // that no classification could change are listed with the error.
+        $violations = array_values(array_filter($violations, static fn(array $violation): bool => $violation['kind'] === 'direct-descriptor'));
         array_unshift($violations, ['kind' => 'malformed', 'message' => $unreadable]);
     }
 

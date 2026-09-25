@@ -515,7 +515,9 @@ final class PortableNullDeviceGateTest extends TestCase
 
         [$exit, , $stderr] = self::runGate(['--manifest=' . $path]);
         self::assertSame(1, $exit, 'A missing manifest fails closed.');
+        self::assertStringContainsString('1 violation(s)', $stderr);
         self::assertStringContainsString('cannot read the classification manifest', $stderr);
+        self::assertStringNotContainsString('[unclassified]', $stderr, 'Without a manifest the literals are not listed as unclassified.');
 
         [$exit, , $stderr] = self::runGate(['--baseline']);
         self::assertSame(2, $exit);

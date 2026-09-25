@@ -310,7 +310,10 @@ process or an untranslated path. Gates therefore follow these rules:
   2>/dev/null` line does not run under `cmd.exe`, and a child that never starts can read as a
   detection failure (the PL008 self-test) or a silently lost value (the runner's own
   `git config waaseyaa.driftBase` lookup). Environment overrides go in the `proc_open`
-  environment array; discarded stderr uses the `['null']` descriptor.
+  environment array; discarded stderr uses the `['null']` descriptor. `bin/check-portable-null-device`
+  enforces the null-device half statically for all governed production PHP: a hard-coded `/dev/null`
+  descriptor always fails, and every other `/dev/null` literal must be classified
+  ([native-host-support.md](native-host-support.md#portable-null-device-guard-fw-2678-portable-null-device-03)).
 - **PHP gates that need the governed repository Git entrypoint start it through
   `repository_git_command()`** (`bin/lib/repository-git.php`). On POSIX hosts that is the
   stash-refusing `bin/git` adapter. On native Windows, where `bin/git` is a POSIX-only Bash
