@@ -1640,6 +1640,15 @@ jobs:
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
 
+      - name: 'Contract step: portable-null-device'
+        id: portable-null-device
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          & 'php' 'bin/check-portable-null-device'
+          $exitCode = $LASTEXITCODE
+          "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
+          exit $exitCode
+
       - name: 'Contract step: phpunit-unit'
         id: phpunit-unit
         run: |
@@ -1662,7 +1671,7 @@ jobs:
         id: phpunit-architecture
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/architecture.junit.xml' '--log-otr' 'build/native-host/architecture.otr.xml' '--exclude-filter' '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\w+)\b/' 'tests/Architecture/RepositoryGitEntrypointTest.php' 'tests/Architecture/ProjectHooksLauncherTest.php' 'tests/Architecture/SkeletonDockerSecretExclusionTest.php' 'tests/Architecture/PhpunitTempDirGuardTest.php' 'tests/Architecture/NativeHostEvidenceTest.php'
+          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/architecture.junit.xml' '--log-otr' 'build/native-host/architecture.otr.xml' '--exclude-filter' '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\w+)\b/' 'tests/Architecture/RepositoryGitEntrypointTest.php' 'tests/Architecture/ProjectHooksLauncherTest.php' 'tests/Architecture/SkeletonDockerSecretExclusionTest.php' 'tests/Architecture/PhpunitTempDirGuardTest.php' 'tests/Architecture/NativeHostEvidenceTest.php' 'tests/Architecture/PortableNullDeviceGateTest.php'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1690,6 +1699,7 @@ jobs:
             composer-policy ${{ steps.composer-policy.outcome }} ${{ steps.composer-policy.outputs.exit_code }}
             portable-paths ${{ steps.portable-paths.outcome }} ${{ steps.portable-paths.outputs.exit_code }}
             null-device-self-test ${{ steps.null-device-self-test.outcome }} ${{ steps.null-device-self-test.outputs.exit_code }}
+            portable-null-device ${{ steps.portable-null-device.outcome }} ${{ steps.portable-null-device.outputs.exit_code }}
             phpunit-unit ${{ steps.phpunit-unit.outcome }} ${{ steps.phpunit-unit.outputs.exit_code }}
             phpunit-integration ${{ steps.phpunit-integration.outcome }} ${{ steps.phpunit-integration.outputs.exit_code }}
             phpunit-architecture ${{ steps.phpunit-architecture.outcome }} ${{ steps.phpunit-architecture.outputs.exit_code }}

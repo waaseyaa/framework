@@ -64,7 +64,7 @@ Ubuntu 24.04 x86_64; its consumer certification remains separate and pending.
 |---|---|---|
 | `support-contract` on `ubuntu-24.04` | The S1 framework runtime tuple and contract parity recorded by `php bin/check-support-contract --ci` | Consumer production certification |
 | `skeleton-create-project-windows` on `windows-2025`, with PHP 8.5, Composer 2.10 and its declared extension set | `create-project`, `post-create-project-cmd`, pre-init `composer site-verify` exit 3, `site:init`, `site:doctor`, `install:init`, repeated generation/verification, the installed consumer CLI (next row), and the Bimaaji junction-containment entrypoint | Node version, SQLite library version, architecture, serving, FrankenPHP, admin build, Playwright, full PHPUnit, or unrelated CLI commands |
-| `native-host-contract` matrix on `ubuntu-24.04` and `windows-2025`, with PHP 8.5, Composer 2.10 and the contract's extension set, gated by `ci/native-host-contract` | Every command in [`tools/native-host-contract.json`](../../tools/native-host-contract.json) on both hosts, one step each: the locked `composer install`; `php bin/check-repo-root-hygiene` before and after the tests; `php bin/check-composer-policy`; `php bin/check-portable-paths`; the null-device `--self-test` of `php bin/check-skeleton-docker-secret-exclusion`; and `php vendor/bin/phpunit` over a curated Unit, Integration and Architecture selection covering native paths and temporary directories, subprocess launch, exit propagation and error handling, the Windows null device, host-aware Git and executable resolution, and the existing local-operator trust boundary. PHPUnit fails on skipped, incomplete and empty selections, and each leaf publishes a validated evidence record (runtime versions, runner and shell identity, exact source subject, per-step exit codes, per-command test counts, replay renderings) | Full PHPUnit, the preflight aggregate, Bash-backed gates, serving, FrankenPHP, Docker, browsers, release tooling, Node, AI CLI commands, MCP stdio, the complete local-AI plane (#2680), packaged consumers (#2681), or general CLI commands |
+| `native-host-contract` matrix on `ubuntu-24.04` and `windows-2025`, with PHP 8.5, Composer 2.10 and the contract's extension set, gated by `ci/native-host-contract` | Every command in [`tools/native-host-contract.json`](../../tools/native-host-contract.json) on both hosts, one step each: the locked `composer install`; `php bin/check-repo-root-hygiene` before and after the tests; `php bin/check-composer-policy`; `php bin/check-portable-paths`; the null-device `--self-test` of `php bin/check-skeleton-docker-secret-exclusion`; the static portable null-device guard `php bin/check-portable-null-device` (see [Portable null-device guard](#portable-null-device-guard-fw-2678-portable-null-device-03)); and `php vendor/bin/phpunit` over a curated Unit, Integration and Architecture selection covering native paths and temporary directories, subprocess launch, exit propagation and error handling, the Windows null device and its static guard, host-aware Git and executable resolution, and the existing local-operator trust boundary. PHPUnit fails on skipped, incomplete and empty selections, and each leaf publishes a validated evidence record (runtime versions, runner and shell identity, exact source subject, per-step exit codes, per-command test counts, replay renderings) | Full PHPUnit, the preflight aggregate, Bash-backed gates, serving, FrankenPHP, Docker, browsers, release tooling, Node, AI CLI commands, MCP stdio, the complete local-AI plane (#2680), packaged consumers (#2681), general CLI commands, or the runtime portability of any PHP the null-device guard classifies |
 | `site-reference-consumer` on `ubuntu-24.04` and `skeleton-create-project-windows` on `windows-2025`, each with PHP 8.5 and Composer 2.10, paired by `ci/native-host-consumer-cli` | In a fresh consumer built from the originating checked-out candidate, after `site:init` and `install:init` complete, `php vendor/bin/waaseyaa list --raw` (the `consumer_cli` section of [`tools/native-host-contract.json`](../../tools/native-host-contract.json)) exits 0 on both hosts and lists `list`, `db:init`, `site:init`, `site:doctor` and `install:init`. Each lane publishes a validated record binding the candidate (Linux: the revision its harness archived; Windows: its checkout), the installed `waaseyaa/*` cohort by content, the lifecycle (`site:init` publications and an activated configuration generation), the exact argv, exit code and catalogue, the boot environment, and the runner, shell and runtime identity; the gate accepts one passing record per lane from one run with one subject and an equivalent cohort | Any other CLI command's behavior or output, `list --raw` as a read-only command (a full CLI boot opens the application database), the repository-root CLI (which cannot boot without an activated configuration generation and application secret; a design discriminator only), published or packaged consumers (#2681), serving, or the Linux published-release-line lane `ci/skeleton-create-project` |
 
 Using Composer in a job proves that the job's Composer invocation worked. The
@@ -146,7 +146,7 @@ still determine the current disposition.
 
 ### Root `bin/` commands
 
-`bin/` contains 104 Git-tracked top-level files at this contract revision. The
+`bin/` contains 105 Git-tracked top-level files at this contract revision. The
 `bin/lib/` helper directory is not an entry. Every file appears exactly once in
 the partition below, with the stated counts;
 `tests/Architecture/NativeHostBinInventoryTest.php` enforces both. Interpreter
@@ -156,9 +156,9 @@ portability evidence.
 | Current disposition | Complete top-level inventory | Evidence/boundary |
 |---|---|---|
 | POSIX-only internal automation (29 Bash entries) | `audit-composer-deps`, `audit-require-dev-layers`, `build-admin-dist`, `build-exact-source-artifact`, `build-split-contribution-boundary`, `check-admin-coercion-patterns`, `check-contract-suite-coverage`, `check-ingestion-defaults`, `check-monorepo-release-shape`, `check-no-secrets`, `check-openapi`, `check-phpstan`, `check-phpstan-paths`, `check-phpunit-paths`, `check-release-publish-shape`, `check-release-require-parity`, `check-release-tag-parity`, `clean-package-vendors`, `configure-split-tag-protection`, `enable-governed-auto-merge`, `git`, `materialize-exact-source-artifact`, `project-hooks`, `promote-exact-source-artifact`, `test-isolated-package`, `verify-exact-source-artifact`, `verify-random-order-vendor-archive`, `waaseyaa`, `wait-for-green-ci` | Bash is required. Git Bash/WSL may run some entries but are not native Windows proof. |
-| WSL2/POSIX-only development runtime (2 PHP entries) | `dev-runtime`, `dev-runtime-consumer` | The implementation requires POSIX absolute paths and `HOME`/`XDG_CACHE_HOME`; the bootstrap additionally uses `/dev/null`, `tar`, symlinks, `chmod`, and the `wsl2-ubuntu-24.04-x86_64` profile. Neither entry is native Windows portable. |
+| WSL2/POSIX-only development runtime (2 PHP entries) | `dev-runtime`, `dev-runtime-consumer` | The implementation requires POSIX absolute paths and `HOME`/`XDG_CACHE_HOME`; the bootstrap additionally uses `tar`, symlinks, `chmod`, and the `wsl2-ubuntu-24.04-x86_64` profile. Its children read PHP's `['null']` stdin descriptor (#2678) rather than a hard-coded `/dev/null`, which does not make either entry portable. Neither entry is native Windows portable. |
 | POSIX aggregate despite PHP coordinator (1 PHP entry) | `check-pr-preflight` | It executes `tools/preflight-gates.json`, whose default roster includes Bash tools and shell scripts. On native Windows those Bash gates need Git for Windows Bash. |
-| Verified native portable internal CI gates and evidence tool (5 PHP entries) | `check-composer-policy`, `check-portable-paths`, `check-repo-root-hygiene`, `check-skeleton-docker-secret-exclusion`, `native-host-evidence` | Executed through `php` on `ubuntu-24.04` and `windows-2025` by the `native-host-contract` matrix, with validated per-host evidence (#2678). For `check-skeleton-docker-secret-exclusion` only the Docker-free `--self-test` mode (null device, launcher probe) is verified on both hosts; its Docker proof stays Linux-owned in `ci/skeleton-create-project`. `native-host-evidence` validates hosted contract results and runs no contract command itself. |
+| Verified native portable internal CI gates and evidence tool (6 PHP entries) | `check-composer-policy`, `check-portable-null-device`, `check-portable-paths`, `check-repo-root-hygiene`, `check-skeleton-docker-secret-exclusion`, `native-host-evidence` | Executed through `php` on `ubuntu-24.04` and `windows-2025` by the `native-host-contract` matrix, with validated per-host evidence (#2678). For `check-skeleton-docker-secret-exclusion` only the Docker-free `--self-test` mode (null device, launcher probe) is verified on both hosts; its Docker proof stays Linux-owned in `ci/skeleton-create-project`. `check-portable-null-device` is the static guard described under [Portable null-device guard](#portable-null-device-guard-fw-2678-portable-null-device-03). `native-host-evidence` validates hosted contract results and runs no contract command itself. |
 | Host-specific internal framework-maintainer tools with no native Windows support claim (63 PHP entries) | `adapt-consumer-promotions`, `admin-dist-acceptance`, `agent-checkpoint`, `audit-ci-roster-live`, `build-phpunit-shards`, `changelog-fragments`, `check-admin-dist-fresh`, `check-changed-php-coverage`, `check-changelog-shape`, `check-ci-roster-conformance`, `check-covers-nothing-companions`, `check-dead-code`, `check-delivery-agent-events`, `check-dispatcher-keys`, `check-distribution-exclusion`, `check-distribution-extensions`, `check-external-consumers`, `check-getquery-bindings`, `check-governed-secret-access`, `check-landing-base`, `check-local-operator-tool-profile`, `check-package-coverage-history`, `check-package-layers`, `check-package-layers-pl008-self-test`, `check-php-coverage-baseline`, `check-runtime-policy-custody`, `check-s1-configuration-activation`, `check-s1-configuration-authority`, `check-s1-schema-authority`, `check-s1-sqlite-contract`, `check-stale-spec-deferrals`, `check-support-contract`, `check-symfony-imports`, `check-upgrade-contract`, `check-vendor-fresh`, `classify-ci-run-evidence`, `collect-ci-run-evidence`, `compile-spec-corpus`, `generate-ci-workflow-inventory`, `generate-surface-map`, `maintainer-skills`, `merge-clover-coverage`, `migrate-surface-map`, `normalize-admin-dist`, `phpstan-level-audit`, `project-board-sync`, `project-ci-ruleset`, `project-delivery-agent-events`, `project-hooks-launcher`, `qualify-candidate`, `refresh-governance-artifacts`, `refresh-phpunit-timings`, `report-ci-measurement`, `resolve-split-main-targets`, `run-hermetic-admin-build`, `skeleton-unpublished-repositories`, `summarize-php-coverage`, `sync-internal-versions`, `test-mutation-pilot`, `test-quality-inventory`, `test-random-order`, `verify-k1-delivery-cutover`, `worktree-coordinator` | Some run in Linux CI or focused local checks; no current native Windows job executes these exact root entrypoints. They are not classified portable merely because they are PHP. `project-hooks-launcher` is the internal Composer entrypoint for `hooks:install` and `hooks:doctor` described in the Composer-script row above. |
 | Host-specific internal framework-maintainer tools with no native Windows support claim (2 PHP files without shebangs) | `check-access-hardening`, `check-phpunit-skip-policy` | These remain tracked `bin/` entries, but no current native Windows job proves them. |
 | Host-specific release helper (1 Node entry) | `generate-release-evidence` | Release automation, not a native consumer entrypoint; no cross-host claim is made. |
@@ -175,7 +175,8 @@ The four omissions found during review—`check-landing-base`,
 `worktree-coordinator`—were added to the host-specific PHP row;
 `check-skeleton-docker-secret-exclusion` has since moved to the verified row
 with `check-composer-policy`, `check-portable-paths` and
-`check-repo-root-hygiene` (#2678). `worktree-coordinator` in particular
+`check-repo-root-hygiene` (#2678), and `check-portable-null-device` entered
+that row directly. `worktree-coordinator` in particular
 accepts only POSIX paths and starts the Bash `bin/git`, so it cannot issue
 leases for native Windows worktrees; that is recorded debt, not a support
 claim.
@@ -340,6 +341,67 @@ about fifteen thousand) and one upload, plus the new Linux gate job. Both
 lanes and the gate finish inside the Linux PHPUnit shards that pace every
 run, so the critical path is unchanged unless runner queueing exceeds
 several minutes. As above, this is a job-wall cost proxy only.
+
+### Portable null-device guard (FW-2678-PORTABLE-NULL-DEVICE-03)
+
+A hard-coded `/dev/null` is a POSIX path. As a `proc_open()` descriptor it
+cannot open on native Windows, so `proc_open()` returns `false`, which callers
+have read as a missing program (#2647). Inside a host-shell string, `cmd.exe`
+cannot open it either, and the command never runs (#3096). The host-aware
+forms are PHP's `['null']` descriptor, which opens the host's null device, and
+a host-derived choice such as `PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null'`.
+
+`php bin/check-portable-null-device` is a static, fail-closed guard over the
+governed production PHP surface. That surface is every repository PHP file (a
+`.php` file, or a file that opens with `<?php` or a PHP shebang) except tests
+and their support code (`tests/`, `packages/<pkg>/tests/`,
+`packages/<pkg>/testing/`, `packages/<pkg>/e2e/`, `skeleton/tests/`),
+`benchmarks/`, `docs/`, `kitty-specs/` and vendor trees. The guard enumerates
+files through Git (tracked files plus untracked, unignored ones) and inspects
+every string token that spells `/dev/null`. Comments are documentation and are
+ignored.
+
+- A direct descriptor, `['file', '/dev/null', ...]` in any array spelling, is
+  always rejected. No classification can accept one.
+- Every other occurrence must be classified in
+  [`tools/portable-null-device-classifications.json`](../../tools/portable-null-device-classifications.json)
+  by file, enclosing symbol (`Class::method`, a function, a class, or `{main}`)
+  and literal, with its exact occurrence count, one purpose and a one-line
+  rationale. The anchor has no line number, so an unrelated edit cannot make it
+  stale.
+- The purposes are mutually exclusive shapes of the occurrence's statement, so
+  a classification cannot claim the wrong one:
+
+  | Purpose | Shape the guard requires |
+  |---|---|
+  | `platform-derived` | The statement also names the Windows `NUL` device and a Windows host signal: `PHP_OS_FAMILY`, `PHP_OS`, `DIRECTORY_SEPARATOR`, a Windows-named identifier, or a string naming Windows. |
+  | `semantic-diff-marker` | Unified-diff data that is never opened: a `--- /dev/null` or `+++ /dev/null` header, or a bare `/dev/null` label beside an `a/` or `b/` label. The statement has no `NUL` counterpart and the literal is no redirection. |
+  | `posix-only-shell` | A shell redirection to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`) with no `NUL` counterpart, in code the classification declares POSIX-only. |
+
+- An unclassified literal fails, and so do stale, duplicated, malformed,
+  unsorted and overly broad classifications. Stale means the occurrence is gone
+  or fewer remain; overly broad means a pattern, a directory or a wildcard
+  symbol. Each diagnostic names the file, line, symbol and literal. For an
+  unclassified literal it also names the purpose its shape fits, if any, and
+  the exact entry it would need.
+- The scan normalizes line endings and has no host-specific branch, so it runs
+  identically under native Windows and Linux PHP.
+
+The guard does not decide which PHP is portable. `platform-derived` and
+`posix-only-shell` are reviewed assertions about the surrounding code; the
+guard checks only their shape. It matches the spelling `/dev/null` in string
+tokens, so a device path assembled at run time (by concatenation, escape
+sequences or `sprintf`) is outside it. A hard-coded `NUL` on POSIX is also out
+of scope: Linux CI fails such code at once.
+
+The guard is one more `gate` command in the contract. Both existing
+`native-host-contract` leaves run it as a step and publish its result in their
+evidence records, and `tests/Architecture/PortableNullDeviceGateTest.php`, whose
+cases are mutants of the tracked sources and classifications, joins the
+contract's Architecture selection as well as the Linux Architecture shards. No
+job, required context or `merge/*` name is added. One full scan took about
+1.6 s on a native Windows 11 workstation; the change record keeps the local and
+hosted measurements.
 
 A branch-protection adapter decides which named CI checks enforce this policy;
 the adapter must be audited rather than inferred from this prose. A check cannot

@@ -1,0 +1,50 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Portable null-device gate (FW-2678-PORTABLE-NULL-DEVICE-03, #2678).
+ *
+ * Rejects a hard-coded "/dev/null" proc_open() descriptor anywhere in
+ * governed production PHP, and every other "/dev/null" string literal that
+ * tools/portable-null-device-classifications.json does not classify as
+ * platform-derived, a semantic diff marker or a POSIX-only shell fragment.
+ * Stale, duplicated, malformed, unsorted and overly broad classifications
+ * fail too. The rules and the governed surface are documented in
+ * bin/lib/portable-null-device.php and docs/specs/native-host-support.md.
+ *
+ * The scan is static and host-neutral: it runs identically under native
+ * Windows and Linux PHP, which the native-host contract executes on both.
+ *
+ * Usage:
+ *   php bin/check-portable-null-device
+ *   php bin/check-portable-null-device --manifest=FILE   # another classification file
+ *
+ * Exit codes:
+ *   0  every occurrence is host-derived or correctly classified
+ *   1  a violation (listed with file, symbol, literal and classification)
+ *   2  usage error, or the repository could not be enumerated or read
+ */
+
+require_once __DIR__ . '/lib/portable-null-device.php';
+
+$root = dirname(__DIR__);
+$manifest = $root . '/' . PND_MANIFEST;
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '--help' || $argument === '-h') {
+        fwrite(STDOUT, "Usage: php bin/check-portable-null-device [--manifest=FILE]\n");
+        exit(PND_EXIT_PASS);
+    }
+    if (str_starts_with($argument, '--manifest=') && strlen($argument) > strlen('--manifest=')) {
+        $manifest = substr($argument, strlen('--manifest='));
+        continue;
+    }
+    fwrite(STDERR, "Portable null-device gate: unknown argument {$argument}. Usage: php bin/check-portable-null-device [--manifest=FILE]\n");
+    exit(PND_EXIT_HARNESS);
+}
+
+$result = pnd_run($root, $manifest);
+fwrite(STDOUT, $result['stdout']);
+fwrite(STDERR, $result['stderr']);
+exit($result['exit']);

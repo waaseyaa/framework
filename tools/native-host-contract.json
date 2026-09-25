@@ -89,6 +89,14 @@
             ]
         },
         {
+            "id": "portable-null-device",
+            "kind": "gate",
+            "argv": [
+                "php",
+                "bin/check-portable-null-device"
+            ]
+        },
+        {
             "id": "phpunit-unit",
             "kind": "phpunit",
             "argv": [
@@ -225,7 +233,8 @@
                 "tests/Architecture/ProjectHooksLauncherTest.php",
                 "tests/Architecture/SkeletonDockerSecretExclusionTest.php",
                 "tests/Architecture/PhpunitTempDirGuardTest.php",
-                "tests/Architecture/NativeHostEvidenceTest.php"
+                "tests/Architecture/NativeHostEvidenceTest.php",
+                "tests/Architecture/PortableNullDeviceGateTest.php"
             ],
             "expected_methods": [
                 "Waaseyaa\\Tests\\Architecture\\NativeHostEvidenceTest::the_tracked_contract_is_valid_and_its_digest_ignores_line_endings",
@@ -245,6 +254,21 @@
                 "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::the_guard_rejects_relative_and_root_temp_dirs",
                 "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::the_bootstrap_refuses_to_run_under_a_relative_tmpdir",
                 "Waaseyaa\\Tests\\Architecture\\PhpunitTempDirGuardTest::the_bootstrap_loads_cleanly_under_an_absolute_tmpdir",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::the_tracked_tree_passes_with_every_literal_classified",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::a_direct_hard_coded_descriptor_is_rejected_even_when_classified",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::every_descriptor_spelling_is_recognised_and_host_derived_descriptors_are_not",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::a_new_unclassified_literal_is_rejected_with_actionable_diagnostics",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::deleting_a_classified_occurrence_makes_its_classification_stale",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::an_altered_purpose_or_file_is_rejected",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::a_duplicate_classification_is_rejected",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::malformed_or_overly_broad_classifications_are_rejected",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::the_platform_derived_implementations_are_accepted",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::the_semantic_diff_markers_are_accepted",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::posix_only_shell_fragments_are_accepted_only_as_redirections_without_a_nul_counterpart",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::only_governed_production_php_is_scanned",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::comments_are_documentation_and_every_string_token_is_inspected",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::anchors_survive_unrelated_edits_and_line_endings",
+                "Waaseyaa\\Tests\\Architecture\\PortableNullDeviceGateTest::the_gate_entrypoint_passes_the_tracked_tree_and_fails_closed",
                 "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::posix_hosts_keep_bash_from_path",
                 "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::native_windows_starts_bash_from_the_git_for_windows_installation",
                 "Waaseyaa\\Tests\\Architecture\\ProjectHooksLauncherTest::native_windows_fails_closed_instead_of_falling_back_to_path_bash",

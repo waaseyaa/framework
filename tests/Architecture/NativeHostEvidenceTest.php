@@ -60,7 +60,7 @@ final class NativeHostEvidenceTest extends TestCase
         self::assertSame(\nhe_contract_digest($contract), \nhe_contract_digest(\nhe_load_contract($this->scratch() . '/crlf.json')));
         self::assertSame(['linux', 'windows'], array_keys($contract['hosts']));
         self::assertSame(
-            ['composer-install', 'root-hygiene-before', 'composer-policy', 'portable-paths', 'null-device-self-test', 'phpunit-unit', 'phpunit-integration', 'phpunit-architecture', 'root-hygiene-after'],
+            ['composer-install', 'root-hygiene-before', 'composer-policy', 'portable-paths', 'null-device-self-test', 'portable-null-device', 'phpunit-unit', 'phpunit-integration', 'phpunit-architecture', 'root-hygiene-after'],
             array_column($contract['commands'], 'id'),
         );
     }

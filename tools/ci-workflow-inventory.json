@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "89eb6f3c427fd51be9cdedf1f655139677106b3c9b99dd813c92dd9e32e1d0a5"
+                "sha256": "b90246ec0bc16b4ffc696e3036981cc148e39148fce12f3fd362cd271bb4dcf8"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -1383,7 +1383,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "89eb6f3c427fd51be9cdedf1f655139677106b3c9b99dd813c92dd9e32e1d0a5",
+            "source_sha256": "b90246ec0bc16b4ffc696e3036981cc148e39148fce12f3fd362cd271bb4dcf8",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -4869,7 +4869,7 @@
                     "artifacts": {
                         "produces": [
                             {
-                                "step_index": 14,
+                                "step_index": 15,
                                 "name": "native-host-evidence-${{ matrix.host }}",
                                 "kind": "bounded-expansion",
                                 "expansion": [
@@ -4893,11 +4893,12 @@
                         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
                         "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
                     ],
-                    "step_count": 15,
+                    "step_count": 16,
                     "local_equivalent": {
                         "status": "discoverable",
                         "commands": [
                             "bin/check-composer-policy",
+                            "bin/check-portable-null-device",
                             "bin/check-portable-paths",
                             "bin/check-repo-root-hygiene",
                             "bin/check-skeleton-docker-secret-exclusion",
