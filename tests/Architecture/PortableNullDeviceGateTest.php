@@ -468,11 +468,18 @@ final class PortableNullDeviceGateTest extends TestCase
         );
         self::assertSame([], self::analyze([self::DIFFER => $shifted]));
 
+        // A CRLF checkout (core.autocrlf on the hosted Windows runner) must
+        // scan exactly as an LF one, including a literal that spans lines,
+        // whose token would otherwise carry the carriage returns.
         $crlf = array_map(static fn(string $source): string => str_replace("\n", "\r\n", $source), self::$scan['sources']);
         self::assertSame([], \pnd_analyze(self::$scan['files'], $crlf, self::$manifest)['violations']);
         foreach (self::$scan['sources'] as $path => $source) {
             self::assertSame(\pnd_occurrences($path, $source), \pnd_occurrences($path, $crlf[$path]), $path);
         }
+        $multiLine = "<?php\n\$script = <<<SH\ncleanup 2>/dev/null\nexit 0\nSH;\n";
+        $occurrences = \pnd_occurrences(self::SYNTHETIC, str_replace("\n", "\r\n", $multiLine));
+        self::assertSame(\pnd_occurrences(self::SYNTHETIC, $multiLine), $occurrences);
+        self::assertSame("cleanup 2>/dev/null\nexit 0\n", $occurrences[0]['literal']);
     }
 
     #[Test]
