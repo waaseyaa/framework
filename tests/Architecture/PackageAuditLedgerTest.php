@@ -116,7 +116,17 @@ final class PackageAuditLedgerTest extends TestCase
             $l['dependency_identity'] += ['evidence_freshness' => 'current', 'consumers' => 'Sheg'];
 
             return $l;
-        }, 'consumers a list'];
+        }, 'dependency_identity.consumers must be a list of non-empty strings'];
+        yield 'dependency identity consumer not a string' => [static function (array $l): array {
+            $l['dependency_identity'] += ['evidence_freshness' => 'current', 'consumers' => [1]];
+
+            return $l;
+        }, 'dependency_identity.consumers must be a list of non-empty strings'];
+        yield 'dependency identity consumer blank' => [static function (array $l): array {
+            $l['dependency_identity'] += ['evidence_freshness' => 'current', 'consumers' => ['Sheg at ee810a0a0', ' ']];
+
+            return $l;
+        }, 'dependency_identity.consumers must be a list of non-empty strings'];
         yield 'dependency identity evidence freshness blank' => [static function (array $l): array {
             $l['dependency_identity'] += ['evidence_freshness' => ' '];
 
@@ -310,12 +320,23 @@ final class PackageAuditLedgerTest extends TestCase
     public static function securityLocators(): iterable
     {
         // A line in any file, whatever its name or extension.
-        foreach (['Dockerfile:12', 'config.xml:12', 'style.css:12', 'query.sql:12', 'script.py:12', 'composer.lock:12', 'src/Sensitive.php:42', 'x.php:40-44', 'bin/waaseyaa:3', 'https://github.com/o/r/blob/main/src/X.php#L12', 'README#L3-L9', 'Makefile line 7', 'x.twig (lines 4-9)', 'README.md line 3', 'notes.txt (lines 2-5)', 'localhost:8080'] as $locator) {
+        foreach (['Dockerfile:12', 'config.xml:12', 'style.css:12', 'query.sql:12', 'script.py:12', 'composer.lock:12', 'src/Sensitive.php:42', 'x.php:40-44', 'bin/waaseyaa:3', 'https://github.com/o/r/blob/main/src/X.php#L12', 'README#L3-L9', 'Makefile line 7', 'x.twig (lines 4-9)', 'README.md line 3', 'notes.txt (lines 2-5)', 'notes.txt:4', 'notes.txt:12:5', 'deploy/nginx/site:12', '.gitattributes:3', 'VERSION:2'] as $locator) {
             yield $locator => [$locator];
         }
         // A code file, repository path or symbol without a line.
         foreach (['the Dockerfile', 'query.sql', 'phpunit.xml.dist', '.env', 'packages/oidc/src/Grant', 'Guard::check()', '$token->refresh('] as $locator) {
             yield $locator => [$locator];
+        }
+    }
+
+    #[Test]
+    public function consumers_may_be_empty_or_name_strings(): void
+    {
+        foreach ([[], ['external:jonesrussell/sheguiandah-waaseyaa at ee810a0a0', 'Anokii (install only)']] as $consumers) {
+            $ledger = self::validLedger();
+            $ledger['dependency_identity'] += ['evidence_freshness' => 'current', 'consumers' => $consumers];
+
+            self::assertSame([], \packageAuditLedgerErrors($ledger));
         }
     }
 
@@ -335,7 +356,7 @@ final class PackageAuditLedgerTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function benignText(): iterable
     {
-        foreach (['sha256:3b83ac0f', 'mysql:8.0', 'php:8.5-cli', 'copied at 13:13:04', 'at 2026-09-26T13:13:04', 'a ratio of 3:1', '127.0.0.1:8000', 'v1: two-lens verification', 'owner waaseyaa/oidc', 'external:jonesrussell/sheguiandah-waaseyaa', 'file through SECURITY.md', 'fixed in alpha.302', 'PHP 8.5.5', 'the JSON:API exposure', 'the installation Profile', 'about 2.9M tokens'] as $text) {
+        foreach (['sha256:3b83ac0f', 'mysql:8.0', 'php:8.5-cli', 'copied at 13:13:04', 'at 2026-09-26T13:13:04', 'a ratio of 3:1', '127.0.0.1:8000', 'v1: two-lens verification', 'owner waaseyaa/oidc', 'external:jonesrussell/sheguiandah-waaseyaa', 'file through SECURITY.md', 'fixed in alpha.302', 'PHP 8.5.5', 'the JSON:API exposure', 'the installation Profile', 'about 2.9M tokens', 'HTTP:403', 'issue:123', 'status:401', 'localhost:8080', 'RFC9110:12', 'Version:3'] as $text) {
             yield $text => [$text];
         }
     }

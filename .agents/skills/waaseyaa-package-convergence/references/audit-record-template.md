@@ -202,9 +202,10 @@ or text. `verification.performed` is text; `reversals` is a list of strings.
 **Security rows.** No string anywhere in a security finding, however nested,
 points at code:
 
-- a line in any file: any name followed by `:12`, `:40-44` or `#L12`
-  (`Dockerfile:12`, `composer.lock:12`, `src/X.php#L12`), or a file name
-  followed by `line 12` or `(lines 40-44)`;
+- a line in a file: a file name followed by `:12`, `:40-44`, `:12:5`,
+  `#L12`, `line 12` or `(lines 40-44)`. A file name is a path with a `/`, a
+  name with an extension, a dotfile, or a file known by name (`Dockerfile`,
+  `README`): `Dockerfile:12`, `composer.lock:12`, `src/X.php#L12`;
 - a source, script, template, config, lock or build file, by extension or by
   name (`query.sql`, `phpunit.xml.dist`, `.env`, `Dockerfile`);
 - a repository path under a code root (`packages/`, `src/`, `bin/`, `tests/`,
@@ -212,8 +213,10 @@ points at code:
 - a symbol: `Class::method` or `->method(`.
 
 No other ledger entry, scorecard string or record line names a security ID
-next to one. Owner names (`waaseyaa/oidc`), version pins (`mysql:8.0`),
-digests (`sha256:3b83`) and times (`13:13:04`) are not code locations.
+next to one. A label with a number is not a file line: status codes
+(`HTTP:403`), references (`issue:123`, `RFC9110:12`), host ports
+(`localhost:8080`), version pins (`mysql:8.0`), digests (`sha256:3b83`) and
+times (`13:13:04`). Owner names (`waaseyaa/oidc`) are not code locations.
 
 **Owner values.** `owned_by` and `owner` hold exactly one name: a Composer
 package name (`waaseyaa/<name>`); `waaseyaa/framework` for the root aggregate,
@@ -231,7 +234,7 @@ pending.
 | Key | Content |
 | --- | --- |
 | `schema_version`, `package`, `base`, `audit_date` | as in the record header |
-| `dependency_identity` | `composer_lock_sha256` (the 64-hex lock digest the index row cites), `php`, `host`, and optionally `evidence_freshness` and `consumers` |
+| `dependency_identity` | `composer_lock_sha256` (the 64-hex lock digest the index row cites), `php`, `host`, and optionally `evidence_freshness` (text) and `consumers` (a possibly empty list of non-empty strings: each consumer checkout used as evidence, with its commit and lock hash) |
 | `milestone` | `assessed` (bool), `repair_ready` (bool), `converged` (null or `{sha, evidence}`), `reasons` (list) |
 | `charter` | `question`, `answer`, `evidence` |
 | `roster` | `file`, `role`, `classification`, `evidence_level`, `notes`, `findings` |

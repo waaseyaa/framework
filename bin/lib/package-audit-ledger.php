@@ -91,17 +91,25 @@ const PACKAGE_AUDIT_LEDGER_REFUTED_ID = '#^[A-Z][A-Z0-9]*-R-\d{3}$#';
 const PACKAGE_AUDIT_LEDGER_RETAINED_PROBE = '#^tests/Fixtures/Audits/[A-Za-z0-9]+/[A-Z][A-Z0-9]*-[A-Z]+-\d{3}-[a-z0-9-]+\.php$#';
 /** Build and project files known by name alone. */
 const PACKAGE_AUDIT_LEDGER_NAMED_FILES = 'Dockerfile|Containerfile|Makefile|GNUmakefile|Jenkinsfile|Procfile|Vagrantfile|Gemfile|Rakefile|Brewfile|Caddyfile|Justfile|Podfile|Pipfile|Earthfile|Tiltfile|CODEOWNERS';
+/** Documentation files known by name alone; they count only with a line. */
+const PACKAGE_AUDIT_LEDGER_NAMED_DOCS = 'README|LICENSE|CHANGELOG|CONTRIBUTING|NOTICE|AUTHORS|COPYING|VERSION';
 /**
- * A line in any file: any name containing a letter followed by `:42`, `:40-44`
- * or `#L42` (`Dockerfile:12`, `composer.lock:12`, `src/X.php#L12`), or a
- * file-like name followed by `line 42` or `(lines 40-44)`. Digits after the
- * colon must end the token, so `sha256:3b83`, `mysql:8.0` and `13:13:04` are
- * not lines.
+ * A file name: a path with a separator, a name with an extension (starting
+ * with a letter), a dotfile, or a file known by name (case-sensitive).
  */
-const PACKAGE_AUDIT_LEDGER_FILE_LINE = '#'
-    . '(?<![\w./-])(?=[\w./-]*[A-Za-z])[\w./-]+(?::\d+(?:-\d+)?|\#L\d+(?:-L?\d+)?)(?![\w:]|\.\d)'
-    . '|(?:[\w./-]+\.[A-Za-z0-9]+|[\w.-]*/[\w./-]+|\b(?:' . PACKAGE_AUDIT_LEDGER_NAMED_FILES . '))[,:]?\s+\(?lines?\s+\d+'
-    . '#i';
+const PACKAGE_AUDIT_LEDGER_FILE_NAME = '(?:'
+    . '(?<![\w./-])[\w.-]*/[\w./-]*[\w-]'
+    . '|(?<![\w./-])[\w-]+(?:\.[\w-]+)*\.[A-Za-z][A-Za-z0-9]*'
+    . '|(?<![\w./-])\.[A-Za-z][\w.-]*'
+    . '|\b(?-i:' . PACKAGE_AUDIT_LEDGER_NAMED_FILES . '|' . PACKAGE_AUDIT_LEDGER_NAMED_DOCS . ')\b'
+    . ')';
+/**
+ * A line in a file: a file name followed by `:42` (also `:40-44`, `:42:7`),
+ * `#L42`, `line 42` or `(lines 40-44)`: `Dockerfile:12`, `composer.lock:12`,
+ * `src/X.php#L12`. A label with a number is not a file line: `HTTP:403`,
+ * `issue:123`, `RFC9110:12`, `localhost:8080`, `mysql:8.0`.
+ */
+const PACKAGE_AUDIT_LEDGER_FILE_LINE = '#' . PACKAGE_AUDIT_LEDGER_FILE_NAME . '(?::\d+|\#L\d+|[,:]?\s+\(?lines?\s+\d+)#i';
 /**
  * A code location without a line: a source, script, template, config, lock or
  * build file (by extension or by name), a repository path under a code root,
@@ -165,10 +173,13 @@ function packageAuditLedgerErrors(array $ledger): array
         $err('dependency_identity needs composer_lock_sha256 (64 hex), php and host');
     } elseif (array_keys($identity) !== array_values(array_intersect(PACKAGE_AUDIT_LEDGER_IDENTITY_KEYS, array_keys($identity)))) {
         $err('dependency_identity keys must be ' . implode(', ', PACKAGE_AUDIT_LEDGER_IDENTITY_KEYS) . ', in that order, the last two optional');
-    } elseif ((array_key_exists('evidence_freshness', $identity) && !packageAuditLedgerIsText($identity['evidence_freshness']))
-        || (array_key_exists('consumers', $identity) && (!is_array($identity['consumers']) || !array_is_list($identity['consumers'])))
-    ) {
-        $err('dependency_identity.evidence_freshness must be text and consumers a list');
+    } else {
+        if (array_key_exists('evidence_freshness', $identity) && !packageAuditLedgerIsText($identity['evidence_freshness'])) {
+            $err('dependency_identity.evidence_freshness must be text');
+        }
+        if (array_key_exists('consumers', $identity) && !packageAuditLedgerIsTextList($identity['consumers'], allowEmpty: true)) {
+            $err('dependency_identity.consumers must be a list of non-empty strings');
+        }
     }
 
     $milestone = $ledger['milestone'];
