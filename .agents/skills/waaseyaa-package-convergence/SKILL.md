@@ -12,36 +12,46 @@ contract, test, documentation and distribution behavior that match.
 
 Read the repository guidance first (`AGENTS.md` or `CLAUDE.md`, then
 `docs/governance/agent-contract.md`). This skill is an analysis method and
-grants no authority to edit, open PRs, file issues, merge or publish. For
-authorized implementation or landing, also use `waaseyaa-delivery`.
+grants no authority to edit, open PRs, file issues, merge or publish. Without
+edit authority, draft the audit in the session scratchpad, mirroring the
+repository paths, and aim for the assessed milestone in draft; the audit-only
+change is a separately authorized step. For authorized implementation or
+landing, also use `waaseyaa-delivery`.
 
 ## Milestones
 
-Three milestones, each a stronger claim. Report which one a package has
-reached; never let a later one's work hold up an earlier one.
+Three milestones, each a stronger claim about the package. Report which one it
+has reached, and never let a later one's work hold up an earlier one.
 
 1. **Assessed.** We know what the package is, what it does, and what is and
    isn't proven. It doesn't mean every profile passes, and it doesn't need a
    GitHub issue per finding.
-2. **Repair ready.** Every finding that needs work sits in a bounded
-   remediation slice with acceptance criteria, filed as issues (normally one
-   package umbrella with children), and every security item has a filed
-   private report. Filing needs publication authority.
+2. **Repair ready.** Every package-owned finding that needs work sits in a
+   bounded remediation slice with acceptance criteria in the record's
+   remediation plan. A slice is filed as an issue before its remediation
+   begins, and every remaining finding (deferred, residual or cross-package
+   intake) has a bounded issue before the #3118 program's final
+   reconciliation. Filing is publication and needs authority.
 3. **Converged.** The repairs and the required qualification have landed
    ("Convergence standard" below).
 
-The coverage index (FW-PACKAGE-CONVERGENCE-01, #3118) records:
+The coverage index (FW-PACKAGE-CONVERGENCE-01, #3118) records two independent
+axes, as before:
 
 - **Audit state:** not assessed, inventory only, in progress, assessed, needs
   delta review. "assessed" is milestone 1.
 - **Remediation state:** not triaged, no action required, planned, in progress,
-  resolved, accepted residual. It follows bounded work, not dispositions: keep
-  "not triaged" until bounded slices exist, even when the audit has
-  dispositioned every finding. "planned" means repair ready. "resolved" means
-  every package-owned slice has landed.
+  resolved, accepted residual. It tracks filed work: "planned" once at least
+  one bounded slice is filed as an issue, "in progress" once one is being
+  worked, "resolved" when every package-owned slice has landed, and "no action
+  required" or "accepted residual" when no finding needs a slice. Until the
+  first slice is filed it stays "not triaged", even when the audit has
+  dispositioned every finding. A consumer-driven slice can be planned or in
+  progress while the audit is still in progress.
 
-The index has no "converged" state. State convergence in the audit record's
-header, with its evidence.
+Repair ready and converged are claims in the audit record's header, with
+their evidence; the index has no state for either. Rows recorded before v2
+keep their states until their next delta review.
 
 ## Workflow
 
@@ -52,6 +62,14 @@ lock identity, existing issues and PRs, and what completion the user asked for.
 Revalidate current code and consumers instead of trusting an old roadmap or
 issue text. Leave neighbouring packages and separately owned issues with their
 owners.
+
+Collect the **intake**: findings and handed-off leads other audits routed to
+this package. Read every committed ledger's `findings` and `handoffs` whose
+owner or co-owners name this package, every committed record's cross-package
+table (older records have no ledger), and ask the maintainer for private
+security briefs routed here. Each intake item keeps its original ID, is
+re-verified at the tier of its current severity, and is dispositioned in this
+record.
 
 When agents run the audit, size the run before starting: lanes, verification
 tiers and a budget, from [running an audit](references/audit-orchestration.md).
@@ -73,8 +91,10 @@ cleaner architecture as if it were current fact.
 ### 3. Inventory everything
 
 Classify **every production file** in the package before judging, moving,
-sealing or deleting anything. Include frontend and generated artifacts when the
-package ships them. Apply the relevant rows of the
+sealing or deleting anything. A production file is any file the split export
+ships outside `tests/`: source, manifests, `public-surface.php`, resources,
+README and changelog, and frontend or generated artifacts when the package
+ships them. Apply the relevant rows of the
 [package audit checklist](references/package-audit-checklist.md). Trace
 declared public surfaces to real callers and composition roots, and runtime
 entrypoints back to contracts, dependencies, failure behavior and tests.
@@ -174,7 +194,7 @@ expresses real ownership and makes invalid dependencies fail mechanically.
 
 ### 6. Record findings
 
-Keep one ledger using the fields in the
+Record every finding in the structured ledger, using the fields in the
 [audit record template](references/audit-record-template.md): stable ID,
 evidence and reproduction, evidence level, expected contract, consequence and
 affected consumers, severity and confidence, refutation, disposition and
@@ -183,25 +203,30 @@ action. One entry per finding. Keep refuted leads in the ledger with their
 refutation. State the audit's evidence freshness: current at a named commit,
 or needing a delta review because the package changed since the base.
 
-**Attribution.** Every finding records four more fields:
+**Attribution.** Every finding also records:
 
 - **discovered in:** the package whose audit found it;
-- **owned by:** the package that owns the defect, which may be a different one;
-- **affected consumers:** packages and applications that feel it;
+- **owned by:** the one package that holds the defective code at the base, in
+  the ledger's owner format (a Composer name, `waaseyaa/framework` for the root
+  aggregate, CI and tooling, or `external:<repository>`); other packages with a
+  share are **co-owners**;
 - **blocks this assessment:** yes only when this package's charter, profile
   answers or dispositions can't be settled without it.
 
-A finding owned by another package goes in this record's cross-package table
-and in the ledger, and becomes intake for the owning package's audit. It does
-not enter this package's remediation ledger or its counts.
+When the repairs in two packages are separable, split the finding into one per
+owner and cross-link them. When the owner depends on an open decision, name the
+decision. A finding owned by another package goes in the cross-package table
+and the ledger, and becomes intake for the owning package's audit. It isn't
+part of this package's remediation plan or its severity counts.
 
 **Destinations.** Every finding needs an accountable owner or triage
 destination, not necessarily a GitHub issue. Valid destinations:
 
-- an existing issue;
-- a proposed remediation slice in this record's remediation plan (it becomes
-  an issue at the repair-ready milestone);
-- the owning package's audit, for cross-package findings;
+- an existing open issue whose scope you have checked covers the finding;
+- a proposed slice in this record's remediation plan, with its acceptance;
+- the owning package's audit, for a cross-package finding, when that audit
+  hasn't reached assessed; for an assessed package, a delta review, an issue
+  or a decision instead;
 - a private security report ([security triage](references/security-triage.md));
 - a named maintainer decision in this record's decisions list;
 - an accepted residual with a rationale.
@@ -211,7 +236,7 @@ destination, not necessarily a GitHub issue. Valid destinations:
 - **inventoried:** listed from source;
 - **reviewed:** read and reasoned about;
 - **reproduced:** demonstrated by a probe or test (label synthetic fixtures as synthetic);
-- **qualified:** exercised in a named installation profile (source, split, no-dev, generated app, native host).
+- **qualified:** exercised in a named installation profile, with evidence in a distribution evidence class other than source (see the [distribution profile](references/profiles/distribution.md)).
 
 A source read, a synthetic probe, an injected-service integration test and a
 real installed-consumer test each prove a different boundary. Tie reused
@@ -230,20 +255,24 @@ any extra package the repair touches.
 
 ### 7. Verify findings
 
-Verification effort follows the stakes. The tiers, and how to run them, are in
+Verification effort follows the stakes; severity and security decide the tier.
+The tiers, and how to run them, are in
 [running an audit](references/audit-orchestration.md):
 
-- **security findings, medium or higher, and any finding that would remove or
-  deprecate public surface or change authority:** two independent verifiers,
-  one re-deriving the evidence and one trying to refute it;
-- **low:** one verifier doing both;
-- **info and documentation gaps:** grouped validation, sampling the group and
-  verifying all of it when a sample fails.
+- **tier A, for security-sensitive findings, medium or higher, and any finding
+  that would remove or deprecate public surface or change who may read or
+  mutate data:** two independent verifiers, one re-deriving the evidence and
+  one trying to refute it;
+- **tier B, for low findings:** one verifier doing both;
+- **tier C, for info findings:** grouped validation, sampling the group and
+  verifying every claim when a sample fails.
 
-Tie-break only when verifiers disagree on whether the finding exists, or on
-which side of the medium line it falls. A finding verification raises to
-medium or higher gets the second verifier. Check every refuted lead's
-refutation once.
+Tie-break any material disagreement between tier-A verifiers: whether the
+finding exists, its severity band, whether it is security-sensitive, its
+owner, or its disposition. What a tie-break can't settle becomes a maintainer
+decision. A finding verification raises to medium or higher gets the second
+verifier; a finding created after verification gets its tier's verification
+too. Check every refuted lead's refutation once.
 
 Security-sensitive findings follow [security triage](references/security-triage.md)
 from the moment they are flagged: the orchestrator writes the private brief
@@ -257,12 +286,18 @@ A package is **assessed** when:
 - the charter is written and every question is answered or recorded as a finding;
 - each selected profile's checklist is answered with evidence, marked "does not
   apply" with a reason, or recorded as a gap with a destination;
-- every supported installation profile has an evidence class or a
-  dispositioned qualification gap with an owner (see the distribution profile);
+- every supported installation profile has qualifying evidence or a recorded
+  qualification gap with an owner (see the distribution profile);
 - every finding has severity, confidence, attribution, a disposition, a
-  destination and a next action, and every refuted lead records its refutation;
-- every security finding has a private brief and a named owning package;
-- open decisions are listed with who decides;
+  destination and a next action, has had its tier's verification, and every
+  refuted lead records its refutation;
+- no finding or handed-off lead that blocks this assessment is open: each is
+  settled, or is a maintainer decision;
+- every intake item is dispositioned;
+- every security finding is verified at tier A and has a private brief in
+  durable custody, a named owning package and the advisory route;
+- open decisions, unresolved uncertainties and lane conflicts are listed with
+  what would settle them;
 - the base, audit date, dependency identity and evidence freshness are recorded;
 - unreviewed areas and host limitations are listed, with the hosted runner that
   owns the missing evidence.
@@ -275,26 +310,36 @@ dispositioned. Anything short of the list is **in progress**. Say so.
 The repository is the record; GitHub mirrors it. One audit-only change adds:
 
 - `docs/audits/packages/<package>.md`: the human record, from the
-  [template](references/audit-record-template.md). Keep it near 400 lines.
-  If it can't fit, say why in the record.
+  [template](references/audit-record-template.md). Keep it near 400 lines;
+  past that, state why and get the maintainer's agreement.
 - `docs/audits/packages/<package>.ledger.json`: the structured ledger, in the
-  shape the template gives. It holds what the record summarizes: the full
-  roster, every checklist answer, every finding field, refuted leads, the
-  cross-package intake, probe metadata, evidence runs and the scorecard. It
-  never holds security specifics.
-- The retained probes, under `tests/Fixtures/Audits/<Package>/`. Keep a probe
-  that reproduces a package-owned finding at medium or higher, or that the
-  proposed acceptance reuses. Other probes stay listed in the ledger with
-  their result. A probe that reproduces a security finding is never committed
-  before the fix.
+  shape and with the keys the template gives. It holds what the record
+  summarizes: the full roster, every checklist answer, every finding and its
+  fields, intake, handoffs, refuted leads, decisions, uncertainties, probe
+  metadata, evidence runs and the scorecard. It never holds security
+  specifics.
+- Retained probes, one per non-security finding recorded as reproduced (the
+  smallest one that shows it), plus any probe an acceptance criterion cites.
+  Use a flat layout, `tests/Fixtures/Audits/<Package>/<FindingID>-<slug>.php`.
+  Each runs from the repository at the base, states its expected exit status,
+  and uses no local consumer paths. Every other probe stays in the ledger with
+  its reproduction command and result. Reproduced evidence never lives only in
+  scratch. A probe that reproduces a security finding stays with the private
+  brief until the fix lands.
 - The package's row in `docs/audits/packages/coverage-index.json`
   (FW-PACKAGE-CONVERGENCE-01): state, base, audit date, dependency identity,
-  owner and evidence. Evidence is only ever a file committed in this
-  repository. Capture a historical file (from a commit on `main`) or an issue
-  body byte-for-byte into `docs/audits/packages/evidence/<package>/` with its
+  owner, evidence and notes. `owner_issue` is the program issue #3118 until a
+  package umbrella is filed. Evidence lists the record, the ledger and each
+  retained probe, and is only ever a file committed in this repository.
+  Capture a historical file (from a commit on `main`) or an issue body
+  byte-for-byte into `docs/audits/packages/evidence/<package>/` with its
   provenance header rather than linking to something that can change or
-  disappear. The index test and `bin/check-package-coverage-history` enforce
-  this.
+  disappear; hosted runs are cited by run and job ID instead. Notes are at most
+  two sentences. The index test and `bin/check-package-coverage-history`
+  enforce this.
+
+Before the audit-only change, run `php bin/check-pr-preflight` and, when
+retained probes change a governed roster, `php bin/refresh-governance-artifacts`.
 
 Publication is a separate, authorized step: opening the PR, posting a short
 summary with a link on the owning issue, filing remediation issues, and filing
@@ -305,13 +350,14 @@ Reviewers will read dozens of these.
 
 ## Turn findings into work
 
-Reaching **repair ready** means turning the record's remediation plan into
-bounded issues: one package umbrella, children for slices, acceptance criteria
-in each, and private reports for security items. Separate package convergence
-from unrelated product defects, and route cross-package findings to their
-owners' audits or existing issues instead of this package's umbrella. When
-implementation is authorized, sequence it so later work builds on settled
-contracts:
+**Repair ready** means the record's remediation plan bounds every
+package-owned finding that needs work into slices with acceptance criteria.
+File a slice as an issue (normally one package umbrella with children) before
+its remediation begins, and file every remaining finding before the program's
+final reconciliation. Separate package convergence from unrelated product
+defects, and route cross-package findings to their owners' audits or existing
+issues instead of this package's umbrella. When implementation is authorized,
+sequence it so later work builds on settled contracts:
 
 1. durable charter and change record;
 2. dependency model and discriminating controls;

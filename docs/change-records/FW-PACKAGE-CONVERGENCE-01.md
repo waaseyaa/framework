@@ -26,24 +26,35 @@ tracked separately. The program does not block ordinary Framework delivery.
 
 The skill defines three milestones, each a stronger claim:
 
-1. **Assessed** (audit state "assessed"): every production file in the roster,
-   charter answered, each selected profile's checklist answered, marked not
-   applicable or recorded as a gap with a destination, every supported
-   installation profile with an evidence class or a dispositioned
-   qualification gap, every finding with severity, confidence, attribution, a
-   disposition, an accountable destination and a next action, security
-   findings with a private brief and an owning package, refuted leads,
-   decisions, base, date, dependency identity, evidence freshness, gaps and
-   host limits recorded. A destination need not be a filed issue.
-2. **Repair ready** (remediation state "planned"): bounded remediation slices
-   with acceptance criteria are filed as issues, and security items have
-   filed private reports. Filing needs publication authority.
-3. **Converged:** repairs and required qualification have landed. The index
-   has no state for it; the audit record's header states it with evidence.
+1. **Assessed** (audit state "assessed"): every production file in the roster;
+   charter answered; each selected profile's checklist answered, marked not
+   applicable, or recorded as a gap with a destination; every supported
+   installation profile with qualifying evidence or a recorded qualification
+   gap with an owner; every finding with severity, confidence, attribution, a
+   disposition, an accountable destination, a next action and its tier's
+   verification; no open finding or handoff that blocks the assessment; every
+   intake item dispositioned; security findings verified at tier A with a
+   private brief in durable custody, an owning package and the advisory route;
+   refuted leads, decisions, uncertainties, base, date, dependency identity,
+   evidence freshness, gaps and host limits recorded. A destination need not be
+   a filed issue.
+2. **Repair ready:** the record's remediation plan bounds every package-owned
+   finding that needs work into slices with acceptance criteria. A slice is
+   filed as an issue before its remediation begins, and every remaining
+   finding has a bounded issue before this program's final reconciliation.
+   Filing needs publication authority; a private security report is filed as
+   soon as it is authorized, independent of any milestone.
+3. **Converged:** repairs and required qualification have landed.
 
-Remediation state follows bounded work, not dispositions: it stays "not
-triaged" until bounded slices exist, even when the audit has dispositioned
-every finding.
+Audit and remediation states stay independent axes. Remediation state tracks
+filed work: "planned" once at least one bounded slice is filed, "in progress",
+"resolved" when every package-owned slice has landed, and "no action required"
+or "accepted residual" when nothing needs a slice; it stays "not triaged" until
+the first slice is filed, even when every finding is dispositioned. A
+consumer-driven slice can be planned or in progress while its audit is still in
+progress. Repair ready and converged are claims in the audit record's header;
+the index has no state for either. Rows recorded before method v2 (the initial
+states below, and ai-vector) keep their states until their next delta review.
 
 ## Coverage index
 
@@ -150,9 +161,9 @@ format is reviewable.
 ## Method v2 (2026-09-26)
 
 The groups audit showed the method is rigorous but doesn't scale to the
-roster. Two-lens verification corrected mechanisms, lowered 12 severities,
-reopened 2 of 65 refutations and surfaced the highest-value cross-package
-security finding. But the run took 121 agents, about 20M subagent tokens and
+roster. Verification corrected mechanisms, lowered 13 severities and surfaced
+the highest-value cross-package security finding, and a refutation check
+reopened 2 of the 65 refutations it checked. But the run took 121 agents, about 20M subagent tokens and
 4.3 hours for 13 source files, and produced a 2,420-line record against
 ai-vector's 365. It also showed three rule problems: "assessed" required a
 filed issue per finding, which is a publication step; an untested standalone
@@ -162,30 +173,45 @@ ledger.
 
 v2 changes the skill (`.agents/skills/waaseyaa-package-convergence/`):
 
-- **Milestones.** Assessed, repair ready and converged are separate (see
-  "States"). Assessed needs an accountable destination per finding, not an
-  issue.
+- **Milestones.** Assessed, repair ready and converged are separate claims
+  (see "States"). Assessed needs an accountable destination per finding, not
+  an issue. Repair ready follows the program brief: bounded slices with
+  acceptance exist; issues are filed before a slice's remediation begins, and
+  for every remaining finding before final program reconciliation.
 - **Tiered verification.** Two independent verifiers for security, medium or
-  higher, and authority or public-surface removals; one verifier for low;
-  grouped sampling for info and documentation gaps; tie-break only on
-  disagreement (`references/audit-orchestration.md`).
-- **Size budget.** The human record stays near 400 lines. Exhaustive rosters,
-  checklist answers, refuted leads and probe metadata move to the structured
-  ledger.
-- **Attribution.** Every finding records the package it was discovered in, the
-  package that owns it, affected consumers, and whether it blocks the
-  assessment. Findings owned elsewhere are intake for that package's audit.
-- **Profile-aware distribution.** Evidence is recorded by class (source,
-  closure artifact, metapackage, installed consumer, standalone split,
-  generated application, native host). A supported profile without evidence is
-  a dispositioned qualification gap, not an open checklist item.
-- **Security triage.** The orchestrator writes the private brief from
-  verified evidence, the record carries a safe summary, and a redaction check
-  runs before the record is final (`references/security-triage.md`).
+  higher, and public-surface removals or changes to who may read or mutate
+  data; one verifier for low; grouped sampling for info; tie-breaks on any
+  material disagreement (`references/audit-orchestration.md`). Budgets are
+  provisional, with a projection checkpoint after consolidation.
+- **Size budget.** The human record stays near 400 lines, with detail blocks
+  only for medium and higher. Exhaustive rosters, checklist answers, refuted
+  leads, handoffs and probe metadata move to the structured ledger, whose keys
+  and enums the template lists.
+- **Attribution and intake.** Every finding records where it was discovered,
+  its one owning package and any co-owners, and whether it blocks the
+  assessment. Findings owned elsewhere, and handed-off leads, are intake that
+  the owning package's audit collects and dispositions.
+- **Profile-aware distribution.** Installation profiles and evidence classes
+  are separate lists, with a map of which classes can qualify which profile.
+  A supported profile without evidence is a qualification gap that, once
+  recorded with an owner, does not keep the audit open.
+- **Security triage.** Security-sensitive follows `SECURITY.md`. The
+  discovering orchestrator writes the private brief from verified evidence and
+  keeps it in durable private custody; the record carries one safe row per
+  finding after a redaction check (`references/security-triage.md`).
+- **Probes.** One retained probe per non-security reproduced finding, in a
+  flat layout, runnable from the repository; reproduced evidence never lives
+  only in scratch.
 - **Scorecard.** Each of the next audits records time, agents, findings by
   severity, verification reversals, record length, probes retained and open
   decisions.
 
-Open decision: whether the index should gain dedicated states for "repair
-ready" and "converged". v2 maps them onto the existing states because the
-state vocabulary is pinned by the index test and mirrored in #3118.
+Open decisions:
+
+- whether the index should gain states or fields for "repair ready" and
+  "converged" (v2 records them in audit records only, because the state
+  vocabulary is pinned by the index test and mirrored in #3118);
+- the durable private location for security briefs, which the maintainer
+  designates;
+- an architecture test that validates every `*.ledger.json` against the
+  template's key and enum list, before ledgers accumulate.

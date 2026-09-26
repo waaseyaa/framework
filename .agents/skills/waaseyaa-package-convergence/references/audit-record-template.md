@@ -2,9 +2,10 @@
 
 An audit produces two files: the human record `docs/audits/packages/<package>.md`
 and the structured ledger `docs/audits/packages/<package>.ledger.json`. The
-record is what reviewers read: keep it near 400 lines, and if it can't fit,
-say why. The ledger holds everything exhaustive. Delete the guidance lines in
-italics. Keep it plain: short sentences, one entry per finding.
+record is what reviewers read: keep it near 400 lines, and past that, state
+why and get the maintainer's agreement. The ledger holds everything
+exhaustive. Delete the guidance lines in italics. Keep it plain: short
+sentences, one entry per finding.
 
 Section budgets are guides, not quotas:
 
@@ -13,11 +14,12 @@ Section budgets are guides, not quotas:
 | Header and summary | 40 lines |
 | Charter | 40 |
 | Roster | one short row per file, or grouped by directory above about 25 files |
-| Package findings | table, then detail blocks by severity (see below) |
-| Cross-package findings | one table row each |
+| Intake | one row per item |
+| Package findings | about 150: table rows, plus detail blocks for medium and higher |
+| Cross-package findings and handoffs | one row each |
 | Qualification by profile | 20 |
 | Profile checklists | 40 |
-| Decisions, remediation plan, not reviewed, host limits | 60 |
+| Decisions, uncertainties, remediation plan, not reviewed, host limits | 60 |
 | Evidence and scorecard | 40 |
 
 ---
@@ -25,11 +27,11 @@ Section budgets are guides, not quotas:
 # `waaseyaa/<package>` audit
 
 - **Milestone:** assessed | in progress (*numbered reasons*). Repair ready: no | yes. Converged: not claimed | claimed at `<SHA>` with *evidence*.
-- **Audit state:** *index value*. **Remediation state:** *index value* (*"not triaged" until bounded slices exist*)
+- **Audit state:** *index value*. **Remediation state:** *index value*
 - **Base:** `<full SHA>`, audited `<YYYY-MM-DD>`
 - **Dependency identity:** `composer.lock` SHA-256 `<hash>` at the base; PHP `<version>`, host `<OS>`. *Consumer checkouts used as evidence, with their commit and lock hash.*
 - **Evidence freshness:** *current at `<SHA>`* | *needs delta review: package source changed since the base in `<commits>`*
-- **Owner:** `waaseyaa/framework#<n>`; program #3118
+- **Owner:** `waaseyaa/framework#<n>` (*the program issue #3118 until a package umbrella exists*)
 - **Profiles applied:** *each with one line of scope*. **Not applied:** *each with a one-line reason*
 - **Structured ledger:** `docs/audits/packages/<package>.ledger.json`
 
@@ -58,7 +60,16 @@ matter most, and what a consumer should know today.*
 duplicated or drifting contract · wrong package or layer · unwired or obsolete ·
 optional/required misrepresented · missing refusal, lifecycle, compatibility or
 distribution evidence. *Evidence levels:* inventoried · reviewed · reproduced ·
-qualified (name the installation profile). *Longer notes go in the ledger.*
+qualified (name the evidence class). *Longer notes go in the ledger. Never tie
+a security ID to a file here.*
+
+## Intake
+
+*Items other audits routed to this package, and what this audit did with each.*
+
+| Item | From | Disposition | Local finding |
+| --- | --- | --- | --- |
+| `<OTHER>-<AREA>-NNN` | *discovering audit* | confirmed / merged / refuted / re-owned | `<PKG>-<AREA>-NNN` or — |
 
 ## Package findings
 
@@ -68,16 +79,17 @@ finding per coherent repair slice.*
 | ID | Title | Severity | Confidence | Level | Verified | Disposition | Destination | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `<PKG>-<AREA>-001` | *one line* | critical / high / medium / low / info | confirmed / likely / suspected | reproduced | A / B / C | repair / move / document / deprecate / remove / retain | #n, slice S1, decision D1, or accepted residual | *the next concrete step, or "none"* |
-| `<PKG>-SEC-001` | *safe one-line class of issue* | withheld | | | A | repair | private report (`waaseyaa/<owner>`) | private triage |
+| `<PKG>-SEC-001` | *safe one-line class of issue* | withheld | confirmed | reproduced | A | repair | private report (framework advisory; owner `waaseyaa/<pkg>`) | private triage |
 
 *Scale:* **info** means no consumer consequence (a hygiene, test or
 documentation gap). **withheld** marks a security finding rated in private
-triage. *Verified* is the tier that checked it.
+triage. A grouped finding's severity is its highest member's, and the row says
+so. *Verified* is the tier whose verification actually ran; write "pending"
+when it hasn't.
 
-**Detail blocks.** Medium and higher get every field below. Low findings get
-observed, consequence, disposition and destination, and acceptance, in a few
-lines; the other fields are in the ledger. Info findings get the table row only.
-Security findings get the safe summary only ([security triage](security-triage.md)).
+**Detail blocks** are for medium and higher only. Low and info findings are
+table rows; their full fields are in the ledger. Security findings get the
+public row only ([security triage](security-triage.md)).
 
 ### `<PKG>-<AREA>-001`: *title*
 
@@ -86,7 +98,7 @@ Security findings get the safe summary only ([security triage](security-triage.m
 - **Consequence and consumers:** *what breaks, for which runtime, generated or installed consumers*
 - **Severity and confidence:** *why; what would change it*
 - **Refutation:** *what was considered against it, and why it does or doesn't hold*
-- **Disposition and destination:** *disposition, and its issue, slice, decision or residual rationale*
+- **Disposition and destination:** *disposition, and its issue, slice, decision or residual rationale; for a consumer-driven audit, also required for unblock / independent / accepted limitation, with the rationale*
 - **Dependencies:** *what must land first, or "none"*
 - **Acceptance:** *the discriminating test or check that proves it's resolved*
 - **Residual risk:** *what stays true after the fix, or "none"*
@@ -95,10 +107,13 @@ Security findings get the safe summary only ([security triage](security-triage.m
 ## Cross-package findings
 
 *Found here, owned elsewhere. They are intake for the owning package's audit,
-not part of this package's remediation.*
+not part of this package's remediation plan or counts. Security rows follow
+the public-row rule.*
 
 | ID | Owned by | Title | Severity | Affected consumers | Blocks this assessment | Destination |
 | --- | --- | --- | --- | --- | --- | --- |
+
+**Handed-off leads:** *count, and the owners; the leads are in the ledger's handoffs.*
 
 ## Refuted leads
 
@@ -107,28 +122,29 @@ likely repeat mistake, one line each. The rest are in the ledger.*
 
 ## Qualification by profile
 
+*One row per piece of evidence; a profile may have several. Profiles and
+classes are defined in the [distribution profile](profiles/distribution.md).*
+
 | Profile | Supported | Evidence class | Evidence | Gap and owner |
 | --- | --- | --- | --- | --- |
-| source | yes | source | *suite run* | |
-| standalone split, `--no-dev` | *yes / no / undecided* | not run | | *gap, owner* |
-
-*Evidence classes are defined in the [distribution profile](profiles/distribution.md).*
+| kernel composition | yes | closure artifact | *run and job IDs, base, surfaces asserted* | |
+| standalone split | *yes / no / undecided* | — | not run | *gap and owner, or decision* |
 
 ## Profile checklists
 
 *One line per applied profile: items answered, items that are findings (IDs),
-items that don't apply (one reason each), and open gaps with destinations.
-Every item's full answer is in the ledger.*
+items that don't apply (one reason each), and gaps with destinations. Every
+item's full answer is in the ledger.*
 
-## Decisions needed
+## Decisions and uncertainties
 
-| ID | Decision | Findings | Who decides |
-| --- | --- | --- | --- |
+| ID | Decision or uncertainty | Findings | What would settle it | Who decides |
+| --- | --- | --- | --- | --- |
 
 ## Remediation plan
 
-*Proposed bounded slices, in dependency order. Each becomes an issue at the
-repair-ready milestone.*
+*Proposed bounded slices for package-owned findings, in dependency order.
+Each is filed as an issue before its remediation begins.*
 
 | Slice | Findings | Acceptance | Depends on |
 | --- | --- | --- | --- |
@@ -151,34 +167,50 @@ identity and runner. The full list is in the ledger.*
 
 ## Scorecard
 
-*The fields in [running an audit](audit-orchestration.md): time, agents,
-findings by severity, verification reversals, record length, probes retained,
-open decisions.*
+*The fields in [running an audit](audit-orchestration.md).*
 
 ---
 
 ## Structured ledger
 
 `docs/audits/packages/<package>.ledger.json` is UTF-8 JSON with LF line
-endings. It never holds security specifics: security findings carry only
-their safe summary. Top-level keys:
+endings, `schema_version` 1. Assemble it from structured agent output with a
+script where possible. Keep it lean: verdicts and corrections, not verifier
+transcripts. It never holds security specifics.
+
+**Owner values.** `owned_by` and `owner` hold exactly one name: a Composer
+package name (`waaseyaa/<name>`); `waaseyaa/framework` for the root aggregate,
+CI and repository tooling; or `external:<repository>` for a downstream
+application or upstream project. `co_owners` is a list of such names.
+Qualifiers go in `notes`.
+
+**Enums.** severity: critical, high, medium, low, info, withheld. confidence:
+confirmed, likely, suspected. evidence_level: inventoried, reviewed,
+reproduced, qualified. classification: the seven roster classifications.
+checklist status: answered, does not apply, finding, gap. destination kind:
+issue, slice, owner-audit, private-report, decision, residual. tier: A, B, C,
+pending.
 
 | Key | Content |
 | --- | --- |
-| `schema_version` | `1` |
-| `package`, `base`, `audit_date`, `dependency_identity` | as in the record header |
-| `milestone` | `assessed` or `in progress`, with `reasons` |
-| `charter` | one entry per charter question: `question`, `answer`, `evidence` |
-| `roster` | one entry per production file: `file`, `role`, `classification`, `evidence_level`, `notes`, `findings` |
-| `checklists` | one entry per checklist item: `profile`, `item`, `status` (answered, does not apply, finding, gap), `answer`, `evidence`, `findings` |
-| `findings` | every finding, package-owned and cross-package, with every template field plus `discovered_in`, `owned_by`, `affected_consumers`, `blocks_assessment`, `destination`, `verification` (tier and reversals) and `probes` |
-| `refuted` | every refuted lead: `id`, `lead`, `investigation`, `refutation`, `evidence` |
-| `decisions` | `id`, `decision`, `findings`, `who_decides` |
+| `schema_version`, `package`, `base`, `audit_date`, `dependency_identity` | as in the record header |
+| `milestone` | `assessed` (bool), `repair_ready` (bool), `converged` (null or `{sha, evidence}`), `reasons` (list) |
+| `charter` | `question`, `answer`, `evidence` |
+| `roster` | `file`, `role`, `classification`, `evidence_level`, `notes`, `findings` |
+| `checklists` | `profile`, `item`, `status`, `answer`, `evidence`, `findings` |
+| `intake` | `item`, `from`, `disposition`, `local_finding`, `notes` |
+| `findings` | `id`, `title`, `area`, `severity`, `confidence`, `evidence_level`, `observed`, `expected_contract`, `consequence`, `refutation`, `disposition`, `destination` (`{kind, ref}` list), `dependencies`, `acceptance`, `residual_risk`, `next_action`, `discovered_in`, `owned_by`, `co_owners`, `affected_consumers` (`"withheld"` for security), `blocks_assessment`, `decision` (null or a decision ID), `consumer_unblock` (null, or required / independent / accepted limitation with rationale), `merged_into`, `verification` (`{tier, performed, reversals}`), `probes` (names; a count for security) |
+| `refuted` | `id`, `lead`, `investigation`, `refutation`, `evidence` |
+| `handoffs` | `id`, `lead`, `owner`, `co_owners`, `affected_consumers`, `issue`, `blocks_assessment` (always false) |
+| `decisions` | `id`, `decision`, `findings`, `what_would_settle_it`, `who_decides` |
+| `uncertainties` | `id`, `uncertainty`, `findings`, `what_would_settle_it` |
+| `issue_reconciliation` | `issue`, `claim`, `status` at the base, `evidence` |
 | `remediation_plan` | `slice`, `findings`, `acceptance`, `depends_on` |
-| `qualification` | one entry per installation profile: `profile`, `supported`, `evidence_class`, `evidence`, `gap_owner` |
-| `probes` | `name`, `purpose`, `result`, `retained_path` (null when not committed) |
-| `evidence_runs` | `command`, `base`, `dependency_identity`, `runner`, `proves`, `result` |
+| `qualification` | `profile`, `supported`, `evidence_class`, `evidence`, `gap_owner` |
+| `probes` | `name`, `purpose`, `result`, `retained_path` (null when not committed), `reproduce` (the command) |
+| `evidence_runs` | `command`, `base`, `dependency_identity`, `runner`, `host`, `proves`, `result` |
+| `not_reviewed`, `host_limits` | lists of strings |
 | `scorecard` | the scorecard fields |
 
-A later audit finds its intake by reading every ledger's `findings` for
-`owned_by` equal to its package.
+A later audit finds its intake by reading every ledger's `findings` and
+`handoffs` whose `owned_by`, `owner` or `co_owners` names its package.
