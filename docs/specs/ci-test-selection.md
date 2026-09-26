@@ -436,7 +436,13 @@ attempt's). Since FW-2678-PORTABLE-NULL-DEVICE-03 one of its gate steps is
 `php bin/check-portable-null-device`, the static guard against a hard-coded
 `/dev/null` in governed production PHP. Its test class,
 `PortableNullDeviceGateTest`, is in the contract's Architecture selection and,
-like every Architecture test, in the timing-balanced Linux shards.
+like every Architecture test, in the timing-balanced Linux shards. Since
+FW-2678-PORTABLE-DOCKER-RELEASE-04 the Architecture selection also holds
+`SkeletonDockerSecretExclusionDecisionsTest`, the Docker secret gate's
+host-neutral decisions, and the changelog helpers' `ChangelogFragmentsTest` and
+`ChangelogShapeGuardTest`; the Integration selection holds the release-tooling
+`ResolveSplitMainTargetsTest` and `SyncInternalVersionsTest`. All of them stay
+in the Linux shards as well.
 `ci/skeleton-create-project-windows` (#2644) proves the fresh-project lifecycle — create-project,
 the pre-init verification refusal, `site:init`, `install:init`, and
 `composer site-verify` — on a native Windows development host, where the
