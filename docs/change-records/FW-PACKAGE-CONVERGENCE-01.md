@@ -24,12 +24,26 @@ tracked separately. The program does not block ordinary Framework delivery.
 - **Audit:** not assessed, inventory only, in progress, assessed, needs delta review.
 - **Remediation:** not triaged, no action required, planned, in progress, resolved, accepted residual.
 
-"Assessed" has the finish line defined in the skill: every production file in
-the roster, charter answered, each selected profile's checklist answered or
-marked not applicable, every finding with severity, confidence, an owner and a
-next action, refuted leads recorded, base, date, dependency identity and
-evidence freshness recorded, gaps and host limits listed. A
-package can be assessed while repairs are still planned.
+The skill defines three milestones, each a stronger claim:
+
+1. **Assessed** (audit state "assessed"): every production file in the roster,
+   charter answered, each selected profile's checklist answered, marked not
+   applicable or recorded as a gap with a destination, every supported
+   installation profile with an evidence class or a dispositioned
+   qualification gap, every finding with severity, confidence, attribution, a
+   disposition, an accountable destination and a next action, security
+   findings with a private brief and an owning package, refuted leads,
+   decisions, base, date, dependency identity, evidence freshness, gaps and
+   host limits recorded. A destination need not be a filed issue.
+2. **Repair ready** (remediation state "planned"): bounded remediation slices
+   with acceptance criteria are filed as issues, and security items have
+   filed private reports. Filing needs publication authority.
+3. **Converged:** repairs and required qualification have landed. The index
+   has no state for it; the audit record's header states it with evidence.
+
+Remediation state follows bounded work, not dispositions: it stays "not
+triaged" until bounded slices exist, even when the audit has dispositioned
+every finding.
 
 ## Coverage index
 
@@ -112,11 +126,66 @@ reviewed.
 Follows #3118: calibrate the method on the admin-surface reference and the
 CLI pilot, then on one persistence package and one small domain package, then
 audit high-fan-in shared authorities before dependent capabilities, then
-aggregate and distribution forms. `waaseyaa/ai-vector` is the next audit and
-the persistence calibration: it creates its `embeddings` table at runtime
-outside schema authority (#3110; `docs/specs/s1-schema-authority.md`). The
-small domain package is not yet chosen.
+aggregate and distribution forms. `waaseyaa/ai-vector` was the persistence
+calibration, chosen because it created its `embeddings` table at runtime
+outside schema authority (#3110; `docs/specs/s1-schema-authority.md`).
+`waaseyaa/groups` is the small domain package, chosen for its consumer
+evidence in Sheguiandah.
 
 Each audit is its own audit-only change that adds
-`docs/audits/packages/<package>.md` and updates that package's index row.
-Repairs follow as separate, independently reviewed changes.
+`docs/audits/packages/<package>.md`, its structured ledger
+`docs/audits/packages/<package>.ledger.json` and retained probes, and updates
+that package's index row. Repairs follow as separate, independently reviewed
+changes.
+
+Calibration status (2026-09-26): admin-surface was the design case the method
+was built from. ai-vector (#3135, #3137) was the persistence calibration.
+groups, audited at `a4e88e88afb1d2806b12fbc7947d32a1484e8798` on 2026-09-25, is
+the small domain package and the first end-to-end audit with the extracted
+skill and profiles. Its record is not yet committed; it is being condensed
+into the v2 format below before an audit-only change. The next audit should be
+a high-fan-in shared authority, once the condensed groups record shows the v2
+format is reviewable.
+
+## Method v2 (2026-09-26)
+
+The groups audit showed the method is rigorous but doesn't scale to the
+roster. Two-lens verification corrected mechanisms, lowered 12 severities,
+reopened 2 of 65 refutations and surfaced the highest-value cross-package
+security finding. But the run took 121 agents, about 20M subagent tokens and
+4.3 hours for 13 source files, and produced a 2,420-line record against
+ai-vector's 365. It also showed three rule problems: "assessed" required a
+filed issue per finding, which is a publication step; an untested standalone
+`--no-dev` profile kept the audit open even though the gap had an owner; and
+findings owned by relationship, api, access and ai-tools inflated the groups
+ledger.
+
+v2 changes the skill (`.agents/skills/waaseyaa-package-convergence/`):
+
+- **Milestones.** Assessed, repair ready and converged are separate (see
+  "States"). Assessed needs an accountable destination per finding, not an
+  issue.
+- **Tiered verification.** Two independent verifiers for security, medium or
+  higher, and authority or public-surface removals; one verifier for low;
+  grouped sampling for info and documentation gaps; tie-break only on
+  disagreement (`references/audit-orchestration.md`).
+- **Size budget.** The human record stays near 400 lines. Exhaustive rosters,
+  checklist answers, refuted leads and probe metadata move to the structured
+  ledger.
+- **Attribution.** Every finding records the package it was discovered in, the
+  package that owns it, affected consumers, and whether it blocks the
+  assessment. Findings owned elsewhere are intake for that package's audit.
+- **Profile-aware distribution.** Evidence is recorded by class (source,
+  closure artifact, metapackage, installed consumer, standalone split,
+  generated application, native host). A supported profile without evidence is
+  a dispositioned qualification gap, not an open checklist item.
+- **Security triage.** The orchestrator writes the private brief from
+  verified evidence, the record carries a safe summary, and a redaction check
+  runs before the record is final (`references/security-triage.md`).
+- **Scorecard.** Each of the next audits records time, agents, findings by
+  severity, verification reversals, record length, probes retained and open
+  decisions.
+
+Open decision: whether the index should gain dedicated states for "repair
+ready" and "converged". v2 maps them onto the existing states because the
+state vocabulary is pinned by the index test and mirrored in #3118.

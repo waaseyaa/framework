@@ -52,7 +52,7 @@ final class MaintainerSkillsTest extends TestCase
         [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->root);
 
         self::assertSame(0, $exitCode, implode("\n", $output));
-        self::assertSame(['valid waaseyaa-delivery (2 files)', 'valid waaseyaa-package-convergence (11 files)'], $output);
+        self::assertSame(['valid waaseyaa-delivery (2 files)', 'valid waaseyaa-package-convergence (13 files)'], $output);
     }
 
     #[Test]
@@ -65,6 +65,7 @@ final class MaintainerSkillsTest extends TestCase
             '.agents/skills/waaseyaa-delivery/references/ci-repair.md',
             '.agents/skills/waaseyaa-package-convergence/SKILL.md',
             '.agents/skills/waaseyaa-package-convergence/agents/openai.yaml',
+            '.agents/skills/waaseyaa-package-convergence/references/audit-orchestration.md',
             '.agents/skills/waaseyaa-package-convergence/references/audit-record-template.md',
             '.agents/skills/waaseyaa-package-convergence/references/package-audit-checklist.md',
             '.agents/skills/waaseyaa-package-convergence/references/profiles/distribution.md',
@@ -74,6 +75,7 @@ final class MaintainerSkillsTest extends TestCase
             '.agents/skills/waaseyaa-package-convergence/references/profiles/introspection-cli.md',
             '.agents/skills/waaseyaa-package-convergence/references/profiles/kernel-runtime.md',
             '.agents/skills/waaseyaa-package-convergence/references/profiles/persistence-execution.md',
+            '.agents/skills/waaseyaa-package-convergence/references/security-triage.md',
         ], \repositoryFiles($this->root, ['.agents/skills']));
     }
 
