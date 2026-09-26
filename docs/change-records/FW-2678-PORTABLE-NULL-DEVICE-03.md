@@ -252,6 +252,16 @@ could then have been classified posix-only-shell. The repairs:
 
 Its wording nit on exclusivity is applied above.
 
+A last quick check of that repair (`8f8eadb3c..125d8fe38`) found no
+blocking issue and a clean tracked tree. It also found that this record's
+evidence was still bound to superseded code, which is rebound below. Its
+nits are applied:
+
+- a quoted path followed directly by a pipe or `&` is command text;
+- a quoted near-miss (`>"/dev/nullable"`) is pinned as not a redirection;
+- the spec says how a message can quote the anti-pattern;
+- the two residual cases are recorded below.
+
 ## Discriminating evidence
 
 Native Windows 11, PHP 8.5.5, Composer 2.9.5, Windows PowerShell 5.1 (no
@@ -307,17 +317,22 @@ not the reference hosts.
   --version` with stdin `['file', '/dev/null', 'r']` made `proc_open()`
   return `false`. `['null']` and the host-derived descriptor both started it
   (exit 0).
-- **Mutation testing of the gate.** Seventy-two injected mutants were each
-  killed by `PortableNullDeviceGateTest` at `5fb4ded3b`: 69 of the library
+- **Mutation testing of the gate.** Seventy-eight injected mutants were each
+  killed by `PortableNullDeviceGateTest` at `db3f7b8cb`: 75 of the library
   and 3 of the entrypoint. The later commits of this record leave the
   library and tests unchanged. The run used the disposable Linux clone and
   restored every file; the unmutated control passed 19/19. The mutants
   removed or weakened:
-  - the descriptor rule and its `array()` and keyed spellings;
+  - the descriptor rule, its `array()` and keyed spellings, and its
+    embedded-string spelling;
   - the stale, fewer, extra and unmatched occurrence checks;
-  - the purpose check and each purpose shape, including command words, their
-    more-than-one-word rule, quoted and escaped-quoted paths, the
-    diff-header exclusion and the precedence of a header over a redirection;
+  - the purpose check and each purpose shape. For command text that covers
+    command words, the more-than-one-word rule, quoted and escaped-quoted
+    paths, and the required and optional-making mutants of the closing
+    quote. It also covers the word-end rule with its pipe and `&` ends, and
+    the rule that PHP's `=>` is no redirection. Beyond command text it covers
+    the diff-header exclusion and the precedence of a header over a
+    redirection;
   - the duplicate, sort, pattern, directory-symbol and surface checks, and
     each path-spelling check;
   - the count type, symbol, rationale, schema and vocabulary checks;
@@ -348,8 +363,8 @@ not the reference hosts.
     needed the redirection rule, so an unspaced `</dev/null` case was added.
 - **Native Windows contract replay.** Each contract command ran in order
   through its contract PowerShell rendering.
-  - On the final code, `5fb4ded3b`, every step exited 0; `phpunit-architecture`
-    took 19.2 s.
+  - On the final code, `db3f7b8cb`, every step exited 0; `phpunit-architecture`
+    took 19.8 s.
   - The hosted collector's own functions found exactly the expected methods
     for the three PHPUnit commands (59, 13 and 50), with no violation.
   - An earlier replay, at `b10b97e7a`, had one load-induced miss:
@@ -357,7 +372,7 @@ not the reference hosts.
     exceeded its 1.8 s wall-clock bound once (2.22 s). It passed 3/3 in
     isolation and on the rerun, and neither that test nor its subject is
     changed here.
-- **Linux replay (WSL, not Linux acceptance), at `5fb4ded3b`.**
+- **Linux replay (WSL, not Linux acceptance), at `db3f7b8cb`.**
   - Every contract command exited 0 from its argument array, with the same
     exact method sets and no violation.
   - 243/243 passed across the affected architecture classes, including:
@@ -412,7 +427,12 @@ a job-wall cost proxy only, and no billed cost is claimed.
   - The command-text shape cannot tell a shell command from prose, so the
     rationale must say where the command runs. A lone `key=/dev/null`
     argument or environment value (`putenv()`, a `proc_open()` argument)
-    never fits, so such code must take the device from the host.
+    never fits, so such code must take the device from the host. Embedded
+    PHP that concatenates a quoted path (`'/dev/null' . $y`) still looks like
+    a shell word, and a quoted path followed directly by `;` or `)` does not.
+    Both are left to review.
+  - The embedded-descriptor rule also rejects prose that quotes the
+    anti-pattern. Such a message spells the path by construction.
 - It matches the spelling `/dev/null` in string tokens. A path assembled at
   run time (by concatenation, escape sequences or `sprintf`) is outside a
   static guard, and so is a hard-coded `NUL` on POSIX, which Linux CI would
