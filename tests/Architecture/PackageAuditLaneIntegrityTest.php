@@ -188,6 +188,13 @@ final class PackageAuditLaneIntegrityTest extends TestCase
     }
 
     #[Test]
+    public function a_missing_git_root_fails_closed(): void
+    {
+        $this->expectExceptionMessage('is not a directory');
+        \laneIntegritySnapshot([$this->work . '/nowhere'], [], [], self::fakeGit([]));
+    }
+
+    #[Test]
     public function a_directory_inside_another_checkout_is_refused(): void
     {
         $root = $this->work . '/checkout';
@@ -253,6 +260,27 @@ final class PackageAuditLaneIntegrityTest extends TestCase
             $normalized . '/a.txt: content changed',
             $normalized . '/b.txt: content changed',
         ], $changes);
+    }
+
+    #[Test]
+    public function inherited_git_variables_do_not_redirect_the_check(): void
+    {
+        $root = $this->work . '/repo';
+        mkdir($root);
+        self::git($root, ['init', '-q']);
+        file_put_contents($root . '/a.txt', 'one');
+        self::git($root, ['add', 'a.txt']);
+
+        // A hook exports variables like this one; the check must still read this checkout's own index.
+        $previous = getenv('GIT_INDEX_FILE');
+        putenv('GIT_INDEX_FILE=' . $this->work . '/elsewhere.index');
+        try {
+            $state = \laneIntegritySnapshot([$root], [], [], 'laneIntegrityRun')['git'][\laneIntegrityNormalize($root)];
+        } finally {
+            putenv($previous === false ? 'GIT_INDEX_FILE' : 'GIT_INDEX_FILE=' . $previous);
+        }
+
+        self::assertSame(['A  a.txt'], $state['status']);
     }
 
     #[Test]

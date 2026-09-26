@@ -217,6 +217,11 @@ final class PackageAuditLedgerTest extends TestCase
 
             return $l;
         }, 'scorecard names a security finding next to a code location'];
+        yield 'scorecard key tying a security id to code' => [static function (array $l): array {
+            $l['scorecard']['DEMO-SEC-001 in src/Demo.php:4'] = 1;
+
+            return $l;
+        }, 'scorecard names a security finding next to a code location'];
 
         // Decisions and uncertainties say whether they are open.
         yield 'uncertainty without a status' => [static function (array $l): array {
