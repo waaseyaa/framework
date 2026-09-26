@@ -82,6 +82,12 @@ the method's own files (the skill source or installed copies) inside an
 allowed area. A change reported under a shared checkout's refs, worktree list
 or stash can come from another session; confirm before attributing it.
 
+Name a writable temporary directory inside each lane's area in its prompt,
+even for a read-only lane. Agents cache fetched issues and command output in
+files whatever the prompt says: in the groups citation check, eight lanes told
+to write nothing added 83 cache files elsewhere in the scratch directory. The
+check caught it, but only a named place keeps that from stopping a run.
+
 ## Consolidate
 
 One agent merges the lane outputs into the ledger's findings:

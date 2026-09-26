@@ -95,7 +95,38 @@ final class PackageAuditLedgerTest extends TestCase
 
             return $l;
         }, "missing top-level key 'handoffs'"];
-        yield 'short base' => [static fn(array $l): array => ['base' => 'abc123'] + $l, 'base must be a full 40-hex commit id'];
+        yield 'top-level keys out of order' => [static function (array $l): array {
+            $version = $l['schema_version'];
+            unset($l['schema_version']);
+            $l['schema_version'] = $version;
+
+            return $l;
+        }, 'top-level keys must be in the documented order'];
+        yield 'dependency identity reordered' => [static function (array $l): array {
+            $l['dependency_identity'] = ['php' => '8.5.5', 'composer_lock_sha256' => str_repeat('d', 64), 'host' => 'native Windows 11'];
+
+            return $l;
+        }, 'dependency_identity keys must be composer_lock_sha256, php, host, evidence_freshness, consumers, in that order'];
+        yield 'dependency identity with an unknown key' => [static function (array $l): array {
+            $l['dependency_identity']['runner'] = 'local';
+
+            return $l;
+        }, 'dependency_identity keys must be'];
+        yield 'dependency identity consumers not a list' => [static function (array $l): array {
+            $l['dependency_identity'] += ['evidence_freshness' => 'current', 'consumers' => 'Sheg'];
+
+            return $l;
+        }, 'consumers a list'];
+        yield 'converged with an extra key' => [static function (array $l): array {
+            $l['milestone'] = ['assessed' => true, 'repair_ready' => true, 'converged' => ['sha' => str_repeat('a', 40), 'evidence' => 'hosted run', 'by' => 'me'], 'reasons' => []];
+
+            return $l;
+        }, 'milestone.converged must be null or {sha, evidence}'];
+        yield 'short base' => [static function (array $l): array {
+            $l['base'] = 'abc123';
+
+            return $l;
+        }, 'base must be a full 40-hex commit id'];
         yield 'repair ready before assessed' => [static function (array $l): array {
             $l['milestone'] = ['assessed' => false, 'repair_ready' => true, 'converged' => null, 'reasons' => ['one item open']];
 
@@ -255,6 +286,53 @@ final class PackageAuditLedgerTest extends TestCase
             return $l;
         }, 'scorecard.open must give the open decisions and uncertainties'];
         yield 'assessed with a blocking decision open' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'blocks_assessment', true), 'needs decision D1 settled'];
+    }
+
+    #[Test]
+    #[DataProvider('securityLocators')]
+    public function a_security_row_citing_any_code_location_is_reported(string $text): void
+    {
+        $ledger = self::withFinding(self::validLedger(), 'DEMO-SEC-001', static function (array $f) use ($text): array {
+            $f['observed'] = "Withheld, but see $text.";
+
+            return $f;
+        });
+
+        self::assertContains('security finding DEMO-SEC-001: observed cites a code location (a file, line or symbol)', \packageAuditLedgerErrors($ledger));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function securityLocators(): iterable
+    {
+        // A line in any file, whatever its name or extension.
+        foreach (['Dockerfile:12', 'config.xml:12', 'style.css:12', 'query.sql:12', 'script.py:12', 'composer.lock:12', 'src/Sensitive.php:42', 'x.php:40-44', 'bin/waaseyaa:3', 'https://github.com/o/r/blob/main/src/X.php#L12', 'README#L3-L9', 'Makefile line 7', 'x.twig (lines 4-9)', 'README.md line 3', 'notes.txt (lines 2-5)', 'localhost:8080'] as $locator) {
+            yield $locator => [$locator];
+        }
+        // A code file, repository path or symbol without a line.
+        foreach (['the Dockerfile', 'query.sql', 'phpunit.xml.dist', '.env', 'packages/oidc/src/Grant', 'Guard::check()', '$token->refresh('] as $locator) {
+            yield $locator => [$locator];
+        }
+    }
+
+    #[Test]
+    #[DataProvider('benignText')]
+    public function public_wording_that_names_no_code_location_is_accepted(string $text): void
+    {
+        $ledger = self::withFinding(self::validLedger(), 'DEMO-SEC-001', static function (array $f) use ($text): array {
+            $f['notes'] = $text;
+
+            return $f;
+        });
+
+        self::assertSame([], \packageAuditLedgerErrors($ledger));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function benignText(): iterable
+    {
+        foreach (['sha256:3b83ac0f', 'mysql:8.0', 'php:8.5-cli', 'copied at 13:13:04', 'at 2026-09-26T13:13:04', 'a ratio of 3:1', '127.0.0.1:8000', 'v1: two-lens verification', 'owner waaseyaa/oidc', 'external:jonesrussell/sheguiandah-waaseyaa', 'file through SECURITY.md', 'fixed in alpha.302', 'PHP 8.5.5', 'the JSON:API exposure', 'the installation Profile', 'about 2.9M tokens'] as $text) {
+            yield $text => [$text];
+        }
     }
 
     /**

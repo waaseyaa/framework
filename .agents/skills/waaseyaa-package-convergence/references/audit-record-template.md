@@ -189,8 +189,8 @@ is the validator and `tests/Architecture/PackageAuditLedgerTest.php` runs it
 over every committed ledger, together with its record, its coverage-index row
 and its retained probes. Check a draft before it leaves scratch:
 `php bin/lib/package-audit-ledger.php <ledger.json> --record=<record.md> --index=docs/audits/packages/coverage-index.json`.
-Keys and their order are fixed; the validator reports unknown and missing
-keys, wrong types, unknown enum values, dangling references, security leaks
+Keys and their order are fixed, at the top level and in every entry; the
+validator reports unknown, missing and out-of-order keys, wrong types, unknown enum values, dangling references, security leaks
 and record counts that disagree with the ledger.
 
 **Types.** Every text field is a non-empty string, except `notes` (roster,
@@ -200,9 +200,20 @@ name something optional (`decision`, `merged_into`, `consumer_unblock`,
 or text. `verification.performed` is text; `reversals` is a list of strings.
 
 **Security rows.** No string anywhere in a security finding, however nested,
-cites a code file, a line in any file or a symbol (`x.php`, `x.md:12`,
-`x.md#L12`, `Class::method`, `->method(`). No other ledger entry, scorecard string or
-record line names a security ID next to one.
+points at code:
+
+- a line in any file: any name followed by `:12`, `:40-44` or `#L12`
+  (`Dockerfile:12`, `composer.lock:12`, `src/X.php#L12`), or a file name
+  followed by `line 12` or `(lines 40-44)`;
+- a source, script, template, config, lock or build file, by extension or by
+  name (`query.sql`, `phpunit.xml.dist`, `.env`, `Dockerfile`);
+- a repository path under a code root (`packages/`, `src/`, `bin/`, `tests/`,
+  `config/` and similar);
+- a symbol: `Class::method` or `->method(`.
+
+No other ledger entry, scorecard string or record line names a security ID
+next to one. Owner names (`waaseyaa/oidc`), version pins (`mysql:8.0`),
+digests (`sha256:3b83`) and times (`13:13:04`) are not code locations.
 
 **Owner values.** `owned_by` and `owner` hold exactly one name: a Composer
 package name (`waaseyaa/<name>`); `waaseyaa/framework` for the root aggregate,

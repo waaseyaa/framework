@@ -89,10 +89,33 @@ const PACKAGE_AUDIT_LEDGER_OWNER = '#^(waaseyaa/[a-z0-9][a-z0-9-]*|external:[A-Z
 const PACKAGE_AUDIT_LEDGER_FINDING_ID = '#^([A-Z][A-Z0-9]*)-([A-Z]+)-(\d{3})$#';
 const PACKAGE_AUDIT_LEDGER_REFUTED_ID = '#^[A-Z][A-Z0-9]*-R-\d{3}$#';
 const PACKAGE_AUDIT_LEDGER_RETAINED_PROBE = '#^tests/Fixtures/Audits/[A-Za-z0-9]+/[A-Z][A-Z0-9]*-[A-Z]+-\d{3}-[a-z0-9-]+\.php$#';
-/** A file with a line: `x.php:42`, `x.php#L42`, `x.php line 42`, `x.php (lines 40-44)`. */
-const PACKAGE_AUDIT_LEDGER_FILE_LINE = '#[A-Za-z0-9_./-]+\.(?:php|md|js|ts|vue|json|ya?ml|neon|sh)(?::\d+|\#L\d+|,?\s+\(?lines?\s+\d+)#i';
-/** A code file, a static member (`Class::method`) or a method call (`->method(`). */
-const PACKAGE_AUDIT_LEDGER_CODE_REF = '#[A-Za-z0-9_.-]+\.(?:php|js|ts|vue|neon|sh)\b|\b[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*|->[A-Za-z_][A-Za-z0-9_]*\(#';
+/** Build and project files known by name alone. */
+const PACKAGE_AUDIT_LEDGER_NAMED_FILES = 'Dockerfile|Containerfile|Makefile|GNUmakefile|Jenkinsfile|Procfile|Vagrantfile|Gemfile|Rakefile|Brewfile|Caddyfile|Justfile|Podfile|Pipfile|Earthfile|Tiltfile|CODEOWNERS';
+/**
+ * A line in any file: any name containing a letter followed by `:42`, `:40-44`
+ * or `#L42` (`Dockerfile:12`, `composer.lock:12`, `src/X.php#L12`), or a
+ * file-like name followed by `line 42` or `(lines 40-44)`. Digits after the
+ * colon must end the token, so `sha256:3b83`, `mysql:8.0` and `13:13:04` are
+ * not lines.
+ */
+const PACKAGE_AUDIT_LEDGER_FILE_LINE = '#'
+    . '(?<![\w./-])(?=[\w./-]*[A-Za-z])[\w./-]+(?::\d+(?:-\d+)?|\#L\d+(?:-L?\d+)?)(?![\w:]|\.\d)'
+    . '|(?:[\w./-]+\.[A-Za-z0-9]+|[\w.-]*/[\w./-]+|\b(?:' . PACKAGE_AUDIT_LEDGER_NAMED_FILES . '))[,:]?\s+\(?lines?\s+\d+'
+    . '#i';
+/**
+ * A code location without a line: a source, script, template, config, lock or
+ * build file (by extension or by name), a repository path under a code root,
+ * a static member (`Class::method`) or a method call (`->method(`).
+ */
+const PACKAGE_AUDIT_LEDGER_CODE_REF = '#'
+    . '[\w.-]+\.(?:php|phtml|inc|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|rb|go|rs|java|kts?|scala|cs|c|h|cc|cpp|hpp|swift|sh|bash|zsh|ps1|psm1|bat|cmd|sql|twig|neon|xml|xsd|ya?ml|toml|ini|conf|cfg|env|lock|json|css|scss|sass|less|html?|tpl|graphql|gql|proto|dist|properties|gradle|mk)\b'
+    . '|(?<![\w.])\.(?:env|htaccess|user\.ini)\b'
+    . '|\b(?:' . PACKAGE_AUDIT_LEDGER_NAMED_FILES . ')\b'
+    . '|(?<![\w./-])(?:packages|src|bin|tests|public|config|resources|app|lib|vendor|storage|tools|support|skeleton)/[\w./-]+'
+    . '|\b[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*'
+    . '|->[A-Za-z_][A-Za-z0-9_]*\('
+    . '#';
+const PACKAGE_AUDIT_LEDGER_IDENTITY_KEYS = ['composer_lock_sha256', 'php', 'host', 'evidence_freshness', 'consumers'];
 
 /**
  * Structural and internal-consistency problems of one ledger document.
@@ -117,6 +140,9 @@ function packageAuditLedgerErrors(array $ledger): array
     if ($errors !== []) {
         return $errors;
     }
+    if ($keys !== PACKAGE_AUDIT_LEDGER_TOP_KEYS) {
+        $err('top-level keys must be in the documented order: ' . implode(', ', PACKAGE_AUDIT_LEDGER_TOP_KEYS));
+    }
 
     if ($ledger['schema_version'] !== 1) {
         $err('schema_version must be 1');
@@ -137,6 +163,12 @@ function packageAuditLedgerErrors(array $ledger): array
         || !packageAuditLedgerIsText($identity['php'] ?? null) || !packageAuditLedgerIsText($identity['host'] ?? null)
     ) {
         $err('dependency_identity needs composer_lock_sha256 (64 hex), php and host');
+    } elseif (array_keys($identity) !== array_values(array_intersect(PACKAGE_AUDIT_LEDGER_IDENTITY_KEYS, array_keys($identity)))) {
+        $err('dependency_identity keys must be ' . implode(', ', PACKAGE_AUDIT_LEDGER_IDENTITY_KEYS) . ', in that order, the last two optional');
+    } elseif ((array_key_exists('evidence_freshness', $identity) && !packageAuditLedgerIsText($identity['evidence_freshness']))
+        || (array_key_exists('consumers', $identity) && (!is_array($identity['consumers']) || !array_is_list($identity['consumers'])))
+    ) {
+        $err('dependency_identity.evidence_freshness must be text and consumers a list');
     }
 
     $milestone = $ledger['milestone'];
@@ -153,7 +185,7 @@ function packageAuditLedgerErrors(array $ledger): array
         }
         $converged = $milestone['converged'];
         if ($converged !== null) {
-            if (!is_array($converged) || !packageAuditLedgerIsSha($converged['sha'] ?? null) || !packageAuditLedgerIsText($converged['evidence'] ?? null)) {
+            if (!is_array($converged) || array_keys($converged) !== ['sha', 'evidence'] || !packageAuditLedgerIsSha($converged['sha']) || !packageAuditLedgerIsText($converged['evidence'])) {
                 $err('milestone.converged must be null or {sha, evidence}');
             }
             if ($milestone['repair_ready'] !== true) {
