@@ -69,7 +69,7 @@ a security ID to a file here.*
 
 | Item | From | Disposition | Local finding |
 | --- | --- | --- | --- |
-| `<OTHER>-<AREA>-NNN` | *discovering audit* | confirmed / merged / refuted / re-owned | `<PKG>-<AREA>-NNN` or — |
+| `<OTHER>-<AREA>-NNN` | *discovering audit* | confirmed / merged / refuted / re-owned | `<PKG>-<AREA>-NNN` or none |
 
 ## Package findings
 
@@ -128,7 +128,7 @@ classes are defined in the [distribution profile](profiles/distribution.md).*
 | Profile | Supported | Evidence class | Evidence | Gap and owner |
 | --- | --- | --- | --- | --- |
 | kernel composition | yes | closure artifact | *run and job IDs, base, surfaces asserted* | |
-| standalone split | *yes / no / undecided* | — | not run | *gap and owner, or decision* |
+| standalone split | *yes / no / undecided* | none | not run | *gap and owner, or decision* |
 
 ## Profile checklists
 
