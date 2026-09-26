@@ -50,6 +50,27 @@ probes only to scratch, labels synthetic evidence as synthetic, and returns
 structured output with the finding fields from the template, including
 attribution.
 
+## Lane write isolation
+
+A read-only instruction is not a control; in the groups calibration a writer
+agent edited skill files it was told not to touch. Check it mechanically
+around every agent run, with the skill's `scripts/lane-integrity.php`:
+
+1. Before the run, snapshot every checkout and directory the agents can reach,
+   allowing only their output areas:
+   `php <skill>/scripts/lane-integrity.php snapshot --out=<scratch>/integrity.json --git=<audit worktree> --git=<skill source worktree> --git=<each consumer checkout> --tree=<each installed skill copy> --allow=<scratch>`.
+2. After the run: `php <skill>/scripts/lane-integrity.php verify --snapshot=<scratch>/integrity.json`.
+   Exit 0 means nothing changed outside the allowed areas.
+3. On exit 1, stop. Don't use output that depends on the changed paths, find
+   the agent in the transcripts, and report the change to the maintainer.
+   Don't revert it without the maintainer's approval; verify never repairs
+   anything.
+
+Give each lane its own output directory under scratch, and never put the
+method's own files (the skill source or installed copies) inside an allowed
+area. A change reported under a shared checkout's worktree list or stash can
+come from another session; confirm before attributing it.
+
 ## Consolidate
 
 One agent merges the lane outputs into the ledger's findings:
@@ -108,9 +129,9 @@ package's audit.
 - Assemble the structured ledger from the structured lane, verifier and lead
   outputs with a script where possible, then render the human record from the
   ledger within the size budget. Don't hand-write both.
-- One critic checks the finish criteria, the ledger against the template's key
-  list, citations (sample about 8), the size budget and, holding the brief,
-  the redaction rules. At most two repair rounds, each re-checking only the
+- One critic checks the finish criteria, citations (sample about 8), the size
+  budget and, holding the brief, the redaction rules. The ledger's shape is
+  checked by `php bin/lib/package-audit-ledger.php`, not by the critic. At most two repair rounds, each re-checking only the
   repaired items.
 
 ## Scorecard

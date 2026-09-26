@@ -52,7 +52,7 @@ final class MaintainerSkillsTest extends TestCase
         [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->root);
 
         self::assertSame(0, $exitCode, implode("\n", $output));
-        self::assertSame(['valid waaseyaa-delivery (2 files)', 'valid waaseyaa-package-convergence (13 files)'], $output);
+        self::assertSame(['valid waaseyaa-delivery (2 files)', 'valid waaseyaa-package-convergence (14 files)'], $output);
     }
 
     #[Test]
@@ -76,6 +76,7 @@ final class MaintainerSkillsTest extends TestCase
             '.agents/skills/waaseyaa-package-convergence/references/profiles/kernel-runtime.md',
             '.agents/skills/waaseyaa-package-convergence/references/profiles/persistence-execution.md',
             '.agents/skills/waaseyaa-package-convergence/references/security-triage.md',
+            '.agents/skills/waaseyaa-package-convergence/scripts/lane-integrity.php',
         ], \repositoryFiles($this->root, ['.agents/skills']));
     }
 

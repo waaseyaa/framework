@@ -73,7 +73,9 @@ record.
 
 When agents run the audit, size the run before starting: lanes, verification
 tiers and a budget, from [running an audit](references/audit-orchestration.md).
-Start the calibration scorecard at the same time.
+Start the calibration scorecard at the same time, and snapshot every checkout
+the agents can reach with `scripts/lane-integrity.php` before each run; verify
+it after. A run that changed anything outside its output areas stops there.
 
 ### 2. Write the charter
 
@@ -319,7 +321,9 @@ The repository is the record; GitHub mirrors it. One audit-only change adds:
   summarizes: the full roster, every checklist answer, every finding and its
   fields, intake, handoffs, refuted leads, decisions, uncertainties, probe
   metadata, evidence runs and the scorecard. It never holds security
-  specifics.
+  specifics. `bin/lib/package-audit-ledger.php` validates it, and
+  `tests/Architecture/PackageAuditLedgerTest.php` enforces it for every
+  committed ledger; run the validator on the draft before it leaves scratch.
 - Retained probes: the smallest probe for each non-security finding at medium
   or higher (package-owned or cross-package), plus any probe an acceptance
   criterion cites. Use a flat layout,

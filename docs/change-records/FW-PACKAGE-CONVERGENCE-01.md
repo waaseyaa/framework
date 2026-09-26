@@ -207,12 +207,31 @@ v2 changes the skill (`.agents/skills/waaseyaa-package-convergence/`):
   severity, verification reversals, record length, probes retained and open
   decisions.
 
-Open decisions:
+Decisions (maintainer, 2026-09-26, after an independent review of the v2.1
+candidate):
 
-- whether the index should gain states or fields for "repair ready" and
-  "converged" (v2 records them in audit records only, because the state
-  vocabulary is pinned by the index test and mirrored in #3118);
-- the durable private location for security briefs, which the maintainer
-  designates;
-- an architecture test that validates every `*.ledger.json` against the
-  template's key and enum list, before ledgers accumulate.
+- **Index states stay as they are.** Repair ready and converged are recorded in
+  the audit record's header only.
+- **The ledger is an executable contract.** `bin/lib/package-audit-ledger.php`
+  validates a ledger's keys, types, enums, owner values, internal references
+  and security-row rules, and checks it against its record, its coverage-index
+  row and its retained probes. `tests/Architecture/PackageAuditLedgerTest.php`
+  runs it over every committed ledger and seeds each defect class. No ledger
+  lands before this test does.
+- **Lane write isolation is checked, not requested.** The skill ships
+  `scripts/lane-integrity.php`: snapshot every checkout and directory the
+  agents can reach before a run, verify after, and stop on any change outside
+  the allowed output areas. `tests/Architecture/PackageAuditLaneIntegrityTest.php`
+  proves it reports changes and ignores allowed areas.
+- **Security briefs have a designated durable location** outside every
+  repository, with access limited to the maintainer. Records and ledgers
+  don't name it.
+- **v2.1 is ready for one more bounded calibration, not yet proven for the
+  whole roster.** The refinement of the groups audit alone took about 31
+  agents and 8M subagent tokens. The next audit runs with a recorded budget and
+  the projection checkpoint, and its scorecard decides whether the small-package
+  budget (about 50 agents) holds.
+- The skill change and the groups audit-only change are held until these
+  controls are in place, the groups brief is in durable custody, its retained
+  probes run from the repository, and its record and ledger have had an
+  independent review.

@@ -178,6 +178,14 @@ endings, `schema_version` 1. Assemble it from structured agent output with a
 script where possible. Keep it lean: verdicts and corrections, not verifier
 transcripts. It never holds security specifics.
 
+The shape below is enforced, not advisory: `bin/lib/package-audit-ledger.php`
+is the validator and `tests/Architecture/PackageAuditLedgerTest.php` runs it
+over every committed ledger, together with its record, its coverage-index row
+and its retained probes. Check a draft before it leaves scratch:
+`php bin/lib/package-audit-ledger.php <ledger.json> --record=<record.md> --index=docs/audits/packages/coverage-index.json`.
+Keys and their order are fixed; the validator reports unknown and missing
+keys, unknown enum values, dangling references and security-row leaks.
+
 **Owner values.** `owned_by` and `owner` hold exactly one name: a Composer
 package name (`waaseyaa/<name>`); `waaseyaa/framework` for the root aggregate,
 CI and repository tooling; or `external:<repository>` for a downstream
@@ -193,13 +201,14 @@ pending.
 
 | Key | Content |
 | --- | --- |
-| `schema_version`, `package`, `base`, `audit_date`, `dependency_identity` | as in the record header |
+| `schema_version`, `package`, `base`, `audit_date` | as in the record header |
+| `dependency_identity` | `composer_lock_sha256` (the 64-hex lock digest the index row cites), `php`, `host`, and optionally `evidence_freshness` and `consumers` |
 | `milestone` | `assessed` (bool), `repair_ready` (bool), `converged` (null or `{sha, evidence}`), `reasons` (list) |
 | `charter` | `question`, `answer`, `evidence` |
 | `roster` | `file`, `role`, `classification`, `evidence_level`, `notes`, `findings` |
 | `checklists` | `profile`, `item`, `status`, `answer`, `evidence`, `findings` |
 | `intake` | `item`, `from`, `disposition`, `local_finding`, `notes` |
-| `findings` | `id`, `title`, `area`, `severity`, `confidence`, `evidence_level`, `observed`, `expected_contract`, `consequence`, `refutation`, `disposition`, `destination` (`{kind, ref}` list), `dependencies`, `acceptance`, `residual_risk`, `next_action`, `discovered_in`, `owned_by`, `co_owners`, `affected_consumers` (`"withheld"` for security), `blocks_assessment`, `decision` (null or a decision ID), `consumer_unblock` (null, or required / independent / accepted limitation with rationale), `merged_into`, `verification` (`{tier, performed, reversals}`), `probes` (names; a count for security) |
+| `findings` | `id`, `title`, `area`, `severity`, `confidence`, `evidence_level`, `observed`, `expected_contract`, `consequence`, `refutation`, `disposition`, `destination` (`{kind, ref}` list), `dependencies`, `acceptance`, `residual_risk`, `next_action`, `discovered_in`, `owned_by`, `co_owners`, `affected_consumers` (`"withheld"` for security), `blocks_assessment`, `decision` (null or a decision ID), `consumer_unblock` (null, or required / independent / accepted limitation with rationale), `merged_into`, `verification` (`{tier, performed, reversals}`), `probes` (names; a count for security), `notes` |
 | `refuted` | `id`, `lead`, `investigation`, `refutation`, `evidence` |
 | `handoffs` | `id`, `lead`, `owner`, `co_owners`, `affected_consumers`, `issue`, `blocks_assessment` (always false) |
 | `decisions` | `id`, `decision`, `findings`, `what_would_settle_it`, `who_decides` |
