@@ -8,6 +8,12 @@
 
 A modern, entity-first, AI-native content management framework built on PHP 8.5 and Symfony 7.
 
+Framework supplies the reusable engine for Waaseyaa Studio, the open-source
+builder distribution, and independently branded products built on that base.
+See [builder product boundaries](docs/specs/builder-product-boundaries.md) for
+ownership, shared-editor reuse and the extension acceptance target. This
+direction does not imply that the complete builder journey is qualified.
+
 Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture organized as independent Composer packages. Every subsystem — entities, fields, config, caching, routing, access control — is a standalone package with explicit interfaces, no global state, and no hidden coupling.
 
 ## Features
