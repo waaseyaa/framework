@@ -23,12 +23,10 @@
     ]
   },
   "milestone": {
-    "assessed": false,
+    "assessed": true,
     "repair_ready": false,
     "converged": null,
-    "reasons": [
-      "One item is open: moving the private security briefs (GRP-SEC-001 to 005) into the durable private location the maintainer designated on 2026-09-26 (D14), which needs the maintainer's explicit direction because the briefs are sensitive. Every other assessed criterion holds at the base; the audit becomes assessed when the briefs are there."
-    ]
+    "reasons": []
   },
   "charter": [
     {
@@ -4845,7 +4843,9 @@
         "GRP-COMP-002"
       ],
       "what_would_settle_it": "A charter ruling. If supported, S11's hosted groups-alone install boots and writes one membership.",
-      "who_decides": "groups maintainer under #3118 (#2821 for any cli opt-in)"
+      "who_decides": "groups maintainer under #3118 (#2821 for any cli opt-in)",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D2",
@@ -4855,7 +4855,9 @@
         "GRP-TEST-009"
       ],
       "what_would_settle_it": "A ruling stated in the README and access-control.md, then S1's kernel test and S7.",
-      "who_decides": "groups maintainer, with access for the protected-read displacement"
+      "who_decides": "groups maintainer, with access for the protected-read displacement",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D3",
@@ -4865,7 +4867,9 @@
         "GRP-TEST-003"
       ],
       "what_would_settle_it": "A ruling, then S7's field-policy tests.",
-      "who_decides": "groups maintainer"
+      "who_decides": "groups maintainer",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D4",
@@ -4875,7 +4879,9 @@
         "GRP-DOMAIN-002"
       ],
       "what_would_settle_it": "Ratification in the #1627 rescope, then the cross-reader conformance test.",
-      "who_decides": "maintainer, through the #1627 rescope"
+      "who_decides": "maintainer, through the #1627 rescope",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D5",
@@ -4888,7 +4894,9 @@
         "GRP-DOMAIN-002"
       ],
       "what_would_settle_it": "The #2762 design, with the acceptance in the remediation plan.",
-      "who_decides": "#2762 owner"
+      "who_decides": "#2762 owner",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D6",
@@ -4898,7 +4906,9 @@
         "GRP-TEST-010"
       ],
       "what_would_settle_it": "A ruling, then S6 with relationship's GRP-TEST-010.",
-      "who_decides": "groups and relationship maintainers"
+      "who_decides": "groups and relationship maintainers",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D7",
@@ -4909,7 +4919,9 @@
         "GRP-PERSIST-006"
       ],
       "what_would_settle_it": "A layout contract in relationship-modeling.md, then S5 and relationship's GRP-PERSIST-006 fix.",
-      "who_decides": "relationship maintainer, with entity-storage"
+      "who_decides": "relationship maintainer, with entity-storage",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D8",
@@ -4918,7 +4930,9 @@
         "GRP-PERSIST-005"
       ],
       "what_would_settle_it": "A ruling, then S4's table-driven parity test.",
-      "who_decides": "entity maintainer, with groups"
+      "who_decides": "entity maintainer, with groups",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D9",
@@ -4927,7 +4941,9 @@
         "GRP-PUBLIC-001"
       ],
       "what_would_settle_it": "A ruling under the framework @api policy, then S8.",
-      "who_decides": "groups maintainer under #3118"
+      "who_decides": "groups maintainer under #3118",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D10",
@@ -4936,7 +4952,9 @@
         "GRP-LIFECYCLE-001"
       ],
       "what_would_settle_it": "A ruling in the #1627 rescope.",
-      "who_decides": "maintainer, through #1627"
+      "who_decides": "maintainer, through #1627",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D11",
@@ -4946,7 +4964,9 @@
         "GRP-DOCS-002"
       ],
       "what_would_settle_it": "A charter ruling on tenancy and a docs-governance ruling on package CHANGELOGs, then S10.",
-      "who_decides": "groups charter (tenancy); release and docs governance (CHANGELOG files)"
+      "who_decides": "groups charter (tenancy); release and docs governance (CHANGELOG files)",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D12",
@@ -4957,7 +4977,9 @@
         "GRP-LIFECYCLE-002"
       ],
       "what_would_settle_it": "A spec ruling, then S2 pins it.",
-      "who_decides": "groups maintainer (foundation #3123 for the generic message)"
+      "who_decides": "groups maintainer (foundation #3123 for the generic message)",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D13",
@@ -4966,7 +4988,9 @@
         "GRP-LIFECYCLE-003"
       ],
       "what_would_settle_it": "A ruling; S2's test pins the chosen message.",
-      "who_decides": "groups maintainer"
+      "who_decides": "groups maintainer",
+      "status": "open",
+      "resolution": null
     },
     {
       "id": "D14",
@@ -4978,34 +5002,44 @@
         "GRP-SEC-004",
         "GRP-SEC-005"
       ],
-      "what_would_settle_it": "the maintainer directs the move; the briefs and their probe directories are copied to the designated location and the scratch copies removed",
-      "who_decides": "the maintainer"
+      "what_would_settle_it": "The maintainer directs the move; the briefs and their probe directories are copied there and the copy is verified.",
+      "who_decides": "the maintainer",
+      "status": "settled",
+      "resolution": "Settled 2026-09-26: at the maintainer's direction the briefs and their probe directories were copied into the designated private location. A SHA-256 inventory of every file matched the copy, and the directory allows only the maintainer and SYSTEM. The staging originals stay until the audit and its PR are complete."
     },
     {
       "id": "D15",
       "decision": "Does groups claim MySQL or PostgreSQL support? Until it does, the missing server-database evidence is an accepted residual; if it does, a hosted server-database job owns that evidence",
       "findings": [],
       "what_would_settle_it": "A charter ruling; if yes, a waaseyaa/framework CI job with a MySQL and a PostgreSQL service runs the groups suite and the staff policy.",
-      "who_decides": "groups maintainer under #3118"
+      "who_decides": "groups maintainer under #3118",
+      "status": "open",
+      "resolution": null
     }
   ],
   "uncertainties": [
     {
       "id": "U1",
-      "uncertainty": "Settled 2026-09-26: GRP-SEC-005 was verified at tier A by two independent verifiers; owner waaseyaa/oidc; public row in the cross-package table.",
-      "findings": [],
-      "what_would_settle_it": "settled"
+      "uncertainty": "The reserved security lead from v2.1 verification: is it a security finding, and which package owns it?",
+      "findings": [
+        "GRP-SEC-005"
+      ],
+      "what_would_settle_it": "Tier-A verification by two independent verifiers, and one owning package.",
+      "status": "settled",
+      "resolution": "Settled 2026-09-26: it is GRP-SEC-005, verified at tier A by two independent verifiers; owner waaseyaa/oidc; public row in the cross-package table."
     },
     {
       "id": "U2",
-      "uncertainty": "Settled by the skill (distribution profile, 2026-09-26): synthetic probes over a consumer's installed bytes prove byte equivalence and are recorded as reproduced.",
+      "uncertainty": "Does a synthetic probe over a consumer's installed bytes count as reproduced or as qualified evidence?",
       "findings": [
         "GRP-PERSIST-001",
         "GRP-PERSIST-002",
         "GRP-LAYER-002",
         "GRP-ACCESS-004"
       ],
-      "what_would_settle_it": "settled"
+      "what_would_settle_it": "A ruling in the skill's distribution profile.",
+      "status": "settled",
+      "resolution": "Settled by the skill (distribution profile, 2026-09-26): it proves byte equivalence and is recorded as reproduced; it qualifies a profile only through the consumer's own composition root."
     },
     {
       "id": "U3",
@@ -5013,7 +5047,9 @@
       "findings": [
         "GRP-COMP-001"
       ],
-      "what_would_settle_it": "Settled: both hold at different boundaries (GMS alone accepts dangling endpoints; kernels refuse them). Recorded in GRP-COMP-001 and the #1957 rescope."
+      "what_would_settle_it": "Record the boundary in the #1957 rescope, and a hosted kernel test that calls GMS with a missing user and asserts refusal (GRP-COMP-001 acceptance).",
+      "status": "settled",
+      "resolution": "Settled: both hold at different boundaries (GMS alone accepts dangling endpoints; kernels refuse them). Recorded in GRP-COMP-001 and the #1957 rescope."
     },
     {
       "id": "U4",
@@ -5022,13 +5058,17 @@
         "GRP-PERSIST-001",
         "GRP-DOMAIN-001"
       ],
-      "what_would_settle_it": "Settled by the v2.1 tie-breaks: low."
+      "what_would_settle_it": "A tie-break between the two ratings.",
+      "status": "settled",
+      "resolution": "Settled by the v2.1 tie-breaks: low."
     },
     {
       "id": "U5",
       "uncertainty": "v1 lane conflict: roster classification of GroupMembershipService.php and CapabilityScopedStaffDirectoryReadPolicy.php.",
       "findings": [],
-      "what_would_settle_it": "Settled: duplicated or drifting contract for both, with both finding sets linked."
+      "what_would_settle_it": "None needed for the audit if both finding sets are linked to each row.",
+      "status": "settled",
+      "resolution": "Settled: duplicated or drifting contract for both, with both finding sets linked."
     },
     {
       "id": "U6",
@@ -5036,7 +5076,9 @@
       "findings": [
         "GRP-TEST-005"
       ],
-      "what_would_settle_it": "Settled: blob only (GRP-R-065)."
+      "what_would_settle_it": "A read of how the test builds its tables.",
+      "status": "settled",
+      "resolution": "Settled: blob only (GRP-R-065)."
     },
     {
       "id": "U7",
@@ -5045,7 +5087,9 @@
         "GRP-TEST-005",
         "GRP-PERSIST-006"
       ],
-      "what_would_settle_it": "Settled: unreachable in a booted kernel (GRP-PERSIST-006 verification). The supported-layout question is D7."
+      "what_would_settle_it": "A read of the schema assertion and the kernel boot path, and a decision on the supported relationship layouts.",
+      "status": "settled",
+      "resolution": "Settled: unreachable in a booted kernel (GRP-PERSIST-006 verification). The supported-layout question is decision D7."
     },
     {
       "id": "U8",
@@ -5054,13 +5098,17 @@
         "GRP-LIFECYCLE-002",
         "GRP-TEST-006"
       ],
-      "what_would_settle_it": "Open as D12."
+      "what_would_settle_it": "A spec decision on the absent-declaration contract (named exception or dormant reader), then a test pinning it.",
+      "status": "settled",
+      "resolution": "Settled as an evidence question: the behaviour is recorded in GRP-LIFECYCLE-002. Whether it is a defect is decision D12."
     },
     {
       "id": "U9",
       "uncertainty": "v1 lane conflict: workflows' resolveOptional and group constraints.",
       "findings": [],
-      "what_would_settle_it": "Settled: the failure mode is deny (GRP-R-046)."
+      "what_would_settle_it": "A mutant that breaks the service construction, run against the workflows tests.",
+      "status": "settled",
+      "resolution": "Settled: the failure mode is deny (GRP-R-046)."
     },
     {
       "id": "U10",
@@ -5068,7 +5116,9 @@
       "findings": [
         "GRP-LAYER-001"
       ],
-      "what_would_settle_it": "Kept as GRP-LAYER-001; whether behavioural tests count as the control is D6."
+      "what_would_settle_it": "Decide whether the behavioural tests count as the recorded control for an intentional adapter, or require an exception record and an equality test.",
+      "status": "settled",
+      "resolution": "Settled: kept as GRP-LAYER-001. Whether the behavioural tests count as the control is decision D6."
     },
     {
       "id": "U11",
@@ -5076,7 +5126,9 @@
       "findings": [
         "GRP-DOCS-009"
       ],
-      "what_would_settle_it": "GRP-DOCS-009, a root-aggregate governance decision."
+      "what_would_settle_it": "A governance decision on whether un-archived kitty-specs stubs must be closed or linked when a package audit supersedes them.",
+      "status": "settled",
+      "resolution": "Settled: GRP-DOCS-009, owned by the repository root as a governance question."
     },
     {
       "id": "U12",
@@ -5084,7 +5136,9 @@
       "findings": [
         "GRP-DOCS-005"
       ],
-      "what_would_settle_it": "Settled: the sentence is false (GRP-DOCS-005)."
+      "what_would_settle_it": "Run the health check on a kernel with a registered but unsynced group bundle and record what it reports.",
+      "status": "settled",
+      "resolution": "Settled: the sentence is false (GRP-DOCS-005)."
     },
     {
       "id": "U13",
@@ -5092,7 +5146,9 @@
       "findings": [
         "GRP-DIST-001"
       ],
-      "what_would_settle_it": "Settled for the framework closure (#2091); groups-alone is D1."
+      "what_would_settle_it": "Read the #2091 decision and record the profile in the groups charter.",
+      "status": "settled",
+      "resolution": "Settled for the framework closure (#2091); groups-alone is decision D1."
     },
     {
       "id": "U14",
@@ -5100,7 +5156,9 @@
       "findings": [
         "GRP-DIST-002"
       ],
-      "what_would_settle_it": "GRP-DIST-002 (framework CI)."
+      "what_would_settle_it": "A documented refresh cadence or tracking issue for the pin, or a refresh.",
+      "status": "settled",
+      "resolution": "Settled: GRP-DIST-002, owned by the framework CI."
     }
   ],
   "issue_reconciliation": [
@@ -5202,13 +5260,13 @@
     },
     {
       "issue": "#2985 / FW-IMPLEMENTATION-AUTHORITY-2026-09",
-      "claim": "",
+      "claim": "Trace competing implementations and reconcile framework-wide duplication coverage; its note says the #1627 and #1957 absence claims conflict with #2762.",
       "status": "open",
       "evidence": "The #1627/#1957 versus #2762 reconciliation it asked for is done here (GRP-R-062). Disposition: Link this record."
     },
     {
       "issue": "FW-ARCH-2026-08 (A4 #2724, A7 #2727)",
-      "claim": "",
+      "claim": "The framework architecture audit (A4 adapters, A7 synthesis) routes its groups backlog items B01 and B07 to #2762.",
       "status": "closed",
       "evidence": "B01 and B07 still route to #2762. The A4 local report was unavailable. Disposition: Record only."
     },
@@ -5244,7 +5302,7 @@
     },
     {
       "issue": "#2069 / minoo #923; #2091",
-      "claim": "",
+      "claim": "The transitive install of waaseyaa/groups needs a way to opt out of its provider (minoo #923); #2091 made non-core domains opt-in.",
       "status": "closed",
       "evidence": "#2091 decided the default install (GRP-DIST-001). The generic provider opt-out is unowned. Disposition: Hand the opt-out to foundation. Document #2091 in the README."
     },
@@ -5286,7 +5344,7 @@
     },
     {
       "issue": "#1714, #1388, #1630, #1296, #1313, #1315, #1622, #2043, #2064",
-      "claim": "",
+      "claim": "Earlier groups defects and asks: Neutral-reliant view access (#1714), the group_type description definition (#1388), the README stub (#1630) and the extraction-era issues (#1296, #1313, #1315, #1622, #2043, #2064).",
       "status": "closed",
       "evidence": "Resolved (GRP-R-055 to 057, GRP-R-064). The #1630 README has since drifted (GRP-DOCS-005). Disposition: None."
     },
@@ -5298,37 +5356,37 @@
     },
     {
       "issue": "2026-05 L2 content-types audit and stub `l2-harden-groups-01KSEW7E`",
-      "claim": "",
+      "claim": "The 2026-05 L2 content-types audit left a groups hardening stub mission with four suggested work packages.",
       "status": "historical",
       "evidence": "Reconciled WP by WP in GRP-DOCS-009. Disposition: Record only; `kitty-specs/` untouched."
     },
     {
       "issue": "`docs/specs/genealogy-groups-gate.md`",
-      "claim": "",
+      "claim": "groups registers group and group_type only, with no membership entity, membership API or package-owned policy that competes with genealogy authorization.",
       "status": "current spec",
       "evidence": "Trigger (a) fired unrecorded (GRP-DOCS-003). Disposition: Fix under #3118; the genealogy owner records C1."
     },
     {
       "issue": "`docs/specs/extraction-log.md` and the groups history plans",
-      "claim": "",
+      "claim": "The groups extraction left entity-storage follow-ups: the bundle-subtable upsert race and primary-key collisions.",
       "status": "historical",
       "evidence": "The entity-storage follow-ups are unowned. Disposition: Handed to entity-storage."
     },
     {
       "issue": "Sheg #2 / PR #51",
-      "claim": "",
+      "claim": "Restore the clerk directory exclusion set and access matrix; PR #51 excludes no-name system records from the clerk directory.",
       "status": "closed",
       "evidence": "Resolved consumer-side. Disposition: None."
     },
     {
       "issue": "Sheg #187, #297",
-      "claim": "",
+      "claim": "#187 delivered private Chief and Council minutes in the Members Portal; #297 qualifies Sheg's production journeys against its installed framework cohort.",
       "status": "#187 closed, #297 open",
       "evidence": "Consumer evidence. #297 owns Sheg acceptance. Disposition: Hand the Sheg leads to #297."
     },
     {
       "issue": "Sheg #199, #201; Anokii #26, #30",
-      "claim": "",
+      "claim": "Application-owned staff directory and staff-profile work (Sheg #199 and #201: the directory model, authorization, source discovery and public projection; Anokii #26 and #30).",
       "status": "mixed",
       "evidence": "Unrelated (app-owned staff profiles). Disposition: None."
     }
@@ -7036,7 +7094,7 @@
       ]
     },
     "findings": {
-      "total_ids": 55,
+      "total_ids": 56,
       "package_owned_ids": {
         "total": 43,
         "by_severity": {
@@ -7055,14 +7113,15 @@
         "rule": "a grouped row takes its highest member's severity"
       },
       "cross_package": {
-        "total": 12,
+        "total": 13,
         "by_severity": {
           "low": 6,
           "info": 3,
-          "withheld": 3
+          "withheld": 4
         }
       },
-      "reserved_security_leads": 1
+      "reserved_security_leads": 0,
+      "note": "GRP-SEC-005, reserved as a lead during v2.1 verification, became a cross-package finding after tier-A verification."
     },
     "verification_reversals": {
       "v1": {
@@ -7134,15 +7193,15 @@
       }
     },
     "record_and_ledger": {
-      "record_lines": 269,
-      "record_words": 6763,
-      "ledger_bytes": 402934,
+      "record_lines": 264,
+      "record_words": 6500,
+      "ledger_bytes": 485491,
       "v1_record_lines": 2420,
       "v2_record_lines": 392,
       "v2_ledger_bytes": 478007
     },
     "probes": {
-      "public_entries": 107,
+      "public_entries": 143,
       "public_files": 174,
       "files_added_in_v21": 18,
       "security_probe_files": 20,
@@ -7156,12 +7215,8 @@
       ]
     },
     "open": {
-      "decisions": 15,
-      "uncertainties_open": 2,
-      "security_reach_lenses_to_run": [
-        "GRP-SEC-002"
-      ],
-      "retained_probes_to_draft": 5,
+      "decisions": 14,
+      "uncertainties": 0,
       "package_rows_without_filed_issue": {
         "count": 22,
         "of": 31,
@@ -7192,8 +7247,8 @@
         "note": "includes two accepted residuals (GRP-DIST-003, GRP-PERF-001) and GRP-SEC-001, whose private report is not filed"
       },
       "cross_package_without_filed_issue": {
-        "count": 10,
-        "of": 12,
+        "count": 11,
+        "of": 13,
         "ids": [
           "GRP-PERSIST-006",
           "GRP-ACCESS-004",
@@ -7204,7 +7259,8 @@
           "GRP-TEST-014",
           "GRP-SEC-002",
           "GRP-SEC-003",
-          "GRP-SEC-004"
+          "GRP-SEC-004",
+          "GRP-SEC-005"
         ]
       }
     }

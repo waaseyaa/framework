@@ -554,7 +554,7 @@
             "package": "waaseyaa/groups",
             "path": "packages/groups",
             "form": "library",
-            "audit_state": "in progress",
+            "audit_state": "assessed",
             "remediation_state": "not triaged",
             "audit_base": "a4e88e88afb1d2806b12fbc7947d32a1484e8798",
             "audit_date": "2026-09-25",
@@ -578,7 +578,7 @@
                     "path": "tests/Fixtures/Audits/Groups/GRP-TEST-001-capability-gate.php"
                 }
             ],
-            "notes": "In progress: one item open, moving the five private security briefs into the location the maintainer designated (D14). Every other assessed criterion holds at the base; 43 package-owned and 13 cross-package findings, none medium or higher outside the withheld security rows."
+            "notes": "Assessed at the base: 43 package-owned and 13 cross-package findings, none medium or higher outside the withheld security rows; 5 security findings verified at tier A with their briefs in durable private custody (D14). Remediation not triaged; 14 decisions open."
         },
         {
             "package": "waaseyaa/http-client",
