@@ -2379,7 +2379,7 @@
       "observed": "- GMS saves with `validate: false` (`:271`, `:285`, `:317`) and checks only that the group exists.\n- Endpoint existence, type registration and delete integrity come from `RelationshipServiceProvider::boot()` listeners (`packages/relationship/src/RelationshipServiceProvider.php:85-93`).\n- `boot()` returns silently when the dispatcher (`:75-78`) or `EntityTypeManager` (`:80-83`) does not resolve, or when the dispatcher is not the foundation interface. A raw Symfony dispatcher is one example.\n- In the unwired composition the package tests use, three bad writes persist: `addMember(999999)`, `assignContent('no_such_type', 1)` and `assignContent('user', 424242)`.\n- Wired, all three are refused with `InvalidArgumentException`. A delete with edges is refused with `RuntimeException`.\n- `relationship-modeling.md:202` already names GMS as a `validate: false` caller that relies on the validator. GMS's own docblocks (`:34-37`, `:115-122`, `:139-145`) and `content-workflow.md:219` don't.",
       "expected_contract": "GMS's write contract names its dependency and the full refusal set.",
       "consequence": "- Every `AbstractKernel` composition is wired, and those silent returns are unreachable there (`AbstractKernel.php:90`, `:232`; `ProviderRegistryKernelServices.php:84-87`).\n- Exposure is limited to compositions built outside the kernel: in practice the groups, workflows and cli package tests, plus Sheg's `tests/Support/IsolatedMembersHarness.php:90`, which calls `register()` without `boot()`.",
-      "refutation": "#1958/#2560 closed the production gap and chose to centralise validation in the listener. The ledger's \"or validates endpoints itself\" option reopens that decision and is dropped.",
+      "refutation": "#1992/#1993 wired the listener in production; #1958/#2560 proved it wires exactly once and kept GMS's validate:false, with endpoint validation centralised in the listener. The ledger's \"or validates endpoints itself\" option reopens that decision and is dropped.",
       "disposition": "document",
       "destination": [
         {
@@ -2630,7 +2630,7 @@
       "confidence": "confirmed",
       "evidence_level": "reproduced",
       "observed": "- `packages/groups/public-surface.php:11-13` declares only the three staff-directory types.\n- `GroupMembershipService`, `GroupRelationshipTypes` and `GroupProtectedFieldReadPolicy` carry `@api` without a declaration.\n- `StaffDirectoryReader` and `CapabilityScopedStaffDirectoryAccessPolicy` are `@internal`.\n- The other 5 are untagged.\n- `tools/check-surface-parity.php --base=HEAD` passes (768 dispositions).\n- A synthetic run through the real gate libraries showed that renaming or removing an undeclared `@api` symbol passes the gate with no directive. Once the symbol is declared, the same change is blocked.\n- Signature, constructor and constant-value changes pass the gate even for declared symbols (`SurfaceChangeAuthorization.php:111-135`).",
-      "expected_contract": "- `stability-charter.md` §2.4 (`:100-102`) says unclear means provisional, and indefinite ambiguity is a charter violation.\n- `docs/public-surface-map.md:6-7` says unlisted means `@internal`, which contradicts §2.4.\n- The framework-wide `@api` versus declaration policy is #3118's line 67 item. In this repository `@api` is a dead-code \"used by design\" marker (`CLAUDE.md:289-312`), not a stability promise.",
+      "expected_contract": "- `stability-charter.md` §2.4 (`:100-102`) says unclear means provisional, and indefinite ambiguity is a charter violation.\n- `docs/public-surface-map.md:6-7` says unlisted means `@internal`, which contradicts §2.4.\n- The framework-wide `@api` versus declaration policy is #3118's item \"Reconcile source `@api` annotations with declaration maps and consumers\". In this repository `@api` is a dead-code \"used by design\" marker (`CLAUDE.md:289-312`), not a stability promise.",
       "consequence": "- Sheg uses GMS in 3 files (`src/Admin/BandMemberAssignmentSurface.php:25`, `:121`, `:123`, `:158`; `src/Admin/SfnAdminSurfaceHost.php:105`; `src/SiteServiceProvider.php:172`, `:180`) and `GroupRelationshipTypes::MEMBERSHIP` (`src/Members/MemberAccessContext.php:67`).\n- cli and workflows are guarded by monorepo tests.\n- Sheg could break on a composer update with no governed directive.",
       "refutation": "C-16 deliberately leaves concrete classes untracked. But this package already declares two concrete final classes public (`public-surface.php:11-12`), and GMS has no interface to depend on.",
       "disposition": "document",
@@ -2644,10 +2644,10 @@
           "ref": "S8"
         }
       ],
-      "dependencies": "#3118 line 67 (the framework `@api` policy).",
+      "dependencies": "#3118's `@api` reconciliation item (the framework `@api` policy).",
       "acceptance": "a groups governance test modelled on `packages/seo/tests/Unit/Discovery/DiscoverySurfaceGovernanceTest.php:56-58`, `:100-135`, with its monorepo-only skip governed in `tools/phpunit-skip-policy.json`. It:\n- derives subjects from `packages/groups/src`;\n- requires a disposition for every class-level `@api` class;\n- forbids a public declaration for an `@internal` class;\n- requires every declared FQCN to load.\n\nIt fails today on GMS, `GroupRelationshipTypes` and `GroupProtectedFieldReadPolicy`. The README clause moves to GRP-DOCS-005.",
       "residual_risk": "signature-level changes stay ungated even after declaration.",
-      "next_action": "Decide D9 under #3118 line 67, then file S8 with the governance test.",
+      "next_action": "Decide D9 under #3118's `@api` reconciliation item, then file S8 with the governance test.",
       "discovered_in": "waaseyaa/groups",
       "owned_by": "waaseyaa/groups",
       "co_owners": [],
@@ -4508,9 +4508,9 @@
     },
     {
       "id": "GRP-R-059",
-      "lead": "#2069 / minoo #923: the transitive install of waaseyaa/groups is a groups defect",
+      "lead": "minoo #923: the transitive install of waaseyaa/groups is a groups defect",
       "investigation": "Checked require edges and #2091's outcome.",
-      "refutation": "refuted. Not a groups defect: cli and workflows hard-require it and #2091 kept groups in the retained core. The undocumented profile is GRP-DIST-001; the kernel provider opt-out ask is unowned (gaps). Check: sound.",
+      "refutation": "refuted. Not a groups defect: cli and workflows hard-require it and #2091 kept groups in the retained core. The undocumented profile is GRP-DIST-001; a kernel provider opt-out has no owner (H5). Check: sound.",
       "evidence": "packages/cli/composer.json; packages/workflows/composer.json; #2091 comment 2026-07-21; FETDER composer.lock"
     },
     {
@@ -4626,7 +4626,7 @@
     },
     {
       "id": "H5",
-      "lead": "The ask to opt out of transitively installed providers (#2069, minoo #923) has no owner.",
+      "lead": "An opt-out for transitively installed providers has no owner; minoo #923 met the resulting boot collision by renaming its own `group` entity type to `community_group` instead of asking for one.",
       "owner": "waaseyaa/foundation",
       "co_owners": [],
       "affected_consumers": [
@@ -5166,7 +5166,7 @@
       "issue": "#2762",
       "claim": "membership identity atomicity",
       "status": "open (P2, needs-design, beta-blocker)",
-      "evidence": "Still valid; packages/groups/src is unchanged since its evidence SHA 50750231a. Its design input \"a column unique key cannot express the triple\" is wrong: StorageUniqueKey can promote _data fields to columns; the obstacles are type-wide scope and existing duplicates. The v2.1 tie-break adds a D5 input: the mutation-token fence already makes one concurrent removeMember caller throw EntityMutationConflictException, so \"one meaning of idempotent\" either scopes \"both callers return normally\" to the upsert or types that loser outcome. Disposition: keep open; absorb GRP-PERSIST-001 to 004 and GRP-DOMAIN-002 with the two-connection, three-fixture and identifier-form acceptance."
+      "evidence": "Still valid; packages/groups/src is unchanged since its evidence SHA 50750231a. On its \"type-specific unique key/claim\" option: StorageUniqueKey can promote _data fields to columns; the obstacles are type-wide scope and existing duplicates. The v2.1 tie-break adds a D5 input: the mutation-token fence already makes one concurrent removeMember caller throw EntityMutationConflictException, so \"one meaning of idempotent\" either scopes \"both callers return normally\" to the upsert or types that loser outcome. Disposition: keep open; absorb GRP-PERSIST-001 to 004 and GRP-DOMAIN-002 with the two-connection, three-fixture and identifier-form acceptance."
     },
     {
       "issue": "#1627",
@@ -5280,7 +5280,7 @@
       "issue": "#2753",
       "claim": "messaging membership atomicity",
       "status": "open",
-      "evidence": "Sibling with the same root cause; not groups-owned. Disposition: None."
+      "evidence": "A related messaging membership-atomicity defect with a different root cause (a best-effort creator-membership insert whose failure is swallowed after commit); A7 #2727 files it apart from #2762. Not groups-owned. Disposition: None."
     },
     {
       "issue": "#1623",
@@ -5301,8 +5301,8 @@
       "evidence": "The write API and wiring landed. Drift routing is partial (GRP-DOCS-008). Temporal windows are unowned (GRP-DOMAIN-001). Disposition: Owners named in those findings."
     },
     {
-      "issue": "#2069 / minoo #923; #2091",
-      "claim": "The transitive install of waaseyaa/groups needs a way to opt out of its provider (minoo #923); #2091 made non-core domains opt-in.",
+      "issue": "minoo #923; #2091",
+      "claim": "The transitive install of waaseyaa/groups collided at boot with minoo's own `group` entity type, which minoo #923 cleared by renaming minoo's type to `community_group`; #2091 made non-core domains opt-in.",
       "status": "closed",
       "evidence": "#2091 decided the default install (GRP-DIST-001). The generic provider opt-out is unowned. Disposition: Hand the opt-out to foundation. Document #2091 in the README."
     },
@@ -5343,10 +5343,16 @@
       "evidence": "Cross-link for GRP-DIST-002. Disposition: Cross-reference."
     },
     {
-      "issue": "#1714, #1388, #1630, #1296, #1313, #1315, #1622, #2043, #2064",
-      "claim": "Earlier groups defects and asks: Neutral-reliant view access (#1714), the group_type description definition (#1388), the README stub (#1630) and the extraction-era issues (#1296, #1313, #1315, #1622, #2043, #2064).",
+      "issue": "#1714, #1388, #1630, #1296, #1313, #1315, #1622",
+      "claim": "Earlier groups defects and asks: Neutral-reliant view access (#1714), the group_type description definition (#1388), the README stub (#1630) and the extraction-era issues (#1296, #1313, #1315, #1622).",
       "status": "closed",
       "evidence": "Resolved (GRP-R-055 to 057, GRP-R-064). The #1630 README has since drifted (GRP-DOCS-005). Disposition: None."
+    },
+    {
+      "issue": "#2064",
+      "claim": "Fail-closed field reads at the entity boundary, framework-wide; a 2026-07-24 comment sets default read levels for group.name, group_type.label and the group membership relationship fields.",
+      "status": "closed",
+      "evidence": "A framework-wide design delivered before the base, not a groups defect or ask; its only groups content is those defaults. Disposition: None."
     },
     {
       "issue": "#3096 / #3081",
@@ -7194,8 +7200,8 @@
     },
     "record_and_ledger": {
       "record_lines": 264,
-      "record_words": 6500,
-      "ledger_bytes": 485491,
+      "record_words": 6499,
+      "ledger_bytes": 486377,
       "v1_record_lines": 2420,
       "v2_record_lines": 392,
       "v2_ledger_bytes": 478007
