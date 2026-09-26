@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 /**
@@ -32,6 +33,9 @@ use Symfony\Component\Process\Process;
 final class SkeletonDockerSecretExclusionTest extends TestCase
 {
     private const GATE = 'bin/check-skeleton-docker-secret-exclusion';
+
+    /** The gate's host-neutral decision library, which it loads before any mode runs. */
+    private const LIBRARY = 'bin/lib/skeleton-docker-secret-exclusion.php';
 
     /** `bin/check-skeleton-docker-secret-exclusion` exit code for "Docker unavailable". */
     private const EXIT_NO_DOCKER = 3;
@@ -133,11 +137,7 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
     #[Test]
     public function a_broken_launcher_is_never_reported_as_a_missing_docker_daemon(): void
     {
-        $work = sys_get_temp_dir() . '/waaseyaa-2647-winsim-' . bin2hex(random_bytes(6));
-        self::assertTrue(mkdir($work . '/bin', 0o777, true), 'Unable to create the simulation tree.');
-        // The gate only checks that skeleton/ is a directory before reaching the
-        // launcher probe, so an empty one keeps this test free of a tree copy.
-        self::assertTrue(mkdir($work . '/skeleton', 0o777, true));
+        $work = $this->simulationTree('waaseyaa-2647-winsim-');
 
         try {
             $source = (string) file_get_contents($this->repoRoot . '/' . self::GATE);
@@ -174,10 +174,7 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
             self::assertStringContainsString('NOT a statement about Docker', $output);
             self::assertStringNotContainsString('not on PATH', $output);
         } finally {
-            @unlink($work . '/bin/gate');
-            @rmdir($work . '/bin');
-            @rmdir($work . '/skeleton');
-            @rmdir($work);
+            new Filesystem()->remove($work);
         }
     }
 
@@ -199,9 +196,7 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
     #[Test]
     public function a_docker_probe_that_cannot_start_is_never_classified_as_an_unavailable_daemon(): void
     {
-        $work = sys_get_temp_dir() . '/waaseyaa-2647-infosim-' . bin2hex(random_bytes(6));
-        self::assertTrue(mkdir($work . '/bin', 0o777, true), 'Unable to create the simulation tree.');
-        self::assertTrue(mkdir($work . '/skeleton', 0o777, true));
+        $work = $this->simulationTree('waaseyaa-2647-infosim-');
 
         try {
             $source = (string) file_get_contents($this->repoRoot . '/' . self::GATE);
@@ -248,10 +243,7 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
             self::assertStringContainsString('NOT a verdict that Docker is unavailable', $output);
             self::assertStringNotContainsString('no daemon answered', $output);
         } finally {
-            @unlink($work . '/bin/gate');
-            @rmdir($work . '/bin');
-            @rmdir($work . '/skeleton');
-            @rmdir($work);
+            new Filesystem()->remove($work);
         }
     }
 
@@ -313,5 +305,20 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
                 . "`{$exclusion}`, which also matches it.",
             );
         }
+    }
+
+    /**
+     * A throwaway root for a mutated copy of the gate: `bin/` beside the gate's
+     * decision library (the gate loads it before any mode runs) and an empty
+     * `skeleton/`, which is all the gate checks before its launcher probe.
+     */
+    private function simulationTree(string $prefix): string
+    {
+        $work = sys_get_temp_dir() . '/' . $prefix . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($work . '/bin/lib', 0o777, true), 'Unable to create the simulation tree.');
+        self::assertTrue(mkdir($work . '/skeleton', 0o777, true));
+        self::assertTrue(copy($this->repoRoot . '/' . self::LIBRARY, $work . '/' . self::LIBRARY));
+
+        return $work;
     }
 }
