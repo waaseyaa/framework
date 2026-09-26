@@ -318,14 +318,18 @@ The repository is the record; GitHub mirrors it. One audit-only change adds:
   fields, intake, handoffs, refuted leads, decisions, uncertainties, probe
   metadata, evidence runs and the scorecard. It never holds security
   specifics.
-- Retained probes, one per non-security finding recorded as reproduced (the
-  smallest one that shows it), plus any probe an acceptance criterion cites.
-  Use a flat layout, `tests/Fixtures/Audits/<Package>/<FindingID>-<slug>.php`.
-  Each runs from the repository at the base, states its expected exit status,
-  and uses no local consumer paths. Every other probe stays in the ledger with
-  its reproduction command and result. Reproduced evidence never lives only in
-  scratch. A probe that reproduces a security finding stays with the private
-  brief until the fix lands.
+- Retained probes: the smallest probe for each non-security finding at medium
+  or higher (package-owned or cross-package), plus any probe an acceptance
+  criterion cites. Use a flat layout,
+  `tests/Fixtures/Audits/<Package>/<FindingID>-<slug>.php`. Each runs from the
+  repository at the base, states its expected exit status, and uses no local
+  consumer paths. Every other probe stays in the ledger with its purpose,
+  result and a reproduction description, and the finding's evidence level
+  reads "reproduced (probe not retained)"; the repair's failing regression
+  test becomes its durable evidence. A probe that reproduces a security
+  finding stays with the private brief until the fix lands. Retained probes
+  are scanned like any test file (SQLite construction rosters, subprocess and
+  wait contracts), so prefer the framework's test database utilities.
 - The package's row in `docs/audits/packages/coverage-index.json`
   (FW-PACKAGE-CONVERGENCE-01): state, base, audit date, dependency identity,
   owner, evidence and notes. `owner_issue` is the program issue #3118 until a

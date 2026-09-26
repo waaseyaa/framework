@@ -199,9 +199,10 @@ v2 changes the skill (`.agents/skills/waaseyaa-package-convergence/`):
   discovering orchestrator writes the private brief from verified evidence and
   keeps it in durable private custody; the record carries one safe row per
   finding after a redaction check (`references/security-triage.md`).
-- **Probes.** One retained probe per non-security reproduced finding, in a
-  flat layout, runnable from the repository; reproduced evidence never lives
-  only in scratch.
+- **Probes.** Retained probes cover medium-or-higher non-security findings
+  and any probe an acceptance criterion cites, in a flat layout, runnable from
+  the repository. Other probes stay in the ledger with a reproduction
+  description, and their findings read "reproduced (probe not retained)".
 - **Scorecard.** Each of the next audits records time, agents, findings by
   severity, verification reversals, record length, probes retained and open
   decisions.
