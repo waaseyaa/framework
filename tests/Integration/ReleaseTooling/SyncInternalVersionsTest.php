@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 
 require_once __DIR__ . '/../../../bin/lib/internal-version-sync.php';
 
@@ -433,6 +434,105 @@ final class SyncInternalVersionsTest extends TestCase
         self::assertSame($description, $manifest['suggest']['waaseyaa/cli']);
     }
 
+    // ── the bin/sync-internal-versions entrypoint ─────────────────────────────
+    //
+    // The release cut runs this entrypoint on Linux. Its argument validation,
+    // manifest discovery and exit codes are plain PHP, so these tests run the
+    // tracked entrypoint and library bytes from a scratch root on every host
+    // (FW-2678-PORTABLE-DOCKER-RELEASE-04). The scratch root's name contains a
+    // space, and the entrypoint never touches this repository's manifests.
+
+    #[Test]
+    public function the_entrypoint_refuses_a_missing_or_invalid_version_with_exit_1_and_changes_nothing(): void
+    {
+        $root = $this->entrypointRoot([
+            'packages/mypackage/composer.json' => $this->fixtureContent(['waaseyaa/foundation' => '^0.1.0-alpha.150']),
+        ]);
+        $before = (string) file_get_contents($root . '/packages/mypackage/composer.json');
+
+        foreach (
+            [
+                'no argument' => [[], 'Usage: bin/sync-internal-versions <version>'],
+                'empty argument' => [[''], 'Usage: bin/sync-internal-versions <version>'],
+                'dev alias' => [['dev-main'], 'Error: dev-* aliases are not valid release versions: "dev-main".'],
+                'wildcard' => [['0.1.*'], 'Error: Version must not contain wildcard or placeholder characters: "0.1.*".'],
+                'constraint' => [['^0.1.0'], 'Error: Version "^0.1.0" does not match the expected shape'],
+            ] as $case => [$arguments, $message]
+        ) {
+            [$exit, $stdout, $stderr] = $this->runEntrypoint($root, $arguments);
+
+            self::assertSame(1, $exit, "{$case}: {$stdout}{$stderr}");
+            self::assertStringContainsString($message, $stderr, $case);
+            self::assertSame('', $stdout, $case);
+            self::assertSame($before, file_get_contents($root . '/packages/mypackage/composer.json'), $case);
+        }
+    }
+
+    #[Test]
+    public function the_entrypoint_reports_an_empty_manifest_set_and_lock_drift_with_exit_2(): void
+    {
+        $empty = $this->entrypointRoot([]);
+        [$exit, $stdout, $stderr] = $this->runEntrypoint($empty, ['0.1.0-alpha.999']);
+
+        self::assertSame(2, $exit, $stdout . $stderr);
+        self::assertStringContainsString('Error: no composer.json files found to sync under', $stderr);
+        self::assertSame('', $stdout);
+
+        $drifted = $this->entrypointRoot([
+            'packages/agent/composer.json' => json_encode([
+                'name' => 'waaseyaa/agent',
+                'require' => ['php' => '>=8.5', 'waaseyaa/foundation' => '^0.1.0-alpha.150'],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+            'composer.lock' => json_encode([
+                'packages' => [[
+                    'name' => 'waaseyaa/agent',
+                    'version' => 'dev-main',
+                    'require' => ['php' => '>=8.5'],
+                ]],
+                'packages-dev' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        ]);
+        $lock = (string) file_get_contents($drifted . '/composer.lock');
+        [$exit, $stdout, $stderr] = $this->runEntrypoint($drifted, ['0.1.0-alpha.999']);
+
+        self::assertSame(2, $exit, $stdout . $stderr);
+        self::assertStringContainsString(
+            'package waaseyaa/agent has dependency-key drift; regenerate the root lock before release.',
+            $stderr,
+        );
+        self::assertSame($lock, file_get_contents($drifted . '/composer.lock'), 'A refused lock must stay untouched.');
+    }
+
+    #[Test]
+    public function the_entrypoint_syncs_every_discovered_manifest_and_is_idempotent(): void
+    {
+        $root = $this->entrypointRoot([
+            'packages/mypackage/composer.json' => $this->fixtureContent([
+                'waaseyaa/foundation' => '^0.1.0-alpha.150',
+                'waaseyaa/entity' => '^0.1.0-alpha.150',
+            ]),
+            'skeleton/composer.json' => $this->fixtureContent(['waaseyaa/framework' => '^0.1.0-alpha.150']),
+        ]);
+
+        [$exit, $stdout, $stderr] = $this->runEntrypoint($root, ['v0.1.0-alpha.999']);
+
+        self::assertSame(0, $exit, $stdout . $stderr);
+        self::assertSame('', $stderr);
+        self::assertStringStartsWith('Updated 2 file(s)', $stdout);
+        self::assertStringContainsString('version ^0.1.0-alpha.999', $stdout);
+        $package = $this->readManifest($root . '/packages/mypackage/composer.json');
+        self::assertSame('^0.1.0-alpha.999', $package['require']['waaseyaa/foundation']);
+        self::assertSame('^0.1.0-alpha.999', $package['require']['waaseyaa/entity']);
+        self::assertSame(
+            '^0.1.0-alpha.999',
+            $this->readManifest($root . '/skeleton/composer.json')['require']['waaseyaa/framework'],
+        );
+
+        [$exit, $stdout, $stderr] = $this->runEntrypoint($root, ['0.1.0-alpha.999']);
+        self::assertSame(0, $exit, $stdout . $stderr);
+        self::assertStringStartsWith('Updated 0 file(s)', $stdout);
+    }
+
     // ── resolveCurrentVersion (live) ──────────────────────────────────────────
 
     #[Test]
@@ -476,6 +576,47 @@ final class SyncInternalVersionsTest extends TestCase
         }
 
         return $base;
+    }
+
+    /**
+     * A scratch root, whose name contains a space, holding the tracked
+     * entrypoint and library beside the given files. The entrypoint syncs the
+     * root it sits in (`dirname(__DIR__)`), so it never sees this repository.
+     *
+     * @param array<string, string> $files Map of relative path → content.
+     */
+    private function entrypointRoot(array $files): string
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa sync entrypoint ' . bin2hex(random_bytes(6));
+        mkdir($root . '/bin/lib', 0o755, true);
+        $this->tempDirs[] = $root;
+
+        $repository = dirname(__DIR__, 3);
+        copy($repository . '/bin/sync-internal-versions', $root . '/bin/sync-internal-versions');
+        copy($repository . '/bin/lib/internal-version-sync.php', $root . '/bin/lib/internal-version-sync.php');
+
+        foreach ($files as $relative => $content) {
+            if (!is_dir(dirname($root . '/' . $relative))) {
+                mkdir(dirname($root . '/' . $relative), 0o755, true);
+            }
+            file_put_contents($root . '/' . $relative, $content);
+        }
+
+        return $root;
+    }
+
+    /**
+     * @param list<string> $arguments
+     *
+     * @return array{int, string, string}
+     */
+    private function runEntrypoint(string $root, array $arguments): array
+    {
+        $process = new Process([PHP_BINARY, $root . '/bin/sync-internal-versions', ...$arguments], $root);
+        $process->setTimeout(60.0);
+        $exit = $process->run();
+
+        return [$exit, $process->getOutput(), $process->getErrorOutput()];
     }
 
     /**

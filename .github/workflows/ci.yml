@@ -1662,7 +1662,7 @@ jobs:
         id: phpunit-integration
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/integration.junit.xml' '--log-otr' 'build/native-host/integration.otr.xml' 'packages/cli/tests/Integration/ProjectInitProcessTest.php' 'tests/Integration/LocalOperator'
+          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/integration.junit.xml' '--log-otr' 'build/native-host/integration.otr.xml' '--exclude-filter' '/::resolve_current_version_returns_tag_minus_v_prefix\b/' 'packages/cli/tests/Integration/ProjectInitProcessTest.php' 'tests/Integration/LocalOperator' 'tests/Integration/ReleaseTooling/ResolveSplitMainTargetsTest.php' 'tests/Integration/ReleaseTooling/SyncInternalVersionsTest.php'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
@@ -1671,7 +1671,7 @@ jobs:
         id: phpunit-architecture
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/architecture.junit.xml' '--log-otr' 'build/native-host/architecture.otr.xml' '--exclude-filter' '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|composer_hook_scripts_\w+)\b/' 'tests/Architecture/RepositoryGitEntrypointTest.php' 'tests/Architecture/ProjectHooksLauncherTest.php' 'tests/Architecture/SkeletonDockerSecretExclusionTest.php' 'tests/Architecture/PhpunitTempDirGuardTest.php' 'tests/Architecture/NativeHostEvidenceTest.php' 'tests/Architecture/PortableNullDeviceGateTest.php'
+          & 'php' 'vendor/bin/phpunit' '--no-coverage' '--do-not-cache-result' '--fail-on-empty-test-suite' '--fail-on-skipped' '--fail-on-incomplete' '--log-junit' 'build/native-host/architecture.junit.xml' '--log-otr' 'build/native-host/architecture.otr.xml' '--exclude-filter' '/::(the_generated_dotenv_is_excluded_from_the_build_context_the_image_and_every_layer|the_gate_is_executable_and_wired_into_hosted_ci|the_skeleton_dockerignore_excludes_dotenv_while_keeping_the_example|ci_and_release_cut_both_run_the_shape_guard|composer_hook_scripts_\w+)\b/' 'tests/Architecture/RepositoryGitEntrypointTest.php' 'tests/Architecture/ProjectHooksLauncherTest.php' 'tests/Architecture/SkeletonDockerSecretExclusionTest.php' 'tests/Architecture/SkeletonDockerSecretExclusionDecisionsTest.php' 'tests/Architecture/PhpunitTempDirGuardTest.php' 'tests/Architecture/NativeHostEvidenceTest.php' 'tests/Architecture/PortableNullDeviceGateTest.php' 'tests/Architecture/ChangelogFragmentsTest.php' 'tests/Architecture/ChangelogShapeGuardTest.php'
           $exitCode = $LASTEXITCODE
           "exit_code=$exitCode" >> $env:GITHUB_OUTPUT
           exit $exitCode
