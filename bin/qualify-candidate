@@ -115,7 +115,7 @@ function qcHelpText(): string
  */
 function qcRunGit(string $repo, array $arguments): array
 {
-    $descriptors = [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $descriptors = [0 => ['null'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $process = @proc_open(array_merge(['git', '-C', $repo], $arguments), $descriptors, $pipes);
     if (!is_resource($process)) {
         return [2, '', 'qualify-candidate: failed to spawn git'];
@@ -280,7 +280,7 @@ function qcStartComponent(string $repo, string $out, array $component, array $ba
     }
 
     $descriptors = [
-        0 => ['file', '/dev/null', 'r'],
+        0 => ['null'],
         1 => ['file', $logPath, 'a'],
         2 => ['file', $logPath, 'a'],
     ];

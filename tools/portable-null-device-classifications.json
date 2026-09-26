@@ -1,0 +1,133 @@
+{
+    "schema": "waaseyaa.portable_null_device_classifications",
+    "schema_version": 1,
+    "change_record": "FW-2678-PORTABLE-NULL-DEVICE-03",
+    "statement": "Every string literal that spells /dev/null in governed production PHP (all repository PHP except tests and their support code, benchmarks, docs, kitty-specs and vendor) is classified here by file, enclosing symbol and literal, with its exact occurrence count and one purpose; there are no line numbers. A direct proc_open() file descriptor ['file', '/dev/null', ...] is never classifiable, not even inside a host choice or spelled inside a string of PHP code: use the ['null'] descriptor. bin/check-portable-null-device rejects unclassified literals and stale, duplicated, malformed, unsorted or overly broad classifications, and prints the entry or count change an unclassified literal needs. Entries are sorted by file, then symbol, then literal, in byte order.",
+    "purposes": {
+        "platform-derived": "The literal is one side of a host choice made in one statement: that statement also names the Windows NUL device and a Windows host signal (PHP_OS_FAMILY, PHP_OS, DIRECTORY_SEPARATOR, a Windows-named identifier or a string naming Windows). The direction of the choice is not checked.",
+        "semantic-diff-marker": "The literal is unified-diff data, never opened: a --- /dev/null or +++ /dev/null header (a patch stays diff data even when a line it adds redirects), or a bare /dev/null label beside an a/ or b/ label.",
+        "posix-only-shell": "The literal is shell command text that redirects to /dev/null or, in text of more than one word, passes it as a whitespace- or =-delimited word (quoted only as a whole word), with no NUL counterpart, in code that only runs under a POSIX shell: Linux-only CI and governance helpers, forensic audit scripts, or commands Deployer runs on the remote Linux host."
+    },
+    "classifications": [
+        {
+            "file": "bin/build-phpunit-shards",
+            "symbol": "{main}",
+            "literal": " --version 2>/dev/null",
+            "occurrences": 1,
+            "purpose": "posix-only-shell",
+            "rationale": "Discards stderr of the shell_exec() PHPUnit version probe in the shard builder, which runs only in Linux CI (native-host-support.md: host-specific internal CI automation; shard helpers may require a POSIX shell). Where the shell cannot open it, the probe yields nothing and the plan records version unknown."
+        },
+        {
+            "file": "bin/check-skeleton-docker-secret-exclusion",
+            "symbol": "nullDevice",
+            "literal": "/dev/null",
+            "occurrences": 1,
+            "purpose": "platform-derived",
+            "rationale": "nullDevice() returns NUL when the OS family (PHP_OS_FAMILY, or the self-test's argument) is Windows and /dev/null otherwise; every proc_open() stdin in this gate takes it."
+        },
+        {
+            "file": "bin/check-skeleton-docker-secret-exclusion",
+            "symbol": "selfTest",
+            "literal": "/dev/null",
+            "occurrences": 6,
+            "purpose": "platform-derived",
+            "rationale": "The self-test's OS-family oracle ('Windows' => 'NUL' and five POSIX families => /dev/null) and the deliberately foreign device of its negative control, chosen from PHP_OS_FAMILY."
+        },
+        {
+            "file": "bin/check-skeleton-docker-secret-exclusion",
+            "symbol": "selfTest",
+            "literal": "SELF-TEST PASS - null device is platform-derived (Windows NUL, POSIX /dev/null); ",
+            "occurrences": 1,
+            "purpose": "platform-derived",
+            "rationale": "The self-test's pass message names the device of each host; it is printed, never opened."
+        },
+        {
+            "file": "bin/check-stale-spec-deferrals",
+            "symbol": "staleSpecFetchIssue",
+            "literal": " 2>/dev/null",
+            "occurrences": 1,
+            "purpose": "posix-only-shell",
+            "rationale": "Discards gh stderr in the nightly Linux issue-state lookup, a hosted-governance helper that may require a POSIX shell and gh; when the shell command cannot run, the function falls back to the GitHub HTTP API."
+        },
+        {
+            "file": "bin/lib/vendor-freshness.php",
+            "symbol": "vendor_freshness_static_class_data",
+            "literal": "/dev/null",
+            "occurrences": 1,
+            "purpose": "platform-derived",
+            "rationale": "The child's stdin descriptor opens NUL on Windows and /dev/null elsewhere, chosen from PHP_OS_FAMILY."
+        },
+        {
+            "file": "packages/bimaaji/src/Patch/PatchGenerator.php",
+            "symbol": "PatchGenerator::generateAddField",
+            "literal": "--- /dev/null\\n+++ b/",
+            "occurrences": 1,
+            "purpose": "semantic-diff-marker",
+            "rationale": "The unified-diff header of a generated new-file patch: /dev/null is the from-file label, text that is never opened."
+        },
+        {
+            "file": "packages/cli/src/ProjectInit/ProcOpenProjectInitProcessRunner.php",
+            "symbol": "ProcOpenProjectInitProcessRunner::nullInputDevice",
+            "literal": "/dev/null",
+            "occurrences": 1,
+            "purpose": "platform-derived",
+            "rationale": "nullInputDevice() gives every project-init child NUL on Windows and /dev/null elsewhere, chosen from PHP_OS_FAMILY; both capture transports read it."
+        },
+        {
+            "file": "packages/config/src/Sync/ConfigDiffer.php",
+            "symbol": "ConfigDiffer::buildActiveOnlyResult",
+            "literal": "/dev/null",
+            "occurrences": 1,
+            "purpose": "semantic-diff-marker",
+            "rationale": "The to-file label of the unified diff for a configuration present only in the active store (Git's deleted-file convention); text, never opened."
+        },
+        {
+            "file": "packages/config/src/Sync/ConfigDiffer.php",
+            "symbol": "ConfigDiffer::buildSyncOnlyResult",
+            "literal": "/dev/null",
+            "occurrences": 1,
+            "purpose": "semantic-diff-marker",
+            "rationale": "The from-file label of the unified diff for a configuration present only in the sync store (Git's added-file convention); text, never opened."
+        },
+        {
+            "file": "packages/deployer/recipe/waaseyaa.php",
+            "symbol": "{main}",
+            "literal": "rm -f {{deploy_path}}/shared/storage/framework/packages.php 2>/dev/null ",
+            "occurrences": 1,
+            "purpose": "posix-only-shell",
+            "rationale": "Deployer run() executes the waaseyaa:clear-manifest command over SSH on the remote deploy host, a Linux systemd and PHP-FPM server (S1 serving is Linux-only); the redirect discards rm's stderr there."
+        },
+        {
+            "file": "packages/deployer/recipe/waaseyaa.php",
+            "symbol": "{main}",
+            "literal": "|| echo \"INVALIDATED\" > {{deploy_path}}/shared/storage/framework/packages.php 2>/dev/null ",
+            "occurrences": 1,
+            "purpose": "posix-only-shell",
+            "rationale": "The fallback branch of the same waaseyaa:clear-manifest command, run by Deployer on the remote Linux deploy host over SSH."
+        },
+        {
+            "file": "packages/frankenphp/src/Binary/BinaryResolver.php",
+            "symbol": "BinaryResolver::lookupOnPath",
+            "literal": "command -v frankenphp 2>/dev/null",
+            "occurrences": 1,
+            "purpose": "platform-derived",
+            "rationale": "The POSIX side of the host pair whose Windows side is where frankenphp 2>NUL, chosen by $isWindows; the only caller, DevCommand::execute(), derives it from PHP_OS_FAMILY."
+        },
+        {
+            "file": "scripts/layer0_audit/dead_code_candidates.php",
+            "symbol": "{main}",
+            "literal": "cd %s && rg -l --glob \"*.php\" %s packages 2>/dev/null | wc -l",
+            "occurrences": 2,
+            "purpose": "posix-only-shell",
+            "rationale": "A forensic Layer 0 audit script: both reference counts are POSIX pipelines (cd &&, rg, wc -l) run through shell_exec(), and the script resolves only /-rooted paths. It is not a native Windows entrypoint."
+        },
+        {
+            "file": "tools/audit/GenerateLayerAudit.php",
+            "symbol": "runHygieneScan",
+            "literal": "command -v rg 2>/dev/null || true",
+            "occurrences": 1,
+            "purpose": "posix-only-shell",
+            "rationale": "The POSIX command -v probe for ripgrep in the forensic layer-audit generator; where the probe cannot run it yields nothing and the PHP fallback scan runs."
+        }
+    ]
+}

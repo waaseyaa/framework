@@ -432,7 +432,11 @@ strict PHPUnit selection rather than the timing-balanced shards; see
 [native-host-support.md](native-host-support.md). Its locked `composer install`
 is a contract step, so it is not retried: a transient failure is recorded as a
 failed step and the leaf is re-run (its evidence upload overwrites the failed
-attempt's).
+attempt's). Since FW-2678-PORTABLE-NULL-DEVICE-03 one of its gate steps is
+`php bin/check-portable-null-device`, the static guard against a hard-coded
+`/dev/null` in governed production PHP. Its test class,
+`PortableNullDeviceGateTest`, is in the contract's Architecture selection and,
+like every Architecture test, in the timing-balanced Linux shards.
 `ci/skeleton-create-project-windows` (#2644) proves the fresh-project lifecycle — create-project,
 the pre-init verification refusal, `site:init`, `install:init`, and
 `composer site-verify` — on a native Windows development host, where the
