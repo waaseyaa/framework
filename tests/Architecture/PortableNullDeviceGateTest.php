@@ -490,7 +490,7 @@ final class PortableNullDeviceGateTest extends TestCase
             // The device as a word of the command, which a remote POSIX host
             // (Deployer's run()) resolves, never the local one.
             'curl -s -o /dev/null https://example.test', 'GIT_CONFIG_GLOBAL=/dev/null git status', 'git diff --no-index /dev/null b.txt',
-            "curl -s -o '/dev/null' https://example.test",
+            "curl -s -o '/dev/null' https://example.test", 'cmd -o "/dev/null"|tee log', 'cmd -o "/dev/null"&& next',
         ];
         foreach ($fragments as $fragment) {
             // var_export() writes a valid single-quoted literal, escaping any quote.
@@ -506,6 +506,7 @@ final class PortableNullDeviceGateTest extends TestCase
             'an argument word' => "proc_open(['git', '-c', 'core.hooksPath=/dev/null', 'status'], \$descriptors, \$pipes);",
             'an environment value' => "putenv('GIT_CONFIG_GLOBAL=/dev/null');",
             'another path' => "\$path = 'cmd > /dev/nullable';",
+            'another quoted path' => "\$path = 'cmd >\"/dev/nullable\" 2>&1';",
             // PHP or JSON text inside a string is not command text: a quoted
             // path there does not end a shell word, and `=>` is no redirection.
             'an embedded PHP list' => "\$code = <<<'PHP'\n\$devices = ['stdin', '/dev/null'];\nPHP;",

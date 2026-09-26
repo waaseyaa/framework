@@ -256,13 +256,14 @@ function pnd_occurrences(string $path, string $source): array
     // header line (`--- ` or `+++ `, at the start or after a real or escaped
     // newline). Command text may quote the path when the same quote,
     // optionally escaped, closes right after it, and a quoted word must then
-    // end the word; PHP or JSON text inside a string (`, '/dev/null']`,
-    // `"stdin": "/dev/null"}`) is therefore not command text.
+    // end the word (whitespace, a pipe or `&`, or the end); PHP or JSON text
+    // inside a string (`, '/dev/null']`, `"stdin": "/dev/null"}`) is
+    // therefore not command text.
     $spelling = preg_quote(PND_NULL_DEVICE, '#');
     $device = $spelling . '(?![\w/.-])';
     $quoted = '(?<quote>\\\\?[\'"])' . $spelling . '\k<quote>';
     $redirection = '#(?<![=-])(?:[0-9&]?>{1,2}|<)\s*(?:' . $quoted . '|' . $device . ')#';
-    $shellWord = '#(?:^|[\s=])(?:' . $quoted . '(?=\s|$)|' . $device . ')#';
+    $shellWord = '#(?:^|[\s=])(?:' . $quoted . '(?=[\s|&]|$)|' . $device . ')#';
     $diffHeader = '#(?:^|\n|\\\\n)(?:---|\+\+\+) ' . $device . '#';
     // A descriptor spelled inside a string (PHP code for `php -r`, or code a
     // generator writes) is a direct descriptor all the same.

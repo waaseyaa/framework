@@ -365,7 +365,8 @@ that spells `/dev/null`. Comments are documentation and are ignored.
   always rejected, even when a host choice picks between whole descriptors,
   and also when it is spelled inside a string (PHP code for `php -r`, or code
   a generator writes). No classification can accept one; `['null']` is the
-  accepted form.
+  accepted form. A message that must quote the anti-pattern spells the path by
+  construction (`'/dev/' . 'null'`), as the guard's own library does.
 - Every other occurrence must be classified in
   [`tools/portable-null-device-classifications.json`](../../tools/portable-null-device-classifications.json)
   by file, enclosing symbol (`Class::method`, a function, a class,
@@ -382,7 +383,7 @@ that spells `/dev/null`. Comments are documentation and are ignored.
   |---|---|
   | `platform-derived` | The same statement also names the Windows `NUL` device and a Windows host signal: `PHP_OS_FAMILY`, `PHP_OS`, `DIRECTORY_SEPARATOR`, a Windows-named identifier, or a string naming Windows. The choice must be one statement: an `if`/`else` or `switch` spread over statements does not fit. Its direction is not checked, so a deliberately foreign choice (a self-test's negative control) fits too. |
   | `semantic-diff-marker` | Unified-diff data that is never opened: a `--- /dev/null` or `+++ /dev/null` header (a patch stays diff data even when a line it adds redirects), or a bare `/dev/null` label beside an `a/` or `b/` label. The statement has no `NUL` counterpart. |
-  | `posix-only-shell` | Shell command text, not a diff header, that redirects to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`, never PHP's `=>`) or, in text of more than one word, passes it as a whitespace- or `=`-delimited word (`curl -o /dev/null`, `GIT_CONFIG_GLOBAL=/dev/null git`), with no `NUL` counterpart, in code the classification declares POSIX-only. The path may be quoted when the same quote closes right after it, and a quoted word must end there, so PHP or JSON text inside a string is not command text. A bare path or a lone `key=/dev/null` argument or environment value never reaches a shell and does not fit. The shape cannot tell a command from prose, so the rationale must say where the command runs. |
+  | `posix-only-shell` | Shell command text, not a diff header, that redirects to `/dev/null` (`2>`, `>`, `>>`, `&>`, `<`, never PHP's `=>`) or, in text of more than one word, passes it as a whitespace- or `=`-delimited word (`curl -o /dev/null`, `GIT_CONFIG_GLOBAL=/dev/null git`), with no `NUL` counterpart, in code the classification declares POSIX-only. The path may be quoted when the same quote closes right after it, and a quoted word must then end at whitespace, a pipe, `&` or the end of the text, so PHP or JSON text inside a string is not command text. A bare path or a lone `key=/dev/null` argument or environment value never reaches a shell and does not fit. The shape cannot tell a command from prose, so the rationale must say where the command runs. |
 
 - An unclassified literal fails, and so do stale, duplicated, malformed,
   unsorted and overly broad classifications. Stale means the occurrence is gone
