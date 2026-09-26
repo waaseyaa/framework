@@ -351,6 +351,7 @@
                 "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionDecisionsTest::the_positive_control_refuses_a_scan_that_cannot_see_the_leak",
                 "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionDecisionsTest::the_subject_verdict_names_every_leak_and_a_lost_example",
                 "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionDecisionsTest::a_missing_decision_library_fails_closed_in_every_mode",
+                "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionDecisionsTest::the_gate_skips_an_unavailable_daemon_only_with_the_flag",
                 "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionDecisionsTest::the_gate_delegates_every_decision_to_the_tested_library",
                 "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionTest::the_subprocess_runner_is_platform_correct_on_every_host",
                 "Waaseyaa\\Tests\\Architecture\\SkeletonDockerSecretExclusionTest::the_null_device_is_derived_from_the_runtime_not_hard_coded",

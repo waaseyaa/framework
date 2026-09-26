@@ -169,7 +169,7 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
         $dockerfile = implode("\n", [
             'FROM php:8.5-cli-alpine AS base',
             '# COPY .env /app/.env is only a comment',
-            'COPY .env.example /app/.env.example',
+            'COPY .env.example /app/.env',
             'COPY --from=deps /app/.env /app/.env',
             'ADD https://example.test/installer.sh /usr/local/bin/',
             'COPY .env /app/',
@@ -240,26 +240,40 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
         $raw = 'WAASEYAA_SENTINEL_RAW_0123456789abcdef';
         $compressed = 'WAASEYAA_SENTINEL_GZIP_0123456789abcdef';
         $straddling = 'WAASEYAA_SENTINEL_STRADDLE_0123456789abcdef';
+        $windowed = 'WAASEYAA_SENTINEL_WINDOW_0123456789abcdef';
         $absent = 'WAASEYAA_SENTINEL_ABSENT_0123456789abcdef';
 
         file_put_contents($directory . '/layer.tar', "header\0{$raw}\0trailer");
         self::assertSame([$raw], \sdse_scan_file($directory . '/layer.tar', [$absent, $raw]));
 
-        file_put_contents($directory . '/layer.tar.gz', gzencode(str_repeat("padding\n", 64) . $compressed . "\n"));
+        // A gzip member whose header names $raw in plain bytes and whose
+        // compressed stream holds $compressed: the scan reports the union.
+        $payload = str_repeat("padding\n", 64) . $compressed . "\n";
+        file_put_contents(
+            $directory . '/layer.tar.gz',
+            "\x1f\x8b\x08\x08" . pack('V', 0) . "\x00\x03" . $raw . "\x00"
+                . gzdeflate($payload) . pack('V', crc32($payload)) . pack('V', strlen($payload)),
+        );
         self::assertSame(
-            [],
-            \sdse_stream_contains($directory . '/layer.tar.gz', [$compressed]),
+            [$raw],
+            \sdse_stream_contains($directory . '/layer.tar.gz', [$compressed, $raw]),
             'The compressed bytes must not contain the sentinel, or the gzip branch proves nothing.',
         );
-        self::assertSame([$compressed], \sdse_scan_file($directory . '/layer.tar.gz', [$compressed, $absent]));
+        self::assertSame([$raw, $compressed], \sdse_scan_file($directory . '/layer.tar.gz', [$compressed, $raw, $absent]));
 
-        // Ten bytes before the end of the scan's first 1 MiB read, so the
-        // sentinel spans two reads and only the overlap window can find it.
+        // $windowed ends inside the last 512 bytes of the scan's first 1 MiB
+        // read, so the next read sees it again in the overlap and must not
+        // report it twice. $straddling starts ten bytes before the end of that
+        // read, so only the overlap window can find it.
         file_put_contents(
             $directory . '/large.tar',
-            str_repeat('x', (1 << 20) - 10) . $straddling . str_repeat('y', 100) . $raw,
+            str_repeat('x', (1 << 20) - 200) . $windowed . str_repeat('x', 200 - strlen($windowed) - 10)
+                . $straddling . str_repeat('y', 100) . $raw,
         );
-        self::assertSame([$straddling, $raw], \sdse_scan_file($directory . '/large.tar', [$straddling, $raw, $absent]));
+        self::assertSame(
+            [$windowed, $straddling, $raw],
+            \sdse_scan_file($directory . '/large.tar', [$windowed, $straddling, $raw, $absent]),
+        );
 
         self::assertSame([], \sdse_scan_file($directory . '/layer.tar', []));
     }
@@ -268,7 +282,8 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
     public function the_generated_secrets_are_read_exactly_and_refused_when_absent_or_short(): void
     {
         $secret = str_repeat('ab', 32);
-        $env = "APP_NAME=Waaseyaa\nWAASEYAA_JWT_SECRET_PREVIOUS=not-this-one-0123456789\nWAASEYAA_JWT_SECRET={$secret}\n";
+        $env = "APP_NAME=Waaseyaa\nOLD_WAASEYAA_JWT_SECRET=not-this-one-0123456789\n"
+            . "WAASEYAA_JWT_SECRET_PREVIOUS=not-this-one-either-0123\nWAASEYAA_JWT_SECRET={$secret}\n";
 
         self::assertSame($secret, \sdse_generated_value($env, 'WAASEYAA_JWT_SECRET'));
         self::assertSame(
@@ -276,11 +291,12 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
             \sdse_generated_value(str_replace("\n", "\r\n", $env), 'WAASEYAA_JWT_SECRET'),
             'A CRLF .env must yield the same sentinel, without the carriage return.',
         );
+        self::assertSame('0123456789abcdef', \sdse_generated_value("WAASEYAA_APP_SECRET=0123456789abcdef\n", 'WAASEYAA_APP_SECRET'));
 
         foreach (
             [
                 'did not populate WAASEYAA_APP_SECRET' => [$env, 'WAASEYAA_APP_SECRET'],
-                'does not look like generated material' => ["WAASEYAA_APP_SECRET=short\n", 'WAASEYAA_APP_SECRET'],
+                'does not look like generated material' => ["WAASEYAA_APP_SECRET=0123456789abcde\n", 'WAASEYAA_APP_SECRET'],
             ] as $reason => [$input, $key]
         ) {
             try {
@@ -414,6 +430,41 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
         $control->run();
         self::assertSame(0, $control->getExitCode(), $control->getOutput() . $control->getErrorOutput());
         self::assertStringContainsString('SELF-TEST PASS', $control->getOutput());
+    }
+
+    /**
+     * The flag reaches the decision through the real gate: with Docker
+     * unavailable (here a `docker --version` that answers non-zero, simulated
+     * with this PHP binary), the gate fails without --allow-missing-docker and
+     * skips with exit 3 only when the flag is passed.
+     */
+    #[Test]
+    public function the_gate_skips_an_unavailable_daemon_only_with_the_flag(): void
+    {
+        $work = $this->temporaryDirectory();
+        mkdir($work . '/bin/lib', 0o777, true);
+        mkdir($work . '/skeleton');
+        copy(self::$root . '/' . self::LIBRARY, $work . '/' . self::LIBRARY);
+        $source = (string) file_get_contents(self::$root . '/' . self::GATE);
+        $simulated = str_replace("run(['docker', '--version'])", "run([PHP_BINARY, '-r', 'exit(1);'])", $source);
+        self::assertNotSame($source, $simulated, 'The `docker --version` call site could not be substituted.');
+        file_put_contents($work . '/bin/gate', $simulated);
+
+        foreach (
+            [
+                'without the flag' => [[], 2, 'Docker is REQUIRED and unavailable'],
+                'with the flag' => [['--allow-missing-docker'], 3, 'SKIPPED'],
+            ] as $case => [$flags, $exit, $message]
+        ) {
+            $gate = new Process([PHP_BINARY, $work . '/bin/gate', ...$flags], $work);
+            $gate->setTimeout(120.0);
+            $gate->run();
+
+            self::assertSame($exit, $gate->getExitCode(), $case . "\n" . $gate->getOutput() . $gate->getErrorOutput());
+            self::assertStringContainsString($message, $gate->getErrorOutput(), $case);
+            self::assertStringContainsString('did not answer --version', $gate->getErrorOutput(), $case);
+            self::assertSame('', $gate->getOutput(), $case);
+        }
     }
 
     /**
