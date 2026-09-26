@@ -75,7 +75,8 @@ When agents run the audit, size the run before starting: lanes, verification
 tiers and a budget, from [running an audit](references/audit-orchestration.md).
 Start the calibration scorecard at the same time, and snapshot every checkout
 the agents can reach with `scripts/lane-integrity.php` before each run; verify
-it after. A run that changed anything outside its output areas stops there.
+it after. A run that changed anything outside its output areas, or that the
+check can't verify, stops there.
 
 ### 2. Write the charter
 

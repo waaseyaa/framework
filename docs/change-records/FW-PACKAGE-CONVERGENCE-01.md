@@ -223,9 +223,21 @@ candidate):
   agents can reach before a run, verify after, and stop on any change outside
   the allowed output areas. `tests/Architecture/PackageAuditLaneIntegrityTest.php`
   proves it reports changes and ignores allowed areas.
+- **Both controls fail closed.** A second independent review found false
+  greens in the first versions. The lane check turned Git failures into
+  comparable text, compared status lines only (missing a second write to a
+  dirty file), dropped rename sources and trusted size and mtime. The
+  validator skipped types and scanned only a security row's top-level
+  strings. Now a failed Git command, a vanished root or an altered snapshot
+  exits 2; the lane check hashes content; the validator types every field,
+  scans every nested string and every entry that names a security ID, gives
+  decisions and uncertainties an open or settled status, and checks the
+  record's stated counts against the ledger. Each hole has a seeded test.
 - **Security briefs have a designated durable location** outside every
   repository, with access limited to the maintainer. Records and ledgers
-  don't name it.
+  don't name it. The copy into it is verified: a per-file SHA-256 inventory
+  checked against the copy, and the access list checked. The staging
+  originals stay until the audit and its PR are complete.
 - **v2.1 is ready for one more bounded calibration, not yet proven for the
   whole roster.** The refinement of the groups audit alone took about 31
   agents and 8M subagent tokens. The next audit runs with a recorded budget and

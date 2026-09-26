@@ -7,15 +7,15 @@ declare(strict_types=1);
  * ledgers, docs/audits/packages/<package>.ledger.json.
  *
  * Later audits read ledgers mechanically (their intake is every finding and
- * handoff another ledger routes to them), so a malformed key, enum, owner,
- * reference or security row would corrupt them silently. The shape is the one
- * the package-convergence skill's audit record template documents;
+ * handoff another ledger routes to them), so a malformed key, type, enum,
+ * owner, reference or security row would corrupt them silently. The shape is
+ * the one the package-convergence skill's audit record template documents;
  * tests/Architecture/PackageAuditLedgerTest.php runs these checks over every
  * committed ledger and seeds each defect class.
  *
  * Two layers:
  * - packageAuditLedgerErrors(): the document on its own (keys, types, enums,
- *   internal references, security-row redaction rules);
+ *   internal references, security redaction);
  * - packageAuditLedgerRepositoryErrors(): the document against its record, its
  *   coverage-index row and the retained probe files.
  *
@@ -33,12 +33,35 @@ const PACKAGE_AUDIT_LEDGER_TOP_KEYS = [
     'qualification', 'probes', 'evidence_runs', 'not_reviewed', 'host_limits', 'scorecard',
 ];
 
-const PACKAGE_AUDIT_LEDGER_FINDING_KEYS = [
-    'id', 'title', 'area', 'severity', 'confidence', 'evidence_level', 'observed',
-    'expected_contract', 'consequence', 'refutation', 'disposition', 'destination',
-    'dependencies', 'acceptance', 'residual_risk', 'next_action', 'discovered_in',
-    'owned_by', 'co_owners', 'affected_consumers', 'blocks_assessment', 'decision',
-    'consumer_unblock', 'merged_into', 'verification', 'probes', 'notes',
+/*
+ * Field types: text is a non-empty string, text? is null or text, string may be
+ * empty, list is any JSON array, textlist a non-empty list of text, textlist0 a
+ * possibly empty one, object a JSON object, any is checked by its own rule.
+ */
+const PACKAGE_AUDIT_LEDGER_FINDING = [
+    'id' => 'text', 'title' => 'text', 'area' => 'text', 'severity' => 'text', 'confidence' => 'text',
+    'evidence_level' => 'text', 'observed' => 'text', 'expected_contract' => 'text', 'consequence' => 'text',
+    'refutation' => 'text', 'disposition' => 'text', 'destination' => 'list', 'dependencies' => 'text',
+    'acceptance' => 'text', 'residual_risk' => 'text', 'next_action' => 'text', 'discovered_in' => 'text',
+    'owned_by' => 'text', 'co_owners' => 'list', 'affected_consumers' => 'any', 'blocks_assessment' => 'bool',
+    'decision' => 'text?', 'consumer_unblock' => 'text?', 'merged_into' => 'text?', 'verification' => 'object',
+    'probes' => 'any', 'notes' => 'string',
+];
+
+const PACKAGE_AUDIT_LEDGER_SECTIONS = [
+    'charter' => ['question' => 'text', 'answer' => 'text', 'evidence' => 'text'],
+    'roster' => ['file' => 'text', 'role' => 'text', 'classification' => 'text', 'evidence_level' => 'text', 'notes' => 'string', 'findings' => 'list'],
+    'checklists' => ['profile' => 'text', 'item' => 'text', 'status' => 'text', 'answer' => 'text', 'evidence' => 'string', 'findings' => 'list'],
+    'intake' => ['item' => 'text', 'from' => 'text', 'disposition' => 'text', 'local_finding' => 'text?', 'notes' => 'string'],
+    'refuted' => ['id' => 'text', 'lead' => 'text', 'investigation' => 'text', 'refutation' => 'text', 'evidence' => 'text'],
+    'handoffs' => ['id' => 'text', 'lead' => 'text', 'owner' => 'text', 'co_owners' => 'list', 'affected_consumers' => 'textlist', 'issue' => 'text?', 'blocks_assessment' => 'bool'],
+    'decisions' => ['id' => 'text', 'decision' => 'text', 'findings' => 'list', 'what_would_settle_it' => 'text', 'who_decides' => 'text', 'status' => 'text', 'resolution' => 'text?'],
+    'uncertainties' => ['id' => 'text', 'uncertainty' => 'text', 'findings' => 'list', 'what_would_settle_it' => 'text', 'status' => 'text', 'resolution' => 'text?'],
+    'issue_reconciliation' => ['issue' => 'text', 'claim' => 'text', 'status' => 'text', 'evidence' => 'text'],
+    'remediation_plan' => ['slice' => 'text', 'findings' => 'textlist', 'acceptance' => 'text', 'depends_on' => 'textlist0'],
+    'qualification' => ['profile' => 'text', 'supported' => 'text', 'evidence_class' => 'text', 'evidence' => 'text', 'gap_owner' => 'text?'],
+    'probes' => ['name' => 'text', 'purpose' => 'text', 'result' => 'text', 'retained_path' => 'text?', 'reproduce' => 'text'],
+    'evidence_runs' => ['command' => 'text', 'base' => 'text', 'dependency_identity' => 'text', 'runner' => 'text', 'host' => 'text', 'proves' => 'text', 'result' => 'text'],
 ];
 
 const PACKAGE_AUDIT_LEDGER_SEVERITIES = ['critical', 'high', 'medium', 'low', 'info', 'withheld'];
@@ -60,13 +83,16 @@ const PACKAGE_AUDIT_LEDGER_INTAKE_DISPOSITIONS = ['confirmed', 'merged', 'refute
 const PACKAGE_AUDIT_LEDGER_PROFILES = ['primitive-only', 'standalone split', 'kernel composition', 'metapackage', 'framework closure', 'generated application'];
 const PACKAGE_AUDIT_LEDGER_EVIDENCE_CLASSES = ['source', 'closure artifact', 'metapackage', 'installed consumer', 'standalone split', 'generated application', 'none'];
 const PACKAGE_AUDIT_LEDGER_CONSUMER_UNBLOCK = ['required', 'independent', 'accepted limitation'];
+const PACKAGE_AUDIT_LEDGER_OPEN_STATES = ['open', 'settled'];
 
 const PACKAGE_AUDIT_LEDGER_OWNER = '#^(waaseyaa/[a-z0-9][a-z0-9-]*|external:[A-Za-z0-9][A-Za-z0-9._/-]*)$#';
 const PACKAGE_AUDIT_LEDGER_FINDING_ID = '#^([A-Z][A-Z0-9]*)-([A-Z]+)-(\d{3})$#';
 const PACKAGE_AUDIT_LEDGER_REFUTED_ID = '#^[A-Z][A-Z0-9]*-R-\d{3}$#';
 const PACKAGE_AUDIT_LEDGER_RETAINED_PROBE = '#^tests/Fixtures/Audits/[A-Za-z0-9]+/[A-Z][A-Z0-9]*-[A-Z]+-\d{3}-[a-z0-9-]+\.php$#';
-/** A file:line citation, the most direct way public text can localize a security finding. */
-const PACKAGE_AUDIT_LEDGER_FILE_LINE = '#[A-Za-z0-9_./-]+\.(php|md|js|ts|vue|json|ya?ml|neon|sh):\d+#';
+/** A file with a line: `x.php:42`, `x.php#L42`, `x.php line 42`, `x.php (lines 40-44)`. */
+const PACKAGE_AUDIT_LEDGER_FILE_LINE = '#[A-Za-z0-9_./-]+\.(?:php|md|js|ts|vue|json|ya?ml|neon|sh)(?::\d+|\#L\d+|,?\s+\(?lines?\s+\d+)#i';
+/** A code file, a static member (`Class::method`) or a method call (`->method(`). */
+const PACKAGE_AUDIT_LEDGER_CODE_REF = '#[A-Za-z0-9_.-]+\.(?:php|js|ts|vue|neon|sh)\b|\b[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*|->[A-Za-z_][A-Za-z0-9_]*\(#';
 
 /**
  * Structural and internal-consistency problems of one ledger document.
@@ -98,7 +124,6 @@ function packageAuditLedgerErrors(array $ledger): array
     $package = $ledger['package'];
     if (!is_string($package) || preg_match('#^@?waaseyaa/[a-z0-9][a-z0-9-]*$#', $package) !== 1) {
         $err('package must be a waaseyaa package name');
-        $package = '';
     }
     if (!packageAuditLedgerIsSha($ledger['base'])) {
         $err('base must be a full 40-hex commit id');
@@ -142,7 +167,7 @@ function packageAuditLedgerErrors(array $ledger): array
         }
     }
 
-    foreach (['charter', 'roster', 'checklists', 'intake', 'findings', 'refuted', 'handoffs', 'decisions', 'uncertainties', 'issue_reconciliation', 'remediation_plan', 'qualification', 'probes', 'evidence_runs'] as $section) {
+    foreach (['findings', ...array_keys(PACKAGE_AUDIT_LEDGER_SECTIONS)] as $section) {
         if (!is_array($ledger[$section]) || !array_is_list($ledger[$section])) {
             $err("$section must be a list");
 
@@ -154,8 +179,17 @@ function packageAuditLedgerErrors(array $ledger): array
             $err("$section must be a list of strings");
         }
     }
-    if (!is_array($ledger['scorecard']) || $ledger['scorecard'] === [] || array_is_list($ledger['scorecard'])) {
-        $err('scorecard must be a non-empty object');
+
+    // Every entry of every section has exactly its keys, each of its type; only
+    // well-formed entries go on to the semantic checks.
+    $valid = [];
+    foreach (PACKAGE_AUDIT_LEDGER_SECTIONS as $section => $shape) {
+        $valid[$section] = [];
+        foreach ($ledger[$section] as $i => $entry) {
+            if (packageAuditLedgerCheckShape($entry, $shape, "{$section}[$i]", $err)) {
+                $valid[$section][$i] = $entry;
+            }
+        }
     }
 
     // Index the referenceable identifiers first.
@@ -175,26 +209,23 @@ function packageAuditLedgerErrors(array $ledger): array
             $err("findings[$i] has no string id");
         }
     }
-    $decisionIds = packageAuditLedgerIndexIds($ledger['decisions'], '#^D\d+$#', 'decisions', $err);
-    packageAuditLedgerIndexIds($ledger['uncertainties'], '#^U\d+$#', 'uncertainties', $err);
-    packageAuditLedgerIndexIds($ledger['handoffs'], '#^H\d+$#', 'handoffs', $err);
-    $slices = [];
-    foreach ($ledger['remediation_plan'] as $i => $slice) {
-        if (!is_array($slice) || array_keys($slice) !== ['slice', 'findings', 'acceptance', 'depends_on']) {
-            $err("remediation_plan[$i] must have exactly slice, findings, acceptance, depends_on");
-            continue;
+    $decisionIds = packageAuditLedgerIndexIds($valid['decisions'], '#^D\d+$#', 'decisions', $err);
+    packageAuditLedgerIndexIds($valid['uncertainties'], '#^U\d+$#', 'uncertainties', $err);
+    packageAuditLedgerIndexIds($valid['handoffs'], '#^H\d+$#', 'handoffs', $err);
+    $openDecisions = [];
+    foreach ($valid['decisions'] as $decision) {
+        if ($decision['status'] === 'open') {
+            $openDecisions[$decision['id']] = true;
         }
-        if (!packageAuditLedgerIsText($slice['slice']) || isset($slices[$slice['slice']])) {
+    }
+
+    $slices = [];
+    foreach ($valid['remediation_plan'] as $i => $slice) {
+        if (isset($slices[$slice['slice']])) {
             $err("remediation_plan[$i] needs a unique slice name");
             continue;
         }
         $slices[$slice['slice']] = $slice;
-        if (!packageAuditLedgerIsTextList($slice['findings']) || !packageAuditLedgerIsText($slice['acceptance'])
-            || !packageAuditLedgerIsTextList($slice['depends_on'], allowEmpty: true)
-        ) {
-            $err("remediation_plan[{$slice['slice']}] needs findings, acceptance and depends_on");
-            continue;
-        }
         foreach ($slice['findings'] as $ref) {
             if (!isset($findingIds[$ref])) {
                 $err("remediation_plan[{$slice['slice']}] references unknown finding $ref");
@@ -203,37 +234,21 @@ function packageAuditLedgerErrors(array $ledger): array
     }
 
     $refutedIds = [];
-    foreach ($ledger['refuted'] as $i => $lead) {
-        if (!is_array($lead) || array_keys($lead) !== ['id', 'lead', 'investigation', 'refutation', 'evidence']) {
-            $err("refuted[$i] must have exactly id, lead, investigation, refutation, evidence");
-            continue;
-        }
-        if (!is_string($lead['id']) || preg_match(PACKAGE_AUDIT_LEDGER_REFUTED_ID, $lead['id']) !== 1 || isset($refutedIds[$lead['id']])) {
+    foreach ($valid['refuted'] as $i => $lead) {
+        if (preg_match(PACKAGE_AUDIT_LEDGER_REFUTED_ID, $lead['id']) !== 1 || isset($refutedIds[$lead['id']])) {
             $err("refuted[$i] needs a unique <PKG>-R-NNN id");
             continue;
         }
         $refutedIds[$lead['id']] = true;
-        if (!packageAuditLedgerIsText($lead['refutation'])) {
-            $err("refuted {$lead['id']} has no refutation");
-        }
     }
 
-    foreach ($ledger['charter'] as $i => $entry) {
-        if (!is_array($entry) || array_keys($entry) !== ['question', 'answer', 'evidence'] || !packageAuditLedgerIsText($entry['question']) || !packageAuditLedgerIsText($entry['answer'])) {
-            $err("charter[$i] must have a question, an answer and evidence");
-        }
-    }
     if (count($ledger['charter']) < 5) {
         $err('charter must answer at least the five charter questions');
     }
 
     $files = [];
-    foreach ($ledger['roster'] as $i => $row) {
-        if (!is_array($row) || array_keys($row) !== ['file', 'role', 'classification', 'evidence_level', 'notes', 'findings']) {
-            $err("roster[$i] must have exactly file, role, classification, evidence_level, notes, findings");
-            continue;
-        }
-        if (!packageAuditLedgerIsText($row['file']) || isset($files[$row['file']])) {
+    foreach ($valid['roster'] as $i => $row) {
+        if (isset($files[$row['file']])) {
             $err("roster[$i] needs a unique file");
             continue;
         }
@@ -250,16 +265,9 @@ function packageAuditLedgerErrors(array $ledger): array
         $err('roster must list every production file');
     }
 
-    foreach ($ledger['checklists'] as $i => $item) {
-        if (!is_array($item) || array_keys($item) !== ['profile', 'item', 'status', 'answer', 'evidence', 'findings']) {
-            $err("checklists[$i] must have exactly profile, item, status, answer, evidence, findings");
-            continue;
-        }
+    foreach ($valid['checklists'] as $i => $item) {
         if (!in_array($item['status'], PACKAGE_AUDIT_LEDGER_CHECKLIST_STATUSES, true)) {
             $err("checklists[$i]: unknown status");
-        }
-        if (!packageAuditLedgerIsText($item['profile']) || !packageAuditLedgerIsText($item['item']) || !packageAuditLedgerIsText($item['answer'])) {
-            $err("checklists[$i] needs a profile, an item and an answer");
         }
         packageAuditLedgerCheckRefs($item['findings'], "checklists[$i]", $findingIds, $securityIds, $err);
         if ($item['status'] === 'finding' && $item['findings'] === []) {
@@ -267,11 +275,7 @@ function packageAuditLedgerErrors(array $ledger): array
         }
     }
 
-    foreach ($ledger['intake'] as $i => $item) {
-        if (!is_array($item) || array_keys($item) !== ['item', 'from', 'disposition', 'local_finding', 'notes']) {
-            $err("intake[$i] must have exactly item, from, disposition, local_finding, notes");
-            continue;
-        }
+    foreach ($valid['intake'] as $i => $item) {
         if (!in_array($item['disposition'], PACKAGE_AUDIT_LEDGER_INTAKE_DISPOSITIONS, true)) {
             $err("intake[$i]: unknown disposition");
         }
@@ -281,7 +285,7 @@ function packageAuditLedgerErrors(array $ledger): array
     }
 
     foreach ($findingIds as $id => $finding) {
-        packageAuditLedgerCheckFinding($id, $finding, $findingIds, $decisionIds, $slices, $assessed, $err);
+        packageAuditLedgerCheckFinding((string) $id, $finding, $findingIds, $decisionIds, $openDecisions, $slices, $assessed, $err);
     }
     foreach (array_keys($findingIds) as $id) {
         if (isset($refutedIds[$id])) {
@@ -289,15 +293,11 @@ function packageAuditLedgerErrors(array $ledger): array
         }
     }
 
-    foreach ($ledger['handoffs'] as $i => $handoff) {
-        if (!is_array($handoff) || array_keys($handoff) !== ['id', 'lead', 'owner', 'co_owners', 'affected_consumers', 'issue', 'blocks_assessment']) {
-            $err("handoffs[$i] must have exactly id, lead, owner, co_owners, affected_consumers, issue, blocks_assessment");
-            continue;
-        }
+    foreach ($valid['handoffs'] as $handoff) {
         if (!packageAuditLedgerIsOwner($handoff['owner'])) {
             $err("handoff {$handoff['id']}: owner must be one package name in owner format");
         }
-        if (!is_array($handoff['co_owners']) || array_filter($handoff['co_owners'], static fn(mixed $o): bool => !packageAuditLedgerIsOwner($o)) !== []) {
+        if (array_filter($handoff['co_owners'], static fn(mixed $o): bool => !packageAuditLedgerIsOwner($o)) !== []) {
             $err("handoff {$handoff['id']}: co_owners must be owner-format names");
         }
         if ($handoff['blocks_assessment'] !== false) {
@@ -305,73 +305,73 @@ function packageAuditLedgerErrors(array $ledger): array
         }
     }
 
-    foreach (['decisions' => ['id', 'decision', 'findings', 'what_would_settle_it', 'who_decides'], 'uncertainties' => ['id', 'uncertainty', 'findings', 'what_would_settle_it']] as $section => $shape) {
-        foreach ($ledger[$section] as $i => $entry) {
-            if (!is_array($entry) || array_keys($entry) !== $shape) {
-                $err("{$section}[$i] must have exactly " . implode(', ', $shape));
-                continue;
+    $open = ['decisions' => 0, 'uncertainties' => 0];
+    foreach (['decisions', 'uncertainties'] as $section) {
+        foreach ($valid[$section] as $entry) {
+            packageAuditLedgerCheckRefs($entry['findings'], "$section {$entry['id']}", $findingIds, [], $err);
+            if (!in_array($entry['status'], PACKAGE_AUDIT_LEDGER_OPEN_STATES, true)) {
+                $err("$section {$entry['id']}: status must be open or settled");
+            } elseif ($entry['status'] === 'open' && $entry['resolution'] !== null) {
+                $err("$section {$entry['id']}: an open entry has no resolution yet");
+            } elseif ($entry['status'] === 'settled' && $entry['resolution'] === null) {
+                $err("$section {$entry['id']}: a settled entry needs its resolution");
             }
-            packageAuditLedgerCheckRefs($entry['findings'], "{$section} {$entry['id']}", $findingIds, [], $err);
+            if ($entry['status'] === 'open') {
+                $open[$section]++;
+            }
         }
     }
 
-    foreach ($ledger['issue_reconciliation'] as $i => $entry) {
-        if (!is_array($entry) || array_keys($entry) !== ['issue', 'claim', 'status', 'evidence']) {
-            $err("issue_reconciliation[$i] must have exactly issue, claim, status, evidence");
-        }
-    }
-
-    foreach ($ledger['qualification'] as $i => $entry) {
-        if (!is_array($entry) || array_keys($entry) !== ['profile', 'supported', 'evidence_class', 'evidence', 'gap_owner']) {
-            $err("qualification[$i] must have exactly profile, supported, evidence_class, evidence, gap_owner");
-            continue;
-        }
-        $profile = is_string($entry['profile']) ? preg_replace('# \(.*\)$#', '', $entry['profile']) : null;
+    foreach ($valid['qualification'] as $i => $entry) {
+        $profile = preg_replace('# \(.*\)$#', '', $entry['profile']);
         if (!in_array($profile, PACKAGE_AUDIT_LEDGER_PROFILES, true)) {
             $err("qualification[$i]: unknown installation profile");
         }
         if (!in_array($entry['evidence_class'], PACKAGE_AUDIT_LEDGER_EVIDENCE_CLASSES, true)) {
             $err("qualification[$i]: unknown evidence class");
         }
-        if ($entry['evidence_class'] === 'source' && str_starts_with((string) $entry['evidence'], 'qualified')) {
+        if ($entry['evidence_class'] === 'source' && str_starts_with($entry['evidence'], 'qualified')) {
             $err("qualification[$i]: source evidence is never qualified");
         }
-        if (is_string($entry['supported']) && str_starts_with($entry['supported'], 'yes') && $entry['evidence_class'] === 'none' && !packageAuditLedgerIsText($entry['gap_owner'])) {
+        if (str_starts_with($entry['supported'], 'yes') && $entry['evidence_class'] === 'none' && $entry['gap_owner'] === null) {
             $err("qualification[$i]: a supported profile without evidence needs a gap owner");
         }
     }
 
-    foreach ($ledger['probes'] as $i => $probe) {
-        if (!is_array($probe) || array_keys($probe) !== ['name', 'purpose', 'result', 'retained_path', 'reproduce']) {
-            $err("probes[$i] must have exactly name, purpose, result, retained_path, reproduce");
-            continue;
-        }
-        if ($probe['retained_path'] !== null && (!is_string($probe['retained_path']) || preg_match(PACKAGE_AUDIT_LEDGER_RETAINED_PROBE, $probe['retained_path']) !== 1)) {
+    foreach ($valid['probes'] as $i => $probe) {
+        if ($probe['retained_path'] !== null && preg_match(PACKAGE_AUDIT_LEDGER_RETAINED_PROBE, $probe['retained_path']) !== 1) {
             $err("probes[$i]: retained_path must be tests/Fixtures/Audits/<Package>/<FindingID>-<slug>.php");
         }
     }
 
-    foreach ($ledger['evidence_runs'] as $i => $run) {
-        if (!is_array($run) || array_keys($run) !== ['command', 'base', 'dependency_identity', 'runner', 'host', 'proves', 'result']) {
-            $err("evidence_runs[$i] must have exactly command, base, dependency_identity, runner, host, proves, result");
+    $scorecard = $ledger['scorecard'];
+    if (!is_array($scorecard) || $scorecard === [] || array_is_list($scorecard)) {
+        $err('scorecard must be a non-empty object');
+    } elseif (!is_array($scorecard['open'] ?? null) || !is_int($scorecard['open']['decisions'] ?? null) || !is_int($scorecard['open']['uncertainties'] ?? null)) {
+        $err('scorecard.open must give the open decisions and uncertainties as counts');
+    } else {
+        foreach ($open as $section => $count) {
+            if ($scorecard['open'][$section] !== $count) {
+                $err("scorecard.open.$section is {$scorecard['open'][$section]} but $count $section are open");
+            }
         }
     }
+
+    packageAuditLedgerCheckNeighbours($ledger, $securityIds, $err);
 
     return $errors;
 }
 
 /**
- * @param array<string, mixed> $finding
  * @param array<string, mixed> $findingIds
  * @param array<string, true> $decisionIds
+ * @param array<string, true> $openDecisions
  * @param array<string, array<mixed>> $slices
  * @param callable(string): void $err
  */
-function packageAuditLedgerCheckFinding(string $id, mixed $finding, array $findingIds, array $decisionIds, array $slices, bool $assessed, callable $err): void
+function packageAuditLedgerCheckFinding(string $id, mixed $finding, array $findingIds, array $decisionIds, array $openDecisions, array $slices, bool $assessed, callable $err): void
 {
-    if (!is_array($finding) || array_keys($finding) !== PACKAGE_AUDIT_LEDGER_FINDING_KEYS) {
-        $err("finding $id must have exactly the template's keys, in order");
-
+    if (!packageAuditLedgerCheckShape($finding, PACKAGE_AUDIT_LEDGER_FINDING, "finding $id", $err)) {
         return;
     }
     if (preg_match(PACKAGE_AUDIT_LEDGER_FINDING_ID, $id, $m) !== 1) {
@@ -379,11 +379,9 @@ function packageAuditLedgerCheckFinding(string $id, mixed $finding, array $findi
 
         return;
     }
+    $security = packageAuditLedgerIsSecurity($finding);
     if ($finding['area'] !== $m[2]) {
         $err("finding $id: area must match the id's area segment");
-    }
-    if (!packageAuditLedgerIsText($finding['title'])) {
-        $err("finding $id has no title");
     }
     foreach (['severity' => PACKAGE_AUDIT_LEDGER_SEVERITIES, 'confidence' => PACKAGE_AUDIT_LEDGER_CONFIDENCE, 'evidence_level' => PACKAGE_AUDIT_LEDGER_LEVELS] as $key => $allowed) {
         if (!in_array($finding[$key], $allowed, true)) {
@@ -393,24 +391,23 @@ function packageAuditLedgerCheckFinding(string $id, mixed $finding, array $findi
     if (!packageAuditLedgerIsOwner($finding['discovered_in']) || !packageAuditLedgerIsOwner($finding['owned_by'])) {
         $err("finding $id: discovered_in and owned_by must each be one owner-format name");
     }
-    if (!is_array($finding['co_owners']) || !array_is_list($finding['co_owners'])
-        || array_filter($finding['co_owners'], static fn(mixed $o): bool => !packageAuditLedgerIsOwner($o)) !== []
+    if (array_filter($finding['co_owners'], static fn(mixed $o): bool => !packageAuditLedgerIsOwner($o)) !== []
         || in_array($finding['owned_by'], $finding['co_owners'], true)
     ) {
         $err("finding $id: co_owners must be owner-format names other than owned_by");
     }
-    if (!is_bool($finding['blocks_assessment'])) {
-        $err("finding $id: blocks_assessment must be a boolean");
-    }
     if ($finding['decision'] !== null && !isset($decisionIds[$finding['decision']])) {
         $err("finding $id references unknown decision {$finding['decision']}");
     }
-    if ($finding['blocks_assessment'] === true && $finding['decision'] === null) {
-        $err("finding $id blocks the assessment but names no maintainer decision");
+    if ($finding['blocks_assessment'] === true) {
+        if ($finding['decision'] === null) {
+            $err("finding $id blocks the assessment but names no maintainer decision");
+        } elseif ($assessed && isset($openDecisions[$finding['decision']])) {
+            $err("finding $id blocks the assessment, so an assessed ledger needs decision {$finding['decision']} settled");
+        }
     }
     if ($finding['consumer_unblock'] !== null) {
-        $marking = is_string($finding['consumer_unblock']) ? $finding['consumer_unblock'] : '';
-        $known = array_filter(PACKAGE_AUDIT_LEDGER_CONSUMER_UNBLOCK, static fn(string $v): bool => str_starts_with($marking, $v));
+        $known = array_filter(PACKAGE_AUDIT_LEDGER_CONSUMER_UNBLOCK, static fn(string $v): bool => str_starts_with($finding['consumer_unblock'], $v));
         if ($known === []) {
             $err("finding $id: consumer_unblock must be null or start with required, independent or accepted limitation");
         }
@@ -425,9 +422,8 @@ function packageAuditLedgerCheckFinding(string $id, mixed $finding, array $findi
     }
 
     $destination = $finding['destination'];
-    if (!is_array($destination) || $destination === [] || !array_is_list($destination)) {
+    if ($destination === []) {
         $err("finding $id needs at least one destination");
-        $destination = [];
     }
     foreach ($destination as $d) {
         if (!is_array($d) || array_keys($d) !== ['kind', 'ref'] || !in_array($d['kind'], PACKAGE_AUDIT_LEDGER_DESTINATION_KINDS, true) || !packageAuditLedgerIsText($d['ref'])) {
@@ -448,49 +444,100 @@ function packageAuditLedgerCheckFinding(string $id, mixed $finding, array $findi
     }
 
     $verification = $finding['verification'];
-    if (!is_array($verification) || array_keys($verification) !== ['tier', 'performed', 'reversals'] || !in_array($verification['tier'], PACKAGE_AUDIT_LEDGER_TIERS, true) || !is_array($verification['reversals'])) {
-        $err("finding $id: verification must be {tier, performed, reversals} with a known tier");
-    } else {
-        if ($assessed && $verification['tier'] === 'pending') {
+    if (packageAuditLedgerCheckShape($verification, ['tier' => 'text', 'performed' => 'text', 'reversals' => 'textlist0'], "finding $id: verification", $err)) {
+        if (!in_array($verification['tier'], PACKAGE_AUDIT_LEDGER_TIERS, true)) {
+            $err("finding $id: verification.tier must be A, B, C or pending");
+        } elseif ($assessed && $verification['tier'] === 'pending') {
             $err("finding $id: an assessed ledger can't hold unverified findings");
-        }
-        $raised = in_array($finding['severity'], ['critical', 'high', 'medium'], true);
-        if (($raised || packageAuditLedgerIsSecurity($finding)) && $verification['tier'] !== 'A' && $verification['tier'] !== 'pending') {
+        } elseif (($security || in_array($finding['severity'], ['critical', 'high', 'medium'], true)) && !in_array($verification['tier'], ['A', 'pending'], true)) {
             $err("finding $id: security and medium-or-higher findings need tier A");
         }
     }
 
-    if (packageAuditLedgerIsSecurity($finding)) {
-        if ($finding['severity'] !== 'withheld') {
-            $err("security finding $id: public severity must be withheld");
-        }
-        if ($finding['affected_consumers'] !== 'withheld') {
-            $err("security finding $id: affected_consumers must be withheld");
-        }
-        if ($finding['co_owners'] !== []) {
-            $err("security finding $id: co-owners stay in the private brief");
-        }
-        if (!is_int($finding['probes'])) {
-            $err("security finding $id: probes must be a count, not names");
-        }
-        if (array_filter($destination, static fn(mixed $d): bool => is_array($d) && ($d['kind'] ?? null) === 'private-report') === []) {
-            $err("security finding $id: destination must include a private report");
-        }
-        foreach (['title', 'observed', 'expected_contract', 'consequence', 'refutation', 'acceptance', 'residual_risk', 'next_action', 'notes', 'dependencies'] as $field) {
-            if (is_string($finding[$field]) && preg_match(PACKAGE_AUDIT_LEDGER_FILE_LINE, $finding[$field]) === 1) {
-                $err("security finding $id: $field cites a file:line");
-            }
-        }
-    } else {
+    if (!$security) {
         if ($finding['severity'] === 'withheld') {
             $err("finding $id: only security findings are withheld");
         }
-        $consumers = $finding['affected_consumers'];
-        if (!packageAuditLedgerIsTextList($consumers)) {
+        if (!packageAuditLedgerIsTextList($finding['affected_consumers'])) {
             $err("finding $id: affected_consumers must be a non-empty list (write \"none\" when none)");
         }
-        if (!is_array($finding['probes']) || !array_is_list($finding['probes'])) {
+        if (!packageAuditLedgerIsTextList($finding['probes'], allowEmpty: true)) {
             $err("finding $id: probes must be a list of names");
+        }
+
+        return;
+    }
+
+    if ($finding['severity'] !== 'withheld') {
+        $err("security finding $id: public severity must be withheld");
+    }
+    if ($finding['affected_consumers'] !== 'withheld') {
+        $err("security finding $id: affected_consumers must be withheld");
+    }
+    if ($finding['co_owners'] !== []) {
+        $err("security finding $id: co-owners stay in the private brief");
+    }
+    if (!is_int($finding['probes']) || $finding['probes'] < 0) {
+        $err("security finding $id: probes must be a count, not names");
+    }
+    if (array_filter($destination, static fn(mixed $d): bool => is_array($d) && ($d['kind'] ?? null) === 'private-report') === []) {
+        $err("security finding $id: destination must include a private report");
+    }
+    // Every string in the row, however deeply nested, keys included.
+    foreach ($finding as $field => $value) {
+        foreach (packageAuditLedgerStrings($value) as $text) {
+            if (packageAuditLedgerLocates($text)) {
+                $err("security finding $id: $field cites a code location (a file, line or symbol)");
+                break;
+            }
+        }
+    }
+}
+
+/**
+ * Nothing public may tie a security finding to a place in the code: an entry
+ * that names a security ID carries no code location anywhere in it. Entries
+ * are the rows of the list sections; the free-form parts (milestone, identity,
+ * not reviewed, host limits, scorecard) are checked string by string.
+ *
+ * @param array<mixed> $ledger
+ * @param array<string, true> $securityIds
+ * @param callable(string): void $err
+ */
+function packageAuditLedgerCheckNeighbours(array $ledger, array $securityIds, callable $err): void
+{
+    if ($securityIds === []) {
+        return;
+    }
+    $mention = '#(?<![A-Za-z0-9-])(?:' . implode('|', array_map(static fn(string $id): string => preg_quote($id, '#'), array_keys($securityIds))) . ')(?![0-9])#';
+    $check = static function (array $strings, string $where) use ($mention, $err): void {
+        if (array_filter($strings, static fn(string $s): bool => preg_match($mention, $s) === 1) === []) {
+            return;
+        }
+        foreach ($strings as $text) {
+            if (packageAuditLedgerLocates($text)) {
+                $err("$where names a security finding next to a code location");
+
+                return;
+            }
+        }
+    };
+    foreach (['findings', ...array_keys(PACKAGE_AUDIT_LEDGER_SECTIONS)] as $section) {
+        foreach ($ledger[$section] as $i => $entry) {
+            if ($section === 'findings') {
+                if (!is_array($entry) || packageAuditLedgerIsSecurity($entry)) {
+                    continue;
+                }
+                $where = 'finding ' . (is_string($entry['id'] ?? null) ? $entry['id'] : "[$i]");
+            } else {
+                $where = "{$section}[$i]";
+            }
+            $check(packageAuditLedgerStrings($entry), $where);
+        }
+    }
+    foreach (['milestone', 'dependency_identity', 'not_reviewed', 'host_limits', 'scorecard'] as $section) {
+        foreach (packageAuditLedgerStrings($ledger[$section]) as $text) {
+            $check([$text], $section);
         }
     }
 }
@@ -539,6 +586,12 @@ function packageAuditLedgerRepositoryErrors(string $ledgerPath, array $ledger, ?
         if ($assessed !== (($indexRow['audit_state'] ?? null) === 'assessed')) {
             $errors[] = 'ledger milestone.assessed disagrees with the coverage index audit_state';
         }
+        if ($record !== null) {
+            $state = preg_match('#^- \*\*Audit state:\*\* ([a-z ]+?)\.#m', $record, $m) === 1 ? $m[1] : null;
+            if ($state !== ($indexRow['audit_state'] ?? null)) {
+                $errors[] = sprintf("the record's audit state (%s) disagrees with the coverage index (%s)", $state ?? 'missing', (string) ($indexRow['audit_state'] ?? 'missing'));
+            }
+        }
         foreach ((array) ($ledger['probes'] ?? []) as $probe) {
             $retained = is_array($probe) ? ($probe['retained_path'] ?? null) : null;
             if (is_string($retained) && !in_array($retained, $cited, true)) {
@@ -552,23 +605,172 @@ function packageAuditLedgerRepositoryErrors(string $ledgerPath, array $ledger, ?
             $errors[] = "retained probe $retained is not committed";
         }
     }
-    if ($record !== null) {
-        foreach ((array) ($ledger['findings'] ?? []) as $finding) {
-            if (!is_array($finding) || !is_string($finding['id'] ?? null) || ($finding['merged_into'] ?? null) !== null) {
-                continue;
+    if ($record === null) {
+        return $errors;
+    }
+
+    $securityIds = [];
+    foreach ((array) ($ledger['findings'] ?? []) as $finding) {
+        if (!is_array($finding) || !is_string($finding['id'] ?? null)) {
+            continue;
+        }
+        if (packageAuditLedgerIsSecurity($finding)) {
+            $securityIds[] = $finding['id'];
+        }
+        if (($finding['merged_into'] ?? null) !== null) {
+            continue;
+        }
+        if (!str_contains($record, $finding['id'])) {
+            $errors[] = "the record doesn't mention {$finding['id']}";
+        }
+        $ownedHere = ($finding['owned_by'] ?? null) === $package;
+        $raised = in_array($finding['severity'] ?? null, ['critical', 'high', 'medium'], true);
+        if ($ownedHere && $raised && !packageAuditLedgerIsSecurity($finding) && !str_contains($record, '### `' . $finding['id'] . '`')) {
+            $errors[] = "the record has no detail block for medium-or-higher {$finding['id']}";
+        }
+    }
+
+    // The record states the ledger's counts in fixed words, so they can't drift.
+    $count = static fn(string $section): int => is_array($ledger[$section] ?? null) ? count($ledger[$section]) : 0;
+    $openCount = static fn(string $section): int => count(array_filter(
+        is_array($ledger[$section] ?? null) ? $ledger[$section] : [],
+        static fn(mixed $e): bool => is_array($e) && ($e['status'] ?? null) === 'open',
+    ));
+    $openIds = [];
+    foreach (['decisions', 'uncertainties'] as $section) {
+        foreach (is_array($ledger[$section] ?? null) ? $ledger[$section] : [] as $entry) {
+            if (is_array($entry) && ($entry['status'] ?? null) === 'open' && is_string($entry['id'] ?? null)) {
+                $openIds[] = $entry['id'];
             }
-            if (!str_contains($record, $finding['id'])) {
-                $errors[] = "the record doesn't mention {$finding['id']}";
+        }
+    }
+    if (preg_match('#^- \*\*Structured ledger:\*\*(.*)$#m', $record, $line) !== 1) {
+        $errors[] = 'the record has no "Structured ledger" header line';
+    } else {
+        $claims = [
+            ['N findings', '(\d+) findings?', [$count('findings')]],
+            ['N refuted leads', '(\d+) refuted leads?', [$count('refuted')]],
+            ['N checklist answers', '(\d+) checklist answers?', [$count('checklists')]],
+            ['N handoffs', '(\d+) handoffs?', [$count('handoffs')]],
+            ['N decisions (N open)', '(\d+) decisions? \((\d+) open\)', [$count('decisions'), $openCount('decisions')]],
+            ['N uncertainties (N open)', '(\d+) uncertaint(?:y|ies) \((\d+) open\)', [$count('uncertainties'), $openCount('uncertainties')]],
+            ['N probe entries', '(\d+) probe entr(?:y|ies)', [$count('probes')]],
+            ['N evidence runs', '(\d+) evidence runs?', [$count('evidence_runs')]],
+        ];
+        foreach ($claims as [$words, $pattern, $actual]) {
+            if (preg_match('#\b' . $pattern . '#', $line[1], $m) !== 1) {
+                $errors[] = "the record's Structured ledger line doesn't state \"$words\"";
+            } elseif (array_map('intval', array_slice($m, 1)) !== $actual) {
+                $errors[] = sprintf("the record's Structured ledger line says \"%s\"; the ledger has %s", $m[0], implode(' and ', $actual));
             }
-            $ownedHere = ($finding['owned_by'] ?? null) === $package;
-            $raised = in_array($finding['severity'] ?? null, ['critical', 'high', 'medium'], true);
-            if ($ownedHere && $raised && !packageAuditLedgerIsSecurity($finding) && !str_contains($record, '### `' . $finding['id'] . '`')) {
-                $errors[] = "the record has no detail block for medium-or-higher {$finding['id']}";
+        }
+    }
+    if (preg_match('#^- \*\*Open:\*\*(.*)$#m', $record, $line) !== 1) {
+        $errors[] = 'the record\'s scorecard has no "Open" line';
+    } else {
+        foreach (['decisions' => 'decisions?', 'uncertainties' => 'uncertaint(?:y|ies)'] as $section => $noun) {
+            if (preg_match('#\b(\d+|no) open ' . $noun . '#', $line[1], $m) !== 1) {
+                $errors[] = "the record's Open line doesn't state the open $section";
+            } elseif (($m[1] === 'no' ? 0 : (int) $m[1]) !== $openCount($section)) {
+                $errors[] = sprintf("the record's Open line says \"%s\"; the ledger has %d open", $m[0], $openCount($section));
+            }
+        }
+    }
+    foreach ($openIds as $id) {
+        if (!str_contains($record, "| $id |")) {
+            $errors[] = "the record's decisions and uncertainties table has no row for open $id";
+        }
+    }
+    // Public text too: a line that names a security finding cites no code.
+    if ($securityIds !== []) {
+        $mention = '#(?<![A-Za-z0-9-])(?:' . implode('|', array_map(static fn(string $id): string => preg_quote($id, '#'), $securityIds)) . ')(?![0-9])#';
+        foreach (explode("\n", $record) as $n => $text) {
+            if (preg_match($mention, $text) === 1 && packageAuditLedgerLocates($text)) {
+                $errors[] = sprintf('record line %d names a security finding next to a code location', $n + 1);
             }
         }
     }
 
     return $errors;
+}
+
+/**
+ * @param array<string, string> $shape
+ * @param callable(string): void $err
+ */
+function packageAuditLedgerCheckShape(mixed $entry, array $shape, string $where, callable $err): bool
+{
+    if (!is_array($entry) || array_keys($entry) !== array_keys($shape)) {
+        $err("$where must have exactly " . implode(', ', array_keys($shape)) . ', in order');
+
+        return false;
+    }
+    $ok = true;
+    foreach ($shape as $key => $type) {
+        $problem = packageAuditLedgerTypeProblem($entry[$key], $type);
+        if ($problem !== null) {
+            $err("$where: $key must be $problem");
+            $ok = false;
+        }
+    }
+
+    return $ok;
+}
+
+function packageAuditLedgerTypeProblem(mixed $value, string $type): ?string
+{
+    $ok = match ($type) {
+        'text' => packageAuditLedgerIsText($value),
+        'text?' => $value === null || packageAuditLedgerIsText($value),
+        'string' => is_string($value),
+        'bool' => is_bool($value),
+        'list' => is_array($value) && array_is_list($value),
+        'textlist' => packageAuditLedgerIsTextList($value),
+        'textlist0' => packageAuditLedgerIsTextList($value, allowEmpty: true),
+        'object' => is_array($value) && ($value === [] || !array_is_list($value)),
+        'any' => true,
+    };
+
+    return $ok ? null : match ($type) {
+        'text' => 'a non-empty string',
+        'text?' => 'null or a non-empty string',
+        'string' => 'a string',
+        'bool' => 'a boolean',
+        'list' => 'a list',
+        'textlist' => 'a non-empty list of strings',
+        'textlist0' => 'a list of strings',
+        default => 'an object',
+    };
+}
+
+/**
+ * Every string in a value, however deeply nested, its object keys included.
+ *
+ * @return list<string>
+ */
+function packageAuditLedgerStrings(mixed $value): array
+{
+    if (is_string($value)) {
+        return [$value];
+    }
+    if (!is_array($value)) {
+        return [];
+    }
+    $strings = [];
+    foreach ($value as $key => $item) {
+        if (is_string($key)) {
+            $strings[] = $key;
+        }
+        array_push($strings, ...packageAuditLedgerStrings($item));
+    }
+
+    return $strings;
+}
+
+/** Whether text points at a place in the code. */
+function packageAuditLedgerLocates(string $text): bool
+{
+    return preg_match(PACKAGE_AUDIT_LEDGER_FILE_LINE, $text) === 1 || preg_match(PACKAGE_AUDIT_LEDGER_CODE_REF, $text) === 1;
 }
 
 /** @param array<mixed> $finding */

@@ -57,19 +57,30 @@ agent edited skill files it was told not to touch. Check it mechanically
 around every agent run, with the skill's `scripts/lane-integrity.php`:
 
 1. Before the run, snapshot every checkout and directory the agents can reach,
-   allowing only their output areas:
-   `php <skill>/scripts/lane-integrity.php snapshot --out=<scratch>/integrity.json --git=<audit worktree> --git=<skill source worktree> --git=<each consumer checkout> --tree=<each installed skill copy> --allow=<scratch>`.
-2. After the run: `php <skill>/scripts/lane-integrity.php verify --snapshot=<scratch>/integrity.json`.
+   allowing only this run's output area:
+   `php <skill>/scripts/lane-integrity.php snapshot --out=<file outside every root> --git=<audit worktree> --git=<skill source worktree> --git=<each consumer checkout> --tree=<scratch> --tree=<each installed skill copy> --allow=<scratch>/<run>`.
+   Keep the `sha256:` line it prints in the orchestrator's own context; the
+   snapshot file is refused inside an allowed area.
+2. After the run: `php <skill>/scripts/lane-integrity.php verify --snapshot=<file> --sha256=<digest>`.
    Exit 0 means nothing changed outside the allowed areas.
-3. On exit 1, stop. Don't use output that depends on the changed paths, find
-   the agent in the transcripts, and report the change to the maintainer.
-   Don't revert it without the maintainer's approval; verify never repairs
-   anything.
+3. Exit 1 lists the changes; exit 2 means the check couldn't run or can't be
+   trusted (a Git command failed, a root is gone, the snapshot doesn't match
+   its digest). Either way, stop. Don't use output that depends on the changed
+   paths, find the agent in the transcripts, and report it to the maintainer.
+   Don't revert anything without the maintainer's approval; verify never
+   repairs.
 
-Give each lane its own output directory under scratch, and never put the
-method's own files (the skill source or installed copies) inside an allowed
-area. A change reported under a shared checkout's worktree list or stash can
-come from another session; confirm before attributing it.
+The check compares content, not metadata: HEAD, branch, refs, stash, local
+config and the worktree list; the working-tree and index diffs; a hash of
+every file `git status` reports (tracked changes, both sides of a rename,
+untracked files); and a hash of every file under a `--tree` root. A second
+write to an already-dirty file, or a same-size rewrite with the old mtime
+restored, is a change.
+
+Give each lane its own output directory under the run's area, and never put
+the method's own files (the skill source or installed copies) inside an
+allowed area. A change reported under a shared checkout's refs, worktree list
+or stash can come from another session; confirm before attributing it.
 
 ## Consolidate
 

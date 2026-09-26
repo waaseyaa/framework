@@ -127,12 +127,12 @@ final class PackageAuditLedgerTest extends TestCase
 
             return $finding($l, 'DEMO-DOMAIN-001', 'verification', ['tier' => 'B', 'performed' => 'one verifier', 'reversals' => []]);
         }, 'need tier A'];
-        yield 'unverified finding in an assessed ledger' => [static fn(array $l): array => $finding($l, 'DEMO-TEST-001', 'verification', ['tier' => 'pending', 'performed' => '', 'reversals' => []]), "can't hold unverified findings"];
+        yield 'unverified finding in an assessed ledger' => [static fn(array $l): array => $finding($l, 'DEMO-TEST-001', 'verification', ['tier' => 'pending', 'performed' => 'not yet', 'reversals' => []]), "can't hold unverified findings"];
         yield 'empty affected consumers' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'affected_consumers', []), 'affected_consumers must be a non-empty list'];
         yield 'security row with a public severity' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'severity', 'medium'), 'public severity must be withheld'];
         yield 'security row naming consumers' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'affected_consumers', ['an app']), 'affected_consumers must be withheld'];
         yield 'security row naming probes' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'probes', ['PrivateProbeTest.php']), 'probes must be a count'];
-        yield 'security row citing file:line' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'observed', 'See src/Thing.php:42.'), 'cites a file:line'];
+        yield 'security row citing file:line' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'observed', 'See src/Thing.php:42.'), 'observed cites a code location'];
         yield 'security row with co-owners' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'co_owners', ['waaseyaa/access']), 'co-owners stay in the private brief'];
         yield 'security row without a private report' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'destination', [['kind' => 'issue', 'ref' => '#1']]), 'must include a private report'];
         yield 'roster tying a security id to a file' => [static function (array $l): array {
@@ -177,6 +177,79 @@ final class PackageAuditLedgerTest extends TestCase
 
             return $l;
         }, 'is both a finding and a refuted lead'];
+
+        // Types: every field, nested ones included.
+        yield 'verification performed null' => [static fn(array $l): array => $finding($l, 'DEMO-TEST-001', 'verification', ['tier' => 'B', 'performed' => null, 'reversals' => []]), 'verification: performed must be a non-empty string'];
+        yield 'verification reversals not strings' => [static fn(array $l): array => $finding($l, 'DEMO-TEST-001', 'verification', ['tier' => 'B', 'performed' => 'one verifier', 'reversals' => [1]]), 'reversals must be a list of strings'];
+        yield 'observed as a list' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'observed', ['src/Demo.php:9']), 'observed must be a non-empty string'];
+        yield 'empty acceptance' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'acceptance', ' '), 'acceptance must be a non-empty string'];
+        yield 'notes as a number' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'notes', 3), 'notes must be a string'];
+        yield 'charter evidence null' => [static function (array $l): array {
+            $l['charter'][0]['evidence'] = null;
+
+            return $l;
+        }, 'charter[0]: evidence must be a non-empty string'];
+        yield 'handoff issue empty' => [static function (array $l): array {
+            $l['handoffs'][0]['issue'] = '';
+
+            return $l;
+        }, 'handoffs[0]: issue must be null or a non-empty string'];
+        yield 'evidence run result missing' => [static function (array $l): array {
+            $l['evidence_runs'][0]['result'] = false;
+
+            return $l;
+        }, 'evidence_runs[0]: result must be a non-empty string'];
+
+        // Security redaction reaches every nested string, and every neighbour.
+        yield 'security locator nested in a destination' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'destination', [['kind' => 'private-report', 'ref' => 'see src/Sensitive.php:42']]), 'destination cites a code location'];
+        yield 'security locator nested in reversals' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'verification', ['tier' => 'A', 'performed' => 'two verifiers', 'reversals' => ['moved from src/Sensitive.php:42']]), 'verification cites a code location'];
+        yield 'security row naming a symbol' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'observed', 'The branch in Guard::check() skips it.'), 'observed cites a code location'];
+        yield 'security row naming a file' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'title', 'A flaw in GroupAccessPolicy.php'), 'title cites a code location'];
+        yield 'security row citing a line anchor' => [static fn(array $l): array => $finding($l, 'DEMO-SEC-001', 'notes', 'docs/specs/access.md#L12'), 'notes cites a code location'];
+        yield 'decision tying a security id to code' => [static function (array $l): array {
+            $l['decisions'][0]['decision'] = 'DEMO-SEC-001 turns on src/Demo.php';
+
+            return $l;
+        }, 'decisions[0] names a security finding next to a code location'];
+        yield 'sibling finding tying a security id to code' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'notes', 'the same branch as DEMO-SEC-001'), 'finding DEMO-DOMAIN-001 names a security finding next to a code location'];
+        yield 'scorecard string tying a security id to code' => [static function (array $l): array {
+            $l['scorecard']['note'] = ['DEMO-SEC-001 reproduced by tests/SecretProbe.php'];
+
+            return $l;
+        }, 'scorecard names a security finding next to a code location'];
+
+        // Decisions and uncertainties say whether they are open.
+        yield 'uncertainty without a status' => [static function (array $l): array {
+            $l['uncertainties'] = [['id' => 'U1', 'uncertainty' => 'which', 'findings' => [], 'what_would_settle_it' => 'a probe']];
+
+            return $l;
+        }, 'uncertainties[0] must have exactly id, uncertainty, findings, what_would_settle_it, status, resolution'];
+        yield 'unknown status' => [static function (array $l): array {
+            $l['decisions'][0]['status'] = 'pending';
+
+            return $l;
+        }, 'status must be open or settled'];
+        yield 'settled without a resolution' => [static function (array $l): array {
+            $l['decisions'][0]['status'] = 'settled';
+
+            return $l;
+        }, 'a settled entry needs its resolution'];
+        yield 'open with a resolution' => [static function (array $l): array {
+            $l['decisions'][0]['resolution'] = 'decided already';
+
+            return $l;
+        }, 'an open entry has no resolution yet'];
+        yield 'scorecard open count drift' => [static function (array $l): array {
+            $l['scorecard']['open']['uncertainties'] = 2;
+
+            return $l;
+        }, 'scorecard.open.uncertainties is 2 but 0 uncertainties are open'];
+        yield 'scorecard without open counts' => [static function (array $l): array {
+            unset($l['scorecard']['open']);
+
+            return $l;
+        }, 'scorecard.open must give the open decisions and uncertainties'];
+        yield 'assessed with a blocking decision open' => [static fn(array $l): array => $finding($l, 'DEMO-DOMAIN-001', 'blocks_assessment', true), 'needs decision D1 settled'];
     }
 
     /**
@@ -233,6 +306,17 @@ final class PackageAuditLedgerTest extends TestCase
 
             return [$l, $r, $m];
         }, 'must live at docs/audits/packages/other.ledger.json'];
+        yield 'record count drift' => [static fn(array $l, array $r, string $m): array => [$l, $r, str_replace('1 checklist answers', '98 checklist answers', $m)], 'says "98 checklist answers"; the ledger has 1'];
+        yield 'record omits a count' => [static fn(array $l, array $r, string $m): array => [$l, $r, str_replace(', 1 evidence runs', '', $m)], 'doesn\'t state "N evidence runs"'];
+        yield 'record without a structured ledger line' => [static fn(array $l, array $r, string $m): array => [$l, $r, str_replace('**Structured ledger:**', '**Ledger:**', $m)], 'no "Structured ledger" header line'];
+        yield 'record claims no open uncertainties' => [static function (array $l, array $r, string $m): array {
+            $l['uncertainties'] = [['id' => 'U1', 'uncertainty' => 'which', 'findings' => [], 'what_would_settle_it' => 'a probe', 'status' => 'open', 'resolution' => null]];
+
+            return [$l, $r, str_replace('0 open uncertainties', 'no open uncertainties', $m)];
+        }, 'says "no open uncertainties"; the ledger has 1 open'];
+        yield 'open decision missing from the record table' => [static fn(array $l, array $r, string $m): array => [$l, $r, str_replace('| D1 |', '| D01 |', $m)], 'has no row for open D1'];
+        yield 'record audit state disagrees' => [static fn(array $l, array $r, string $m): array => [$l, $r, str_replace('**Audit state:** assessed.', '**Audit state:** in progress.', $m)], "the record's audit state (in progress) disagrees"];
+        yield 'record line tying a security id to code' => [static fn(array $l, array $r, string $m): array => [$l, $r, $m . "DEMO-SEC-001 sits in src/Demo.php:3.\n"], 'names a security finding next to a code location'];
     }
 
     /** @return array<string, mixed> */
@@ -259,7 +343,7 @@ final class PackageAuditLedgerTest extends TestCase
             ],
             'refuted' => [['id' => 'DEMO-R-001', 'lead' => 'a lead', 'investigation' => 'read it', 'refutation' => 'it holds', 'evidence' => 'src/Demo.php:3']],
             'handoffs' => [['id' => 'H1', 'lead' => 'another package', 'owner' => 'waaseyaa/access', 'co_owners' => [], 'affected_consumers' => ['none'], 'issue' => null, 'blocks_assessment' => false]],
-            'decisions' => [['id' => 'D1', 'decision' => 'which way', 'findings' => ['DEMO-DOMAIN-001'], 'what_would_settle_it' => 'a ruling', 'who_decides' => 'the maintainer']],
+            'decisions' => [['id' => 'D1', 'decision' => 'which way', 'findings' => ['DEMO-DOMAIN-001'], 'what_would_settle_it' => 'a ruling', 'who_decides' => 'the maintainer', 'status' => 'open', 'resolution' => null]],
             'uncertainties' => [],
             'issue_reconciliation' => [],
             'remediation_plan' => [['slice' => 'S1', 'findings' => ['DEMO-DOMAIN-001'], 'acceptance' => 'a failing test that passes after the fix', 'depends_on' => ['D1']]],
@@ -271,7 +355,7 @@ final class PackageAuditLedgerTest extends TestCase
             'evidence_runs' => [['command' => 'phpunit packages/demo/tests', 'base' => str_repeat('a', 40), 'dependency_identity' => 'lock', 'runner' => 'local', 'host' => 'native Windows 11', 'proves' => 'source', 'result' => 'OK']],
             'not_reviewed' => [],
             'host_limits' => [],
-            'scorecard' => ['agents' => 12],
+            'scorecard' => ['agents' => 12, 'open' => ['decisions' => 1, 'uncertainties' => 0]],
         ];
     }
 
@@ -347,6 +431,20 @@ final class PackageAuditLedgerTest extends TestCase
 
     private static function record(): string
     {
-        return "# `waaseyaa/demo` audit\n\n| `DEMO-DOMAIN-001` | ... |\n| `DEMO-TEST-001` | ... |\n| `DEMO-SEC-001` | ... |\n";
+        return <<<'MD'
+            # `waaseyaa/demo` audit
+
+            - **Audit state:** assessed. **Remediation state:** planned.
+            - **Structured ledger:** `docs/audits/packages/demo.ledger.json`: 4 findings, 1 refuted leads, 1 checklist answers, 1 handoffs, 1 decisions (1 open), 0 uncertainties (0 open), 1 probe entries, 1 evidence runs.
+
+            | `DEMO-DOMAIN-001` | ... |
+            | `DEMO-TEST-001` | ... |
+            | `DEMO-SEC-001` | A safe class-of-issue sentence | withheld |
+
+            | D1 | which way | DEMO-DOMAIN-001 | a ruling | the maintainer |
+
+            - **Open:** 1 open decisions; 0 open uncertainties.
+
+            MD;
     }
 }

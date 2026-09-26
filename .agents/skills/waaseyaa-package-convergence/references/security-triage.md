@@ -35,11 +35,17 @@ until the record is written.
    directory, one file per audit or per finding, with a named holder. Ask for
    the location when none is designated. A session scratch directory is only a
    staging area. Never a commit, a public issue, a PR body, the ledger or the
-   coverage index.
+   coverage index. Make it a verified copy: an inventory with a SHA-256 per
+   file, checked against the copy, and the directory's access list checked.
+   Keep the staging originals until the audit and its PR are complete.
 5. **Publish a safe summary.** See "Public rows" below.
 6. **Redaction check.** Before the record and ledger are final, the
    orchestrator, or a critic given the brief, reads both for anything that
-   localizes the issue (see below) and removes it.
+   localizes the issue (see below) and removes it. The ledger validator
+   enforces the mechanical part: no string in a security row, however nested,
+   cites a file, line or symbol, and no other ledger entry or record line
+   names a security ID next to one. Method names in prose, request shapes and
+   sibling mechanism detail still need the read.
 7. **File when authorized.** File the private report through the route in
    `SECURITY.md` (the framework's private vulnerability reporting) as soon as
    the maintainer authorizes it, independent of any other slice or milestone.

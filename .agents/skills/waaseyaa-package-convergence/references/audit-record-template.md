@@ -33,7 +33,7 @@ Section budgets are guides, not quotas:
 - **Evidence freshness:** *current at `<SHA>`* | *needs delta review: package source changed since the base in `<commits>`*
 - **Owner:** `waaseyaa/framework#<n>` (*the program issue #3118 until a package umbrella exists*)
 - **Profiles applied:** *each with one line of scope*. **Not applied:** *each with a one-line reason*
-- **Structured ledger:** `docs/audits/packages/<package>.ledger.json`
+- **Structured ledger:** `docs/audits/packages/<package>.ledger.json`: N findings, N refuted leads, N checklist answers, N handoffs, N decisions (N open), N uncertainties (N open), N probe entries, N evidence runs. *(These words are fixed; the validator checks each number against the ledger.)*
 
 ## Summary
 
@@ -138,6 +138,10 @@ item's full answer is in the ledger.*
 
 ## Decisions and uncertainties
 
+*One row per open decision and open uncertainty (the validator checks each
+has one). A settled one can keep its row with the resolution, or be counted in
+one line below the table; its resolution is in the ledger.*
+
 | ID | Decision or uncertainty | Findings | What would settle it | Who decides |
 | --- | --- | --- | --- | --- |
 
@@ -167,7 +171,9 @@ identity and runner. The full list is in the ledger.*
 
 ## Scorecard
 
-*The fields in [running an audit](audit-orchestration.md).*
+*The fields in [running an audit](audit-orchestration.md), one bullet each.
+The last bullet begins* `- **Open:** N open decisions; N open uncertainties;`
+*then findings without a filed issue. The validator checks both counts.*
 
 ---
 
@@ -184,7 +190,19 @@ over every committed ledger, together with its record, its coverage-index row
 and its retained probes. Check a draft before it leaves scratch:
 `php bin/lib/package-audit-ledger.php <ledger.json> --record=<record.md> --index=docs/audits/packages/coverage-index.json`.
 Keys and their order are fixed; the validator reports unknown and missing
-keys, unknown enum values, dangling references and security-row leaks.
+keys, wrong types, unknown enum values, dangling references, security leaks
+and record counts that disagree with the ledger.
+
+**Types.** Every text field is a non-empty string, except `notes` (roster,
+intake, findings) and checklist `evidence`, which may be empty. Fields that
+name something optional (`decision`, `merged_into`, `consumer_unblock`,
+`local_finding`, `issue`, `gap_owner`, `retained_path`, `resolution`) are null
+or text. `verification.performed` is text; `reversals` is a list of strings.
+
+**Security rows.** No string anywhere in a security finding, however nested,
+cites a code file, a line in any file or a symbol (`x.php`, `x.md:12`,
+`x.md#L12`, `Class::method`, `->method(`). No other ledger entry, scorecard string or
+record line names a security ID next to one.
 
 **Owner values.** `owned_by` and `owner` hold exactly one name: a Composer
 package name (`waaseyaa/<name>`); `waaseyaa/framework` for the root aggregate,
@@ -211,15 +229,15 @@ pending.
 | `findings` | `id`, `title`, `area`, `severity`, `confidence`, `evidence_level`, `observed`, `expected_contract`, `consequence`, `refutation`, `disposition`, `destination` (`{kind, ref}` list), `dependencies`, `acceptance`, `residual_risk`, `next_action`, `discovered_in`, `owned_by`, `co_owners`, `affected_consumers` (`"withheld"` for security), `blocks_assessment`, `decision` (null or a decision ID), `consumer_unblock` (null, or required / independent / accepted limitation with rationale), `merged_into`, `verification` (`{tier, performed, reversals}`), `probes` (names; a count for security), `notes` |
 | `refuted` | `id`, `lead`, `investigation`, `refutation`, `evidence` |
 | `handoffs` | `id`, `lead`, `owner`, `co_owners`, `affected_consumers`, `issue`, `blocks_assessment` (always false) |
-| `decisions` | `id`, `decision`, `findings`, `what_would_settle_it`, `who_decides` |
-| `uncertainties` | `id`, `uncertainty`, `findings`, `what_would_settle_it` |
+| `decisions` | `id`, `decision`, `findings`, `what_would_settle_it`, `who_decides`, `status` (open or settled), `resolution` (null while open, the outcome once settled) |
+| `uncertainties` | `id`, `uncertainty`, `findings`, `what_would_settle_it`, `status`, `resolution` (as for decisions) |
 | `issue_reconciliation` | `issue`, `claim`, `status` at the base, `evidence` |
 | `remediation_plan` | `slice`, `findings`, `acceptance`, `depends_on` |
 | `qualification` | `profile`, `supported`, `evidence_class`, `evidence`, `gap_owner` |
 | `probes` | `name`, `purpose`, `result`, `retained_path` (null when not committed), `reproduce` (the command) |
 | `evidence_runs` | `command`, `base`, `dependency_identity`, `runner`, `host`, `proves`, `result` |
 | `not_reviewed`, `host_limits` | lists of strings |
-| `scorecard` | the scorecard fields |
+| `scorecard` | the scorecard fields, with `open` holding at least `decisions` and `uncertainties` as the counts of open entries |
 
 A later audit finds its intake by reading every ledger's `findings` and
 `handoffs` whose `owned_by`, `owner` or `co_owners` names its package.
