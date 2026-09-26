@@ -268,8 +268,10 @@ The tiers, and how to run them, are in
   verifying every claim when a sample fails.
 
 Tie-break any material disagreement between tier-A verifiers: whether the
-finding exists, its severity band, whether it is security-sensitive, its
-owner, or its disposition. What a tie-break can't settle becomes a maintainer
+finding exists, whether it is security-sensitive, its owner, its disposition,
+or a severity difference that crosses the medium line or changes the finding's
+tier, disposition or destination. A low-versus-info split that changes none of
+those isn't material; take the lower band and say so. What a tie-break can't settle becomes a maintainer
 decision. A finding verification raises to medium or higher gets the second
 verifier; a finding created after verification gets its tier's verification
 too. Check every refuted lead's refutation once.

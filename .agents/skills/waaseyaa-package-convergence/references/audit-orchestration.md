@@ -78,8 +78,9 @@ Severity and security decide the tier first.
 | C | info | one verifier per group of info findings checks a sample of at least three claims, or every claim when the group is smaller; when any sample fails, every claim in the group is verified |
 
 - **Tie-break** on any material disagreement between tier-A verifiers: whether
-  the finding exists, its severity band (medium line), whether it is
-  security-sensitive, its owning package, or its disposition. When a
+  the finding exists, whether it is security-sensitive, its owning package,
+  its disposition, or a severity difference that crosses the medium line or
+  changes the finding's tier, disposition or destination. When a
   tie-break can't settle it, record it as a maintainer decision.
 - **Re-tier** a finding when verification changes its severity: raised to
   medium or higher, it gets a second verifier.

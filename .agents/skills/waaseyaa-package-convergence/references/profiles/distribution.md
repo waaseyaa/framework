@@ -34,6 +34,11 @@ another. A profile can rest on several pieces of evidence. The host a run used
 | standalone split | the package installed alone and booted with `--no-dev` | standalone split, primitive-only | an isolated scratch install; `bin/test-isolated-package` covers only `access` and runs a dev install, so it isn't this class for other packages |
 | generated application | a freshly generated app installs, boots and runs the package | generated application | the skeleton path, or a hosted job that creates the project |
 
+A synthetic probe run against a consumer's installed bytes proves those bytes
+behave like source; it is installed-consumer evidence for byte equivalence,
+recorded as "reproduced". It qualifies a profile only when it runs through the
+consumer's own composition root.
+
 Reused evidence names its run and job IDs, its base, and the surfaces it
 asserts, and confirms that the job's closure actually contains the package.
 Hosted logs expire: transcribe the asserted surfaces into the ledger's
