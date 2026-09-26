@@ -42,9 +42,18 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
 
     private string $repoRoot;
 
+    /** @var list<string> simulation trees, removed even when building one fails */
+    private array $temporary = [];
+
     protected function setUp(): void
     {
         $this->repoRoot = dirname(__DIR__, 2);
+    }
+
+    protected function tearDown(): void
+    {
+        new Filesystem()->remove($this->temporary);
+        $this->temporary = [];
     }
 
     #[Test]
@@ -315,6 +324,7 @@ final class SkeletonDockerSecretExclusionTest extends TestCase
     private function simulationTree(string $prefix): string
     {
         $work = sys_get_temp_dir() . '/' . $prefix . bin2hex(random_bytes(6));
+        $this->temporary[] = $work;
         self::assertTrue(mkdir($work . '/bin/lib', 0o777, true), 'Unable to create the simulation tree.');
         self::assertTrue(mkdir($work . '/skeleton', 0o777, true));
         self::assertTrue(copy($this->repoRoot . '/' . self::LIBRARY, $work . '/' . self::LIBRARY));

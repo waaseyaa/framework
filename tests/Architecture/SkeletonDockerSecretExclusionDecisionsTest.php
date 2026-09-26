@@ -31,6 +31,47 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
 
     private const LIBRARY = 'bin/lib/skeleton-docker-secret-exclusion.php';
 
+    /**
+     * Appended to a copy of the gate whose own inspection is renamed away, so
+     * the gate calls this instead of building images. The positive control
+     * sees every sentinel unless the scenario is blind; the subject leaks
+     * `.env` and the first sentinel only when the scenario leaks.
+     */
+    private const CANNED_INSPECTION = <<<'PHP'
+
+        /**
+         * @param array<string, string> $sentinels
+         * @param list<string> $tags
+         * @param list<string> $containers
+         *
+         * @return array{inventoryPaths: list<string>, dotenvPaths: list<string>, rootfsHits: list<string>, layerHits: array<string, list<string>>, layerCount: int}
+         */
+        function inspectContext(string $context, string $tag, string $artifacts, array $sentinels, array &$tags, array &$containers): array
+        {
+            $scenario = (string) getenv('SDSE_CANNED_SCENARIO');
+            $values = array_values($sentinels);
+            if (str_ends_with($tag, '-control')) {
+                return [
+                    'inventoryPaths' => ['.env', '.env.example'],
+                    'dotenvPaths' => ['.env', '.env.example'],
+                    'rootfsHits' => str_contains($scenario, 'blind') ? [] : $values,
+                    'layerHits' => array_fill_keys($values, ['canned-layer']),
+                    'layerCount' => 1,
+                ];
+            }
+            $leak = str_contains($scenario, 'leak');
+
+            return [
+                'inventoryPaths' => $leak ? ['.env', '.env.example'] : ['.env.example'],
+                'dotenvPaths' => $leak ? ['.env', '.env.example'] : ['.env.example'],
+                'rootfsHits' => $leak ? [$values[0]] : [],
+                'layerHits' => array_fill_keys($values, []),
+                'layerCount' => 1,
+            ];
+        }
+
+        PHP;
+
     private static string $root;
 
     /** @var list<string> */
@@ -406,30 +447,43 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
     }
 
     /**
-     * The false-green discriminator for the helper itself. Without its
+     * The false-green discriminator for the helper itself. Without a whole
      * library the gate can reach no verdict, so every mode, including the one
      * the native-host contract runs and the flag that authorises a skip, must
-     * be a harness error: never 0, never 3. The control run with the library
-     * in place proves the copy is otherwise runnable.
+     * be a harness error: never 0, never 3. That holds for a missing library,
+     * an empty one and one that does not parse. The control run with the
+     * library in place proves the copy is otherwise runnable.
      */
     #[Test]
-    public function a_missing_decision_library_fails_closed_in_every_mode(): void
+    public function a_missing_or_broken_decision_library_fails_closed_in_every_mode(): void
     {
         $work = $this->temporaryDirectory();
         mkdir($work . '/bin/lib', 0o777, true);
         mkdir($work . '/skeleton');
         copy(self::$root . '/' . self::GATE, $work . '/bin/gate');
 
-        foreach ([[], ['--self-test'], ['--allow-missing-docker'], ['--allow-missing-docker', '--keep']] as $flags) {
-            $gate = new Process([PHP_BINARY, $work . '/bin/gate', ...$flags], $work);
-            $gate->setTimeout(120.0);
-            $gate->run();
-            $label = 'flags ' . json_encode($flags, JSON_THROW_ON_ERROR);
+        foreach (
+            [
+                'missing' => [null, 'is missing or unreadable'],
+                'empty' => ["<?php\n", 'does not define sdse_classify_docker'],
+                'unparsable' => ["<?php\nfunction sdse_classify_docker(\n", 'could not be loaded'],
+            ] as $state => [$contents, $fault]
+        ) {
+            if ($contents !== null) {
+                file_put_contents($work . '/' . self::LIBRARY, $contents);
+            }
+            foreach ([[], ['--self-test'], ['--allow-missing-docker'], ['--allow-missing-docker', '--keep']] as $flags) {
+                $gate = new Process([PHP_BINARY, $work . '/bin/gate', ...$flags], $work);
+                $gate->setTimeout(120.0);
+                $gate->run();
+                $label = "{$state} library, flags " . json_encode($flags, JSON_THROW_ON_ERROR);
 
-            self::assertSame(2, $gate->getExitCode(), $label . "\n" . $gate->getOutput() . $gate->getErrorOutput());
-            self::assertStringContainsString('decision library', $gate->getErrorOutput(), $label);
-            self::assertStringContainsString('never a pass or a skip', $gate->getErrorOutput(), $label);
-            self::assertSame('', $gate->getOutput(), $label);
+                self::assertSame(2, $gate->getExitCode(), $label . "\n" . $gate->getOutput() . $gate->getErrorOutput());
+                self::assertStringContainsString('decision library', $gate->getErrorOutput(), $label);
+                self::assertStringContainsString($fault, $gate->getErrorOutput(), $label);
+                self::assertStringContainsString('never a pass or a skip', $gate->getErrorOutput(), $label);
+                self::assertSame('', $gate->getOutput(), $label);
+            }
         }
 
         copy(self::$root . '/' . self::LIBRARY, $work . '/' . self::LIBRARY);
@@ -476,6 +530,83 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
     }
 
     /**
+     * The gate's own report path, without Docker. Its classification is pinned
+     * to an available daemon and its inspection returns canned reports, so the
+     * real post-create-setup.php, the seeded dotenv variants, the verdict
+     * assembly, the output and the exit code all run on this host. A clean
+     * inspection passes with 0; a leak, a blind positive control and an
+     * escaping Dockerfile each fail with 1 and name themselves, and together
+     * they are listed in the gate's order.
+     */
+    #[Test]
+    public function the_gate_turns_its_findings_into_its_exit_code_and_output(): void
+    {
+        $work = $this->temporaryDirectory();
+        mkdir($work . '/bin/lib', 0o777, true);
+        mkdir($work . '/skeleton/bin', 0o777, true);
+        copy(self::$root . '/' . self::LIBRARY, $work . '/' . self::LIBRARY);
+        foreach (['.env.example', '.dockerignore', 'Dockerfile', 'bin/post-create-setup.php'] as $file) {
+            copy(self::$root . '/skeleton/' . $file, $work . '/skeleton/' . $file);
+        }
+        $cleanDockerfile = (string) file_get_contents($work . '/skeleton/Dockerfile');
+
+        $source = (string) file_get_contents(self::$root . '/' . self::GATE);
+        $stubbed = str_replace(
+            ['$docker = classifyDocker();', 'function inspectContext('],
+            ["\$docker = ['kind' => 'ok', 'reason' => ''];", 'function inspectContextWithDocker('],
+            $source,
+            $replacements,
+        );
+        self::assertSame(2, $replacements, 'The classification or inspection call site could not be stubbed.');
+        file_put_contents($work . '/bin/gate', $stubbed . self::CANNED_INSPECTION);
+
+        $run = function (string $scenario, bool $escape) use ($work, $cleanDockerfile): Process {
+            file_put_contents(
+                $work . '/skeleton/Dockerfile',
+                $cleanDockerfile . ($escape ? "\nCOPY .env /app/.env.leaked\n" : ''),
+            );
+            $gate = new Process([PHP_BINARY, $work . '/bin/gate'], $work, ['SDSE_CANNED_SCENARIO' => $scenario]);
+            $gate->setTimeout(120.0);
+            $gate->run();
+
+            return $gate;
+        };
+
+        $clean = $run('clean', false);
+        self::assertSame(0, $clean->getExitCode(), $clean->getOutput() . $clean->getErrorOutput());
+        self::assertStringContainsString('PASS — no generated secret reached the build context', $clean->getOutput());
+        self::assertStringContainsString('PASS — .env.example survived the exclusion, as intended.', $clean->getOutput());
+        self::assertSame('', $clean->getErrorOutput());
+
+        foreach (
+            [
+                'a leak' => ['leak', false, '/^  - image filesystem: \.env WAASEYAA_JWT_SECRET is readable in the image rootfs\.$/m'],
+                'a blind control' => ['blind', false, '/^  - positive control: \.env WAASEYAA_JWT_SECRET was not observed in the image filesystem/m'],
+                'an escaping Dockerfile' => ['clean', true, '/^  - skeleton\/Dockerfile line \d+: COPY names \.env explicitly, which would defeat the \.dockerignore exclusion\.$/m'],
+            ] as $case => [$scenario, $escape, $finding]
+        ) {
+            $gate = $run($scenario, $escape);
+            self::assertSame(1, $gate->getExitCode(), $case . "\n" . $gate->getOutput() . $gate->getErrorOutput());
+            self::assertStringStartsWith('FAIL — a generated skeleton secret can reach a distributable image:', $gate->getErrorOutput(), $case);
+            self::assertMatchesRegularExpression($finding, $gate->getErrorOutput(), $case);
+            self::assertStringContainsString('see docs/upgrade-notes/skeleton-docker-env-exclusion.md', $gate->getErrorOutput(), $case);
+            self::assertStringNotContainsString('PASS', $gate->getOutput(), $case);
+        }
+
+        $all = $run('blind leak', true);
+        $report = $all->getErrorOutput();
+        self::assertSame(1, $all->getExitCode(), $all->getOutput() . $report);
+        $control = strpos($report, '  - positive control:');
+        $subject = strpos($report, '  - build-context inventory:');
+        $dockerfile = strpos($report, '  - skeleton/Dockerfile line');
+        self::assertNotFalse($control, $report);
+        self::assertNotFalse($subject, $report);
+        self::assertNotFalse($dockerfile, $report);
+        self::assertLessThan($subject, $control, 'Control failures come first.');
+        self::assertLessThan($dockerfile, $subject, 'Dockerfile escapes come last.');
+    }
+
+    /**
      * The tested library is the one the gate runs: the gate calls every
      * decision entry point, keeps no private copy of a moved decision, and
      * every library function is reachable from the gate.
@@ -507,11 +638,11 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
             array_values(array_intersect($gateDefines, ['scanFile', 'streamContains', 'requireGeneratedValue'])),
             'The gate must not keep a private copy of a decision the library owns.',
         );
-        self::assertSame(
-            1,
-            preg_match('/^require \$library;\r?$/m', $gate),
-            'The gate must load its library unconditionally, before any mode runs.',
-        );
+        $load = strpos($gate, 'require $library;');
+        $dispatch = strpos($gate, "if (in_array('--self-test', \$flags, true)) {");
+        self::assertNotFalse($load, 'The gate must load its library.');
+        self::assertNotFalse($dispatch, 'The gate no longer dispatches --self-test the expected way.');
+        self::assertLessThan($dispatch, $load, 'The gate must load its library before any mode runs.');
     }
 
     /**

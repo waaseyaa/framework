@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 use Waaseyaa\Tooling\ChangelogFragments;
 
 require_once __DIR__ . '/../../tools/lib/ChangelogFragments.php';
@@ -205,6 +206,45 @@ final class ChangelogFragmentsTest extends TestCase
         self::assertDirectoryDoesNotExist($root . '/released/0.1.0-alpha.299');
     }
 
+    /**
+     * The release cut also runs `validate` and `render --output=...` through
+     * this entrypoint (release-cut.yml), and the pre-push preflight runs
+     * `validate`. Their argument handling, output and exit codes run here, on
+     * every host the native-host contract covers.
+     */
+    #[Test]
+    public function validate_render_and_argument_errors_run_through_the_entrypoint(): void
+    {
+        $directory = $this->fragmentDirectory([
+            '2678.first.added.md' => "- First.\n",
+            '2679.second.fixed.md' => "- Second.\n",
+        ]);
+        $output = $this->newDirectory() . '/release notes.md';
+        $expected = ChangelogFragments::render(ChangelogFragments::load($directory));
+
+        self::assertSame(
+            [0, "changelog-fragments: 2 fragment(s) valid.\n", ''],
+            $this->runEntrypoint(['validate', '--dir=' . $directory]),
+        );
+
+        self::assertSame([0, '', ''], $this->runEntrypoint(['render', '--dir=' . $directory, '--output=' . $output]));
+        self::assertSame($expected, file_get_contents($output));
+        self::assertSame([0, $expected, ''], $this->runEntrypoint(['render', '--dir=' . $directory]));
+
+        [$exit, $stdout, $stderr] = $this->runEntrypoint(['publish', '--dir=' . $directory]);
+        self::assertSame([2, ''], [$exit, $stdout]);
+        self::assertStringContainsString('Usage: bin/changelog-fragments validate|render|release', $stderr);
+
+        [$exit, $stdout, $stderr] = $this->runEntrypoint(['validate', '--dir']);
+        self::assertSame([2, ''], [$exit, $stdout]);
+        self::assertStringContainsString('invalid argument --dir; expected --name=value.', $stderr);
+
+        file_put_contents($directory . '/not-a-fragment.md', "- Stray.\n");
+        [$exit, $stdout, $stderr] = $this->runEntrypoint(['validate', '--dir=' . $directory]);
+        self::assertSame([1, ''], [$exit, $stdout]);
+        self::assertStringContainsString('invalid fragment filename not-a-fragment.md', $stderr);
+    }
+
     /** @param array<string, string> $files */
     private function fragmentDirectory(array $files): string
     {
@@ -224,6 +264,20 @@ final class ChangelogFragmentsTest extends TestCase
         $this->temporaryDirectories[] = $directory;
 
         return $directory;
+    }
+
+    /**
+     * @param list<string> $arguments
+     *
+     * @return array{int, string, string}
+     */
+    private function runEntrypoint(array $arguments): array
+    {
+        $process = new Process([PHP_BINARY, dirname(__DIR__, 2) . '/bin/changelog-fragments', ...$arguments]);
+        $process->setTimeout(60.0);
+        $exit = $process->run();
+
+        return [$exit, $process->getOutput(), $process->getErrorOutput()];
     }
 
 }
