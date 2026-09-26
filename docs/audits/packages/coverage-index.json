@@ -554,14 +554,31 @@
             "package": "waaseyaa/groups",
             "path": "packages/groups",
             "form": "library",
-            "audit_state": "not assessed",
+            "audit_state": "in progress",
             "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_base": "a4e88e88afb1d2806b12fbc7947d32a1484e8798",
+            "audit_date": "2026-09-25",
+            "dependency_identity": "composer.lock sha256:3b83a3ccac4d9d85278379f134a2a6a5cebdcab517542594d932a821ca2c6889",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/groups.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/groups.ledger.json"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "tests/Fixtures/Audits/Groups/GRP-PERSIST-001-duplicate-membership.php"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "tests/Fixtures/Audits/Groups/GRP-TEST-001-capability-gate.php"
+                }
+            ],
+            "notes": "In progress: one item open, moving the five private security briefs into the location the maintainer designated (D14). Every other assessed criterion holds at the base; 43 package-owned and 13 cross-package findings, none medium or higher outside the withheld security rows."
         },
         {
             "package": "waaseyaa/http-client",
