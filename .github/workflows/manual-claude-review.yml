@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 1
 
       - name: Review with Claude Max
-        uses: anthropics/claude-code-action@a874e9ecd7bb36efdad65429c6b35815f5a08f10 # v1, Claude Code 2.1.251
+        uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c # v1, Claude Code 2.1.251
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Repository-scoped, short-lived token. No code-write permission.
