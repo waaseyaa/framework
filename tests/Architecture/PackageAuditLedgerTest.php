@@ -117,6 +117,11 @@ final class PackageAuditLedgerTest extends TestCase
 
             return $l;
         }, 'consumers a list'];
+        yield 'dependency identity evidence freshness blank' => [static function (array $l): array {
+            $l['dependency_identity'] += ['evidence_freshness' => ' '];
+
+            return $l;
+        }, 'evidence_freshness must be text'];
         yield 'converged with an extra key' => [static function (array $l): array {
             $l['milestone'] = ['assessed' => true, 'repair_ready' => true, 'converged' => ['sha' => str_repeat('a', 40), 'evidence' => 'hosted run', 'by' => 'me'], 'reasons' => []];
 
