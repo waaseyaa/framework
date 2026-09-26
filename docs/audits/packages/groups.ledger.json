@@ -9,17 +9,8 @@
     "host": "native Windows 11",
     "evidence_freshness": "current at a4e88e88a: packages/groups is byte-identical to the alpha.302 release commit 3f8453630, and neither packages/groups nor packages/relationship changed through 81a925f1c",
     "consumers": [
-      {
-        "name": "external:jonesrussell/sheguiandah-waaseyaa",
-        "commit": "ee810a0a00efd59eba3f12694b7b3f58d1790c5d",
-        "composer_lock_sha256": "2ac135588095fd034ee3eb81697e9f903ebaa69161b8e34a9b3f3924c7f4bdb7",
-        "groups_split_ref": "b1a4fad0f",
-        "note": "read-only; the checkout later moved to 168a251, which changes only CI files, so evidence cites ee810a0a0"
-      },
-      {
-        "name": "Anokii and the FETDER app",
-        "note": "composer.lock read for package presence only (groups, user and core installed; groups unused)"
-      }
+      "external:jonesrussell/sheguiandah-waaseyaa at ee810a0a00efd59eba3f12694b7b3f58d1790c5d, composer.lock SHA-256 2ac135588095fd034ee3eb81697e9f903ebaa69161b8e34a9b3f3924c7f4bdb7, groups split ref b1a4fad0f: read-only; the checkout later moved to 168a251, which changes only CI files, so evidence cites ee810a0a0",
+      "Anokii and the FETDER app: composer.lock read for package presence only (groups, user and core installed; groups unused)"
     ]
   },
   "milestone": {
@@ -7201,7 +7192,7 @@
     "record_and_ledger": {
       "record_lines": 264,
       "record_words": 6499,
-      "ledger_bytes": 486377,
+      "ledger_bytes": 486246,
       "v1_record_lines": 2420,
       "v2_record_lines": 392,
       "v2_ledger_bytes": 478007
