@@ -19,7 +19,8 @@ require_once __DIR__ . '/repository-files.php';
  * documentation and are ignored):
  *
  * - a direct descriptor, `['file', '/dev/null', ...]`, is always rejected,
- *   whether or not it is classified, even inside a host choice;
+ *   whether or not it is classified, even inside a host choice or spelled
+ *   inside a string of PHP code;
  * - every other occurrence must be classified in
  *   tools/portable-null-device-classifications.json by file, enclosing symbol
  *   and literal, with the exact occurrence count and one purpose. The anchor
@@ -35,8 +36,8 @@ require_once __DIR__ . '/repository-files.php';
  *     a bare "/dev/null" label next to an a/ or b/ label), never opened;
  *   - posix-only-shell: shell command text, not a diff header, that
  *     redirects to /dev/null or, in text of more than one word, passes it as
- *     a whitespace- or `=`-delimited word (quoted or not), with no NUL
- *     counterpart, in code the classification declares POSIX-only.
+ *     a whitespace- or `=`-delimited word (quoted only as a whole word), with
+ *     no NUL counterpart, in code the classification declares POSIX-only.
  *
  * Stale, duplicated, malformed, unsorted or overly broad classifications are
  * rejected. Line endings are normalized first, so a CRLF checkout scans
@@ -250,15 +251,22 @@ function pnd_occurrences(string $path, string $source): array
         }
     }
 
-    // A redirection (`2>`, `>`, `>>`, `&>`, `<`), a whitespace- or
-    // `=`-delimited word of command text, or a unified-diff header line
-    // (`--- ` or `+++ `, at the start or after a real or escaped newline).
-    // Command text may quote the path, with or without an escaped quote.
-    $device = preg_quote(PND_NULL_DEVICE, '#') . '(?![\w/.-])';
-    $quote = '(?:\\\\?[\'"])?';
-    $redirection = '#(?:[0-9&]?>{1,2}|<)\s*' . $quote . $device . '#';
-    $shellWord = '#(?:^|[\s=])' . $quote . $device . '#';
+    // A redirection (`2>`, `>`, `>>`, `&>`, `<`, never PHP's `=>` or `->`),
+    // a whitespace- or `=`-delimited word of command text, or a unified-diff
+    // header line (`--- ` or `+++ `, at the start or after a real or escaped
+    // newline). Command text may quote the path when the same quote,
+    // optionally escaped, closes right after it, and a quoted word must then
+    // end the word; PHP or JSON text inside a string (`, '/dev/null']`,
+    // `"stdin": "/dev/null"}`) is therefore not command text.
+    $spelling = preg_quote(PND_NULL_DEVICE, '#');
+    $device = $spelling . '(?![\w/.-])';
+    $quoted = '(?<quote>\\\\?[\'"])' . $spelling . '\k<quote>';
+    $redirection = '#(?<![=-])(?:[0-9&]?>{1,2}|<)\s*(?:' . $quoted . '|' . $device . ')#';
+    $shellWord = '#(?:^|[\s=])(?:' . $quoted . '(?=\s|$)|' . $device . ')#';
     $diffHeader = '#(?:^|\n|\\\\n)(?:---|\+\+\+) ' . $device . '#';
+    // A descriptor spelled inside a string (PHP code for `php -r`, or code a
+    // generator writes) is a direct descriptor all the same.
+    $embeddedDescriptor = '#(?<type>\\\\?[\'"])file\k<type>\s*,\s*(?:[0-9]+\s*=>\s*)?' . $quoted . '#';
 
     $occurrences = [];
     $facts = [];
@@ -272,7 +280,8 @@ function pnd_occurrences(string $path, string $source): array
             'line' => $token[2],
             'symbol' => $symbol,
             'literal' => $content,
-            'descriptor' => pnd_is_direct_descriptor($tokens, $significant, $position, $content),
+            'descriptor' => pnd_is_direct_descriptor($tokens, $significant, $position, $content)
+                || preg_match($embeddedDescriptor, $content) === 1,
             'redirection' => preg_match($redirection, $content) === 1,
             // Command text has more than one word; `key=/dev/null` alone is an
             // argument or environment value that never reaches a shell.

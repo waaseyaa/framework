@@ -114,6 +114,15 @@ final class PortableNullDeviceGateTest extends TestCase
             $occurrences = \pnd_occurrences(self::SYNTHETIC, "<?php\nproc_open(\$command, {$spec}, \$pipes);\n");
             self::assertCount(1, $occurrences, $spec);
             self::assertTrue($occurrences[0]['descriptor'], $spec);
+
+            // The same descriptor spelled inside a string: PHP code for
+            // `php -r`, or code a generator writes, runs the same way.
+            $code = "proc_open(\$command, {$spec}, \$pipes);";
+            foreach (["<?php\n\$probe = <<<'PHP'\n{$code}\nPHP;\n", "<?php\n\$probe = " . var_export($code, true) . ";\n"] as $source) {
+                $embedded = \pnd_occurrences(self::SYNTHETIC, $source);
+                self::assertCount(1, $embedded, $source);
+                self::assertTrue($embedded[0]['descriptor'], $source);
+            }
         }
 
         $hostDerived = "<?php\nproc_open(\$command, [0 => ['null'], 1 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'w']], \$pipes);\n";
@@ -497,6 +506,11 @@ final class PortableNullDeviceGateTest extends TestCase
             'an argument word' => "proc_open(['git', '-c', 'core.hooksPath=/dev/null', 'status'], \$descriptors, \$pipes);",
             'an environment value' => "putenv('GIT_CONFIG_GLOBAL=/dev/null');",
             'another path' => "\$path = 'cmd > /dev/nullable';",
+            // PHP or JSON text inside a string is not command text: a quoted
+            // path there does not end a shell word, and `=>` is no redirection.
+            'an embedded PHP list' => "\$code = <<<'PHP'\n\$devices = ['stdin', '/dev/null'];\nPHP;",
+            'an embedded PHP map' => "\$code = <<<'PHP'\n\$devices = ['stdin' => '/dev/null'];\nPHP;",
+            'embedded JSON' => "\$json = '{\"stdin\": \"/dev/null\"}';",
         ];
         foreach ($notCommandText as $case => $statement) {
             $occurrence = \pnd_occurrences(self::SYNTHETIC, "<?php\n{$statement}\n")[0];

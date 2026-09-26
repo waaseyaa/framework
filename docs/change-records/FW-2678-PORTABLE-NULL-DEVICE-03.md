@@ -100,9 +100,11 @@ No semantic diff marker and no POSIX-only fragment was treated as a defect.
 - **The descriptor rule.** A `/dev/null` literal that is the path element of
   a `['file', …]` or `array('file', …)` descriptor, positional or keyed, is
   always rejected, even when a host choice picks between whole descriptors.
-  The message recommends `['null']` rather than asserting that the code
-  fails. A classification that names a descriptor is also reported as stale,
-  with the reason that a descriptor cannot be classified.
+  So is a string whose content spells such a descriptor, as PHP code for
+  `php -r` or code a generator writes does. The message recommends `['null']`
+  rather than asserting that the code fails. A classification that names a
+  descriptor is also reported as stale, with the reason that a descriptor
+  cannot be classified.
 - **The anchor.** A classification names a file, the enclosing symbol and the
   literal (the token's content as written), with the exact occurrence count.
   There are no line numbers.
@@ -221,11 +223,11 @@ Nits applied:
 
 A focused re-review of the repair delta (`3ce71a5b8..dcd1bf23f`) found no
 blocking issue. Every earlier surviving mutant was killed, and it confirmed
-the purposes stay exclusive across all 128 fact combinations. Its one
-should-fix is repaired: a surplus mixing fitting and misfitting occurrences
-got a single suggestion on the wrong occurrence. Surplus occurrences are now
-judged one by one, and the mixed case and the conflict case are pasted back
-in the tests. Its nits are applied:
+that the purposes stay exclusive in every reachable combination of facts. Its
+one should-fix is repaired: a surplus mixing fitting and misfitting
+occurrences got a single suggestion on the wrong occurrence. Surplus
+occurrences are now judged one by one, and the mixed case and the conflict
+case are pasted back in the tests. Its nits are applied:
 
 - methods named after declaration keywords keep their symbol;
 - command words need text of more than one word, so argument and
@@ -234,6 +236,21 @@ in the tests. Its nits are applied:
 - a patch whose added line redirects stays a semantic diff marker;
 - a literal that is not valid UTF-8 is declared unclassifiable instead of
   getting a suggestion that could never match.
+
+A final focused check of that repair (`dcd1bf23f..8f8eadb3c`) found no
+blocking issue. Its should-fix is repaired: the new quote allowance made PHP
+or JSON text inside a string look like shell text. Examples are
+`, '/dev/null']` in an embedded array, `=> '/dev/null'`, whose `>` read as a
+redirection, and even an embedded `['file', '/dev/null', 'r']`. That last
+could then have been classified posix-only-shell. The repairs:
+
+- `=>` and `->` are never redirections;
+- a quoted path counts only when the same quote closes right after it, and a
+  quoted word must end there;
+- a descriptor spelled inside string content, positional or keyed, with
+  plain or escaped quotes, is a direct descriptor and always rejected.
+
+Its wording nit on exclusivity is applied above.
 
 ## Discriminating evidence
 
@@ -246,7 +263,8 @@ not the reference hosts.
   changed in memory:
   - direct hard-coded descriptor: the base `qcRunGit()` shape is rejected,
     classified or not, under every purpose. Every descriptor spelling is
-    recognised, including a host choice between whole descriptors, and
+    recognised, including a host choice between whole descriptors and each
+    spelling embedded in a nowdoc or in an escaped single-quoted string.
     `['null']` and a host-derived path are not;
   - new unclassified literal: `fopen('/dev/null', 'w')` in package code (no
     purpose fits), a host-shell redirection (the diagnostic proposes the
@@ -271,7 +289,8 @@ not the reference hosts.
   - malformed and overly broad classifications, each rejected for its own
     reason;
   - statement boundaries and symbol attribution;
-  - the command-text POSIX shape;
+  - the command-text POSIX shape, including quoted and escaped-quoted paths,
+    and embedded PHP lists, maps and JSON that are not command text;
   - the governed surface and PHP detection;
   - comments;
   - invalid UTF-8;
