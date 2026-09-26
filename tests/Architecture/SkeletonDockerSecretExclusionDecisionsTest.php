@@ -180,6 +180,8 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
             '    /app/',
             'ADD --chown=1:1 git://example.test/repo.git /src',
             'RUN echo COPY .env /nowhere',
+            '# a comment ending in a backslash does not continue \\',
+            'COPY .env.production /app/',
         ]);
 
         $expected = [
@@ -194,6 +196,8 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
                 . 'exclusion.',
             'skeleton/Dockerfile line 12: ADD fetches git://example.test/repo.git from outside the build context, '
                 . 'so the context inventory no longer bounds what can land in a layer.',
+            'skeleton/Dockerfile line 15: COPY names .env.production explicitly, which would defeat the .dockerignore '
+                . 'exclusion.',
         ];
 
         self::assertSame($expected, \sdse_dockerfile_context_escapes($dockerfile));
@@ -299,12 +303,16 @@ final class SkeletonDockerSecretExclusionDecisionsTest extends TestCase
                 'does not look like generated material' => ["WAASEYAA_APP_SECRET=0123456789abcde\n", 'WAASEYAA_APP_SECRET'],
             ] as $reason => [$input, $key]
         ) {
+            // PHPUnit's own failures are RuntimeExceptions too, so the refusal
+            // is captured first and asserted outside the catch.
+            $refusal = null;
             try {
                 \sdse_generated_value($input, $key);
-                self::fail("Expected a harness error: {$reason}.");
             } catch (\RuntimeException $error) {
-                self::assertStringContainsString($reason, $error->getMessage());
+                $refusal = $error->getMessage();
             }
+            self::assertNotNull($refusal, "Expected a harness error: {$reason}.");
+            self::assertStringContainsString($reason, $refusal);
         }
     }
 
