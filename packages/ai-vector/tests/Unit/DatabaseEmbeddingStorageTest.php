@@ -45,6 +45,23 @@ final class DatabaseEmbeddingStorageTest extends TestCase
     }
 
     #[Test]
+    public function stores_into_the_migration_owned_natural_composite_key(): void
+    {
+        $this->storage->store('node', 'natural-key', [1.0, 0.0]);
+
+        $rows = iterator_to_array($this->database->query(
+            'SELECT entity_type, entity_id, vector FROM embeddings WHERE entity_type = ? AND entity_id = ?',
+            ['node', 'natural-key'],
+        ));
+
+        self::assertSame([[
+            'entity_type' => 'node',
+            'entity_id' => 'natural-key',
+            'vector' => '[1,0]',
+        ]], $rows);
+    }
+
+    #[Test]
     public function searchesOnlyTheRequestedEntityType(): void
     {
         $this->storage->store('node', '1', [1.0, 0.0]);

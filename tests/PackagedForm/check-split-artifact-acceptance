@@ -87,6 +87,7 @@ trap cleanup EXIT
 artifacts="$work/artifacts"
 seal="$work/seal.json"
 consumer="$work/consumer"
+full_consumer="$work/consumer-full"
 nodev="$work/consumer-nodev"
 vector_nodev="$work/consumer-vector-nodev"
 version="$(tr -d '[:space:]' < "$root/VERSION")"
@@ -110,7 +111,6 @@ echo "== create-project from the artifact repository"
 
 rm -f "$consumer/composer.lock"
 "$composer_bin" config --working-dir="$consumer" repositories.waaseyaa-artifacts "$repository"
-"$composer_bin" require --working-dir="$consumer" 'waaseyaa/full:*' --no-update --no-interaction
 
 "$composer_bin" install --working-dir="$consumer" \
     --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install.out" 2>&1 \
@@ -143,18 +143,29 @@ php "$engine" assert composition "$seal" "$consumer"
 echo "== Surface: exported-files"
 php "$engine" assert exported-files "$seal" "$consumer"
 
+echo "== Surface: full metapackage without ai-vector"
+mkdir -p "$full_consumer"
+( cd "$consumer" && tar --warning=no-timestamp --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$full_consumer"
+"$composer_bin" require --working-dir="$full_consumer" 'waaseyaa/full:*' \
+    --no-interaction --no-progress --prefer-dist --no-scripts >"$work/require-full.out" 2>&1 \
+    || { tail -80 "$work/require-full.out" >&2; exit 1; }
+( cd "$full_consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init-full.out" 2>&1 \
+    || { cat "$work/install-init-full.out" >&2; echo 'The governed installation phase failed on the full consumer.' >&2; exit 1; }
+grep -Fq 'Installation is complete.' "$work/install-init-full.out"
+
 echo "== Surface: bootstrap"
-cp "$root/tests/SplitArtifactAcceptance/boot.php" "$consumer/boot.php"
-php "$consumer/boot.php" >"$work/boot.out" 2>&1 \
+cp "$root/tests/SplitArtifactAcceptance/boot.php" "$full_consumer/boot.php"
+php "$full_consumer/boot.php" >"$work/boot.out" 2>&1 \
     || { cat "$work/boot.out" >&2; echo 'The artifact-installed consumer could not boot.' >&2; exit 1; }
 grep -Fq 'split-artifact kernel boot OK' "$work/boot.out"
 grep -Fq 'split-artifact entity round-trip OK' "$work/boot.out"
 grep -Fq 'split-artifact ai-vector absence OK (search 501)' "$work/boot.out"
-test ! -e "$consumer/vendor/waaseyaa/ai-vector"
+test ! -e "$full_consumer/vendor/waaseyaa/ai-vector"
 
 echo "== Surface: --no-dev exclusion"
 mkdir -p "$nodev"
-( cd "$consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
+( cd "$full_consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
     | tar --no-same-owner --no-same-permissions -xf - -C "$nodev"
 "$composer_bin" install --working-dir="$nodev" \
     --no-dev --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install-nodev.out" 2>&1 \
@@ -177,7 +188,7 @@ test ! -e "$nodev/vendor/waaseyaa/ai-vector"
 
 echo "== Surface: installed but disabled ai-vector"
 mkdir -p "$vector_nodev"
-( cd "$consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./composer.lock' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
+( cd "$full_consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./composer.lock' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
     | tar --no-same-owner --no-same-permissions -xf - -C "$vector_nodev"
 "$composer_bin" require --working-dir="$vector_nodev" 'waaseyaa/ai-vector:*' --no-update --no-interaction
 "$composer_bin" install --working-dir="$vector_nodev" \

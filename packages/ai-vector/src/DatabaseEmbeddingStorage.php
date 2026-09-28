@@ -48,15 +48,16 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
                 ->condition('entity_type', $entityType)
                 ->condition('entity_id', $id)
                 ->execute();
-            $this->database->insert(self::TABLE)
-                ->fields(['entity_type', 'entity_id', 'vector', 'updated_at'])
-                ->values([
-                    'entity_type' => $entityType,
-                    'entity_id' => $id,
-                    'vector' => $payload,
-                    'updated_at' => time(),
-                ])
-                ->execute();
+            // This table has a natural composite key, not an identity column.
+            // The generic InsertInterface returns an identity value, which is
+            // not available on PostgreSQL for this shape. Execute the same
+            // bound DML through DatabaseInterface's portable statement path.
+            $columns = ['entity_type', 'entity_id', 'vector', 'updated_at'];
+            $this->database->query(sprintf(
+                'INSERT INTO %s (%s) VALUES (?, ?, ?, ?)',
+                $this->database->quoteIdentifier(self::TABLE),
+                implode(', ', array_map($this->database->quoteIdentifier(...), $columns)),
+            ), [$entityType, $id, $payload, time()]);
             $transaction->commit();
         } catch (\Throwable $exception) {
             $transaction->rollBack();
