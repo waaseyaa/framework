@@ -3899,13 +3899,13 @@
       "destination": [
         {
           "kind": "private-report",
-          "ref": "framework advisory; owner waaseyaa/groups"
+          "ref": "framework advisory (filed privately); owner waaseyaa/groups"
         }
       ],
       "dependencies": "D14 (durable custody of the private brief)",
       "acceptance": "withheld (private brief)",
       "residual_risk": "withheld (private brief)",
-      "next_action": "File the private report when the maintainer authorizes it; brief custody is D14.",
+      "next_action": "Implement and verify the private report's acceptance; brief custody is D14.",
       "discovered_in": "waaseyaa/groups",
       "owned_by": "waaseyaa/groups",
       "co_owners": [],
@@ -3942,13 +3942,13 @@
       "destination": [
         {
           "kind": "private-report",
-          "ref": "framework advisory; owner waaseyaa/api"
+          "ref": "framework advisory (filed privately); owner waaseyaa/api"
         }
       ],
       "dependencies": "D14 (durable custody of the private brief)",
       "acceptance": "withheld (private brief)",
       "residual_risk": "withheld (private brief)",
-      "next_action": "Private triage, then the private report once authorized; brief custody is D14.",
+      "next_action": "Implement and verify the private report's acceptance; brief custody is D14.",
       "discovered_in": "waaseyaa/groups",
       "owned_by": "waaseyaa/api",
       "co_owners": [],
@@ -3982,13 +3982,13 @@
       "destination": [
         {
           "kind": "private-report",
-          "ref": "framework advisory; owner waaseyaa/audit"
+          "ref": "framework advisory (filed privately); owner waaseyaa/audit"
         }
       ],
       "dependencies": "D14 (durable custody of the private brief)",
       "acceptance": "withheld (private brief)",
       "residual_risk": "withheld (private brief)",
-      "next_action": "Private triage, then the private report once authorized; brief custody is D14.",
+      "next_action": "Implement and verify the private report's acceptance; brief custody is D14.",
       "discovered_in": "waaseyaa/groups",
       "owned_by": "waaseyaa/audit",
       "co_owners": [],
@@ -4024,13 +4024,13 @@
       "destination": [
         {
           "kind": "private-report",
-          "ref": "framework advisory; owner waaseyaa/relationship"
+          "ref": "framework advisory (filed privately); owner waaseyaa/relationship"
         }
       ],
       "dependencies": "D14 (durable custody of the private brief)",
       "acceptance": "withheld (private brief)",
       "residual_risk": "withheld (private brief)",
-      "next_action": "Private triage, then the private report once authorized; brief custody is D14.",
+      "next_action": "Implement and verify the private report's acceptance; brief custody is D14.",
       "discovered_in": "waaseyaa/groups",
       "owned_by": "waaseyaa/relationship",
       "co_owners": [],
@@ -4066,13 +4066,13 @@
       "destination": [
         {
           "kind": "private-report",
-          "ref": "framework advisory; owner waaseyaa/oidc"
+          "ref": "framework advisory (filed privately); owner waaseyaa/oidc"
         }
       ],
       "dependencies": "none",
       "acceptance": "Withheld.",
       "residual_risk": "Withheld.",
-      "next_action": "private report, then fix, when authorized",
+      "next_action": "Implement and verify the private report's acceptance.",
       "discovered_in": "waaseyaa/groups",
       "owned_by": "waaseyaa/oidc",
       "co_owners": [],
@@ -7215,7 +7215,7 @@
       "decisions": 14,
       "uncertainties": 0,
       "package_rows_without_filed_issue": {
-        "count": 22,
+        "count": 21,
         "of": 31,
         "ids": [
           "GRP-PERSIST-005",
@@ -7238,13 +7238,12 @@
           "GRP-TEST-009",
           "GRP-LAYER-001",
           "GRP-LAYER-002",
-          "GRP-PERF-001",
-          "GRP-SEC-001"
+          "GRP-PERF-001"
         ],
-        "note": "includes two accepted residuals (GRP-DIST-003, GRP-PERF-001) and GRP-SEC-001, whose private report is not filed"
+        "note": "includes two accepted residuals (GRP-DIST-003, GRP-PERF-001); GRP-SEC-001 has a filed private report"
       },
       "cross_package_without_filed_issue": {
-        "count": 11,
+        "count": 7,
         "of": 13,
         "ids": [
           "GRP-PERSIST-006",
@@ -7253,11 +7252,7 @@
           "GRP-DOCS-008",
           "GRP-DOCS-009",
           "GRP-TEST-010",
-          "GRP-TEST-014",
-          "GRP-SEC-002",
-          "GRP-SEC-003",
-          "GRP-SEC-004",
-          "GRP-SEC-005"
+          "GRP-TEST-014"
         ]
       }
     }
