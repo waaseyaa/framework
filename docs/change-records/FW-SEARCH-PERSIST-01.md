@@ -241,3 +241,11 @@ checkers passed, the complete search package and direct caller selection passed
 already recorded above: the same selection has one symlink skip and the POSIX
 `bin/git` architecture test cannot execute there. The Linux run is the
 qualification authority for those two boundaries.
+
+The first direct-main push attempt then refused at `check-composer-policy`
+because the newly added `waaseyaa/testing` constraint still named alpha.301.
+The other 45 pre-push gates passed. The repair advances that constraint to
+alpha.302 and runs Composer's lock-only refresh. Composer reports zero package
+installs, updates, or removals; the larger lock diff refreshes path-package
+metadata that current main's alpha.302 manifests already own. The S1 dependency
+authority records the resulting lock bytes.
