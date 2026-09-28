@@ -4,14 +4,6 @@ Instructions for configuring branch protection, environments, and secrets.
 
 ## 1. Branch Protection on `main`
 
-### Required Status Checks
-
-| Check | Description |
-|---|---|
-| `ci/lint` | PHP syntax, CS Fixer, PHPStan |
-| `ci/unit-tests` | PHPUnit unit + integration tests |
-| `ci/playwright-smoke` | Playwright smoke tests against running app |
-
 ### Solo-maintainer protection rules
 
 Waaseyaa Framework is intentionally maintained by `@jonesrussell`. Do not
@@ -20,22 +12,19 @@ exists: a one-approval rule would make the repository inoperable and a
 self-approval would not be independent. The accepted bus-factor-one risk is
 tracked in Framework issue #2387 and reviewed quarterly.
 
-- Require a pull request before merging.
-- Require **0 human approvals** while only one eligible human exists.
-- Require all canonical status checks and require the branch to be up to date.
-- Require review threads to be resolved.
+- Pull requests are optional during the solo-maintainer sprint.
+- Do not require status checks for ordinary updates to `main`; hosted CI is
+  post-landing feedback and a red head must be recorded with a repair owner.
 - Do not allow force pushes or branch deletion.
-- Restrict administrator bypass to **pull-request mode**. An emergency override
-  must retain a PR, reason, exact checks, and GitHub audit history; never restore
-  an always-on direct bypass.
 - Retain an independent agent-review comment for high-risk changes where useful.
   Agent review is evidence, not a GitHub human approval or maintainer authority.
+- Preserve the release-cut exact-SHA gates. No tag or package publication may
+  proceed from a red candidate.
 
 The active control is repository ruleset `main-protection` (currently id
-`15181711`), not classic branch protection. Read the full ruleset, preserve its
-complete required-check roster, and update it through the GitHub ruleset API or
-repository settings. Never replace it with the abbreviated historical
-three-check example.
+`15181711`), not classic branch protection. During the sprint it retains only
+`non_fast_forward` and `deletion` rules for `refs/heads/main`. The release tag
+ruleset and release-cut workflow carry the publication boundary.
 
 ### Verify
 
@@ -44,9 +33,8 @@ gh api repos/OWNER/REPO/rulesets/15181711 \
   --jq '{enforcement, rules, bypass_actors, current_user_can_bypass}'
 ```
 
-Verify that the pull-request rule reports zero approvals and resolved threads,
-required status checks report `strict_required_status_checks_policy:true`, and
-every bypass actor reports `bypass_mode:"pull_request"`.
+Verify that the branch rules are exactly `non_fast_forward` and `deletion`, and
+that no `pull_request` or `required_status_checks` rule is present.
 
 ## 2. GitHub Environments
 
@@ -115,6 +103,9 @@ Hook installation is explicit because linked worktrees share the repository's
 Git hook directory. The installer is idempotent, upgrades generated Lefthook
 shims, and refuses to overwrite an unknown hook.
 
-## 6. Timing Note
+## 6. Restoring a pre-merge gate
 
-The `ci/lint`, `ci/unit-tests`, and `ci/playwright-smoke` checks must run at least once before adding them as required status checks. Merge the CI workflow PR first, then configure branch protection.
+If the maintainer later restores required checks, first run the selected
+contexts successfully on a current head, then update the tracked operating
+policy and live ruleset together. Do not restore a stale historical roster by
+copying this document.

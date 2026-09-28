@@ -44,17 +44,18 @@ final class SoloMaintainerGovernanceTest extends TestCase
         self::assertIsString($runbook);
 
         foreach ([
-            'Require **0 human approvals** while only one eligible human exists.',
-            'Require review threads to be resolved.',
-            'Restrict administrator bypass to **pull-request mode**.',
+            'Pull requests are optional during the solo-maintainer sprint.',
+            'Do not require status checks for ordinary updates to `main`',
+            '`non_fast_forward` and `deletion` rules',
+            'No tag or package publication may',
             'Agent review is evidence, not a GitHub human approval',
-            '`strict_required_status_checks_policy:true`',
             '`require_code_owner_review:false`',
         ] as $control) {
             self::assertStringContainsString($control, $runbook);
         }
 
         self::assertStringNotContainsString('Require at least **1 approving review**', $runbook);
-        self::assertStringNotContainsString('bypass_mode:"always"', $runbook);
+        self::assertStringNotContainsString('Require a pull request before merging.', $runbook);
+        self::assertStringNotContainsString('`strict_required_status_checks_policy:true`', $runbook);
     }
 }

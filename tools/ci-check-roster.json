@@ -335,6 +335,15 @@
         {"context": "merge/release-integrity", "invariant": "release-integrity", "binding": {"mode": "github-app", "integration_id": 15368}}
       ]
     },
+    "landing_policy": {
+      "mode": "solo-maintainer-direct",
+      "change_record": "docs/change-records/FW-SPRINT-MAIN-POLICY-01.md",
+      "pull_request_required": false,
+      "required_status_check_count": 0,
+      "preserved_branch_rules": ["non_fast_forward", "deletion"],
+      "hosted_ci_role": "post-landing-feedback",
+      "release_gate": "exact-sha-green-required"
+    },
     "stable_aggregate_interface": {
       "status": "required",
       "workflow_policy_id": "primary-ci",

@@ -50,14 +50,13 @@ name: Cut Release
 # downstream workflows, so split.yml would silently never fire and the release
 # would tag without publishing or verifying Packagist publication.
 #
-# The App exists because `main-protection` requires pull requests for
-# refs/heads/main and its only role-based bypass is bypass_mode "pull_request",
-# so no direct push is permitted for anyone. The cut MUST push the gated commit
-# to main directly: the design tags the EXACT four-gate-tested SHA, and every
+# The App provides a narrowly scoped release identity for the one atomic main
+# and tag push. The cut MUST push the gated commit to main directly: the design
+# tags the EXACT four-gate-tested SHA, and every
 # GitHub merge mode (squash, rebase, merge commit) would rewrite it, which would
 # mean tagging a commit no gate ever ran against. The App is scoped to this one
 # repository with Contents:write + Actions:write and is the only actor holding
-# `always` bypass. Installation tokens expire after one hour, and Gates 2-4
+# release identity. Installation tokens expire after one hour, and Gates 2-4
 # routinely exceed that, so the token is minted at the point of use.
 
 on:
@@ -102,8 +101,8 @@ jobs:
           if [ -z "${RELEASE_APP_ID}" ] || [ -z "${RELEASE_APP_PRIVATE_KEY}" ]; then
             echo "::error::RELEASE_APP_ID / RELEASE_APP_PRIVATE_KEY are not configured."
             echo "::error::The final atomic push to main is made by the Waaseyaa Release Bot App,"
-            echo "::error::the only actor with 'always' bypass on the main-protection ruleset."
-            echo "::error::Without it the push is refused by repository rule (GH013) after every gate has run."
+            echo "::error::the scoped identity for the atomic release push."
+            echo "::error::Without it the release workflow cannot preserve its publication identity contract."
             exit 1
           fi
 
@@ -390,13 +389,10 @@ jobs:
         # 2-4 routinely exceed that (the alpha.294 attempt spent ~28 minutes in
         # Gate 3 alone). A token minted earlier would be expired by now.
         #
-        # The `main-protection` ruleset requires pull requests for refs/heads/main
-        # and its only bypass actor is a repository role with bypass_mode
-        # "pull_request", i.e. bypass via PR, never a direct push. The release cut
-        # must push the gated commit to main directly, because the whole design
+        # The release cut pushes the gated commit to main directly because the design
         # rests on tagging the EXACT four-gate-tested SHA and every GitHub merge
-        # mode would rewrite it. The Waaseyaa Release Bot App is the only actor
-        # granted `always` bypass, scoped to this repository.
+        # mode would rewrite it. The Waaseyaa Release Bot App is the scoped
+        # release identity for this repository.
         #
         # Deliberately NOT the built-in GITHUB_TOKEN: pushes made with it do not
         # trigger downstream workflows, which would silently break split.yml

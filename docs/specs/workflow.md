@@ -117,16 +117,16 @@ forge mirror as supplemental context when it is available.
 ### Commit checkpoints and review candidates
 
 Feature-branch commits may be recoverable checkpoints. Acceptance qualifies the
-coherent review-candidate head, including required local hooks, the documented
-impact-based test plan in [local testing policy](../local-testing-policy.md), and
-exact-head hosted CI, rather than every ancestor. Full local suites require a
-concrete impact or acceptance reason; they are not a prerequisite for every PR. Ordinary landings use governed
-squash auto-merge with pinned-head and combined-state custody checks. The
-release-cut path preserves the exact release commit validated by its gates;
-rewriting that SHA through a merge operation would break its identity contract.
-This is a separate supported boundary, not a general cherry-pick or merge-commit
-policy. See [commit-qualification.md](../cookbook/commit-qualification.md).
-No per-commit full-suite or default preflight CI jobs are added by this policy.
+coherent review-candidate head through required local hooks and the documented
+impact-based test plan in [local testing policy](../local-testing-policy.md),
+rather than every ancestor. Full local suites require a concrete impact or
+acceptance reason. During the solo-maintainer sprint, ordinary reviewed batches
+may fast-forward directly to `main`; pull requests remain optional review
+surfaces. Hosted main CI is feedback and a red head must have a recorded repair
+owner. The release-cut path remains fail-closed and preserves the exact release
+commit validated by its gates. See
+[commit-qualification.md](../cookbook/commit-qualification.md). No per-commit
+full-suite or default preflight CI jobs are added by this policy.
 
 ## Drift Detection
 
@@ -287,7 +287,7 @@ the report and CRC026 snapshot as retained artifacts, and reports only labelled
 job-wall cost proxies because billed runner minutes are unavailable. GitHub API
 availability is therefore outside the ordinary pull-request critical path.
 
-Task 7 uses `bin/project-ci-ruleset` to project the tracked
+Task 7 historically used `bin/project-ci-ruleset` to project the tracked
 `main-protection` baseline through exactly three states: the 22 legacy contexts,
 the 31-context legacy-plus-stable union, and the nine stable decisions. The
 command is a dry run unless `--apply`, the exact ruleset id, a fresh live payload
@@ -301,12 +301,16 @@ the GitHub Actions app; each must be a completed success on the evidence SHA
 22-context payload, byte-identical and never extended with later
 prerequisites, and does not depend on green checks. During the bounded migration only those three exact
 projections are accepted by the scheduled live audit. Task 9 narrows that
-temporary allowance to the final projection.
+temporary allowance to the final projection. `FW-SPRINT-MAIN-POLICY-01`
+supersedes that projection as an ordinary-landing requirement for the current
+solo-maintainer sprint. The aggregate jobs remain CI diagnostics; the live
+ruleset retains only deletion and non-fast-forward protection. Release-cut's
+exact-SHA gates are unchanged.
 
 ## Release readiness is not deployment
 
-Merging to `main` proves the Framework candidate through CI; it does not deploy
-an application. `.github/workflows/release.yml` is a manual, read-only
+Landing on `main` creates an integration candidate; it does not prove a release
+and does not deploy an application. `.github/workflows/release.yml` is a manual, read-only
 **Release Readiness** verifier. It accepts only an exact 40-character commit
 SHA reachable from `origin/main`, builds that candidate, records bounded
 metadata, and runs the full browser suite. It has no GitHub Environment,

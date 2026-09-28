@@ -213,7 +213,8 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
   with required local hooks and the impact-based test plan in
   docs/local-testing-policy.md; full local suites need a concrete reason.
   Require CI green on the exact pushed head before acceptance.
-  Ordinary landings use governed squash auto-merge. See
+  During the solo-maintainer sprint, ordinary reviewed batches may fast-forward
+  directly to `main`; pull requests remain optional. See
   `docs/cookbook/commit-qualification.md`.
 - Open PRs via `gh`; require CI green on the exact pushed head before merge.
 

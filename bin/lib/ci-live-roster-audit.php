@@ -13,7 +13,7 @@ const CLA_ERROR = 'error';
 const CLA_NOTICE = 'notice';
 
 /** @return array{id: int, strict: bool, contexts: list<array{context: string, integration_id: int|null}>} */
-function cla_ruleset_snapshot(array $ruleset): array
+function cla_ruleset_snapshot(array $ruleset, bool $allowNoRequiredChecks = false): array
 {
     $required = null;
     foreach (($ruleset['rules'] ?? []) as $rule) {
@@ -21,6 +21,13 @@ function cla_ruleset_snapshot(array $ruleset): array
             $required = $rule;
             break;
         }
+    }
+    if (!is_array($required) && $allowNoRequiredChecks) {
+        return [
+            'id' => (int) ($ruleset['id'] ?? 0),
+            'strict' => false,
+            'contexts' => [],
+        ];
     }
     if (!is_array($required)) {
         throw new RuntimeException('The ruleset has no required_status_checks rule.');
@@ -237,7 +244,10 @@ function cla_audit(
         throw new RuntimeException('The policy lacks the required projection or stable aggregate interface contract.');
     }
 
-    $snapshot = cla_ruleset_snapshot($ruleset);
+    $landingPolicy = $policy['policy']['landing_policy'] ?? null;
+    $directLanding = is_array($landingPolicy)
+        && ($landingPolicy['mode'] ?? null) === 'solo-maintainer-direct';
+    $snapshot = cla_ruleset_snapshot($ruleset, $directLanding);
     $expectedRuleset = [];
     foreach (($projection['contexts'] ?? []) as $entry) {
         if (!is_array($entry) || !is_string($entry['context'] ?? null)) {
@@ -258,13 +268,15 @@ function cla_audit(
         }
     }
     ksort($stableRuleset);
-    $projectionMaps = [
-        'final' => $expectedRuleset,
-    ];
+    $projectionMaps = $directLanding
+        ? ['solo-maintainer-direct' => []]
+        : ['final' => $expectedRuleset];
     $migration = $policy['policy']['ruleset_migration'] ?? null;
-    $allowedProjectionNames = is_array($migration)
+    $allowedProjectionNames = $directLanding
+        ? ['solo-maintainer-direct']
+        : (is_array($migration)
         ? ($migration['allowed_live_projections'] ?? [])
-        : ['final'];
+        : ['final']);
     $allowedProjectionMaps = [];
     foreach ($allowedProjectionNames as $name) {
         if (is_string($name) && isset($projectionMaps[$name])) {
@@ -275,8 +287,9 @@ function cla_audit(
     if ($snapshot['id'] !== ($projection['source_ruleset_id'] ?? null)) {
         $add('CLA001', CLA_ERROR, 'The live ruleset id differs from the manifest.', ['actual' => $snapshot['id'], 'expected' => $projection['source_ruleset_id'] ?? null]);
     }
-    if ($snapshot['strict'] !== ($projection['strict'] ?? null)) {
-        $add('CLA002', CLA_ERROR, 'The live strict required-check policy differs from the manifest.', ['actual' => $snapshot['strict'], 'expected' => $projection['strict'] ?? null]);
+    $expectedStrict = $directLanding ? false : ($projection['strict'] ?? null);
+    if ($snapshot['strict'] !== $expectedStrict) {
+        $add('CLA002', CLA_ERROR, 'The live strict required-check policy differs from the manifest.', ['actual' => $snapshot['strict'], 'expected' => $expectedStrict]);
     }
     if ($matchedProjection === false) {
         $add('CLA003', CLA_ERROR, 'The live required contexts or integration bindings do not match an allowed migration projection.', ['actual' => $actualRuleset, 'allowed' => $allowedProjectionMaps]);
@@ -308,12 +321,12 @@ function cla_audit(
             'duration_seconds' => is_array($run) ? cla_duration_seconds($run) : null,
             'prerequisites' => [],
         ];
-        if (!is_array($run)) {
+        if (!$directLanding && !is_array($run)) {
             $add('CLA004', CLA_ERROR, "Stable aggregate {$context} is missing on the audited SHA.");
-        } elseif (($run['status'] ?? null) !== 'completed' || ($run['conclusion'] ?? null) !== 'success') {
+        } elseif (!$directLanding && (($run['status'] ?? null) !== 'completed' || ($run['conclusion'] ?? null) !== 'success')) {
             $add('CLA005', CLA_ERROR, "Stable aggregate {$context} is not a completed success.", ['status' => $run['status'] ?? null, 'conclusion' => $run['conclusion'] ?? null]);
         }
-        if (is_array($run) && ($run['app']['id'] ?? null) !== $expectedAppId) {
+        if (!$directLanding && is_array($run) && ($run['app']['id'] ?? null) !== $expectedAppId) {
             $add('CLA006', CLA_ERROR, "Stable aggregate {$context} is not produced by the expected GitHub App.", ['actual' => $run['app']['id'] ?? null, 'expected' => $expectedAppId]);
         }
         foreach (($entry['prerequisite_contexts'] ?? []) as $prerequisite) {
@@ -326,19 +339,19 @@ function cla_audit(
                 'details_url' => is_array($upstream) ? ($upstream['details_url'] ?? null) : null,
             ];
             $evidence['prerequisites'][] = $prerequisiteEvidence;
-            if (!is_array($upstream)) {
+            if (!$directLanding && !is_array($upstream)) {
                 $add('CLA007', CLA_ERROR, "Prerequisite {$prerequisite} for {$context} is missing on the audited SHA.");
-            } elseif (($upstream['status'] ?? null) !== 'completed' || ($upstream['conclusion'] ?? null) !== 'success') {
+            } elseif (!$directLanding && (($upstream['status'] ?? null) !== 'completed' || ($upstream['conclusion'] ?? null) !== 'success')) {
                 $add('CLA008', CLA_ERROR, "Prerequisite {$prerequisite} for {$context} is not a completed success.", ['status' => $upstream['status'] ?? null, 'conclusion' => $upstream['conclusion'] ?? null]);
             }
             $expectedPrerequisiteApp = $expectedAppId;
-            if (is_array($upstream)
+            if (!$directLanding && is_array($upstream)
                 && is_int($expectedPrerequisiteApp)
                 && ($upstream['app']['id'] ?? null) !== $expectedPrerequisiteApp) {
                 $add('CLA010', CLA_ERROR, "Prerequisite {$prerequisite} for {$context} is not produced by its required GitHub App.", ['actual' => $upstream['app']['id'] ?? null, 'expected' => $expectedPrerequisiteApp]);
             }
         }
-        if (!isset($jobsByContext[$context])) {
+        if (!$directLanding && !isset($jobsByContext[$context])) {
             $add('CLA009', CLA_ERROR, "The generated inventory does not derive stable context {$context}.");
         }
         if (is_int($evidence['duration_seconds'])) {

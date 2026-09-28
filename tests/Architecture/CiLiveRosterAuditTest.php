@@ -158,7 +158,12 @@ final class CiLiveRosterAuditTest extends TestCase
     #[Test]
     public function cli_accepts_rest_fixtures_and_emits_the_crc026_snapshot_shape(): void
     {
-        [$policy, $inventory, $ruleset, $runs] = self::fixtures();
+        [, , $ruleset, $runs] = self::fixtures();
+        $ruleset['rules'] = [
+            ['type' => 'non_fast_forward'],
+            ['type' => 'deletion'],
+        ];
+        $runs = [];
         $directory = sys_get_temp_dir() . '/waaseyaa_ci_live_' . bin2hex(random_bytes(6));
         mkdir($directory, 0o777, true);
         $rulesetPath = $directory . '/ruleset.json';
@@ -188,7 +193,7 @@ final class CiLiveRosterAuditTest extends TestCase
             self::assertSame('ci-roster-live-audit', $report['kind']);
             self::assertSame(['id', 'strict', 'contexts'], array_keys($snapshot));
             self::assertSame(15181711, $snapshot['id']);
-            self::assertCount(9, $snapshot['contexts']);
+            self::assertCount(0, $snapshot['contexts']);
         } finally {
             foreach (glob($directory . '/*') ?: [] as $path) {
                 unlink($path);
@@ -212,10 +217,33 @@ final class CiLiveRosterAuditTest extends TestCase
         self::assertStringContainsString('if: always()', $workflow);
     }
 
+    #[Test]
+    public function solo_maintainer_direct_policy_accepts_no_pr_or_required_checks(): void
+    {
+        $policy = json_decode((string) file_get_contents(self::$root . '/tools/ci-check-roster.json'), true, 512, JSON_THROW_ON_ERROR);
+        $inventory = json_decode((string) file_get_contents(self::$root . '/tools/ci-workflow-inventory.json'), true, 512, JSON_THROW_ON_ERROR);
+        $ruleset = [
+            'id' => 15181711,
+            'rules' => [
+                ['type' => 'non_fast_forward'],
+                ['type' => 'deletion'],
+            ],
+        ];
+
+        $report = \cla_audit($policy, $inventory, $ruleset, [], 'waaseyaa/framework', str_repeat('a', 40));
+
+        self::assertTrue($report['ok'], json_encode($report['findings']));
+        self::assertSame('solo-maintainer-direct', $report['ruleset_projection']['matched']);
+        self::assertFalse($report['ruleset_snapshot']['strict']);
+        self::assertSame([], $report['ruleset_snapshot']['contexts']);
+        self::assertSame(0, $report['counts']['error']);
+    }
+
     /** @return array{array<string, mixed>, array<string, mixed>, array<string, mixed>, list<array<string, mixed>>} */
     private static function fixtures(): array
     {
         $policy = json_decode((string) file_get_contents(self::$root . '/tools/ci-check-roster.json'), true, 512, JSON_THROW_ON_ERROR);
+        unset($policy['policy']['landing_policy']);
         $inventory = json_decode((string) file_get_contents(self::$root . '/tools/ci-workflow-inventory.json'), true, 512, JSON_THROW_ON_ERROR);
         $projection = $policy['policy']['required_projection'];
         $ruleset = [

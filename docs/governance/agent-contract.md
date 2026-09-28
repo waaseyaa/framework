@@ -80,9 +80,11 @@ maintainer.
   release compiler.
 - Intermediate unpublished or branch commits may be recoverable checkpoints;
   do not claim they are individually release-ready. Qualification binds the
-  review-candidate head. Ordinary merges to `main` use the governed squash
-  auto-merge path. The release-cut workflow preserves its exact gated SHA as
-  a distinct boundary; see `docs/cookbook/commit-qualification.md`.
+  review-candidate head. During the solo-maintainer sprint, reviewed batches
+  may fast-forward directly to `main`; a pull request remains available but is
+  not an acceptance prerequisite. The release-cut workflow preserves its exact
+  gated SHA as the hard publication boundary; see
+  `docs/cookbook/commit-qualification.md`.
 - Review spec impact explicitly. Update enduring contracts when behavior or
   architecture changes. If a change set affects no specs, no trailer is
   required, and one is not accepted as a spec acknowledgement — the drift
@@ -116,10 +118,14 @@ maintainer.
 
 ## Publication and operations
 
-- Every required branch-protection check must pass on the exact PR head. Query
-  the live ruleset/check state; never rely on a documented numeric count.
-- Merge only through the repository's governed auto-merge path. Never merge to
-  `main` while a release split or fan-out is running.
+- Query the live ruleset and check state rather than relying on a documented
+  count. Hosted CI on ordinary `main` updates is feedback and may be red while
+  a tracked repair batch is in progress; record the failure and recovery owner.
+- Land reviewed batches by a normal fast-forward push or an optional pull
+  request. Never force-push or delete `main`, and never update `main` while a
+  release split or fan-out is running.
+- Tags and package publication remain fail-closed: release-cut must prove the
+  exact candidate green through its release gates before it can create a tag.
 - A merge does not imply authority to tag, release, split packages, deploy, or
   mutate production. Those are separately authorized operations.
 - Report what changed, what was verified, and any remaining authority boundary

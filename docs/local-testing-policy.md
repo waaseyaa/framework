@@ -1,9 +1,12 @@
 # Local test and evidence policy
 
 This policy governs local implementation, review, and integration testing.
-It does not waive repository hooks, required hosted checks, independent review,
-or explicit acceptance criteria. A green broad suite is not a substitute for
-testing the boundary named by an acceptance criterion.
+It does not waive repository hooks, risk-based independent review, or explicit
+acceptance criteria. Hosted CI on `main` is feedback during the solo-maintainer
+sprint and may be red when the failure is recorded with a repair owner. Release
+tags remain blocked until the exact release candidate is green. A green broad
+suite is not a substitute for testing the boundary named by an acceptance
+criterion.
 
 ## Plan before execution
 
@@ -25,7 +28,7 @@ unknown, state that uncertainty and choose the smallest suite that resolves it.
 | Implementation | Reproduce the defect, then run changed-component tests and directly affected callers. |
 | Independent review | Review the immutable diff and write independent failure discriminators; exercise affected contracts. Reuse valid implementation results for unchanged checks. |
 | Integration | One appropriately scoped combined qualification of interacting changes, owned by the integrator. |
-| Hosted CI | All required checks on the final published head. Local evidence does not replace them. |
+| Hosted CI | Observe the landed `main` head, record failures, and repair the affected batch. Exact-SHA green CI is mandatory at release cut. |
 
 After a repair, review the new delta and affected behavior. Do not restart the
 entire review or full local suite merely because a commit ID changed.
@@ -45,8 +48,8 @@ the impact crosses those boundaries or cannot be bounded.
 
 Record the reason before an optional broad run. Do not rerun an unchanged broad
 suite solely for reassurance, a new reviewer, or a documentation amendment.
-Required hooks and hosted checks still execute normally; never skip or weaken
-them to satisfy this policy.
+Required hooks still execute normally. Do not suppress hosted failures; account
+for them and repair them before a release cut.
 
 ## Evidence reuse
 

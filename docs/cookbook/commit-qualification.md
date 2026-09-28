@@ -5,16 +5,18 @@ Stable identity: `FW-DELIVERY-COMMIT-POLICY-01` (Framework #2903, part of #2527)
 ## One-sentence rule
 
 Intermediate branch commits may be **recoverable checkpoints**; only the
-**review-candidate head** must be fully qualified; `main` accepts that head via
-**governed squash** (with one documented non-squash exception below).
+**review-candidate head** needs the work package's focused qualification.
+During the solo-maintainer sprint, `main` accepts reviewed batches by normal
+fast-forward push or by an optional pull request. Release-cut remains the hard
+exact-SHA qualification boundary.
 
 ## Tiers
 
 | Tier | What it is | What must be true |
 | --- | --- | --- |
 | **Checkpoint** | Intermediate commit on a feature branch (TDD red, WIP, repair steps) | Recoverable via `bin/git`; not claimed release-ready; no stash |
-| **Review candidate** | The one coherent tip SHA offered for acceptance | Required local hooks and the documented risk-based test plan; exact-head CI green; design/change-record/evidence bound; one candidate per work unit |
-| **Landed on `main`** | Squash merge of that candidate | Governed pinned-head squash auto-merge; strict required checks and combined-state custody remain enforced |
+| **Review candidate** | The one coherent tip SHA offered for acceptance | Required local hooks and the documented risk-based test plan; design/change-record/evidence bound; one candidate per work unit |
+| **Landed on `main`** | Reviewed batch, normally fast-forwarded | Main CI is observed and failures are assigned; the head is not claimed release-ready until release-cut proves the exact SHA green |
 
 A squash creates a new commit identity; retain both the qualified candidate and
 accepted-main identities in delivery evidence.
@@ -28,9 +30,9 @@ rewrite others’ branches to fake a green-every-SHA history.
 | --- | --- | --- |
 | `pre-commit` | portable paths; `composer cs-check` if staged `.php` | No |
 | `pre-push` | `php bin/check-pr-preflight` (fast repo-state) | No |
-| Before opening / qualifying a PR | Documented local test plan under [local testing policy](../local-testing-policy.md), plus required hooks | Only when justified by impact or explicit acceptance |
-| Hosted CI | Required ruleset checks on the **exact PR head** | Yes (candidate) |
-| Merge | Governed workflow → `bin/enable-governed-auto-merge` (pinned-head native squash) | Squash to `main` |
+| Before landing a batch | Documented local test plan under [local testing policy](../local-testing-policy.md), plus required hooks | Only when justified by impact or explicit acceptance |
+| Hosted CI | Feedback on the landed `main` head or an optional PR | Broad, but may be red between release tags when tracked |
+| Release cut | Exact-SHA release workflow gates | Must be green before tagging or publication |
 
 There are **no** per-commit full-suite or default per-commit preflight CI jobs.
 Adding them would cost runtime without proving every ancestor under squash.
@@ -44,7 +46,9 @@ still apply to checkpoints; the policy does not authorize bypassing them.
 
 ## Non-squash exception (explicit)
 
-**Ordinary PR landings** are squash-only via `.github/workflows/auto-merge.yml`.
+**Ordinary landings** may be fast-forward batches during the solo-maintainer
+sprint. Optional PR landings may still use squash where the maintainer wants a
+review surface.
 
 **Release cut** (`.github/workflows/release-cut.yml`) is a **distinct supported
 boundary**: it must push the **exact four-gate-tested SHA** to `main` with App
@@ -63,7 +67,8 @@ landings implicitly.
 3. Execute the scoped test plan and retain its evidence. Use the canonical full
    runner when broad qualification is required; corroborate committed source
    with CI on the exact head.
-4. Land only through governed auto-merge squash (or the release-cut exception).
+4. Land the reviewed batch by a normal fast-forward push or optional PR. Never
+   force-push `main`.
 
 ## Canonical local qualifier
 
@@ -71,7 +76,8 @@ This runner remains available for a test plan requiring full local qualification
 it is not mandatory for every PR. The [local testing policy](../local-testing-policy.md)
 determines local scope. Its receipt terminology below is unchanged: a scoped
 plan does not become a full-run `qualification: true` receipt. Repository
-acceptance also requires review and the required hosted checks.
+acceptance also requires review and an explicit accounting of any hosted
+failure. Release acceptance requires green exact-SHA hosted gates.
 
 ```bash
 php bin/qualify-candidate            # preflight --full, then Unit + Integration + Architecture on the exact HEAD
@@ -95,5 +101,5 @@ all-components-must-pass qualification rule.
 Qualification intentionally binds HEAD, its tree, and tracked working-tree
 state. Run it from an isolated worktree: untracked scratch is permitted and is
 not represented in the receipt, even though untracked source can affect local
-autoloading or test discovery. Exact-head hosted CI remains the committed-source
-corroboration.
+autoloading or test discovery. Hosted CI remains committed-source feedback;
+release-cut is the exact-head qualification authority.
