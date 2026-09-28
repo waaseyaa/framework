@@ -39,7 +39,10 @@ final class VendorFreshnessPreconditionTest extends TestCase
     {
         $filesystem = new Filesystem();
         foreach ($this->fixtures as $fixture) {
-            $filesystem->chmod($fixture, 0o755, 0o000, true);
+            $gitDirectory = $fixture . '/.git';
+            if (is_dir($gitDirectory)) {
+                $filesystem->chmod($gitDirectory, 0o755, 0o000, true);
+            }
             $filesystem->remove($fixture);
         }
         $this->fixtures = [];
