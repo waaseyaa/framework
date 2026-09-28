@@ -46,8 +46,10 @@ final class QualifyCandidateRunnerTest extends TestCase
     protected function tearDown(): void
     {
         // Best-effort; a read-only fixture dir is restored first so teardown never masks a verdict.
+        $filesystem = new Filesystem();
         @chmod($this->tmp . '/ro', 0o755);
-        new Filesystem()->remove($this->tmp);
+        $filesystem->chmod($this->tmp, 0o755, 0o000, true);
+        $filesystem->remove($this->tmp);
     }
 
     #[Test]
@@ -398,6 +400,25 @@ final class QualifyCandidateRunnerTest extends TestCase
             self::assertNull($component['log']);
             self::assertNull($component['junit']);
         }
+    }
+
+    #[Test]
+    public function hosted_required_preflight_still_runs_supported_suites_without_claiming_qualification(): void
+    {
+        $marker = $this->tmp . '/supported-suite-ran';
+        $plan = $this->plan([
+            $this->component('preflight', 'fwrite(STDOUT, "hosted-required: split-artifact-acceptance\n"); exit(3);'),
+            $this->component('unit', 'file_put_contents(' . var_export($marker, true) . ', "ran\n"); exit(0);'),
+        ]);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
+
+        self::assertSame(3, $exit, $out);
+        self::assertSame('incomplete', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertFileExists($marker);
+        self::assertSame('hosted_required', $this->componentNamed($receipt, 'preflight')['outcome']);
+        self::assertSame('passed', $this->componentNamed($receipt, 'unit')['outcome']);
     }
 
     #[Test]

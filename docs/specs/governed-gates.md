@@ -44,9 +44,10 @@ Runs every fast **repo-state** gate that hosted CI reports, using the same comma
 with the `run_gate` accumulator pattern from the `ci/verify-gates` job: every gate runs, all
 failures are reported in one pass, each failure names its exact repair command, and the script
 exits non-zero if any gate failed. Test suites (Unit / Integration / Architecture / frontend /
-e2e) and the hosted FrankenPHP worker-runtime lane (`ci/frankenphp-worker`,
-`scripts/acceptance-frankenphp-worker.sh`) are **not** preflight gates — they
-remain the long half of verification. Local preflight does not download or
+e2e) and hosted consumer/runtime lanes remain the long half of verification.
+They are never executed by local preflight. A hosted-only manifest entry may
+inventory a long lane's controls and report its owning check as
+`hosted-required`, but cannot turn that lane into a local pass. Local preflight does not download or
 execute FrankenPHP; missing the binary on a developer laptop must not become a
 skip inside the hosted job. The preflight's job is that the long half never
 discovers what the fast half could have said in seconds. The nightly
@@ -65,14 +66,15 @@ Profiles:
   manifest, field guards, access hardening, contract-suite coverage, openapi, phpstan/phpunit path checks, distribution
   extensions, PHPUnit skip policy, delivery-agent event schema and append-only
   custody, repository-root hygiene, spec drift, changelog discipline, cs-check.
-- **`--full`** — adds the phpstan-engine gates (`composer phpstan`, `bin/check-dead-code`). These
+- **`--full`** — adds the phpstan-engine gates (`composer phpstan`, `bin/check-dead-code`) and
+  reports the hosted-only `ci/split-artifact-acceptance` owner without launching its consumer build. These
   are in CI's blocking set; they are separated locally only because the PHPStan worker layer is
   environment-sensitive (documented WSL crashes) and cache-cold runs are minutes long. `--full` is
   the documented pre-landing command.
 
 The gate list is **data, not prose**: `tools/preflight-gates.json` maps each gate id to its
 command, repair command, profile, and the CI surface that enforces it. Schema 2 also resolves
-supported hosts, required capabilities, owning hosted check, relevant path selectors, cost class,
+execution owner (`local` or `hosted-only`), supported hosts, required capabilities, owning hosted check, relevant path selectors, cost class,
 and evidence inputs for every gate. Common conservative values live in `gate_defaults`; a gate
 override can narrow them but cannot remove its hosted owner. A self-test
 (`tests/Architecture/PreflightParityTest`) asserts (a) every manifest gate resolves to a runnable
@@ -81,6 +83,10 @@ files — so the manifest cannot silently drift from CI.
 
 Before launching a selected gate, preflight identifies the native host and the available PHP,
 Git, Bash, Composer, and Node command capabilities. A supported and applicable gate runs normally.
+A gate declared `hosted-only` is never launched on any local host. It is reported as
+`hosted-required` with its owning check even on Linux, because a Linux workstation is not the
+governed exact-SHA hosted runner. Its command and control inventory are executable ownership data,
+not permission to substitute a local run for hosted proof.
 A gate whose host or required capability is unavailable is `hosted-required`: it is not launched,
 its owning hosted check is named, it is never printed as `ok`, and the ordinary command exits 3.
 `--allow-hosted-required` exists only for the pre-push adapter: it permits publication so the
@@ -430,5 +436,5 @@ claim until a native Windows CI job executes them.
 | Recorded rosters | `support/s1-*-roster.json` |
 | Hook integration | `bin/project-hooks` (`pre_push`) |
 | CI ordering | `.github/workflows/ci.yml` (`needs: [support-contract, spec-drift]` on the three long jobs) |
-| Hosted packaged-consumer lanes | `.github/workflows/ci.yml` jobs `ci/fresh-install-boot`, `ci/bimaaji-skill-resources`, `ci/cli-health-report`, `ci/cli-sync-rules`, `ci/split-artifact-acceptance`, harnesses under `tests/PackagedForm/`. Each builds a disposable consumer with its own dependency graph, so each needs network access and minutes of Composer work. Like the FrankenPHP worker lane below they are **blocking in CI and deliberately absent from `tools/preflight-gates.json`** (§1: preflight is fast repo-state gates only). Their fast repo-state halves DO run in `ci/unit-tests` — `tests/Architecture/FreshInstallBootGateTest.php`, `packages/bimaaji/tests/Architecture/PackagedSkillResourcesTest.php`, `tests/Architecture/CliHealthReportGateTest.php`, `tests/Architecture/CliSyncRulesGateTest.php`, `tests/Architecture/SplitArtifactAcceptanceGateTest.php` — which is what keeps the harness shape, the CI wiring, and the release-cut ordering under a gate a developer can run in seconds. `ci/split-artifact-acceptance` (#2649) additionally re-runs every one of its own assertions against seeded corruption on each invocation, so a green result is a harness that was observed failing on that same run. A control the host cannot seed is `not-run-here` in the §8 sense (#3081): never counted as caught and never lowering an undetected failure. Native Windows without the symlink privilege reports the run incomplete (exit 3), not passed; every other host fails closed, so this Linux job must execute every control. |
+| Hosted packaged-consumer lanes | `.github/workflows/ci.yml` jobs `ci/fresh-install-boot`, `ci/bimaaji-skill-resources`, `ci/cli-health-report`, `ci/cli-sync-rules`, `ci/split-artifact-acceptance`, harnesses under `tests/PackagedForm/`. Each builds a disposable consumer with its own dependency graph, so each needs network access and minutes of Composer work. Their commands are never locally executed by preflight. `split-artifact-acceptance` is the manifest exception: its `hosted-only` entry makes every live surface, reserved surface, seeded negative control, required capability, and `ci/split-artifact-acceptance` owner machine-readable while always reporting `hosted-required` locally. Their fast repo-state halves run in `ci/unit-tests` through `FreshInstallBootGateTest`, `PackagedSkillResourcesTest`, `CliHealthReportGateTest`, `CliSyncRulesGateTest`, and `SplitArtifactAcceptanceGateTest`, keeping harness shape and CI wiring under checks a developer can run in seconds. `ci/split-artifact-acceptance` (#2649) also re-runs every assertion against seeded corruption on each invocation. A control the host cannot seed is `not-run-here` in the §8 sense (#3081): never counted as caught and never lowering an undetected failure. Native Windows without symlink privilege reports the run incomplete (exit 3), not passed; every other host fails closed, so the Linux job must execute every control. |
 | Hosted FrankenPHP worker runtime | `.github/workflows/ci.yml` job `ci/frankenphp-worker`, pin `tools/frankenphp-runtime-pin.json`, harness `scripts/acceptance-frankenphp-worker.sh`. Owns real worker lifetime, Caddy/FrankenPHP identity, sequential/concurrent requests through one worker PID (concurrent burst captures per-request PID headers), hermetic runtime storage under `WAASEYAA_STORAGE_PATH`, account/community isolation at the HTTP boundary, streamed `/api/broadcast`, error-then-recovery, classic `php-server` fallback, and clean shutdown. Does **not** replace PHPUnit static lifetime gates (#2069, GraphQL schema-cache bleed, Twig environment replacement, CommunityMiddleware unit tests). |

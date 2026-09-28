@@ -5,6 +5,7 @@
         "supported_hosts": ["windows", "linux", "darwin"],
         "required_capabilities": ["php", "git"],
         "relevant_paths": ["**"],
+        "execution": "local",
         "cost": "fast",
         "evidence_inputs": ["relevant_path_bytes", "composer_lock", "toolchain", "gate_definition"]
     },
@@ -473,6 +474,43 @@
                 "mode": "manual",
                 "instruction": "delete the dead code or mark intentional extension points with @api; baseline regeneration (phpstan-dead-code-baseline.neon) is a reviewed exception per CLAUDE.md"
             }
+        },
+        {
+            "id": "split-artifact-acceptance",
+            "run": "bash tests/PackagedForm/check-split-artifact-acceptance",
+            "repair": "inspect the exact-SHA ci/split-artifact-acceptance log; repair the named packaged surface or seeded control and rerun the hosted full qualification",
+            "profile": "full",
+            "execution": "hosted-only",
+            "supported_hosts": ["linux"],
+            "required_capabilities": ["php", "git", "bash", "composer", "zip-extension", "network", "symlink"],
+            "relevant_paths": ["**"],
+            "cost": "slow",
+            "evidence_inputs": ["exact_candidate", "relevant_path_bytes", "composer_lock", "artifact_seal", "hosted_toolchain", "seeded_negative_controls", "gate_definition"],
+            "owning_hosted_check": "ci/split-artifact-acceptance",
+            "enforced_by": "workflow:ci.yml#ci/split-artifact-acceptance",
+            "control_inventory": [
+                {"id": "composition", "kind": "acceptance-surface", "execution": "hosted"},
+                {"id": "exported-files", "kind": "acceptance-surface", "execution": "hosted"},
+                {"id": "bootstrap", "kind": "acceptance-surface", "execution": "hosted"},
+                {"id": "stdio-initialization", "kind": "acceptance-surface", "execution": "reserved", "blocked_by": "#2659"},
+                {"id": "no-dev-exclusion", "kind": "acceptance-surface", "execution": "hosted"},
+                {"id": "pinned-fixture-removed", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "exported-file-removed", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "exported-byte-drift", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "admin-dist-byte-tampered", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "composition-package-dropped", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "composition-foreign-version", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "dist-outside-artifact-repo", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "code-bearing-package-without-dist", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "metapackage-reclassified-as-library", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "metapackage-reports-an-installation", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "development-plane-in-production-closure", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "development-plane-production-scoped", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "development-package-retained-after-no-dev", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "source-symlink-installed", "kind": "seeded-negative-control", "execution": "hosted", "required_capabilities": ["symlink"]},
+                {"id": "dev-package-retained", "kind": "seeded-negative-control", "execution": "hosted"},
+                {"id": "dev-flag-retained", "kind": "seeded-negative-control", "execution": "hosted"}
+            ]
         }
     ]
 }

@@ -64,9 +64,10 @@ final class PreflightParityTest extends TestCase
             }
             $this->assertContains($gate['profile'], ['default', 'full'], $gate['id']);
             $effective = array_replace($this->manifest['gate_defaults'], $gate);
-            foreach (['supported_hosts', 'required_capabilities', 'relevant_paths', 'cost', 'evidence_inputs'] as $key) {
+            foreach (['supported_hosts', 'required_capabilities', 'relevant_paths', 'execution', 'cost', 'evidence_inputs'] as $key) {
                 $this->assertArrayHasKey($key, $effective, sprintf('Gate %s must resolve %s metadata.', $gate['id'], $key));
             }
+            $this->assertContains($effective['execution'], ['local', 'hosted-only'], $gate['id']);
             $this->assertContains($effective['cost'], ['fast', 'medium', 'slow'], $gate['id']);
             $this->assertNotSame([], $effective['supported_hosts'], $gate['id']);
             $this->assertNotSame([], $effective['required_capabilities'], $gate['id']);
@@ -137,6 +138,8 @@ final class PreflightParityTest extends TestCase
             'check-governed-secret-access', 'check-runtime-policy-custody',
             'check-changelog-shape', 'check-changelog-fragments',
             'check-contract-suite-coverage', 'check-phpunit-skip-policy',
+            // hosted packaged evidence remains visible without running locally
+            'split-artifact-acceptance',
         ] as $id) {
             $this->assertArrayHasKey($id, $byId, sprintf('Manifest must include gate "%s".', $id));
         }
@@ -435,6 +438,37 @@ final class PreflightParityTest extends TestCase
     }
 
     #[Test]
+    public function preflight_never_launches_a_hosted_only_gate_or_claims_it_passed(): void
+    {
+        $scratch = $this->scratchDirectory();
+        try {
+            $ran = $scratch . '/hosted gate ran';
+            $manifest = $this->writeManifest($scratch, [[
+                'id' => 'hosted-consumer',
+                'run' => self::phpCommand("file_put_contents(\$argv[1], 'must-not-run');", self::hostPath($ran)),
+                'execution' => 'hosted-only',
+                'supported_hosts' => ['linux'],
+                'owning_hosted_check' => 'ci/hosted-consumer',
+            ]]);
+
+            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, []);
+            self::assertSame(3, $exitCode, $stdout . $stderr);
+            self::assertFileDoesNotExist($ran);
+            self::assertMatchesRegularExpression('/^HOST\s+hosted-consumer\s/m', $stdout);
+            self::assertStringContainsString('execution is hosted-only on linux', $stdout);
+            self::assertStringContainsString('owner: ci/hosted-consumer', $stdout);
+            self::assertStringNotContainsString('ok   hosted-consumer', $stdout);
+
+            [$hookExit, $hookStdout, $hookStderr] = $this->runPreflight($manifest, [], ['--allow-hosted-required']);
+            self::assertSame(0, $hookExit, $hookStdout . $hookStderr);
+            self::assertFileDoesNotExist($ran);
+            self::assertStringContainsString('This local run is incomplete', $hookStdout);
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    #[Test]
     public function preflight_reuses_only_matching_exact_gate_evidence(): void
     {
         $scratch = $this->scratchDirectory();
@@ -621,6 +655,7 @@ final class PreflightParityTest extends TestCase
                 'supported_hosts' => ['windows', 'linux', 'darwin'],
                 'required_capabilities' => ['php', 'git'],
                 'relevant_paths' => ['**'],
+                'execution' => 'local',
                 'cost' => 'fast',
                 'evidence_inputs' => ['relevant_path_bytes', 'composer_lock', 'toolchain', 'gate_definition'],
             ],

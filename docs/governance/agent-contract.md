@@ -114,6 +114,10 @@ maintainer.
   retain the owning hosted check. Do not rerun an unchanged gate merely to
   replace reusable evidence, and do not cite a local receipt as hosted or
   release qualification.
+- A manifest entry declared `hosted-only` is ownership metadata. Never launch
+  it locally or reinterpret a Linux workstation as its governed hosted runner.
+  Continue supported local evidence, retain the incomplete verdict, and send
+  the exact candidate to the named hosted owner.
 - Follow [the local testing policy](../local-testing-policy.md) when selecting
   verification scope and reusing evidence. A full local suite is not a default
   baseline or a per-commit requirement. When the test plan requires the split

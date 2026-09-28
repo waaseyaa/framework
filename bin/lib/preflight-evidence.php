@@ -21,6 +21,7 @@ function preflight_effective_gate(array $manifest, array $gate): array
 {
     $defaults = is_array($manifest['gate_defaults'] ?? null) ? $manifest['gate_defaults'] : [];
     $effective = array_replace($defaults, $gate);
+    $effective['execution'] ??= 'local';
     $effective['owning_hosted_check'] ??= (string) ($gate['enforced_by'] ?? 'unowned');
     $required = is_array($effective['required_capabilities'] ?? null) ? $effective['required_capabilities'] : [];
     $run = (string) ($gate['run'] ?? '');
@@ -49,6 +50,9 @@ function preflight_gate_metadata_problems(array $gate): array
     }
     if (!in_array($gate['cost'] ?? null, ['fast', 'medium', 'slow'], true)) {
         $problems[] = 'cost must be fast, medium, or slow';
+    }
+    if (!in_array($gate['execution'] ?? null, ['local', 'hosted-only'], true)) {
+        $problems[] = 'execution must be local or hosted-only';
     }
     if (!is_string($gate['owning_hosted_check'] ?? null) || $gate['owning_hosted_check'] === '') {
         $problems[] = 'owning_hosted_check must be a non-empty string';

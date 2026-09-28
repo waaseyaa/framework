@@ -48,6 +48,19 @@ only a clean HEAD that is the exact remote branch tip, then dispatches the full
 `ci.yml` profile with that SHA. Dispatch acceptance is not reported as green
 qualification and does not satisfy a release boundary.
 
+The schema distinguishes `local` from `hosted-only` execution. The full profile
+inventories `split-artifact-acceptance`, its five acceptance surfaces, all
+sixteen seeded negative controls, Linux ownership, required capabilities, and
+`ci/split-artifact-acceptance` without launching the multi-minute consumer
+locally. The reserved stdio surface remains bound to #2659. The symlink control
+explicitly requires the symlink capability and remains Linux-hosted evidence;
+native Windows cannot turn its unavailable control into a pass.
+
+`bin/qualify-candidate` treats preflight exit 3 as incomplete rather than as a
+repository defect. It continues through supported Unit, Integration, and
+Architecture evidence, but cannot emit `qualification: true` until hosted
+ownership is resolved. A failed or malformed preflight still holds the suites.
+
 ## Verification boundary
 
 `PreflightParityTest` discriminates manifest metadata, native host Bash custody,
@@ -56,6 +69,7 @@ gate-specific invalidation, unmatched selectors, base precedence, and failure
 repair output. `ProjectHooksTest` binds the pre-push adapter to the explicit
 hosted-required option and wording.
 
-This record now covers the first two bounded slices of #3085. Split-artifact
-control classification and any remaining issue acceptance stay open on #3085;
-this slice does not close the parent issue.
+This record covers the completed #3085 implementation. Local execution,
+cross-candidate evidence reuse, hosted-only control classification, supported
+suite continuation, and the early exact-SHA checkpoint are all executable.
+Hosted and release boundaries remain unchanged.

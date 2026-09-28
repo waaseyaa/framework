@@ -23,7 +23,7 @@ declare(strict_types=1);
  *
  * Usage:
  *   bin/check-pr-preflight            # default profile (fast repo-state gates)
- *   bin/check-pr-preflight --full     # adds the phpstan-engine gates (phpstan, dead-code)
+ *   bin/check-pr-preflight --full     # adds phpstan/dead-code and reports hosted-only ownership
  *   bin/check-pr-preflight --list     # print the gate roster without running
  *   bin/check-pr-preflight --base=REF # diff base for the committed-state gates
  *                                     # (default: WAASEYAA_DRIFT_BASE, then
@@ -115,9 +115,10 @@ $gates = $effectiveGates;
 if ($list) {
     foreach ($gates as $gate) {
         fwrite(STDOUT, sprintf(
-            "%-40s %-8s %-6s hosts=%-22s capabilities=%-18s %s\n",
+            "%-40s %-8s %-11s %-6s hosts=%-22s capabilities=%-18s %s\n",
             (string) $gate['id'],
             (string) $gate['profile'],
+            (string) $gate['execution'],
             (string) $gate['cost'],
             implode(',', $gate['supported_hosts']),
             implode(',', $gate['required_capabilities']),
@@ -234,6 +235,13 @@ $startedAll = microtime(true);
 foreach ($selectedGates as $gate) {
     $id = (string) $gate['id'];
     $owner = (string) $gate['owning_hosted_check'];
+    if ($gate['execution'] === 'hosted-only') {
+        $reason = 'execution is hosted-only on ' . implode(',', $gate['supported_hosts']);
+        $hostedRequired[] = $id;
+        $results[] = ['id' => $id, 'status' => 'hosted-required', 'reason' => $reason, 'owning_hosted_check' => $owner, 'source' => 'not-run'];
+        fwrite(STDOUT, sprintf("HOST %-40s (%s; owner: %s)\n", $id, $reason, $owner));
+        continue;
+    }
     if (!in_array($host, $gate['supported_hosts'], true)) {
         $reason = "host {$host} is not in supported_hosts";
         $hostedRequired[] = $id;
@@ -324,7 +332,7 @@ fwrite(STDOUT, sprintf(
     count($failures),
     count($hostedRequired),
     count($notApplicable),
-    $full ? '' : ' (phpstan-engine gates run with --full and in CI.)',
+    $full ? '' : ' (phpstan-engine gates and hosted-only ownership are selected with --full.)',
 ));
 
 $report = [

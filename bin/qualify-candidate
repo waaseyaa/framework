@@ -35,7 +35,8 @@ declare(strict_types=1);
  *                    Default plan (no --plan) is the four real components above.
  *   --only=a,b       Run only the named component ids. An all-green subset run is verdict
  *                    "passed" with disqualifier "subset" — never a qualification.
- *   --jobs=N         Run up to N components concurrently after preflight passes. Default 1.
+ *   --jobs=N         Run up to N components concurrently after preflight passes or reports only
+ *                    hosted-required evidence. Default 1.
  *                    Preflight always runs alone when selected; every component binds to one head/tree.
  *   --collect-all    Diagnostic override: schedule every selected component even when preflight fails.
  *                    Complete all-green default evidence can still qualify; failures remain failures.
@@ -51,11 +52,12 @@ declare(strict_types=1);
  *   0   qualified or passed (see receipt.verdict and receipt.disqualifiers)
  *   1   at least one component failed or was signaled
  *   2   usage, spawn, or evidence-write/parse error
- *   3   dirty tracked tree at start (without --allow-dirty), or source drifted during the run
+ *   3   hosted evidence remains required, dirty tracked tree at start (without --allow-dirty),
+ *       or source drifted during the run
  *   130 interrupted (SIGINT/SIGTERM, or the WAASEYAA_QUALIFY_INTERRUPT_AFTER test seam)
  *
  * Verdicts: in_progress (written before any component starts; only ever
- * observable if the runner is killed) | qualified | passed | failed | drifted
+ * observable if the runner is killed) | qualified | passed | incomplete | failed | drifted
  * | evidence_error | interrupted. `qualification` is true iff `verdict ===
  * "qualified"`, and `verdict: "qualified"` requires ALL of: the default plan
  * (no --plan), no --only, a clean tracked tree at start (no --allow-dirty
@@ -77,10 +79,13 @@ declare(strict_types=1);
  * exits 2 and prints nothing on stdout that could be mistaken for a green
  * result.
  *
- * Scheduling: when selected, `preflight` runs alone. Its pass opens the
- * remaining scheduler; any other outcome records held components as `unrun`
- * without starting them. Later suite failures are collected without closing the
- * scheduler. `--collect-all` explicitly restores all-component diagnostic scheduling.
+ * Scheduling: when selected, `preflight` runs alone. A pass opens the remaining
+ * scheduler. Exit 3 means supported local gates passed but hosted evidence
+ * remains required; it also opens the scheduler while keeping the final run
+ * incomplete and non-zero. A defect or evidence error records held components
+ * as `unrun` without starting them. Later suite failures are collected without
+ * closing the scheduler. `--collect-all` explicitly restores all-component
+ * diagnostic scheduling after a real preflight failure.
  *
  * Evidence binding per component: a previous run's log/junit at the same path
  * is removed before the child starts (unremovable -> evidence_error); a junit
@@ -355,7 +360,9 @@ function qcFinalizeComponent(array $handle, ?array $status): array
             $outcome = $exitCode === 0 ? 'passed' : 'failed';
         }
     } else {
-        $outcome = $exitCode === 0 ? 'passed' : 'failed';
+        $outcome = $component['id'] === 'preflight' && $exitCode === 3
+            ? 'hosted_required'
+            : ($exitCode === 0 ? 'passed' : 'failed');
     }
 
     $result = [
@@ -912,7 +919,7 @@ while (($pending !== [] || $active !== []) && !$stopScheduling) {
         }
 
         if (!$collectAll && $result['id'] === 'preflight') {
-            if ($result['outcome'] !== 'passed') {
+            if (!in_array($result['outcome'], ['passed', 'hosted_required'], true)) {
                 $stopScheduling = true;
                 break;
             }
@@ -996,12 +1003,16 @@ foreach ($componentsToRun as $component) {
 
 $hasEvidenceError = false;
 $hasFailure = false;
+$hasHostedRequired = false;
 foreach ($orderedComponents as $result) {
     if ($result['outcome'] === 'evidence_error') {
         $hasEvidenceError = true;
     }
     if (in_array($result['outcome'], ['failed', 'signaled'], true)) {
         $hasFailure = true;
+    }
+    if ($result['outcome'] === 'hosted_required') {
+        $hasHostedRequired = true;
     }
 }
 
@@ -1019,6 +1030,9 @@ if ($sigInterrupted) {
 } elseif ($hasFailure) {
     $verdict = 'failed';
     $exitCode = 1;
+} elseif ($hasHostedRequired) {
+    $verdict = 'incomplete';
+    $exitCode = 3;
 } else {
     // Every component passed and the source never moved: this run is a
     // qualification unless one of these conditions disqualifies it — in

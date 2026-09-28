@@ -261,6 +261,44 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         );
     }
 
+    #[Test]
+    public function preflight_classifies_every_surface_and_negative_control_under_the_hosted_owner(): void
+    {
+        $manifest = $this->json('tools/preflight-gates.json');
+        $gates = array_column($manifest['gates'], null, 'id');
+        self::assertArrayHasKey('split-artifact-acceptance', $gates);
+        $gate = $gates['split-artifact-acceptance'];
+
+        self::assertSame('hosted-only', $gate['execution']);
+        self::assertSame('full', $gate['profile']);
+        self::assertSame(['linux'], $gate['supported_hosts']);
+        self::assertSame('ci/split-artifact-acceptance', $gate['owning_hosted_check']);
+        self::assertSame('bash ' . self::HARNESS, $gate['run']);
+
+        $inventory = array_column($gate['control_inventory'], null, 'id');
+        $fixture = $this->fixture();
+        foreach ($fixture['surfaces'] as $surface) {
+            $id = (string) $surface['id'];
+            self::assertArrayHasKey($id, $inventory, "Preflight must classify split surface {$id}.");
+            self::assertSame('acceptance-surface', $inventory[$id]['kind']);
+            self::assertSame($surface['status'] === 'live' ? 'hosted' : 'reserved', $inventory[$id]['execution']);
+            if ($surface['status'] === 'reserved') {
+                self::assertSame($surface['blocked_by'], $inventory[$id]['blocked_by'] ?? null);
+            }
+        }
+
+        preg_match_all('/\$controls\[\'([^\']+)\'\]\s*=/', $this->read(self::ENGINE), $matches);
+        $engineControls = array_values(array_unique($matches[1]));
+        sort($engineControls);
+        $classifiedControls = array_keys(array_filter(
+            $inventory,
+            static fn(array $control): bool => $control['kind'] === 'seeded-negative-control',
+        ));
+        sort($classifiedControls);
+        self::assertSame($engineControls, $classifiedControls, 'Every executable negative control must have one hosted classification.');
+        self::assertSame(['symlink'], $inventory['source-symlink-installed']['required_capabilities']);
+    }
+
     /**
      * #3081. A seeded negative control the host cannot construct proves
      * nothing either way, so it is `not-run-here` (docs/specs/governed-gates.md

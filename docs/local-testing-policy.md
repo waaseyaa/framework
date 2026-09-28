@@ -81,6 +81,13 @@ matching candidate path is `not-applicable`. Neither is a local pass. Use
 Local receipts never replace the named hosted check or exact-SHA release
 qualification.
 
+The full profile also inventories `split-artifact-acceptance` as
+`hosted-only`. Preflight never launches its disposable consumer locally; it
+reports `hosted-required` and names `ci/split-artifact-acceptance` on every
+host. `bin/qualify-candidate` continues through supported Unit, Integration,
+and Architecture evidence after that exit 3, but records the result as
+`incomplete` until the exact-SHA hosted owner is green.
+
 ## Choose the boundary that answers the question
 
 - In-process unit tests establish component behavior.
