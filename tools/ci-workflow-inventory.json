@@ -88,7 +88,7 @@
             },
             {
                 "file": "release-cut.yml",
-                "sha256": "b9163e68324dff97d71502e7587a884091f943815d93c541c768525ef921e165"
+                "sha256": "318cd5d62179028e6e5a5084de33e7c40fe4d3b0dff84cc24da4f6b8c3359e75"
             },
             {
                 "file": "release-gate.yml",
@@ -8730,7 +8730,7 @@
         {
             "file": "release-cut.yml",
             "name": "Cut Release",
-            "source_sha256": "b9163e68324dff97d71502e7587a884091f943815d93c541c768525ef921e165",
+            "source_sha256": "318cd5d62179028e6e5a5084de33e7c40fe4d3b0dff84cc24da4f6b8c3359e75",
             "triggers": {
                 "events": [
                     "workflow_dispatch"
