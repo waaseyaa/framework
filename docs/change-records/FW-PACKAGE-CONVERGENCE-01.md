@@ -24,12 +24,37 @@ tracked separately. The program does not block ordinary Framework delivery.
 - **Audit:** not assessed, inventory only, in progress, assessed, needs delta review.
 - **Remediation:** not triaged, no action required, planned, in progress, resolved, accepted residual.
 
-"Assessed" has the finish line defined in the skill: every production file in
-the roster, charter answered, each selected profile's checklist answered or
-marked not applicable, every finding with severity, confidence, an owner and a
-next action, refuted leads recorded, base, date, dependency identity and
-evidence freshness recorded, gaps and host limits listed. A
-package can be assessed while repairs are still planned.
+The skill defines three milestones, each a stronger claim:
+
+1. **Assessed** (audit state "assessed"): every production file in the roster;
+   charter answered; each selected profile's checklist answered, marked not
+   applicable, or recorded as a gap with a destination; every supported
+   installation profile with qualifying evidence or a recorded qualification
+   gap with an owner; every finding with severity, confidence, attribution, a
+   disposition, an accountable destination, a next action and its tier's
+   verification; no open finding or handoff that blocks the assessment; every
+   intake item dispositioned; security findings verified at tier A with a
+   private brief in durable custody, an owning package and the advisory route;
+   refuted leads, decisions, uncertainties, base, date, dependency identity,
+   evidence freshness, gaps and host limits recorded. A destination need not be
+   a filed issue.
+2. **Repair ready:** the record's remediation plan bounds every package-owned
+   finding that needs work into slices with acceptance criteria. A slice is
+   filed as an issue before its remediation begins, and every remaining
+   finding has a bounded issue before this program's final reconciliation.
+   Filing needs publication authority; a private security report is filed as
+   soon as it is authorized, independent of any milestone.
+3. **Converged:** repairs and required qualification have landed.
+
+Audit and remediation states stay independent axes. Remediation state tracks
+filed work: "planned" once at least one bounded slice is filed, "in progress",
+"resolved" when every package-owned slice has landed, and "no action required"
+or "accepted residual" when nothing needs a slice; it stays "not triaged" until
+the first slice is filed, even when every finding is dispositioned. A
+consumer-driven slice can be planned or in progress while its audit is still in
+progress. Repair ready and converged are claims in the audit record's header;
+the index has no state for either. Rows recorded before method v2 (the initial
+states below, and ai-vector) keep their states until their next delta review.
 
 ## Coverage index
 
@@ -112,11 +137,113 @@ reviewed.
 Follows #3118: calibrate the method on the admin-surface reference and the
 CLI pilot, then on one persistence package and one small domain package, then
 audit high-fan-in shared authorities before dependent capabilities, then
-aggregate and distribution forms. `waaseyaa/ai-vector` is the next audit and
-the persistence calibration: it creates its `embeddings` table at runtime
-outside schema authority (#3110; `docs/specs/s1-schema-authority.md`). The
-small domain package is not yet chosen.
+aggregate and distribution forms. `waaseyaa/ai-vector` was the persistence
+calibration, chosen because it created its `embeddings` table at runtime
+outside schema authority (#3110; `docs/specs/s1-schema-authority.md`).
+`waaseyaa/groups` is the small domain package, chosen for its consumer
+evidence in Sheguiandah.
 
 Each audit is its own audit-only change that adds
-`docs/audits/packages/<package>.md` and updates that package's index row.
-Repairs follow as separate, independently reviewed changes.
+`docs/audits/packages/<package>.md`, its structured ledger
+`docs/audits/packages/<package>.ledger.json` and retained probes, and updates
+that package's index row. Repairs follow as separate, independently reviewed
+changes.
+
+Calibration status (2026-09-26): admin-surface was the design case the method
+was built from. ai-vector (#3135, #3137) was the persistence calibration.
+groups, audited at `a4e88e88afb1d2806b12fbc7947d32a1484e8798` on 2026-09-25, is
+the small domain package and the first end-to-end audit with the extracted
+skill and profiles. Its record is not yet committed; it is being condensed
+into the v2 format below before an audit-only change. The next audit should be
+a high-fan-in shared authority, once the condensed groups record shows the v2
+format is reviewable.
+
+## Method v2 (2026-09-26)
+
+The groups audit showed the method is rigorous but doesn't scale to the
+roster. Verification corrected mechanisms, lowered 13 severities and surfaced
+the highest-value cross-package security finding, and a refutation check
+reopened 2 of the 65 refutations it checked. But the run took 121 agents, about 20M subagent tokens and
+4.3 hours for 13 source files, and produced a 2,420-line record against
+ai-vector's 365. It also showed three rule problems: "assessed" required a
+filed issue per finding, which is a publication step; an untested standalone
+`--no-dev` profile kept the audit open even though the gap had an owner; and
+findings owned by relationship, api, access and ai-tools inflated the groups
+ledger.
+
+v2 changes the skill (`.agents/skills/waaseyaa-package-convergence/`):
+
+- **Milestones.** Assessed, repair ready and converged are separate claims
+  (see "States"). Assessed needs an accountable destination per finding, not
+  an issue. Repair ready follows the program brief: bounded slices with
+  acceptance exist; issues are filed before a slice's remediation begins, and
+  for every remaining finding before final program reconciliation.
+- **Tiered verification.** Two independent verifiers for security, medium or
+  higher, and public-surface removals or changes to who may read or mutate
+  data; one verifier for low; grouped sampling for info; tie-breaks on any
+  material disagreement (`references/audit-orchestration.md`). Budgets are
+  provisional, with a projection checkpoint after consolidation.
+- **Size budget.** The human record stays near 400 lines, with detail blocks
+  only for medium and higher. Exhaustive rosters, checklist answers, refuted
+  leads, handoffs and probe metadata move to the structured ledger, whose keys
+  and enums the template lists.
+- **Attribution and intake.** Every finding records where it was discovered,
+  its one owning package and any co-owners, and whether it blocks the
+  assessment. Findings owned elsewhere, and handed-off leads, are intake that
+  the owning package's audit collects and dispositions.
+- **Profile-aware distribution.** Installation profiles and evidence classes
+  are separate lists, with a map of which classes can qualify which profile.
+  A supported profile without evidence is a qualification gap that, once
+  recorded with an owner, does not keep the audit open.
+- **Security triage.** Security-sensitive follows `SECURITY.md`. The
+  discovering orchestrator writes the private brief from verified evidence and
+  keeps it in durable private custody; the record carries one safe row per
+  finding after a redaction check (`references/security-triage.md`).
+- **Probes.** Retained probes cover medium-or-higher non-security findings
+  and any probe an acceptance criterion cites, in a flat layout, runnable from
+  the repository. Other probes stay in the ledger with a reproduction
+  description, and their findings read "reproduced (probe not retained)".
+- **Scorecard.** Each of the next audits records time, agents, findings by
+  severity, verification reversals, record length, probes retained and open
+  decisions.
+
+Decisions (maintainer, 2026-09-26, after an independent review of the v2.1
+candidate):
+
+- **Index states stay as they are.** Repair ready and converged are recorded in
+  the audit record's header only.
+- **The ledger is an executable contract.** `bin/lib/package-audit-ledger.php`
+  validates a ledger's keys, types, enums, owner values, internal references
+  and security-row rules, and checks it against its record, its coverage-index
+  row and its retained probes. `tests/Architecture/PackageAuditLedgerTest.php`
+  runs it over every committed ledger and seeds each defect class. No ledger
+  lands before this test does.
+- **Lane write isolation is checked, not requested.** The skill ships
+  `scripts/lane-integrity.php`: snapshot every checkout and directory the
+  agents can reach before a run, verify after, and stop on any change outside
+  the allowed output areas. `tests/Architecture/PackageAuditLaneIntegrityTest.php`
+  proves it reports changes and ignores allowed areas.
+- **Both controls fail closed.** A second independent review found false
+  greens in the first versions. The lane check turned Git failures into
+  comparable text, compared status lines only (missing a second write to a
+  dirty file), dropped rename sources and trusted size and mtime. The
+  validator skipped types and scanned only a security row's top-level
+  strings. Now a failed Git command, a vanished root or an altered snapshot
+  exits 2; the lane check hashes content; the validator types every field,
+  scans every nested string and every entry that names a security ID, gives
+  decisions and uncertainties an open or settled status, and checks the
+  record's stated counts against the ledger. Each hole has a seeded test.
+- **Security briefs have a designated durable location** outside every
+  repository, with access limited to the maintainer. Records and ledgers
+  don't name it. The copy into it is verified: a per-file SHA-256 inventory
+  checked against the copy, and the access list checked. The staging
+  originals stay until the audit and its PR are complete.
+- **v2.1 is ready for one more bounded calibration, not yet proven for the
+  whole roster.** The refinement of the groups audit alone took about 31
+  agents and 8M subagent tokens. The next audit runs with a recorded budget and
+  the projection checkpoint, and its scorecard decides whether the small-package
+  budget (about 50 agents) holds.
+- The skill change and the groups audit-only change are held until these
+  controls are in place, the groups brief is in durable custody, its retained
+  probes run from the repository, and its record and ledger have had an
+  independent review.

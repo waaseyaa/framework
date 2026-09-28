@@ -105,4 +105,4 @@ Keep an unverified candidate separate from a demonstrated replacement opportunit
 
 ## Recording
 
-Record results in the [audit record](audit-record-template.md); see the skill's "Record findings" step for the fields and evidence levels. List unreviewed areas separately from confirmed findings.
+Record results in the [audit record](audit-record-template.md) and its structured ledger; see the skill's "Record findings" step for the fields, attribution and evidence levels. Every item here gets an answer in the ledger: answered with evidence, a finding, "does not apply" with a reason, or a gap with a destination. List unreviewed areas separately from confirmed findings.

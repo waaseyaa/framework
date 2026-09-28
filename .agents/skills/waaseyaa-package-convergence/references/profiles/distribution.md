@@ -4,12 +4,63 @@ Apply to every package's split form, and in depth to metapackages, packages
 with committed build output, and anything consumers install without dev
 dependencies.
 
+## Installation profiles
+
+Decide which of these the package supports, from its charter and recorded
+decisions. An undecided profile is a decision to record, not a failed check.
+
+- **primitive-only:** a consumer uses the package's classes directly, without
+  the kernel;
+- **standalone split:** the package installed on its own and booted, including
+  with `--no-dev`;
+- **kernel composition:** the package's providers and policies discovered and
+  booted by the kernel;
+- **metapackage:** installed through `core`, `cms` or `full`;
+- **framework closure:** installed through `waaseyaa/framework`;
+- **generated application:** a freshly generated application.
+
+## Evidence classes
+
+Each piece of evidence belongs to exactly one class; never count one class as
+another. A profile can rest on several pieces of evidence. The host a run used
+(native Windows, hosted Linux) is recorded on the run, not as a class.
+
+| Class | What it proves | Can qualify | Typical source |
+| --- | --- | --- | --- |
+| source | behavior with monorepo path repositories and root autoload | nothing; source evidence is "reproduced", never "qualified" | the package suite, focused probes |
+| closure artifact | exported bytes, composition, and a `--no-dev` install and boot of the whole `waaseyaa/framework` closure built from sealed archives | framework closure; kernel composition for "boots with the package present" | hosted `ci/split-artifact-acceptance` on the exact base |
+| metapackage | a curated metapackage installs and boots | metapackage | `ci/core-only-boot` and `packaged-form` cover `core` only; `cms` and `full` need their own evidence |
+| installed consumer | the package's installed bytes inside a real application at a named lock | the profile that application uses | a consumer checkout's `vendor/`, read-only |
+| standalone split | the package installed alone and booted with `--no-dev` | standalone split, primitive-only | an isolated scratch install; `bin/test-isolated-package` covers only `access` and runs a dev install, so it isn't this class for other packages |
+| generated application | a freshly generated app installs, boots and runs the package | generated application | the skeleton path, or a hosted job that creates the project |
+
+A synthetic probe run against a consumer's installed bytes proves those bytes
+behave like source; it is installed-consumer evidence for byte equivalence,
+recorded as "reproduced". It qualifies a profile only when it runs through the
+consumer's own composition root.
+
+Reused evidence names its run and job IDs, its base, and the surfaces it
+asserts, and confirms that the job's closure actually contains the package.
+Hosted logs expire: transcribe the asserted surfaces into the ledger's
+evidence runs rather than capturing the log under `evidence/`, whose header
+accepts only commit and issue sources. A closure boot that reflection-loads
+the package's classes shows they don't extend dev-only symbols; it doesn't
+prove the package's behavior, and it doesn't qualify the standalone split.
+
+## Qualification gaps
+
+A supported profile with no qualifying evidence is a **qualification gap**.
+Record it with an owner: an existing CI job to extend, a proposed slice, or
+an accepted residual with a rationale. Once recorded that way it doesn't keep
+the audit open. It becomes a finding only when the package or its docs claim
+the profile works, or when a consumer depends on it.
+
 ## Installed form
 
-- Identify the supported installation profiles: primitive-only use, split package, kernel composition, curated metapackage (`core`, `cms`, `full`), generated application.
+When you run these checks, record their evidence; otherwise record the gap.
+
 - Install the split package on its own and boot it with `--no-dev`. Nothing under `src/` may extend a dev-only class.
 - Check optional dependencies both absent and present. Absence must not change unrelated behavior.
-- Distinguish what each test proves: root-metapackage autoloading, path repositories, stub providers and a published artifact each prove a different boundary.
 - Metapackages have no production source but still need closure and composition evidence.
 
 ## Exports and bytes
