@@ -130,6 +130,12 @@ commit validated by `ci/full-qualification`. See
 [commit-qualification.md](../cookbook/commit-qualification.md). No per-commit
 full-suite or default preflight CI jobs are added by this policy.
 
+A full qualification that is green on the exact review candidate remains the
+full proof when that identical SHA fast-forwards to `main`; the ref movement
+does not justify another full dispatch. Observe the resulting bounded
+`ci/main-feedback` run. Changed source bytes, or an applicable release policy,
+require new exact-head qualification.
+
 `php bin/start-hosted-qualification` provides an optional early checkpoint for
 a clean feature-branch commit that already exists at the exact remote branch
 tip. It dispatches `ci.yml` with `profile=full` and the explicit candidate SHA.

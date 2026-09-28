@@ -114,10 +114,12 @@ maintainer.
   retain the owning hosted check. Do not rerun an unchanged gate merely to
   replace reusable evidence, and do not cite a local receipt as hosted or
   release qualification.
-- A manifest entry declared `hosted-only` is ownership metadata. Never launch
-  it locally or reinterpret a Linux workstation as its governed hosted runner.
-  Continue supported local evidence, retain the incomplete verdict, and send
-  the exact candidate to the named hosted owner.
+- A manifest entry declared `hosted-only` is ownership metadata. Governed local
+  preflight never launches it, including on Linux. A maintainer may run its
+  command explicitly on a capable local host for diagnosis, but that result is
+  not hosted evidence and cannot replace the named owning check. Continue
+  supported local evidence, retain the incomplete verdict, and send the exact
+  candidate to the named hosted owner.
 - Follow [the local testing policy](../local-testing-policy.md) when selecting
   verification scope and reusing evidence. A full local suite is not a default
   baseline or a per-commit requirement. When the test plan requires the split
@@ -133,6 +135,10 @@ maintainer.
 - Land reviewed batches by a normal fast-forward push or an optional pull
   request. Never force-push or delete `main`, and never update `main` while a
   release split or fan-out is running.
+- When full hosted qualification is green on the exact candidate, a
+  fast-forward of that identical SHA to `main` needs the bounded main-feedback
+  run, not another full qualification solely because the ref moved. Changed
+  source bytes or an applicable release policy require new exact-head proof.
 - Tags and package publication remain fail-closed: release-cut must prove the
   exact candidate green through its release gates before it can create a tag.
 - A merge does not imply authority to tag, release, split packages, deploy, or

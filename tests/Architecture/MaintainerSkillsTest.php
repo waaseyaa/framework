@@ -56,6 +56,30 @@ final class MaintainerSkillsTest extends TestCase
     }
 
     #[Test]
+    public function the_repository_skills_route_diagnostics_and_accepted_remediation_without_weakening_evidence(): void
+    {
+        $delivery = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-delivery/SKILL.md');
+        self::assertStringContainsString('must never auto-launch it', $delivery);
+        self::assertStringContainsString('may explicitly run its command on a capable local host for diagnosis', $delivery);
+        self::assertStringContainsString('never hosted evidence or a substitute for its owning check', $delivery);
+        self::assertStringNotContainsString('must never be launched locally, even from Linux', $delivery);
+        self::assertStringContainsString('fast-forward that identical SHA to `main`', $delivery);
+        self::assertStringContainsString('source bytes change', $delivery);
+
+        $convergence = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-package-convergence/SKILL.md');
+        $remediation = strpos($convergence, '## Remediate an accepted finding');
+        $audit = strpos($convergence, '## Workflow');
+        self::assertNotFalse($remediation);
+        self::assertNotFalse($audit);
+        self::assertLessThan($audit, $remediation, 'The accepted-finding route must be chosen before entering the full audit workflow.');
+        self::assertStringContainsString('Do not repeat package intake, exhaustive inventory, finding discovery,', $convergence);
+        self::assertStringContainsString('severity calibration, verification, or audit-only publication', $convergence);
+        self::assertStringContainsString('new, stale,', $convergence);
+        self::assertStringContainsString('disputed, or materially changed', $convergence);
+        self::assertStringContainsString('Reconcile the audit record, ledger, coverage index, and owning issue', $convergence);
+    }
+
+    #[Test]
     public function the_repository_skills_contain_exactly_the_reviewed_files(): void
     {
         // A file added to, or dropped from, a skill must be a reviewed change to this list.

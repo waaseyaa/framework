@@ -1,6 +1,6 @@
 ---
 name: waaseyaa-package-convergence
-description: Audit and converge one Waaseyaa package when its purpose, boundaries, dependency structure, public API, contracts, wiring, tests, documentation, or distribution quality need a thorough cleanup. Use for package-charter reviews, the Framework-wide package audit program, and issue-to-PR cleanup programs, not ordinary feature work.
+description: Audit and converge one Waaseyaa package when its purpose, boundaries, dependencies, public API, contracts, wiring, tests, documentation, or distribution quality need cleanup. Use for package-charter reviews, the Framework-wide package audit program, and remediation of accepted package findings, not ordinary feature work.
 ---
 
 # Waaseyaa Package Convergence
@@ -52,6 +52,38 @@ axes, as before:
 Repair ready and converged are claims in the audit record's header, with
 their evidence; the index has no state for either. Rows recorded before v2
 keep their states until their next delta review.
+
+## Remediate an accepted finding
+
+Enter here instead of restarting the audit workflow when all of these are
+true: the audit record and ledger are committed and current for the affected
+surface; a filed issue names the accepted finding and discriminating
+acceptance; its ownership, severity, disposition, dependencies and required
+decisions are settled; and implementation is authorized. Revalidate the base,
+current package delta, dependencies and named consumers before editing. For a
+security finding, also load its private brief through the authorized custody
+path without copying sensitive details into public records.
+
+Do not repeat package intake, exhaustive inventory, finding discovery,
+severity calibration, verification, or audit-only publication merely because
+remediation has begun. Consume those accepted artifacts as evidence. Return to
+the full workflow below when the finding or its evidence is new, stale,
+disputed, or materially changed, when ownership or a required decision is
+unsettled, or when the implementation exposes an unassessed boundary.
+
+The minimum remediation output is:
+
+1. a bounded implementation matching the issue acceptance;
+2. focused positive and refusal or negative controls at the affected boundary;
+3. one risk-based review of the immutable candidate;
+4. required hooks and exact-head qualification under `waaseyaa-delivery`;
+5. reconciliation of the finding and any changed evidence without rewriting
+   unaffected audit history.
+
+Reconcile the audit record, ledger, coverage index, and owning issue after the
+repair lands. Mark only the repaired finding or slice resolved. A package is
+not converged until every package-owned slice and the convergence standard are
+satisfied.
 
 ## Workflow
 

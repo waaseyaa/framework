@@ -88,6 +88,10 @@ host. `bin/qualify-candidate` continues through supported Unit, Integration,
 and Architecture evidence after that exit 3, but records the result as
 `incomplete` until the exact-SHA hosted owner is green.
 
+A maintainer may run a hosted-only command explicitly on a capable local host
+to diagnose a failure. That run is local diagnostic evidence only. It does not
+change the preflight state or satisfy the owning hosted check.
+
 ## Choose the boundary that answers the question
 
 - In-process unit tests establish component behavior.

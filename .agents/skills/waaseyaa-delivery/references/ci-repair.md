@@ -1,6 +1,6 @@
 # Exact-head CI repair loop
 
-Use this reference when a Waaseyaa pull request is already under governed delivery and hosted GitHub Actions reports failures. Keep the repair inside the existing issue, branch, worktree, and pull request unless the failure is unrelated or requires a separately owned program.
+Use this reference when a Waaseyaa candidate is already under governed delivery and hosted GitHub Actions reports failures. The candidate may be represented by a pull request, a pushed branch checkpoint, or an exact-SHA workflow-dispatch run. Keep the repair inside the existing issue, branch, and worktree, plus the existing pull request when one exists, unless the failure is unrelated or requires a separately owned program.
 
 ## Establish the current candidate
 
@@ -8,11 +8,13 @@ Record and compare:
 
 - the owned worktree path, branch, status, and local `HEAD`;
 - the remote branch head;
-- the pull-request head SHA;
+- the pull-request head SHA when a pull request exists;
 - the newest workflow run for that SHA;
 - the governed auto-merge method and pinned head, when present.
 
 Do not diagnose a superseded run as current. Cancellation or skipped descendants from an older SHA are historical unless they reveal an independently reproducible infrastructure defect.
+
+The installed upstream `gh-fix-ci` helper is currently pull-request-oriented. For a branch or workflow-dispatch candidate, inspect the supplied GitHub Actions run ID directly with `gh run view` and the completed job-log endpoint. Do not vendor or silently fork that upstream skill in Framework. The desired upstream interface accepts a run ID, branch, or exact SHA without requiring a pull request.
 
 ## Reduce statuses to root failures
 
@@ -35,7 +37,7 @@ For each coherent root cause:
 3. Run the failing test or command and the closest discriminating refusal or negative control.
 4. Refresh only generated evidence whose material inputs changed.
 5. Commit and push one coherent candidate update.
-6. Revalidate all three SHAs and refresh any exact-head auto-merge pin through the governed mechanism.
+6. Revalidate local and remote branch SHAs, plus the pull-request SHA and exact-head auto-merge pin when those surfaces exist.
 
 A repair can reveal another candidate defect in hosted CI. Continue this loop on the new exact head. Re-review only the changed area and affected boundaries unless the repair invalidates the complete prior assessment.
 
@@ -58,8 +60,8 @@ Never convert `hosted-required`, unavailable, skipped, or derivative success int
 
 After hosted checks and governed landing, verify and report:
 
-- final pull-request head;
-- merge state and merge commit;
+- final branch and pull-request heads for the surfaces that exist;
+- landing state and commit;
 - check totals, expected skips, and genuine blockers;
 - clean worktree status;
 - owning issue acceptance and closure state;
