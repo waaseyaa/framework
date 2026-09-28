@@ -265,7 +265,7 @@ foreach ($selectedGates as $gate) {
         $command = str_replace('{base}', escapeshellarg($resolvedBase), $command);
     }
 
-    $evidence = preflight_evidence_identity($root, $gate, $source, $resolvedBase, $full ? 'full' : 'default', $capabilities);
+    $evidence = preflight_evidence_identity($root, $gate, $source, $resolvedBase, $capabilities);
     if ($reuse && $evidence !== null && preflight_read_passed_evidence($evidenceDir, $evidence['key']) !== null) {
         ++$reused;
         $results[] = ['id' => $id, 'status' => 'passed', 'elapsed_s' => 0.0, 'owning_hosted_check' => $owner, 'source' => 'reused', 'evidence_key' => $evidence['key']];

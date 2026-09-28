@@ -216,7 +216,6 @@ function preflight_evidence_identity(
     array $gate,
     array $source,
     string $resolvedBase,
-    string $profile,
     array $capabilities,
 ): ?array {
     $baseSha = null;
@@ -235,7 +234,7 @@ function preflight_evidence_identity(
             'php' => PHP_VERSION,
             'capabilities' => $capabilities,
         ],
-        'profile' => $profile,
+        'test_plan' => ['gate_profile' => $gate['profile'], 'command' => $gate['run']],
         'gate' => [
             'id' => $gate['id'],
             'definition_sha256' => hash('sha256', json_encode($gate, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),

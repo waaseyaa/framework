@@ -461,6 +461,39 @@ final class PreflightParityTest extends TestCase
     }
 
     #[Test]
+    public function full_profile_reuses_default_gate_evidence_instead_of_repeating_it(): void
+    {
+        $scratch = $this->scratchDirectory();
+        try {
+            $defaultCounter = $scratch . '/default-count';
+            $fullCounter = $scratch . '/full-count';
+            $increment = static fn(string $path): string => self::phpCommand(
+                '$p=$argv[1]; $n=is_file($p)?(int)file_get_contents($p):0; file_put_contents($p,(string)($n+1));',
+                self::hostPath($path),
+            );
+            $manifest = $this->writeManifest($scratch, [
+                ['id' => 'default-gate', 'run' => $increment($defaultCounter)],
+                ['id' => 'full-gate', 'run' => $increment($fullCounter), 'profile' => 'full'],
+            ]);
+            $evidence = $scratch . '/evidence';
+
+            [$defaultExit, $defaultStdout, $defaultStderr] = $this->runPreflight($manifest, [], ['--evidence-dir=' . $evidence]);
+            self::assertSame(0, $defaultExit, $defaultStdout . $defaultStderr);
+            self::assertSame('1', file_get_contents($defaultCounter));
+            self::assertFileDoesNotExist($fullCounter);
+
+            [$fullExit, $fullStdout, $fullStderr] = $this->runPreflight($manifest, [], ['--full', '--evidence-dir=' . $evidence]);
+            self::assertSame(0, $fullExit, $fullStdout . $fullStderr);
+            self::assertSame('1', file_get_contents($defaultCounter));
+            self::assertSame('1', file_get_contents($fullCounter));
+            self::assertMatchesRegularExpression('/^ok\s+default-gate\s+\(reused exact identity\)$/m', $fullStdout);
+            self::assertMatchesRegularExpression('/^ok\s+full-gate\s+\([0-9.]+s\)$/m', $fullStdout);
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    #[Test]
     public function preflight_reports_unmatched_selectors_as_not_applicable_not_passed(): void
     {
         $scratch = $this->scratchDirectory();
