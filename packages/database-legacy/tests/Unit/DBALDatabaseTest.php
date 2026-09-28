@@ -273,6 +273,41 @@ final class DBALDatabaseTest extends TestCase
         $this->assertSame(['Alice'], $rows);
     }
 
+    public function testQueryInfersIntegerTypesForExpressionGuards(): void
+    {
+        $this->db->query('CREATE TABLE quota (id INTEGER PRIMARY KEY, used INTEGER NOT NULL)');
+        $this->db->query('INSERT INTO quota (id, used) VALUES (?, ?)', [1, 9]);
+
+        $this->db->query(
+            'UPDATE quota SET used = used + ? WHERE id = ? AND used + ? <= ?',
+            [3, 1, 3, 10],
+        );
+
+        $rows = iterator_to_array($this->db->query('SELECT used FROM quota WHERE id = ?', [1]));
+        self::assertSame([['used' => 9]], $rows);
+
+        $this->db->query(
+            'UPDATE quota SET used = used + ? WHERE id = ? AND used + ? <= ?',
+            [1, 1, 1, 10],
+        );
+
+        $rows = iterator_to_array($this->db->query('SELECT used FROM quota WHERE id = ?', [1]));
+        self::assertSame([['used' => 10]], $rows);
+    }
+
+    public function testQueryInfersTypesForNamedParameters(): void
+    {
+        $rows = iterator_to_array($this->db->query(
+            'SELECT typeof(:integer_value) AS integer_type, typeof(:string_value) AS string_type',
+            ['integer_value' => 10, 'string_value' => '10'],
+        ));
+
+        self::assertSame([[
+            'integer_type' => 'integer',
+            'string_type' => 'text',
+        ]], $rows);
+    }
+
     public function testGetConnectionReturnsUnderlyingConnection(): void
     {
         $connection = $this->db->getConnection();

@@ -19,7 +19,10 @@ Despite the package directory being `database-legacy`, the PHP namespace is **`W
   repeatable-read transaction for authorization decisions that span multiple
   storage reads; `DBALDatabase` restores the prior connection isolation when
   the transaction finishes
-- `query()`, `quoteIdentifier()` — raw escape hatch + identifier quoting
+- `query()`, `quoteIdentifier()` — raw escape hatch + identifier quoting;
+  `query()` infers scalar DBAL parameter types from PHP values for positional
+  and named bindings, including integer bindings required by SQLite expression
+  comparisons
 
 `DBALDatabase` is the concrete implementation. `DBALDatabase::createSqlite()`
 is the common S1 connection boundary. It rejects DSN/URI and network-share path

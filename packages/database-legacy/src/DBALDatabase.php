@@ -13,6 +13,7 @@ use Waaseyaa\Database\Query\DBALDelete;
 use Waaseyaa\Database\Query\DBALInsert;
 use Waaseyaa\Database\Query\DBALSelect;
 use Waaseyaa\Database\Query\DBALUpdate;
+use Waaseyaa\Database\Query\ParameterTypeInferrer;
 use Waaseyaa\Database\Schema\DBALSchema;
 
 final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIdentityProviderInterface
@@ -224,30 +225,46 @@ final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIde
         $trimmed = ltrim($sql);
         $spacePos = strpos($trimmed, ' ');
         $firstWord = strtoupper($spacePos !== false ? substr($trimmed, 0, $spacePos) : $trimmed);
+        $types = $this->parameterTypes($args);
 
         // Non-SELECT statements (DDL/DML) use executeStatement and return an empty iterator.
         // This must not share a function body with yield, because PHP treats any function
         // containing yield as a generator (lazy execution), which would defer the statement.
         if ($firstWord !== 'SELECT' && $firstWord !== 'PRAGMA') {
-            $this->connection->executeStatement($sql, $args);
+            $this->connection->executeStatement($sql, $args, $types);
 
             return new \EmptyIterator();
         }
 
-        return $this->executeSelectQuery($sql, $args);
+        return $this->executeSelectQuery($sql, $args, $types);
     }
 
     /**
-     * @param list<mixed> $args
+     * @param array<int|string, mixed> $args
+     * @param array<int|string, \Doctrine\DBAL\ParameterType> $types
      */
-    private function executeSelectQuery(string $sql, array $args): \Generator
+    private function executeSelectQuery(string $sql, array $args, array $types): \Generator
     {
-        $result = $this->connection->executeQuery($sql, $args);
+        $result = $this->connection->executeQuery($sql, $args, $types);
 
         // Yield associative rows to match PdoDatabase behavior (FETCH_ASSOC).
         while ($row = $result->fetchAssociative()) {
             yield $row;
         }
+    }
+
+    /**
+     * @param array<int|string, mixed> $args
+     * @return array<int|string, \Doctrine\DBAL\ParameterType>
+     */
+    private function parameterTypes(array $args): array
+    {
+        $types = [];
+        foreach ($args as $key => $value) {
+            $types[$key] = ParameterTypeInferrer::scalar($value);
+        }
+
+        return $types;
     }
 
     /**

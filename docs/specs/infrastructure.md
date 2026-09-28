@@ -852,6 +852,12 @@ foreign-key enforcement plus a 5000 ms busy timeout on every connection, and
 enables and verifies WAL for file-backed databases. Effective drift fails with
 stable `S1-DB003`; issuing a PRAGMA without reading it back is not evidence.
 Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
+`query()` infers a Doctrine scalar parameter type for every positional or named
+argument. Integers and booleans bind as integers, `null` binds as NULL, and
+strings and floats bind as strings. This is required on SQLite when a bound
+integer is compared with an expression rather than an affinity-bearing bare
+column; relying on Doctrine's default string binding can make a numeric guard
+evaluate incorrectly. The inference matches the fluent query builders.
 
 `transactional()` is the concrete managed-callback convenience boundary. It
 uses the same transaction objects returned by `transaction()`; code that owns a
