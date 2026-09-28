@@ -65,14 +65,21 @@ and execution conditions remain equivalent. Retained evidence is not a claim
 that tests ran on the new head. Invalidate only affected evidence, but do not
 infer equivalence from source filenames alone.
 
-`php bin/check-pr-preflight` automates the strict subset it can prove. It reuses
-only a successful receipt with the same candidate byte identity, base where
-relevant, lockfile, toolchain, selector, test plan, and gate definition. Output
-distinguishes an executed pass from `reused exact identity`. A capability the
-current host lacks is `hosted-required`; a selector with no matching candidate
-path is `not-applicable`. Neither is a local pass. Use `--no-reuse` only when a
-fresh execution is itself the acceptance criterion. Local receipts never replace
-the named hosted check or exact-SHA release qualification.
+`php bin/check-pr-preflight` automates the strict subset it can prove. It hashes
+the path set, entry types, and bytes selected by each gate and binds those bytes
+to the relevant base, lockfile, toolchain, test plan, selector, evidence inputs,
+and gate definition. An identical candidate prints `reused exact identity`. A
+new candidate with the same material identity prints `reused equivalent inputs`
+and names the original tested HEAD and dirty-byte identity; the report retains
+that original candidate rather than claiming the gate ran on the new head. A
+changed selected byte invalidates only the affected receipt. Conservative `**`
+selectors remain the default, and a gate may narrow them only when its command,
+configuration, dependencies, and complete input surface are included. A
+capability the current host lacks is `hosted-required`; a selector with no
+matching candidate path is `not-applicable`. Neither is a local pass. Use
+`--no-reuse` only when a fresh execution is itself the acceptance criterion.
+Local receipts never replace the named hosted check or exact-SHA release
+qualification.
 
 ## Choose the boundary that answers the question
 

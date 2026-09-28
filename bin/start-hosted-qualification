@@ -1,0 +1,125 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Dispatch the full hosted CI graph for the clean, pushed current HEAD.
+ *
+ * This is an early feedback checkpoint, not release evidence. A successful
+ * dispatch says only that GitHub accepted the request; the run must still
+ * complete successfully for the exact SHA.
+ *
+ * Usage:
+ *   php bin/start-hosted-qualification [--ref=BRANCH] [--dry-run]
+ */
+
+$root = dirname(__DIR__);
+$ref = null;
+$dryRun = false;
+$remote = 'origin';
+$githubRepository = null;
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if ($argument === '--dry-run') {
+        $dryRun = true;
+    } elseif (str_starts_with($argument, '--ref=')) {
+        $ref = substr($argument, strlen('--ref='));
+    } elseif (str_starts_with($argument, '--remote=')) {
+        $remote = substr($argument, strlen('--remote='));
+    } elseif (str_starts_with($argument, '--repository=')) {
+        $root = substr($argument, strlen('--repository='));
+    } elseif (str_starts_with($argument, '--github-repository=')) {
+        $githubRepository = substr($argument, strlen('--github-repository='));
+    } else {
+        fwrite(STDERR, "start-hosted-qualification: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+
+$resolvedRoot = realpath($root);
+if ($resolvedRoot === false || !file_exists($resolvedRoot . '/.git')) {
+    fwrite(STDERR, "start-hosted-qualification: repository is not a Git checkout: {$root}\n");
+    exit(2);
+}
+$root = $resolvedRoot;
+
+require __DIR__ . '/lib/repository-git.php';
+require __DIR__ . '/lib/repository-bash.php';
+
+/** @return string|null */
+function hosted_checkpoint_git(string $root, array $arguments): ?string
+{
+    $output = repository_bounded_output(
+        [...repository_git_command($root), '-C', $root, ...$arguments],
+        30.0,
+        1024 * 1024,
+    );
+
+    return $output === null ? null : trim($output);
+}
+
+$head = hosted_checkpoint_git($root, ['rev-parse', 'HEAD']);
+$status = hosted_checkpoint_git($root, ['status', '--porcelain=v1', '--untracked-files=all']);
+if ($head === null || preg_match('/^[0-9a-f]{40}$/', $head) !== 1 || $status === null) {
+    fwrite(STDERR, "start-hosted-qualification: could not bind the local candidate.\n");
+    exit(2);
+}
+if ($status !== '') {
+    fwrite(STDERR, "start-hosted-qualification: the worktree must be clean; hosted CI can check only committed bytes.\n");
+    exit(3);
+}
+
+if ($ref === null || $ref === '') {
+    $ref = hosted_checkpoint_git($root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+}
+if (!is_string($ref) || preg_match('#^(?![./])(?!.*\.\.)(?!.*[~^:?*\\\[])(?!.*(?:^|/)\.)(?!.*\.lock(?:/|$))[A-Za-z0-9._/-]+(?<![/.])$#', $ref) !== 1) {
+    fwrite(STDERR, "start-hosted-qualification: supply a valid pushed branch with --ref; detached HEAD is not dispatchable.\n");
+    exit(2);
+}
+
+$remoteLine = hosted_checkpoint_git($root, ['ls-remote', '--heads', $remote, 'refs/heads/' . $ref]);
+$remoteHead = $remoteLine === null || $remoteLine === '' ? null : preg_split('/\s+/', $remoteLine)[0];
+if ($remoteHead !== $head) {
+    fwrite(STDERR, "start-hosted-qualification: {$remote}/{$ref} is not the exact local HEAD {$head}; push the checkpoint first.\n");
+    exit(3);
+}
+
+if ($githubRepository === null || $githubRepository === '') {
+    $remoteUrl = hosted_checkpoint_git($root, ['remote', 'get-url', $remote]);
+    if (is_string($remoteUrl) && preg_match('#github\.com[/:]([^/]+/[^/]+?)(?:\.git)?$#', $remoteUrl, $matches) === 1) {
+        $githubRepository = $matches[1];
+    }
+}
+if (!is_string($githubRepository) || preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $githubRepository) !== 1) {
+    fwrite(STDERR, "start-hosted-qualification: cannot derive the GitHub owner/repository from {$remote}; use --github-repository=OWNER/REPOSITORY.\n");
+    exit(2);
+}
+
+$command = [
+    'gh', 'workflow', 'run', 'ci.yml',
+    '--repo', $githubRepository,
+    '--ref', $ref,
+    '--field', 'profile=full',
+    '--field', 'sha=' . $head,
+];
+
+fwrite(STDOUT, "candidate: {$head}\n");
+fwrite(STDOUT, "remote ref: {$remote}/{$ref}\n");
+fwrite(STDOUT, "hosted owner: ci/full-qualification\n");
+if ($dryRun) {
+    fwrite(STDOUT, "dry-run: dispatch validation passed; no workflow was started.\n");
+    exit(0);
+}
+
+$dispatchOutput = repository_bounded_output($command, 30.0, 1024 * 1024);
+if ($dispatchOutput === null) {
+    fwrite(STDERR, "start-hosted-qualification: GitHub did not accept the workflow dispatch.\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "dispatch accepted; this is not a green result.\n");
+if (trim($dispatchOutput) !== '') {
+    fwrite(STDOUT, trim($dispatchOutput) . "\n");
+}
+fwrite(STDOUT, "inspect: gh run list --repo {$githubRepository} --workflow ci.yml --event workflow_dispatch --commit {$head}\n");

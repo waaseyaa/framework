@@ -1,4 +1,4 @@
-# Host-aware candidate qualification and exact-identity evidence
+# Host-aware candidate qualification and material-input evidence
 
 Status: bounded implementation candidate for Framework #3085 under delivery
 program #2527.
@@ -29,12 +29,24 @@ remains. The pre-push adapter may use `--allow-hosted-required` to publish the
 candidate to that named owner, but cannot qualify it or weaken hosted checks.
 
 A successful result may be reused only when its Git-private receipt matches the
-exact candidate HEAD/tree and dirty byte manifest, base where relevant,
-`composer.lock`, toolchain and capability identity, profile, selector, evidence
-inputs, and effective gate definition. Output says whether the pass was executed
-or reused. A definition change invalidates that gate without discarding receipts
-for unchanged gates. Local receipts are not inputs to hosted CI, branch
-protection, release-cut, tags, or publication.
+complete selected path set and bytes, base where relevant, `composer.lock`,
+toolchain and capability identity, profile, selector, evidence inputs, and
+effective gate definition. The receipt separately retains the exact candidate
+where the gate ran. Output distinguishes execution, exact-candidate reuse, and
+cross-candidate reuse of equivalent material inputs while naming the original
+tested identity. A definition or selected-byte change invalidates that gate
+without discarding receipts for unaffected gates. Local receipts are not inputs
+to hosted CI, branch protection, release-cut, tags, or publication.
+
+The narrow selectors introduced here cover only gates whose complete material
+boundary is explicit: changelog validators, CI inventory and roster checks,
+code style, PHPStan, and dead-code analysis. All other gates retain the
+conservative repository-wide selector.
+
+`bin/start-hosted-qualification` adds the early hosted checkpoint. It accepts
+only a clean HEAD that is the exact remote branch tip, then dispatches the full
+`ci.yml` profile with that SHA. Dispatch acceptance is not reported as green
+qualification and does not satisfy a release boundary.
 
 ## Verification boundary
 
@@ -44,7 +56,6 @@ gate-specific invalidation, unmatched selectors, base precedence, and failure
 repair output. `ProjectHooksTest` binds the pre-push adapter to the explicit
 hosted-required option and wording.
 
-This is the bounded first slice of #3085. It does not yet claim cross-commit
-equivalence from relevant-path hashes, classify split-artifact controls inside
-the preflight manifest, or implement an early-PR command. Those acceptance items
-remain open on #3085 and the issue must not be closed by this slice.
+This record now covers the first two bounded slices of #3085. Split-artifact
+control classification and any remaining issue acceptance stay open on #3085;
+this slice does not close the parent issue.

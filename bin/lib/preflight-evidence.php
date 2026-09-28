@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-/** Host-aware gate metadata and exact-identity evidence for check-pr-preflight. */
+/** Host-aware gate metadata and material-input evidence for check-pr-preflight. */
 
-const PREFLIGHT_EVIDENCE_SCHEMA_VERSION = 1;
+const PREFLIGHT_EVIDENCE_SCHEMA_VERSION = 2;
 
 function preflight_host_id(): string
 {
@@ -175,7 +175,7 @@ function preflight_default_evidence_dir(string $root): ?string
     }
     $common = str_replace('\\', '/', $common);
 
-    return rtrim($common, '/') . '/qualification/preflight-v1';
+    return rtrim($common, '/') . '/qualification/preflight-v2';
 }
 
 /** @return array<string, mixed>|null */
@@ -210,7 +210,73 @@ function preflight_source_identity(string $root): ?array
     return ['head' => $head, 'tree' => $tree, 'worktree_sha256' => hash_final($worktree), 'clean' => $status === ''];
 }
 
-/** @return array{key:string, identity:array<string,mixed>}|null */
+/**
+ * Hash every non-ignored repository path selected by the gate. The path set,
+ * entry type, and bytes are all bound, so additions, removals, renames, links,
+ * and content changes invalidate the material identity without relying on a
+ * filename-only inference.
+ */
+function preflight_material_paths_digest(string $root, array $selectors): ?string
+{
+    /** @var array<string, list<array{path:string, entry_sha256:string}>|null> $snapshots */
+    static $snapshots = [];
+    if (!array_key_exists($root, $snapshots)) {
+        $output = repository_bounded_output(
+            [...repository_git_command($root), '-C', $root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+            30.0,
+            64 * 1024 * 1024,
+        );
+        if ($output === null) {
+            $snapshots[$root] = null;
+        } else {
+            $paths = array_values(array_filter(explode("\0", $output), static fn(string $path): bool => $path !== ''));
+            sort($paths, SORT_STRING);
+            $snapshot = [];
+            foreach ($paths as $relative) {
+                $relative = str_replace('\\', '/', $relative);
+                $path = $root . '/' . $relative;
+                $entry = hash_init('sha256');
+                if (is_link($path)) {
+                    hash_update($entry, 'link' . "\0" . (string) readlink($path));
+                } elseif (!is_file($path)) {
+                    hash_update($entry, 'missing');
+                } else {
+                    hash_update($entry, "file\0");
+                    $handle = @fopen($path, 'rb');
+                    if ($handle === false) {
+                        $snapshots[$root] = null;
+
+                        break;
+                    }
+                    hash_update_stream($entry, $handle);
+                    fclose($handle);
+                }
+                $snapshot[] = ['path' => $relative, 'entry_sha256' => hash_final($entry)];
+            }
+            if (!array_key_exists($root, $snapshots)) {
+                $snapshots[$root] = $snapshot;
+            }
+        }
+    }
+    if ($snapshots[$root] === null) {
+        return null;
+    }
+
+    $digest = hash_init('sha256');
+    foreach ($snapshots[$root] as $entry) {
+        foreach ($selectors as $selector) {
+            if (!preflight_path_matches($entry['path'], (string) $selector)) {
+                continue;
+            }
+            hash_update($digest, "path\0{$entry['path']}\0{$entry['entry_sha256']}\0");
+            break;
+        }
+    }
+
+    return hash_final($digest);
+}
+
+/** @return array{key:string, identity:array<string,mixed>,candidate:array<string,mixed>}|null */
 function preflight_evidence_identity(
     string $root,
     array $gate,
@@ -218,6 +284,10 @@ function preflight_evidence_identity(
     string $resolvedBase,
     array $capabilities,
 ): ?array {
+    $materialPaths = preflight_material_paths_digest($root, $gate['relevant_paths']);
+    if ($materialPaths === null) {
+        return null;
+    }
     $baseSha = null;
     if (($gate['base'] ?? false) === true) {
         [$baseExit, $baseSha] = preflight_git($root, ['rev-parse', $resolvedBase . '^{commit}']);
@@ -226,7 +296,7 @@ function preflight_evidence_identity(
         }
     }
     $identity = [
-        'candidate' => $source,
+        'material_paths_sha256' => $materialPaths,
         'base' => $baseSha,
         'composer_lock_sha256' => is_file($root . '/composer.lock') ? hash_file('sha256', $root . '/composer.lock') : null,
         'toolchain' => [
@@ -243,7 +313,11 @@ function preflight_evidence_identity(
         ],
     ];
 
-    return ['key' => hash('sha256', json_encode($identity, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)), 'identity' => $identity];
+    return [
+        'key' => hash('sha256', json_encode($identity, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        'identity' => $identity,
+        'candidate' => $source,
+    ];
 }
 
 /** @return array<string, mixed>|null */
@@ -259,10 +333,16 @@ function preflight_read_passed_evidence(string $directory, string $key): ?array
         return null;
     }
 
-    return is_array($receipt) && ($receipt['status'] ?? null) === 'passed' && ($receipt['key'] ?? null) === $key ? $receipt : null;
+    return is_array($receipt)
+        && ($receipt['schema_version'] ?? null) === PREFLIGHT_EVIDENCE_SCHEMA_VERSION
+        && ($receipt['status'] ?? null) === 'passed'
+        && ($receipt['key'] ?? null) === $key
+        && is_array($receipt['tested_candidate'] ?? null)
+        ? $receipt
+        : null;
 }
 
-function preflight_write_passed_evidence(string $directory, string $key, array $identity, float $elapsed): bool
+function preflight_write_passed_evidence(string $directory, string $key, array $identity, array $candidate, float $elapsed): bool
 {
     if (!is_dir($directory) && !@mkdir($directory, 0o777, true) && !is_dir($directory)) {
         return false;
@@ -271,7 +351,8 @@ function preflight_write_passed_evidence(string $directory, string $key, array $
         'schema_version' => PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
         'key' => $key,
         'status' => 'passed',
-        'identity' => $identity,
+        'material_identity' => $identity,
+        'tested_candidate' => $candidate,
         'elapsed_s' => round($elapsed, 3),
         'recorded_at' => gmdate('Y-m-d\TH:i:s\Z'),
     ];

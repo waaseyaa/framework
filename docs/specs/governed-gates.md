@@ -90,13 +90,19 @@ explicit selector that matches no candidate path is `not-applicable`, also never
 pass. Defects remain `failed` and exit 1.
 
 Successful gate evidence is stored outside the checkout below Git's common directory. Its key
-binds the exact HEAD/tree and dirty byte manifest, resolved base for base-relative gates,
+binds the complete selected path set, entry types and bytes, resolved base for base-relative gates,
 `composer.lock`, native host and toolchain capabilities, profile, selectors, evidence inputs, and
-the effective gate definition. A matching receipt may be reused and is printed as `reused exact
-identity`; a changed gate definition invalidates only that gate's receipt. Failed, hosted-required,
-not-applicable, corrupt, or stale receipts are never reusable. `--no-reuse` forces execution,
-`--evidence-dir` supplies an isolated store for tests, and `--report-json` writes the four-state
-machine-readable report. Hosted CI and exact-SHA release gates do not consume local receipts.
+the effective gate definition. The receipt separately retains the exact HEAD/tree and dirty-byte
+identity on which the gate actually ran. An identical candidate prints `reused exact identity`; a
+different candidate with the same material key prints `reused equivalent inputs from <origin>` and
+the machine report preserves that origin. It never claims the gate ran on the new head. A changed
+selected byte or gate definition invalidates only the affected receipt. `**` remains the
+conservative selector default. Narrow selectors must include the command implementation,
+configuration, dependency inputs, and complete data surface of that gate. Failed,
+hosted-required, not-applicable, corrupt, or stale receipts are never reusable. `--no-reuse`
+forces execution, `--evidence-dir` supplies an isolated store for tests, and `--report-json` writes
+the four-state machine-readable report. Hosted CI and exact-SHA release gates do not consume local
+receipts.
 
 Vendor-freshness precondition (#2926): before any gate runs, preflight calls the shared,
 dependency-free `bin/lib/vendor-freshness.php` against the repository root. It compares

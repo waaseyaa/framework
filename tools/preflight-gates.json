@@ -6,7 +6,7 @@
         "required_capabilities": ["php", "git"],
         "relevant_paths": ["**"],
         "cost": "fast",
-        "evidence_inputs": ["candidate_tree", "tracked_worktree", "composer_lock", "toolchain", "gate_definition"]
+        "evidence_inputs": ["relevant_path_bytes", "composer_lock", "toolchain", "gate_definition"]
     },
     "gates": [
         {
@@ -345,7 +345,8 @@
             "run": "php bin/check-changelog-shape",
             "repair": "fix the CHANGELOG.md structure per bin/check-changelog-shape output",
             "profile": "default",
-            "enforced_by": "architecture-test:ChangelogShapeGuardTest.php"
+            "enforced_by": "architecture-test:ChangelogShapeGuardTest.php",
+            "relevant_paths": ["CHANGELOG.md", "bin/check-changelog-shape"]
         },
         {
             "id": "check-changelog-fragments",
@@ -353,7 +354,8 @@
             "run": "php bin/changelog-fragments validate",
             "repair": "fix fragment names/content per changes/README.md and rerun the validator",
             "profile": "default",
-            "enforced_by": "architecture-test:ChangelogFragmentsTest.php"
+            "enforced_by": "architecture-test:ChangelogFragmentsTest.php",
+            "relevant_paths": ["changes/**", "bin/changelog-fragments"]
         },
         {
             "id": "check-contract-suite-coverage",
@@ -420,6 +422,7 @@
             "repair": "php bin/generate-ci-workflow-inventory --write, then commit tools/ci-workflow-inventory.json",
             "profile": "default",
             "enforced_by": "architecture-test:CiWorkflowInventoryGeneratorTest.php",
+            "relevant_paths": [".github/workflows/**", "bin/generate-ci-workflow-inventory", "bin/lib/ci-workflow-inventory.php", "tools/ci-workflow-inventory.json"],
             "refresh": {
                 "mode": "auto",
                 "write": "php bin/generate-ci-workflow-inventory --write"
@@ -431,6 +434,7 @@
             "repair": "reconcile tools/ci-check-roster.json with the generated inventory; each ERROR line names the rule id, the policy locator, the inventory locator, the current value and the expected value",
             "profile": "default",
             "enforced_by": "architecture-test:CiRosterConformanceTest.php",
+            "relevant_paths": [".github/workflows/**", "bin/check-ci-roster-conformance", "bin/lib/ci-roster-conformance.php", "bin/lib/ci-workflow-inventory.php", "tools/ci-check-roster.json", "tools/ci-workflow-inventory.json"],
             "refresh": {
                 "mode": "manual",
                 "instruction": "the CI policy is hand-authored governance and has no write mode: read the CRCxxx ERROR lines, decide whether the policy or the workflow is wrong, and repair the named policy locator (a workflow change is a separate governed decision)"
@@ -442,7 +446,8 @@
             "run": "composer cs-check",
             "repair": "composer cs-fix",
             "profile": "default",
-            "enforced_by": "workflow:ci.yml#composer cs-check"
+            "enforced_by": "workflow:ci.yml#composer cs-check",
+            "relevant_paths": ["packages/**", "tests/**", ".php-cs-fixer.dist.php", "composer.json", "composer.lock"]
         },
         {
             "id": "phpstan",
@@ -452,6 +457,7 @@
             "profile": "full",
             "required_capabilities": ["php", "git", "composer"],
             "cost": "slow",
+            "relevant_paths": ["packages/**", "tools/PHPStan/**", "phpstan.neon", "phpstan-baseline.neon", "composer.json", "composer.lock"],
             "enforced_by": "workflow:ci.yml#composer phpstan"
         },
         {
@@ -461,6 +467,7 @@
             "repair": "delete the dead code or mark an intentional extension point with @api (baseline regen per CLAUDE.md is a reviewed exception)",
             "profile": "full",
             "cost": "slow",
+            "relevant_paths": ["packages/**", "tools/PHPStan/**", "bin/check-dead-code", "phpstan.neon", "phpstan-baseline.neon", "phpstan-dead-code.neon", "phpstan-dead-code-baseline.neon", "composer.json", "composer.lock"],
             "enforced_by": "workflow:ci.yml#bin/check-dead-code",
             "refresh": {
                 "mode": "manual",

@@ -76,6 +76,28 @@ final class PreflightParityTest extends TestCase
     }
 
     #[Test]
+    public function narrowed_material_selectors_bind_each_gate_implementation_and_configuration(): void
+    {
+        $gates = $this->gatesById();
+        $requiredSelectors = [
+            'check-changelog-shape' => ['CHANGELOG.md', 'bin/check-changelog-shape'],
+            'check-changelog-fragments' => ['changes/**', 'bin/changelog-fragments'],
+            'check-ci-workflow-inventory' => ['.github/workflows/**', 'bin/generate-ci-workflow-inventory', 'bin/lib/ci-workflow-inventory.php', 'tools/ci-workflow-inventory.json'],
+            'check-ci-roster-conformance' => ['bin/check-ci-roster-conformance', 'bin/lib/ci-roster-conformance.php', 'tools/ci-check-roster.json', 'tools/ci-workflow-inventory.json'],
+            'cs-check' => ['packages/**', 'tests/**', '.php-cs-fixer.dist.php', 'composer.json', 'composer.lock'],
+            'phpstan' => ['packages/**', 'tools/PHPStan/**', 'phpstan.neon', 'phpstan-baseline.neon', 'composer.json', 'composer.lock'],
+            'check-dead-code' => ['packages/**', 'tools/PHPStan/**', 'bin/check-dead-code', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'composer.json', 'composer.lock'],
+        ];
+
+        foreach ($requiredSelectors as $id => $selectors) {
+            self::assertArrayHasKey($id, $gates);
+            foreach ($selectors as $selector) {
+                self::assertContains($selector, $gates[$id]['relevant_paths'], "{$id} evidence must bind {$selector}.");
+            }
+        }
+    }
+
+    #[Test]
     public function every_ci_verify_gate_alias_is_in_the_manifest(): void
     {
         $ci = (string) file_get_contents($this->root . '/.github/workflows/ci.yml');
@@ -454,8 +476,53 @@ final class PreflightParityTest extends TestCase
             self::assertMatchesRegularExpression('/^ok\s+second\s+\([0-9.]+s\)$/m', $thirdStdout);
 
             $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
-            self::assertSame(['reused', 'executed'], array_column($decoded['results'], 'source'));
+            self::assertSame(['reused-exact', 'executed'], array_column($decoded['results'], 'source'));
         } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    #[Test]
+    public function preflight_reuses_only_gates_whose_selected_bytes_are_equivalent(): void
+    {
+        $scratch = $this->scratchDirectory();
+        $suffix = bin2hex(random_bytes(6));
+        $firstInput = $this->root . '/.preflight-material-' . $suffix . '-first';
+        $secondInput = $this->root . '/.preflight-material-' . $suffix . '-second';
+        try {
+            file_put_contents($firstInput, "version one\n");
+            file_put_contents($secondInput, "stable\n");
+            $firstCounter = $scratch . '/first-count';
+            $secondCounter = $scratch . '/second-count';
+            $increment = static fn(string $path): string => self::phpCommand(
+                '$p=$argv[1]; $n=is_file($p)?(int)file_get_contents($p):0; file_put_contents($p,(string)($n+1));',
+                self::hostPath($path),
+            );
+            $manifest = $this->writeManifest($scratch, [
+                ['id' => 'first', 'run' => $increment($firstCounter), 'relevant_paths' => [basename($firstInput)]],
+                ['id' => 'second', 'run' => $increment($secondCounter), 'relevant_paths' => [basename($secondInput)]],
+            ]);
+            $evidence = $scratch . '/evidence';
+            $report = $scratch . '/report.json';
+            $arguments = ['--evidence-dir=' . $evidence, '--report-json=' . $report];
+
+            [$firstExit, $firstStdout, $firstStderr] = $this->runPreflight($manifest, [], $arguments);
+            self::assertSame(0, $firstExit, $firstStdout . $firstStderr);
+            file_put_contents($firstInput, "version two\n");
+
+            [$secondExit, $secondStdout, $secondStderr] = $this->runPreflight($manifest, [], $arguments);
+            self::assertSame(0, $secondExit, $secondStdout . $secondStderr);
+            self::assertSame('2', file_get_contents($firstCounter), 'A changed selected byte must invalidate its gate.');
+            self::assertSame('1', file_get_contents($secondCounter), 'Unchanged selected bytes remain reusable.');
+            self::assertMatchesRegularExpression('/^ok\s+first\s+\([0-9.]+s\)$/m', $secondStdout);
+            self::assertMatchesRegularExpression('/^ok\s+second\s+\(reused equivalent inputs from [^)]+\)$/m', $secondStdout);
+
+            $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame(['executed', 'reused-equivalent'], array_column($decoded['results'], 'source'));
+            self::assertNotSame($decoded['candidate'], $decoded['results'][1]['tested_candidate']);
+        } finally {
+            @unlink($firstInput);
+            @unlink($secondInput);
             new Filesystem()->remove($scratch);
         }
     }
@@ -555,7 +622,7 @@ final class PreflightParityTest extends TestCase
                 'required_capabilities' => ['php', 'git'],
                 'relevant_paths' => ['**'],
                 'cost' => 'fast',
-                'evidence_inputs' => ['candidate_tree', 'tracked_worktree', 'composer_lock', 'toolchain', 'gate_definition'],
+                'evidence_inputs' => ['relevant_path_bytes', 'composer_lock', 'toolchain', 'gate_definition'],
             ],
             'gates' => array_map(
                 static fn(array $gate): array => $gate + ['repair' => 'n/a', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],

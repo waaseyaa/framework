@@ -130,6 +130,15 @@ commit validated by `ci/full-qualification`. See
 [commit-qualification.md](../cookbook/commit-qualification.md). No per-commit
 full-suite or default preflight CI jobs are added by this policy.
 
+`php bin/start-hosted-qualification` provides an optional early checkpoint for
+a clean feature-branch commit that already exists at the exact remote branch
+tip. It dispatches `ci.yml` with `profile=full` and the explicit candidate SHA.
+The command refuses dirty, detached, missing, or not-yet-pushed candidates. A
+successful command means only that GitHub accepted the dispatch; the exact-SHA
+run must still complete successfully, and the checkpoint is not release proof.
+Use `--dry-run` to validate the candidate and remote identity without starting
+hosted work.
+
 ## Drift Detection
 
 **Specs:** `tools/drift-detector.sh` and manual reads of `docs/specs/` — see [ops/observability/drift-detection.md](../../ops/observability/drift-detection.md). That detector is a PR-diff coupling check. Live spec prose that still defers current capability to an issue that closed *elsewhere* is a different drift class: `bin/check-stale-spec-deferrals` scans body prose only (skipping `<!-- Spec reviewed -->` blocks), flags `ISSUE-CLOSED` present/future-tense deferrals, and runs warn-only on the nightly schedule. It does not belong in `bin/check-pr-preflight`.

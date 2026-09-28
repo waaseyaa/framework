@@ -28,7 +28,7 @@ declare(strict_types=1);
  *   bin/check-pr-preflight --base=REF # diff base for the committed-state gates
  *                                     # (default: WAASEYAA_DRIFT_BASE, then
  *                                     #  git config waaseyaa.driftBase, then origin/main)
- *   bin/check-pr-preflight --no-reuse # execute instead of reading exact-identity receipts
+ *   bin/check-pr-preflight --no-reuse # execute instead of reading material-input receipts
  *   bin/check-pr-preflight --evidence-dir=DIR # override the Git-private receipt store
  *   bin/check-pr-preflight --report-json=FILE # write the machine-readable run report
  */
@@ -266,10 +266,23 @@ foreach ($selectedGates as $gate) {
     }
 
     $evidence = preflight_evidence_identity($root, $gate, $source, $resolvedBase, $capabilities);
-    if ($reuse && $evidence !== null && preflight_read_passed_evidence($evidenceDir, $evidence['key']) !== null) {
+    $receipt = $reuse && $evidence !== null ? preflight_read_passed_evidence($evidenceDir, $evidence['key']) : null;
+    if ($receipt !== null) {
+        $exact = $receipt['tested_candidate'] === $source;
+        $testedHead = substr((string) ($receipt['tested_candidate']['head'] ?? 'unknown'), 0, 12);
+        $testedWorktree = substr((string) ($receipt['tested_candidate']['worktree_sha256'] ?? 'unknown'), 0, 12);
         ++$reused;
-        $results[] = ['id' => $id, 'status' => 'passed', 'elapsed_s' => 0.0, 'owning_hosted_check' => $owner, 'source' => 'reused', 'evidence_key' => $evidence['key']];
-        fwrite(STDOUT, sprintf("ok   %-40s (reused exact identity)\n", $id));
+        $results[] = [
+            'id' => $id,
+            'status' => 'passed',
+            'elapsed_s' => 0.0,
+            'owning_hosted_check' => $owner,
+            'source' => $exact ? 'reused-exact' : 'reused-equivalent',
+            'evidence_key' => $evidence['key'],
+            'tested_candidate' => $receipt['tested_candidate'],
+        ];
+        $description = $exact ? 'reused exact identity' : "reused equivalent inputs from {$testedHead}+{$testedWorktree}";
+        fwrite(STDOUT, sprintf("ok   %-40s (%s)\n", $id, $description));
         continue;
     }
 
@@ -283,7 +296,7 @@ foreach ($selectedGates as $gate) {
     if ($exitCode === 0) {
         $result = ['id' => $id, 'status' => 'passed', 'elapsed_s' => round($elapsed, 3), 'owning_hosted_check' => $owner, 'source' => 'executed'];
         if ($reuse && $evidence !== null) {
-            if (preflight_write_passed_evidence($evidenceDir, $evidence['key'], $evidence['identity'], $elapsed)) {
+            if (preflight_write_passed_evidence($evidenceDir, $evidence['key'], $evidence['identity'], $evidence['candidate'], $elapsed)) {
                 $result['evidence_key'] = $evidence['key'];
             } else {
                 fwrite(STDERR, "check-pr-preflight: warning: could not write evidence for {$id}; the pass is not reusable.\n");
