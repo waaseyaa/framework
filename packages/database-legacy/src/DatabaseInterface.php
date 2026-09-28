@@ -22,7 +22,7 @@ interface DatabaseInterface
      * Execute raw SQL with scalar parameter types inferred from their PHP values.
      *
      * @param array<int|string, mixed> $args Positional or named bound values.
-     * @return \Traversable<array<string, mixed>>
+     * @return \Traversable
      */
     public function query(string $sql, array $args = []): \Traversable;
 
