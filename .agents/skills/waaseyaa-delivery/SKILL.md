@@ -47,6 +47,8 @@ Record the candidate identity, last verified activity, review handoff, landing, 
 5. Do not repeat a full review or full suite when the source, base, relevant contract, and test plan have not changed. A meaningful source or base delta requires refreshed evidence proportionate to its risk.
 6. Serialize heavy final qualification and merge; independent hosted checks may run in parallel. Record exact commit IDs, commands, counts, hosted run links or IDs, timestamps, and any skips or residual scope.
 
+For Framework preflight, trust `reused exact identity` only when emitted by the governed runner. Preserve its four states exactly: `passed`, `failed`, `hosted-required`, and `not-applicable`. A hosted-required result names the check that still owns proof and is not a local pass. Do not add `--no-reuse` for reassurance; use it only when fresh execution is an explicit acceptance criterion or when diagnosing the runner itself.
+
 Give reviewers the immutable diff, acceptance criteria, change record, and existing evidence. Do not make every reviewer rediscover the repository or rerun already-green checks. A clean review pass ends the review. After a repair, re-review the changed area and its affected boundaries; repeat the complete review only when the repair is cross-cutting or invalidates the original assessment. Run one final qualification on the exact landing candidate rather than one full qualification per reviewer.
 
 Dashboard and job status must be backed by a current source-linked request or run. Check the job ID, selected model, source head, status timestamp, and artifact before reporting progress. Label stale observations as historical; elapsed time or a cached dashboard row is not fresh evidence.

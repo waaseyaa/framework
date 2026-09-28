@@ -65,6 +65,15 @@ and execution conditions remain equivalent. Retained evidence is not a claim
 that tests ran on the new head. Invalidate only affected evidence, but do not
 infer equivalence from source filenames alone.
 
+`php bin/check-pr-preflight` automates the strict subset it can prove. It reuses
+only a successful receipt with the same candidate byte identity, base where
+relevant, lockfile, toolchain, selector, test plan, and gate definition. Output
+distinguishes an executed pass from `reused exact identity`. A capability the
+current host lacks is `hosted-required`; a selector with no matching candidate
+path is `not-applicable`. Neither is a local pass. Use `--no-reuse` only when a
+fresh execution is itself the acceptance criterion. Local receipts never replace
+the named hosted check or exact-SHA release qualification.
+
 ## Choose the boundary that answers the question
 
 - In-process unit tests establish component behavior.

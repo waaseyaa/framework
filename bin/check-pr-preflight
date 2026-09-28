@@ -28,6 +28,9 @@ declare(strict_types=1);
  *   bin/check-pr-preflight --base=REF # diff base for the committed-state gates
  *                                     # (default: WAASEYAA_DRIFT_BASE, then
  *                                     #  git config waaseyaa.driftBase, then origin/main)
+ *   bin/check-pr-preflight --no-reuse # execute instead of reading exact-identity receipts
+ *   bin/check-pr-preflight --evidence-dir=DIR # override the Git-private receipt store
+ *   bin/check-pr-preflight --report-json=FILE # write the machine-readable run report
  */
 
 $root = dirname(__DIR__);
@@ -35,6 +38,10 @@ $manifestPath = $root . '/tools/preflight-gates.json';
 $full = false;
 $list = false;
 $base = null;
+$reuse = true;
+$evidenceDir = null;
+$reportJson = null;
+$allowHostedRequired = false;
 
 foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
     if ($argument === '--full') {
@@ -45,6 +52,14 @@ foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
         $base = substr($argument, strlen('--base='));
     } elseif (str_starts_with($argument, '--manifest=')) {
         $manifestPath = substr($argument, strlen('--manifest='));
+    } elseif ($argument === '--no-reuse') {
+        $reuse = false;
+    } elseif ($argument === '--allow-hosted-required') {
+        $allowHostedRequired = true;
+    } elseif (str_starts_with($argument, '--evidence-dir=')) {
+        $evidenceDir = substr($argument, strlen('--evidence-dir='));
+    } elseif (str_starts_with($argument, '--report-json=')) {
+        $reportJson = substr($argument, strlen('--report-json='));
     } else {
         fwrite(STDERR, "check-pr-preflight: unknown argument {$argument}\n");
         exit(2);
@@ -63,12 +78,49 @@ if (!is_array($gates) || $gates === []) {
     exit(2);
 }
 
+require $root . '/bin/lib/repository-git.php';
+require $root . '/bin/lib/repository-bash.php';
+require $root . '/bin/lib/preflight-evidence.php';
+
+$manifestSchema = $manifest['schema_version'] ?? null;
+if (!in_array($manifestSchema, [1, 2], true)) {
+    fwrite(STDERR, "check-pr-preflight: unsupported manifest schema.\n");
+    exit(2);
+}
+$effectiveGates = [];
+foreach ($gates as $gate) {
+    if (!is_array($gate)) {
+        fwrite(STDERR, "check-pr-preflight: malformed gate entry.\n");
+        exit(2);
+    }
+    if ($manifestSchema === 1) {
+        $gate += [
+            'supported_hosts' => ['windows', 'linux', 'darwin'],
+            'required_capabilities' => ['php', 'git'],
+            'relevant_paths' => ['**'],
+            'cost' => 'fast',
+            'evidence_inputs' => ['candidate_tree', 'tracked_worktree', 'composer_lock', 'toolchain', 'gate_definition'],
+        ];
+    }
+    $effective = preflight_effective_gate($manifest, $gate);
+    $problems = preflight_gate_metadata_problems($effective);
+    if ($problems !== []) {
+        fwrite(STDERR, sprintf("check-pr-preflight: gate %s metadata: %s.\n", (string) ($gate['id'] ?? '?'), implode('; ', $problems)));
+        exit(2);
+    }
+    $effectiveGates[] = $effective;
+}
+$gates = $effectiveGates;
+
 if ($list) {
     foreach ($gates as $gate) {
         fwrite(STDOUT, sprintf(
-            "%-40s %-8s %s\n",
+            "%-40s %-8s %-6s hosts=%-22s capabilities=%-18s %s\n",
             (string) $gate['id'],
             (string) $gate['profile'],
+            (string) $gate['cost'],
+            implode(',', $gate['supported_hosts']),
+            implode(',', $gate['required_capabilities']),
             (string) $gate['run'],
         ));
     }
@@ -119,8 +171,6 @@ function preflightResolveBase(string $root, ?string $explicit): string
 // is ever reported as a repository defect. Not a manifest gate: hosted CI
 // installs fresh and never observes this state (docs/specs/governed-gates.md §1).
 require $root . '/bin/lib/vendor-freshness.php';
-require $root . '/bin/lib/repository-git.php';
-require $root . '/bin/lib/repository-bash.php';
 $vendorProblem = vendor_freshness_problem($root);
 if ($vendorProblem !== null) {
     fwrite(STDERR, vendor_freshness_message($vendorProblem, 'check-pr-preflight'));
@@ -138,40 +188,89 @@ $selectedGates = array_values(array_filter(
 // launcher, whose Linux Git cannot read a Windows linked worktree. On native
 // Windows a gate whose command begins with exactly `bash` therefore starts
 // Git for Windows Bash (repository_bash_command()), resolved once per run.
-// Without it no gate runs: that is a host precondition, reported with the
-// shared precondition exit code and no repository repair guidance. POSIX
-// command strings are never rewritten.
+// Without it Bash gates are hosted-required while supported gates continue.
+// POSIX command strings are never rewritten.
+$hostBashExecutable = null;
 $hostBash = null;
 if (PHP_OS_FAMILY === 'Windows') {
-    $bashGates = array_filter($selectedGates, static fn(array $gate): bool => preg_match('/^bash(?=\s)/', (string) $gate['run']) === 1);
-    if ($bashGates !== []) {
-        $bash = repository_bash_command($root)[0] ?? null;
-        $hostBash = $bash === null ? null : escapeshellarg($bash);
-        if ($hostBash !== '"' . $bash . '"') {
-            fwrite(STDERR, sprintf(
-                "check-pr-preflight: Git for Windows Bash is unavailable%s, so %d Bash gate(s) cannot run on this native Windows host. Install Git for Windows, or set WAASEYAA_SYSTEM_GIT to its git.exe, then retry. A bare `bash` here is the WSL launcher, which cannot run these gates against a Windows checkout.\n",
-                $bash === null ? '' : " at a path cmd.exe cannot quote ({$bash})",
-                count($bashGates),
-            ));
-            fwrite(STDERR, "check-pr-preflight: no gate was run — this is a host precondition, not a repository finding.\n");
-            exit(VENDOR_FRESHNESS_EXIT_CODE);
+    $hostBashExecutable = repository_bash_command($root)[0] ?? null;
+    if ($hostBashExecutable !== null) {
+        $quoted = escapeshellarg($hostBashExecutable);
+        if ($quoted === '"' . $hostBashExecutable . '"') {
+            $hostBash = $quoted;
+        } else {
+            $hostBashExecutable = null;
         }
+    }
+} else {
+    $bashCapability = preflight_command_capability('bash');
+    if ($bashCapability['available']) {
+        $hostBashExecutable = $bashCapability['detail'];
     }
 }
 
 $resolvedBase = preflightResolveBase($root, $base);
+$host = preflight_host_id();
+$capabilities = preflight_capabilities($root, $hostBashExecutable);
+$changedPaths = preflight_changed_paths($root, $resolvedBase);
+$source = preflight_source_identity($root);
+if ($source === null) {
+    fwrite(STDERR, "check-pr-preflight: cannot bind the repository source identity.\n");
+    exit(2);
+}
+if ($manifestPath === $root . '/tools/preflight-gates.json' && $evidenceDir === null) {
+    $evidenceDir = preflight_default_evidence_dir($root);
+}
+$reuse = $reuse && is_string($evidenceDir) && $evidenceDir !== '';
 
 $failures = [];
+$hostedRequired = [];
+$notApplicable = [];
+$results = [];
 $ran = 0;
+$reused = 0;
 $startedAll = microtime(true);
 
 foreach ($selectedGates as $gate) {
+    $id = (string) $gate['id'];
+    $owner = (string) $gate['owning_hosted_check'];
+    if (!in_array($host, $gate['supported_hosts'], true)) {
+        $reason = "host {$host} is not in supported_hosts";
+        $hostedRequired[] = $id;
+        $results[] = ['id' => $id, 'status' => 'hosted-required', 'reason' => $reason, 'owning_hosted_check' => $owner, 'source' => 'not-run'];
+        fwrite(STDOUT, sprintf("HOST %-40s (%s; owner: %s)\n", $id, $reason, $owner));
+        continue;
+    }
+    $missing = preflight_missing_capabilities($gate, $capabilities);
+    if ($missing !== []) {
+        $reason = 'missing capabilities: ' . implode(',', $missing);
+        $hostedRequired[] = $id;
+        $results[] = ['id' => $id, 'status' => 'hosted-required', 'reason' => $reason, 'owning_hosted_check' => $owner, 'source' => 'not-run'];
+        fwrite(STDOUT, sprintf("HOST %-40s (%s; owner: %s)\n", $id, $reason, $owner));
+        continue;
+    }
+    if (!preflight_gate_is_applicable($gate, $changedPaths)) {
+        $reason = 'no changed path matched the gate selectors';
+        $notApplicable[] = $id;
+        $results[] = ['id' => $id, 'status' => 'not-applicable', 'reason' => $reason, 'owning_hosted_check' => $owner, 'source' => 'not-run'];
+        fwrite(STDOUT, sprintf("N/A  %-40s (%s)\n", $id, $reason));
+        continue;
+    }
+
     $command = (string) $gate['run'];
     if ($hostBash !== null && preg_match('/^bash(?=\s)/', $command) === 1) {
         $command = $hostBash . substr($command, 4);
     }
     if (($gate['base'] ?? false) === true) {
         $command = str_replace('{base}', escapeshellarg($resolvedBase), $command);
+    }
+
+    $evidence = preflight_evidence_identity($root, $gate, $source, $resolvedBase, $full ? 'full' : 'default', $capabilities);
+    if ($reuse && $evidence !== null && preflight_read_passed_evidence($evidenceDir, $evidence['key']) !== null) {
+        ++$reused;
+        $results[] = ['id' => $id, 'status' => 'passed', 'elapsed_s' => 0.0, 'owning_hosted_check' => $owner, 'source' => 'reused', 'evidence_key' => $evidence['key']];
+        fwrite(STDOUT, sprintf("ok   %-40s (reused exact identity)\n", $id));
+        continue;
     }
 
     ++$ran;
@@ -182,12 +281,22 @@ foreach ($selectedGates as $gate) {
     $elapsed = microtime(true) - $started;
 
     if ($exitCode === 0) {
-        fwrite(STDOUT, sprintf("ok   %-40s (%.1fs)\n", (string) $gate['id'], $elapsed));
+        $result = ['id' => $id, 'status' => 'passed', 'elapsed_s' => round($elapsed, 3), 'owning_hosted_check' => $owner, 'source' => 'executed'];
+        if ($reuse && $evidence !== null) {
+            if (preflight_write_passed_evidence($evidenceDir, $evidence['key'], $evidence['identity'], $elapsed)) {
+                $result['evidence_key'] = $evidence['key'];
+            } else {
+                fwrite(STDERR, "check-pr-preflight: warning: could not write evidence for {$id}; the pass is not reusable.\n");
+            }
+        }
+        $results[] = $result;
+        fwrite(STDOUT, sprintf("ok   %-40s (%.1fs)\n", $id, $elapsed));
         continue;
     }
 
     $failures[] = $gate;
-    fwrite(STDOUT, sprintf("FAIL %-40s (%.1fs, exit %d)\n", (string) $gate['id'], $elapsed, $exitCode));
+    $results[] = ['id' => $id, 'status' => 'failed', 'elapsed_s' => round($elapsed, 3), 'exit_code' => $exitCode, 'owning_hosted_check' => $owner, 'source' => 'executed'];
+    fwrite(STDOUT, sprintf("FAIL %-40s (%.1fs, exit %d)\n", $id, $elapsed, $exitCode));
     foreach ($output as $line) {
         fwrite(STDOUT, '     ' . $line . "\n");
     }
@@ -195,16 +304,39 @@ foreach ($selectedGates as $gate) {
 }
 
 fwrite(STDOUT, sprintf(
-    "\n%d gate(s) run in %.1fs — %d failed.%s\n",
+    "\n%d gate(s) executed and %d reused in %.1fs; %d failed, %d hosted-required, %d not-applicable.%s\n",
     $ran,
+    $reused,
     microtime(true) - $startedAll,
     count($failures),
+    count($hostedRequired),
+    count($notApplicable),
     $full ? '' : ' (phpstan-engine gates run with --full and in CI.)',
 ));
+
+$report = [
+    'schema_version' => 1,
+    'candidate' => $source,
+    'base' => $resolvedBase,
+    'host' => ['id' => $host, 'capabilities' => $capabilities],
+    'profile' => $full ? 'full' : 'default',
+    'results' => $results,
+    'summary' => ['executed' => $ran, 'reused' => $reused, 'failed' => count($failures), 'hosted_required' => count($hostedRequired), 'not_applicable' => count($notApplicable)],
+];
+if ($reportJson !== null && !preflight_write_report($reportJson, $report)) {
+    fwrite(STDERR, "check-pr-preflight: could not write report {$reportJson}.\n");
+    exit(2);
+}
 
 if ($failures !== []) {
     fwrite(STDOUT, "failed: " . implode(', ', array_map(static fn(array $gate): string => (string) $gate['id'], $failures)) . "\n");
     exit(1);
+}
+
+if ($hostedRequired !== []) {
+    fwrite(STDOUT, "hosted-required: " . implode(', ', $hostedRequired) . "\n");
+    fwrite(STDOUT, "This local run is incomplete; the owning hosted checks remain required.\n");
+    exit($allowHostedRequired ? 0 : 3);
 }
 
 exit(0);

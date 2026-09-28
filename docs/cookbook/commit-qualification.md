@@ -85,6 +85,13 @@ php bin/qualify-candidate --jobs=2   # explicit concurrency after preflight pass
 php bin/qualify-candidate --collect-all # diagnostic override after a failing preflight
 ```
 
+The preflight component reuses successful exact-identity gate receipts from
+Git-private storage. Its output distinguishes executed and reused passes.
+`hosted-required` exits 3 and keeps the canonical qualifier from claiming a
+local qualification; only the pre-push adapter uses
+`--allow-hosted-required`, so a candidate can reach the named hosted owner.
+Local receipts never satisfy hosted CI or release-cut.
+
 The default evidence directory is
 `build/qualification/<sha>-<time>/receipt.json`. A successful full default run
 has `verdict: qualified`, `qualification: true`, and exit 0. Custom plans,

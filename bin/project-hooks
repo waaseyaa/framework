@@ -129,12 +129,12 @@ pre_push() {
   # the single gate roster; PreflightParityTest keeps it CI-identical. For an
   # ENVIRONMENTAL failure (not a real finding), escape with git push --no-verify
   # and rely on the authoritative hosted CI.
-  if ! php bin/check-pr-preflight; then
+  if ! php bin/check-pr-preflight --allow-hosted-required; then
     echo "project-hooks: preflight failed — each FAIL above names its exact repair command." >&2
     echo "project-hooks: environmental failure (not a real finding)? push with git push --no-verify; hosted CI stays authoritative." >&2
     exit 1
   fi
-  echo "Pre-push preflight passed. Follow docs/local-testing-policy.md for remaining impact-based checks; observe hosted main CI and require exact-SHA green release gates."
+  echo "Pre-push preflight completed. Any HOST result above remains owned by its hosted check and was not called a local pass. Follow docs/local-testing-policy.md for remaining impact-based checks; observe hosted main CI and require exact-SHA green release gates."
 }
 
 case "${1:-}" in

@@ -1,6 +1,13 @@
 {
-    "schema_version": 1,
-    "_comment": "Governed-gate manifest consumed by bin/check-pr-preflight and bin/refresh-governance-artifacts (docs/specs/governed-gates.md §1). Every fast repo-state gate hosted CI blocks merge on appears here; tests/Architecture/PreflightParityTest.php binds this file to composer.json and the workflow files so it cannot drift from CI. {base} in a run command is replaced with the diff base ref (committed-state gates).",
+    "schema_version": 2,
+    "_comment": "Governed-gate manifest consumed by bin/check-pr-preflight and bin/refresh-governance-artifacts (docs/specs/governed-gates.md §1). Every fast repo-state gate hosted CI blocks merge on appears here; tests/Architecture/PreflightParityTest.php binds this file to composer.json and the workflow files so it cannot drift from CI. {base} in a run command is replaced with the diff base ref (committed-state gates). Gate defaults are executable metadata, not permission to weaken the owning hosted check.",
+    "gate_defaults": {
+        "supported_hosts": ["windows", "linux", "darwin"],
+        "required_capabilities": ["php", "git"],
+        "relevant_paths": ["**"],
+        "cost": "fast",
+        "evidence_inputs": ["candidate_tree", "tracked_worktree", "composer_lock", "toolchain", "gate_definition"]
+    },
     "gates": [
         {
             "id": "check-composer-policy",
@@ -443,6 +450,8 @@
             "run": "composer phpstan",
             "repair": "fix the reported static-analysis errors (single-process fallback: php -d memory_limit=4G vendor/bin/phpstan analyse)",
             "profile": "full",
+            "required_capabilities": ["php", "git", "composer"],
+            "cost": "slow",
             "enforced_by": "workflow:ci.yml#composer phpstan"
         },
         {
@@ -451,6 +460,7 @@
             "run": "php bin/check-dead-code",
             "repair": "delete the dead code or mark an intentional extension point with @api (baseline regen per CLAUDE.md is a reviewed exception)",
             "profile": "full",
+            "cost": "slow",
             "enforced_by": "workflow:ci.yml#bin/check-dead-code",
             "refresh": {
                 "mode": "manual",

@@ -109,6 +109,11 @@ maintainer.
 - Verification is authoritative only when it binds the exact candidate,
   command, inputs, and supported runner. Run local pipelines with
   `set -o pipefail` where pipelines are used.
+- Prefer the governed preflight receipt when it reports `reused exact identity`.
+  Treat `hosted-required` and `not-applicable` as explicit non-pass states and
+  retain the owning hosted check. Do not rerun an unchanged gate merely to
+  replace reusable evidence, and do not cite a local receipt as hosted or
+  release qualification.
 - Follow [the local testing policy](../local-testing-policy.md) when selecting
   verification scope and reusing evidence. A full local suite is not a default
   baseline or a per-commit requirement. When the test plan requires the split

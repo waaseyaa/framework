@@ -53,11 +53,12 @@ final class ProjectHooksTest extends TestCase
         // git push --no-verify, never by downgrading a gate to advisory.
         $script = (string) file_get_contents($this->root . '/bin/project-hooks');
 
-        self::assertStringContainsString('php bin/check-pr-preflight', $script);
+        self::assertStringContainsString('php bin/check-pr-preflight --allow-hosted-required', $script);
         self::assertStringNotContainsString('advisory', $script, 'No gate may be advisory locally while CI blocks on it.');
         self::assertStringNotContainsString('except spec drift', $script);
         self::assertStringContainsString('--no-verify', $script, 'The environmental-failure escape hatch must be documented in the hook output.');
         self::assertStringContainsString('--full', $script, 'The hook must point at the full profile for the phpstan-engine gates.');
+        self::assertStringContainsString('was not called a local pass', $script, 'Hosted-owned work must remain visibly incomplete.');
     }
 
     #[Test]

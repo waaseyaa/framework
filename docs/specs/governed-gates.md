@@ -71,10 +71,32 @@ Profiles:
   the documented pre-landing command.
 
 The gate list is **data, not prose**: `tools/preflight-gates.json` maps each gate id to its
-command, repair command, profile, and the CI surface that enforces it. A self-test
+command, repair command, profile, and the CI surface that enforces it. Schema 2 also resolves
+supported hosts, required capabilities, owning hosted check, relevant path selectors, cost class,
+and evidence inputs for every gate. Common conservative values live in `gate_defaults`; a gate
+override can narrow them but cannot remove its hosted owner. A self-test
 (`tests/Architecture/PreflightParityTest`) asserts (a) every manifest gate resolves to a runnable
 command, and (b) every gate names a CI enforcement surface that actually exists in the workflow
 files — so the manifest cannot silently drift from CI.
+
+Before launching a selected gate, preflight identifies the native host and the available PHP,
+Git, Bash, Composer, and Node command capabilities. A supported and applicable gate runs normally.
+A gate whose host or required capability is unavailable is `hosted-required`: it is not launched,
+its owning hosted check is named, it is never printed as `ok`, and the ordinary command exits 3.
+`--allow-hosted-required` exists only for the pre-push adapter: it permits publication so the
+named hosted owner can run while preserving the incomplete result in stdout. It does not make the
+gate pass, qualify a candidate, satisfy branch protection, or alter release-cut. A gate with an
+explicit selector that matches no candidate path is `not-applicable`, also never printed as a
+pass. Defects remain `failed` and exit 1.
+
+Successful gate evidence is stored outside the checkout below Git's common directory. Its key
+binds the exact HEAD/tree and dirty byte manifest, resolved base for base-relative gates,
+`composer.lock`, native host and toolchain capabilities, profile, selectors, evidence inputs, and
+the effective gate definition. A matching receipt may be reused and is printed as `reused exact
+identity`; a changed gate definition invalidates only that gate's receipt. Failed, hosted-required,
+not-applicable, corrupt, or stale receipts are never reusable. `--no-reuse` forces execution,
+`--evidence-dir` supplies an isolated store for tests, and `--report-json` writes the four-state
+machine-readable report. Hosted CI and exact-SHA release gates do not consume local receipts.
 
 Vendor-freshness precondition (#2926): before any gate runs, preflight calls the shared,
 dependency-free `bin/lib/vendor-freshness.php` against the repository root. It compares

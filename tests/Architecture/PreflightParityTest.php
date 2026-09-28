@@ -50,9 +50,10 @@ final class PreflightParityTest extends TestCase
     #[Test]
     public function manifest_is_well_formed(): void
     {
-        $this->assertSame(1, $this->manifest['schema_version'] ?? null);
+        $this->assertSame(2, $this->manifest['schema_version'] ?? null);
         $this->assertIsArray($this->manifest['gates']);
         $this->assertNotSame([], $this->manifest['gates']);
+        $this->assertIsArray($this->manifest['gate_defaults'] ?? null);
 
         $ids = array_column($this->manifest['gates'], 'id');
         $this->assertSame($ids, array_values(array_unique($ids)), 'Gate ids must be unique.');
@@ -62,6 +63,15 @@ final class PreflightParityTest extends TestCase
                 $this->assertArrayHasKey($key, $gate, sprintf('Gate %s must declare %s.', $gate['id'] ?? '?', $key));
             }
             $this->assertContains($gate['profile'], ['default', 'full'], $gate['id']);
+            $effective = array_replace($this->manifest['gate_defaults'], $gate);
+            foreach (['supported_hosts', 'required_capabilities', 'relevant_paths', 'cost', 'evidence_inputs'] as $key) {
+                $this->assertArrayHasKey($key, $effective, sprintf('Gate %s must resolve %s metadata.', $gate['id'], $key));
+            }
+            $this->assertContains($effective['cost'], ['fast', 'medium', 'slow'], $gate['id']);
+            $this->assertNotSame([], $effective['supported_hosts'], $gate['id']);
+            $this->assertNotSame([], $effective['required_capabilities'], $gate['id']);
+            $this->assertNotSame([], $effective['relevant_paths'], $gate['id']);
+            $this->assertNotSame([], $effective['evidence_inputs'], $gate['id']);
         }
     }
 
@@ -262,15 +272,28 @@ final class PreflightParityTest extends TestCase
     #[Test]
     public function preflight_drift_base_lookup_starts_the_repository_git_entrypoint(): void
     {
-        // The lookup must start repository_git_command(): the bin/git adapter
-        // on POSIX, which honours WAASEYAA_SYSTEM_GIT, and that pinned
-        // executable directly on native Windows. Pinning one that cannot start
-        // must therefore lose the configured base on both hosts; a bare `git`
-        // would ignore the pin and still read it.
-        $this->assertResolvedBase('origin/main', [], [
-            'WAASEYAA_DRIFT_BASE' => false,
-            'WAASEYAA_SYSTEM_GIT' => sys_get_temp_dir() . '/waaseyaa-missing-git-' . bin2hex(random_bytes(6)),
-        ]);
+        // Every identity lookup must start repository_git_command(): the
+        // bin/git adapter on POSIX, which honours WAASEYAA_SYSTEM_GIT, and
+        // that pinned executable directly on native Windows. Pinning one that
+        // cannot start must fail before a gate runs; a bare `git` would ignore
+        // the pin and silently bind another executable.
+        $scratch = $this->scratchDirectory();
+        try {
+            $manifest = $this->writeManifest($scratch, [[
+                'id' => 'must-not-run',
+                'run' => self::phpCommand('exit(97);'),
+            ]]);
+            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, [
+                'WAASEYAA_DRIFT_BASE' => false,
+                'WAASEYAA_SYSTEM_GIT' => sys_get_temp_dir() . '/waaseyaa-missing-git-' . bin2hex(random_bytes(6)),
+            ]);
+
+            self::assertSame(2, $exitCode, $stdout . $stderr);
+            self::assertStringContainsString('cannot bind the repository source identity', $stderr);
+            self::assertStringNotContainsString('must-not-run', $stdout);
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
     }
 
     /**
@@ -355,38 +378,104 @@ final class PreflightParityTest extends TestCase
         }
     }
 
-    /**
-     * Without Git for Windows Bash the run must stop before its first gate,
-     * as a host precondition (exit 3) with no repository repair guidance.
-     * WAASEYAA_SYSTEM_GIT pinned to a missing executable leaves the host rule
-     * nothing to resolve. On POSIX the pin is irrelevant and both gates run.
-     */
     #[Test]
-    public function preflight_fails_closed_before_any_gate_when_windows_bash_is_unavailable(): void
+    public function preflight_records_a_missing_capability_as_hosted_required_without_claiming_a_pass(): void
     {
         $scratch = $this->scratchDirectory();
         try {
             $ran = $scratch . '/php gate ran';
-            file_put_contents($scratch . '/probe gate.sh', "uname -s > \"\$1\"\n");
             $manifest = $this->writeManifest($scratch, [
                 ['id' => 'php-first', 'run' => self::phpCommand("file_put_contents(\$argv[1], 'ran');", self::hostPath($ran))],
-                ['id' => 'bash-second', 'run' => 'bash ' . self::hostPath($scratch . '/probe gate.sh') . ' ' . self::hostPath($scratch . '/uname evidence')],
+                [
+                    'id' => 'hosted-only',
+                    'run' => self::phpCommand("file_put_contents(\$argv[1], 'must-not-run');", self::hostPath($scratch . '/hosted gate ran')),
+                    'required_capabilities' => ['capability-that-does-not-exist'],
+                    'owning_hosted_check' => 'ci/hosted-only',
+                ],
             ]);
 
-            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, ['WAASEYAA_SYSTEM_GIT' => $scratch . '/missing/git.exe']);
+            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, []);
 
-            if (PHP_OS_FAMILY === 'Windows') {
-                self::assertSame(3, $exitCode, $stdout . $stderr);
-                self::assertStringContainsString('Git for Windows Bash is unavailable', $stderr);
-                self::assertStringContainsString('WAASEYAA_SYSTEM_GIT', $stderr);
-                self::assertFileDoesNotExist($ran, 'No gate may run without the host Bash.');
-                self::assertStringNotContainsString('repair:', $stdout . $stderr, 'A host precondition is not a repository finding.');
-                self::assertStringNotContainsString('FAIL', $stdout);
-            } else {
-                self::assertSame(0, $exitCode, $stdout . $stderr);
-                self::assertFileExists($ran);
-                self::assertMatchesRegularExpression('/^ok\s+bash-second\s/m', $stdout);
-            }
+            self::assertSame(3, $exitCode, $stdout . $stderr);
+            self::assertFileExists($ran, 'Supported gates must still run.');
+            self::assertFileDoesNotExist($scratch . '/hosted gate ran');
+            self::assertMatchesRegularExpression('/^HOST\s+hosted-only\s/m', $stdout);
+            self::assertStringContainsString('ci/hosted-only', $stdout);
+            self::assertStringContainsString('This local run is incomplete', $stdout);
+            self::assertStringNotContainsString('ok   hosted-only', $stdout);
+
+            [$hookExit, $hookStdout, $hookStderr] = $this->runPreflight($manifest, [], ['--allow-hosted-required']);
+            self::assertSame(0, $hookExit, $hookStdout . $hookStderr);
+            self::assertStringContainsString('This local run is incomplete', $hookStdout);
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    #[Test]
+    public function preflight_reuses_only_matching_exact_gate_evidence(): void
+    {
+        $scratch = $this->scratchDirectory();
+        try {
+            $firstCounter = $scratch . '/first-count';
+            $secondCounter = $scratch . '/second-count';
+            $increment = static fn(string $path, string $suffix = ''): string => self::phpCommand(
+                "\$p=\$argv[1]; \$n=is_file(\$p)?(int)file_get_contents(\$p):0; file_put_contents(\$p,(string)(\$n+1)); {$suffix}",
+                self::hostPath($path),
+            );
+            $manifest = $this->writeManifest($scratch, [
+                ['id' => 'first', 'run' => $increment($firstCounter)],
+                ['id' => 'second', 'run' => $increment($secondCounter)],
+            ]);
+            $evidence = $scratch . '/evidence';
+            $report = $scratch . '/report.json';
+            $arguments = ['--evidence-dir=' . $evidence, '--report-json=' . $report];
+
+            [$firstExit, $firstStdout, $firstStderr] = $this->runPreflight($manifest, [], $arguments);
+            self::assertSame(0, $firstExit, $firstStdout . $firstStderr);
+            self::assertSame('1', file_get_contents($firstCounter));
+            self::assertSame('1', file_get_contents($secondCounter));
+
+            [$secondExit, $secondStdout, $secondStderr] = $this->runPreflight($manifest, [], $arguments);
+            self::assertSame(0, $secondExit, $secondStdout . $secondStderr);
+            self::assertSame('1', file_get_contents($firstCounter));
+            self::assertSame('1', file_get_contents($secondCounter));
+            self::assertSame(2, substr_count($secondStdout, 'reused exact identity'));
+
+            $manifest = $this->writeManifest($scratch, [
+                ['id' => 'first', 'run' => $increment($firstCounter)],
+                ['id' => 'second', 'run' => $increment($secondCounter, '/* gate-version-2 */')],
+            ]);
+            [$thirdExit, $thirdStdout, $thirdStderr] = $this->runPreflight($manifest, [], $arguments);
+            self::assertSame(0, $thirdExit, $thirdStdout . $thirdStderr);
+            self::assertSame('1', file_get_contents($firstCounter), 'Unchanged gate evidence must remain reusable.');
+            self::assertSame('2', file_get_contents($secondCounter), 'Changed gate identity must execute again.');
+            self::assertMatchesRegularExpression('/^ok\s+first\s+\(reused exact identity\)$/m', $thirdStdout);
+            self::assertMatchesRegularExpression('/^ok\s+second\s+\([0-9.]+s\)$/m', $thirdStdout);
+
+            $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame(['reused', 'executed'], array_column($decoded['results'], 'source'));
+        } finally {
+            new Filesystem()->remove($scratch);
+        }
+    }
+
+    #[Test]
+    public function preflight_reports_unmatched_selectors_as_not_applicable_not_passed(): void
+    {
+        $scratch = $this->scratchDirectory();
+        try {
+            $manifest = $this->writeManifest($scratch, [[
+                'id' => 'docs-elsewhere',
+                'run' => self::phpCommand('exit(97);'),
+                'relevant_paths' => ['definitely-not-a-real-directory/**'],
+            ]]);
+            [$exitCode, $stdout, $stderr] = $this->runPreflight($manifest, []);
+
+            self::assertSame(0, $exitCode, $stdout . $stderr);
+            self::assertMatchesRegularExpression('/^N\/A\s+docs-elsewhere\s/m', $stdout);
+            self::assertStringNotContainsString('ok   docs-elsewhere', $stdout);
+            self::assertStringContainsString('1 not-applicable', $stdout);
         } finally {
             new Filesystem()->remove($scratch);
         }
@@ -422,12 +511,19 @@ final class PreflightParityTest extends TestCase
         return $shadow;
     }
 
-    /** @param list<array{id: string, run: string}> $gates */
+    /** @param list<array<string, mixed>> $gates */
     private function writeManifest(string $scratch, array $gates): string
     {
         $manifestPath = $scratch . '/manifest.json';
         file_put_contents($manifestPath, json_encode([
-            'schema_version' => 1,
+            'schema_version' => 2,
+            'gate_defaults' => [
+                'supported_hosts' => ['windows', 'linux', 'darwin'],
+                'required_capabilities' => ['php', 'git'],
+                'relevant_paths' => ['**'],
+                'cost' => 'fast',
+                'evidence_inputs' => ['candidate_tree', 'tracked_worktree', 'composer_lock', 'toolchain', 'gate_definition'],
+            ],
             'gates' => array_map(
                 static fn(array $gate): array => $gate + ['repair' => 'n/a', 'profile' => 'default', 'enforced_by' => 'workflow:ci.yml'],
                 $gates,
@@ -442,10 +538,10 @@ final class PreflightParityTest extends TestCase
      *
      * @return array{int, string, string}
      */
-    private function runPreflight(string $manifestPath, array $environment): array
+    private function runPreflight(string $manifestPath, array $environment, array $arguments = []): array
     {
         $process = new Process(
-            [PHP_BINARY, $this->root . '/bin/check-pr-preflight', '--manifest=' . $manifestPath],
+            [PHP_BINARY, $this->root . '/bin/check-pr-preflight', '--manifest=' . $manifestPath, ...$arguments],
             $this->root,
             $environment,
             null,
