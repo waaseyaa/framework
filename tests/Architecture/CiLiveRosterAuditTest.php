@@ -146,13 +146,13 @@ final class CiLiveRosterAuditTest extends TestCase
     {
         [$policy, $inventory, $ruleset, $runs] = self::fixtures();
         $runs[] = self::checkRun('admin/release', 'skipped');
-        $runs[] = self::checkRun('ci/playwright-smoke', 'skipped', '2026-09-20T23:59:00Z');
+        $runs[] = self::checkRun('composer-policy', 'skipped', '2026-09-20T23:59:00Z');
 
         $report = \cla_audit($policy, $inventory, $ruleset, $runs, 'waaseyaa/framework', str_repeat('a', 40));
         $classifications = array_column($report['classifications'], 'class', 'context');
 
         self::assertSame('expected-conditional-skip', $classifications['admin/release']);
-        self::assertSame('unexpected-skip-or-missing-prerequisite', $classifications['ci/playwright-smoke']);
+        self::assertSame('unexpected-skip-or-missing-prerequisite', $classifications['composer-policy']);
     }
 
     #[Test]

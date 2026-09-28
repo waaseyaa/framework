@@ -47,7 +47,7 @@ final class NativeHostContractWorkflowTest extends TestCase
         self::assertSame('ci/native-host-contract-${{ matrix.host }}', $job['name']);
         self::assertSame('${{ matrix.runner }}', $job['runs-on']);
         self::assertSame(20, $job['timeout-minutes']);
-        self::assertArrayNotHasKey('if', $job);
+        self::assertSame("github.event_name != 'push' || github.ref != 'refs/heads/main'", $job['if'] ?? null);
         self::assertArrayNotHasKey('needs', $job);
         self::assertArrayNotHasKey('continue-on-error', $job);
         self::assertFalse($job['strategy']['fail-fast']);
@@ -154,7 +154,7 @@ final class NativeHostContractWorkflowTest extends TestCase
         self::assertSame('ci/native-host-contract', $gate['name']);
         self::assertSame('ubuntu-24.04', $gate['runs-on']);
         self::assertSame(['native-host-contract'], $gate['needs']);
-        self::assertSame('always()', $gate['if']);
+        self::assertSame("always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')", $gate['if']);
         self::assertSame('${{ needs.native-host-contract.result }}', $gate['steps'][0]['env']['NATIVE_HOST_LEAVES']);
         self::assertSame('test "$NATIVE_HOST_LEAVES" = success', $gate['steps'][0]['run']);
         self::assertSame('native-host-evidence-*', self::step('native-host-contract-evidence', 'Download the per-host evidence')['with']['pattern']);

@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
-/** The slow recipe-provider proof must remain an unconditional, failure-propagating CI job. */
+/** The slow recipe-provider proof must remain a full-profile, failure-propagating CI job. */
 #[CoversNothing]
 final class SiteRecipeProviderActivationGateTest extends TestCase
 {
@@ -46,7 +46,7 @@ final class SiteRecipeProviderActivationGateTest extends TestCase
 
         $job = $workflow['jobs']['site-recipe-provider-activation'];
         self::assertSame('ci/site-recipe-provider-activation', $job['name']);
-        self::assertArrayNotHasKey('if', $job);
+        self::assertSame("github.event_name != 'push' || github.ref != 'refs/heads/main'", $job['if'] ?? null);
         self::assertFalse($job['continue-on-error'] ?? false);
 
         $checkoutSteps = array_values(array_filter(

@@ -11,7 +11,7 @@ use Symfony\Component\Yaml\Yaml;
 
 /**
  * The installed-consumer proof for the public `Waaseyaa\CLI\Io\StdinSource`
- * interface must remain an unconditional, blocking CI job (#2961).
+ * interface must remain a full-profile, blocking CI job (#2961).
  *
  * Composer honours `autoload-dev` for the root package only, so a mapping
  * regression that makes a declared-public symbol unreachable downstream is
@@ -33,7 +33,7 @@ final class CliIoConsumerContractGateTest extends TestCase
         self::assertArrayHasKey('cli-io-consumer-contract', $workflow['jobs']);
         $job = $workflow['jobs']['cli-io-consumer-contract'];
         self::assertSame('ci/cli-io-consumer-contract', $job['name']);
-        self::assertArrayNotHasKey('if', $job);
+        self::assertSame("github.event_name != 'push' || github.ref != 'refs/heads/main'", $job['if'] ?? null);
         self::assertFalse($job['continue-on-error'] ?? false);
         $proofSteps = array_values(array_filter(
             $job['steps'],

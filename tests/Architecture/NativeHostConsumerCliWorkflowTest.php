@@ -54,7 +54,7 @@ final class NativeHostConsumerCliWorkflowTest extends TestCase
         $setup = self::step($host, 'Set up PHP');
 
         self::assertSame(self::$contract['hosts'][$host]['runner'], $job['runs-on']);
-        self::assertArrayNotHasKey('if', $job);
+        self::assertSame("github.event_name != 'push' || github.ref != 'refs/heads/main'", $job['if'] ?? null);
         self::assertArrayNotHasKey('continue-on-error', $job);
         self::assertSame('8.5', $setup['with']['php-version']);
         self::assertSame('composer:2.10', $setup['with']['tools']);
@@ -178,7 +178,7 @@ final class NativeHostConsumerCliWorkflowTest extends TestCase
         self::assertSame('ci/native-host-consumer-cli', $gate['name']);
         self::assertSame('ubuntu-24.04', $gate['runs-on']);
         self::assertSame(array_values($lanes), $gate['needs']);
-        self::assertSame('always()', $gate['if']);
+        self::assertSame("always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')", $gate['if']);
         self::assertSame(
             ['LINUX_CONSUMER' => '${{ needs.site-reference-consumer.result }}', 'WINDOWS_CONSUMER' => '${{ needs.skeleton-create-project-windows.result }}'],
             $gate['steps'][0]['env'],

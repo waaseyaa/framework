@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
-/** The slow installed-consumer proof must remain an unconditional, blocking CI job. */
+/** The slow installed-consumer proof must remain a full-profile, blocking CI job. */
 #[CoversNothing]
 final class CliSyncRulesGateTest extends TestCase
 {
@@ -24,7 +24,7 @@ final class CliSyncRulesGateTest extends TestCase
         self::assertArrayHasKey('cli-sync-rules', $workflow['jobs']);
         $job = $workflow['jobs']['cli-sync-rules'];
         self::assertSame('ci/cli-sync-rules', $job['name']);
-        self::assertArrayNotHasKey('if', $job);
+        self::assertSame("github.event_name != 'push' || github.ref != 'refs/heads/main'", $job['if'] ?? null);
         self::assertFalse($job['continue-on-error'] ?? false);
         $proofSteps = array_values(array_filter(
             $job['steps'],
