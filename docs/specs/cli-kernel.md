@@ -141,6 +141,16 @@ on the optional package. `ConsoleApplicationFactory` applies the same gate
 before enumerating any provider's commands, so a provider cannot advertise a
 command whose handler cannot resolve.
 
+`semantic:warm` and `semantic:refresh` are a separate optional contribution
+(FW-AIV-DIST-01). `waaseyaa/cli` only suggests `waaseyaa/ai-vector`, and
+`SemanticServiceProvider` yields no commands unless that package is installed
+and `ai.vector_enabled` is exactly `true`. The handlers depend only on deferred
+`Closure` callbacks. The enabled ai-vector provider owns those callback
+bindings and their typed calls to `SemanticIndexWarmer`, so CLI keeps no static
+runtime dependency on the optional package. Installed-but-disabled and absent
+consumers therefore expose no semantic commands; enabled consumers execute the
+callbacks through the shared provider bus.
+
 The seven `oidc:*` commands are gated the same way (#2828, the OIDC sibling of
 #2826): `waaseyaa/cli` only suggests `waaseyaa/oidc`, so `OidcServiceProvider`
 implements `RequiresOptionalPackagesInterface` with `SigningKeyRepository` as

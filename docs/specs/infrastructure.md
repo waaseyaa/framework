@@ -1931,10 +1931,10 @@ Maps each profile to its default settings:
 | Setting | `local` | `self_hosted` | `northops` |
 |---|---|---|---|
 | storage | filesystem | filesystem | s3 |
-| embeddings | sqlite | sqlite | pgvector |
+| embeddings | database | database | database |
 | llm_provider | ollama | ollama | api |
 | transcriber | whisper_ollama | whisper_ollama | api |
-| vector_store | sqlite | sqlite | pgvector |
+| vector_store | database | database | database |
 | queue_backend | sync | database | redis |
 
 ### SovereigntyConfigInterface / SovereigntyConfig

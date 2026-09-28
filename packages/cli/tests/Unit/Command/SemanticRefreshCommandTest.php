@@ -13,7 +13,7 @@ use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\CLI\Handler\SemanticRefreshHandler;
-use Waaseyaa\CLI\Provider\IngestSearchSemanticServiceProvider;
+use Waaseyaa\CLI\Provider\SemanticServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -26,7 +26,8 @@ final class SemanticRefreshCommandTest extends TestCase
 {
     private function makeTester(SemanticIndexWarmer $warmer): CliTester
     {
-        $provider = new IngestSearchSemanticServiceProvider();
+        $provider = new SemanticServiceProvider();
+        $provider->setKernelContext(sys_get_temp_dir(), ['ai' => ['vector_enabled' => true]], []);
         $definition = null;
         foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'semantic:refresh') {
@@ -36,7 +37,7 @@ final class SemanticRefreshCommandTest extends TestCase
         }
         self::assertNotNull($definition, 'semantic:refresh command definition must exist');
 
-        $handler = new SemanticRefreshHandler($warmer);
+        $handler = new SemanticRefreshHandler($warmer->warmBatch(...));
         $container = new class ($handler) implements ContainerInterface {
             public function __construct(private readonly SemanticRefreshHandler $handler) {}
 

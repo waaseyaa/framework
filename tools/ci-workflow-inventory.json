@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "b6aab97fec31f1891154fe39c9dc156eaf77dfe9bfb71c2c2f1bb81e84464a5a"
+                "sha256": "be8de6063e0136dbf08c37e49b8a383cd40e8cb21d7308f5414191c657fe3230"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -118,8 +118,8 @@
     },
     "summary": {
         "workflow_count": 22,
-        "job_count": 99,
-        "visible_context_count": 175,
+        "job_count": 100,
+        "visible_context_count": 176,
         "unresolved_expression_count": 18
     },
     "workflows": [
@@ -1379,7 +1379,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "b6aab97fec31f1891154fe39c9dc156eaf77dfe9bfb71c2c2f1bb81e84464a5a",
+            "source_sha256": "be8de6063e0136dbf08c37e49b8a383cd40e8cb21d7308f5414191c657fe3230",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -1432,6 +1432,98 @@
             "defaults": null,
             "env": [],
             "jobs": [
+                {
+                    "key": "ai-vector-postgresql",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "ai-vector/postgresql",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "ai-vector/postgresql",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "execution",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": false,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 15
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": null,
+                    "effective_permissions": {
+                        "scope": "workflow",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [],
+                    "needed_by": [
+                        "merge-public-package-contracts"
+                    ],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
+                    "expected_skip": {
+                        "own_condition": true,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": null,
+                    "dependency_result_references": [],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [
+                        "./.github/actions/composer-install-retry",
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 4,
+                    "local_equivalent": {
+                        "status": "discoverable",
+                        "commands": [
+                            "vendor/bin/phpunit"
+                        ],
+                        "hosted_signals": []
+                    }
+                },
                 {
                     "key": "bimaaji-skill-resources",
                     "name": {
@@ -3606,6 +3698,7 @@
                     "expected_skip": {
                         "own_condition": false,
                         "inherited_from": [
+                            "ai-vector-postgresql",
                             "bimaaji-skill-resources",
                             "ci-package-isolation",
                             "ci-playwright-smoke",
@@ -4717,6 +4810,7 @@
                         "grants": []
                     },
                     "needs": [
+                        "ai-vector-postgresql",
                         "ci-package-isolation",
                         "frontend-build",
                         "packaged-form"
@@ -4745,6 +4839,7 @@
                     "expected_skip": {
                         "own_condition": false,
                         "inherited_from": [
+                            "ai-vector-postgresql",
                             "ci-package-isolation",
                             "frontend-build",
                             "packaged-form"
@@ -4754,11 +4849,13 @@
                     "aggregate": {
                         "gate": "always",
                         "prerequisites": [
+                            "ai-vector-postgresql",
                             "ci-package-isolation",
                             "frontend-build",
                             "packaged-form"
                         ],
                         "result_checked_prerequisites": [
+                            "ai-vector-postgresql",
                             "ci-package-isolation",
                             "frontend-build",
                             "packaged-form"
@@ -4766,6 +4863,12 @@
                         "result_unchecked_prerequisites": []
                     },
                     "dependency_result_references": [
+                        {
+                            "job": "ai-vector-postgresql",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
                         {
                             "job": "ci-package-isolation",
                             "locations": [

@@ -61,12 +61,23 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  */
 final class AiVectorServiceProvider extends ServiceProvider implements ConfiguresHttpKernelInterface
 {
+    private const string SEMANTIC_WARM_CALLBACK = 'waaseyaa.ai-vector.semantic_warm';
+    private const string SEMANTIC_REFRESH_CALLBACK = 'waaseyaa.ai-vector.semantic_refresh';
+
     private ?EventDispatcherInterface $lifecycleDispatcher = null;
     private ?EntityEmbeddingListener $saveListener = null;
     private bool $embeddingOnSave = false;
+    private bool $enabled = false;
 
     public function register(): void
     {
+        $runtime = AiVectorRuntimeConfig::fromArray($this->config);
+        if (!$runtime->enabled) {
+            return;
+        }
+        $runtime->assertSupportedBackend();
+        $this->enabled = true;
+
         $secretRegistry = $this->kernelServices?->get(SecretResolverRegistry::class);
         if ($secretRegistry instanceof SecretResolverRegistry) {
             $secretRegistry->registerConsumer('waaseyaa/ai-vector', OpenAiEmbeddingCredentialOperation::class);
@@ -102,10 +113,32 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
                 new WorkflowVisibility(),
             ),
         );
+        $this->singleton(
+            self::SEMANTIC_WARM_CALLBACK,
+            fn(): \Closure => fn(array $entityTypes, int $limit): array => $this->semanticWarmer()->warm($entityTypes, $limit),
+        );
+        $this->singleton(
+            self::SEMANTIC_REFRESH_CALLBACK,
+            fn(): \Closure => fn(array $entityTypes, int $batchSize, ?array $cursor): array => $this->semanticWarmer()->warmBatch($entityTypes, $batchSize, $cursor),
+        );
+    }
+
+    private function semanticWarmer(): SemanticIndexWarmer
+    {
+        $warmer = $this->resolve(SemanticIndexWarmer::class);
+        if (!$warmer instanceof SemanticIndexWarmer) {
+            throw new \LogicException('The semantic index warmer binding is invalid.');
+        }
+
+        return $warmer;
     }
 
     public function boot(): void
     {
+        if (!$this->enabled) {
+            return;
+        }
+
         // Idempotent: a long-lived worker may re-enter provider boot.
         if ($this->lifecycleDispatcher !== null) {
             return;
@@ -132,6 +165,10 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
 
     public function configureHttpKernel(HttpKernel $kernel): void
     {
+        if (!$this->enabled) {
+            return;
+        }
+
         if ($this->lifecycleDispatcher === null || $this->embeddingOnSave) {
             return;
         }

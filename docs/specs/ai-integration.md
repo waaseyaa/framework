@@ -892,6 +892,21 @@ public function removeEntity(string $entityTypeId, int|string $entityId): void;
 
 ### Lifecycle composition and entry-point contract (FW-AIV-COMP-01)
 
+The package is opt-in at two boundaries (FW-AIV-DIST-01):
+
+- `waaseyaa/framework`, `waaseyaa/cli`, and `waaseyaa/full` do not require it
+  at runtime. CLI and full only suggest it.
+- Installing it is not activation. `ai.vector_enabled` must be exactly `true`.
+  Otherwise its provider binds nothing, registers no secret consumer or
+  lifecycle listener, and its semantic CLI provider yields no commands.
+
+The only supported `ai.vector_backend` value is `database`. It means portable
+JSON-vector storage through the application's `DatabaseInterface`; it does not
+mean a native vector extension. `pgvector` and unknown values refuse provider
+registration with `[AIV-BACKEND-001]`. Sovereignty defaults advertise
+`database` for every profile until another backend has an implementation and a
+qualification run.
+
 `AiVectorServiceProvider` is the only composition owner. Every consumer
 resolves `EmbeddingStorageInterface` and `EmbeddingProviderInterface` through
 the kernel services, where the first provider to bind an interface wins:
@@ -902,8 +917,8 @@ the kernel services, where the first provider to bind an interface wins:
 - any host that resolves them from the kernel services bus, such as a
   host-wired `vector.search`.
 
-The rule applies to each interface separately. `AiVectorServiceProvider`
-always binds the storage, but binds the embedding provider only when
+The rule applies to each interface separately after explicit activation.
+`AiVectorServiceProvider` binds the storage when enabled, but binds the embedding provider only when
 `ai.embedding_provider` is configured. So:
 
 - A provider that loads earlier and binds an interface is used for it by
@@ -916,8 +931,7 @@ always binds the storage, but binds the embedding provider only when
 
 The storage and the embedding provider can therefore come from different
 providers, but every consumer gets the same pair. No kernel or router
-constructs its own storage or provider. Choosing a different
-storage backend is #3140's scope.
+constructs its own storage or provider.
 
 | Entry point | On save or revision pointer move | On delete |
 | --- | --- | --- |
@@ -981,8 +995,8 @@ database.
 - **Writes:** `store()` deletes and inserts in one transaction.
 - **Migration not yet applied:** `store()` and `delete()` log a warning and do
   nothing, and `findSimilar()` logs a warning and returns no matches.
-- **Backends:** alternative backends and a separate projection store are
-  #3140's scope.
+- **Backends:** `database` is qualified on SQLite and PostgreSQL. Native vector
+  backends are unsupported and refused explicitly.
 
 The migration handles an existing table as follows:
 
@@ -1044,9 +1058,12 @@ enum DistanceMetric: string
 
 ### FakeEmbeddingProvider (Testing)
 
-**File:** `packages/ai-vector/src/Testing/FakeEmbeddingProvider.php`
+**File:** `packages/ai-vector/testing/FakeEmbeddingProvider.php`
 
-Deterministic embedding provider for tests. Generates vectors by SHA-256 hashing the input text with HMAC iterations, then normalizing to unit magnitude. Same text always produces the same vector. Default dimensionality is 128.
+Deterministic embedding provider for tests, loaded only through
+`autoload-dev`. Generates vectors by SHA-256 hashing the input text with HMAC
+iterations, then normalizing to unit magnitude. Same text always produces the
+same vector. Default dimensionality is 128.
 
 ## Semantic Warming + Baselines
 
@@ -1444,7 +1461,7 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-vector/src/DatabaseEmbeddingStorage.php` | `DatabaseEmbeddingStorage` | `EmbeddingStorageInterface` on the migration-owned `embeddings` table |
 | `packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php` | (migration) | Creates or adopts `embeddings`; refuses other shapes with `[AIV-DB001]` |
 | `packages/ai-vector/src/DistanceMetric.php` | `DistanceMetric` | Distance metric enum |
-| `packages/ai-vector/src/Testing/FakeEmbeddingProvider.php` | `FakeEmbeddingProvider` | Deterministic test embeddings |
+| `packages/ai-vector/testing/FakeEmbeddingProvider.php` | `FakeEmbeddingProvider` | Development-only deterministic test embeddings |
 | `packages/ai-vector/src/SemanticIndexWarmer.php` | `SemanticIndexWarmer` | Deterministic semantic index warming service |
 | `packages/ai-vector/src/ProviderCredentialConfigurationException.php` | `ProviderCredentialConfigurationException` | Fail-closed refusal for raw/incomplete provider credential config |
 | `packages/ai-agent/src/Mcp/McpIntegrationHealth.php` | `McpIntegrationHealth` | Process-local per-alias healthy/degraded/blocked MCP readiness view |

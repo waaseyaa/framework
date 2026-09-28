@@ -45,7 +45,7 @@ final class ConsoleVectorInvalidationTest extends TestCase
         mkdir($this->projectRoot . '/storage/framework', 0o755, true);
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'ai' => ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings']];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'ai' => ['vector_enabled' => true, 'vector_backend' => 'database', 'embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings']];",
         );
         file_put_contents($this->projectRoot . '/config/entity-types.php', '<?php return [];');
         file_put_contents($this->projectRoot . '/composer.json', json_encode([

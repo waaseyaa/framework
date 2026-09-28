@@ -88,6 +88,7 @@ artifacts="$work/artifacts"
 seal="$work/seal.json"
 consumer="$work/consumer"
 nodev="$work/consumer-nodev"
+vector_nodev="$work/consumer-vector-nodev"
 version="$(tr -d '[:space:]' < "$root/VERSION")"
 candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
 
@@ -109,6 +110,7 @@ echo "== create-project from the artifact repository"
 
 rm -f "$consumer/composer.lock"
 "$composer_bin" config --working-dir="$consumer" repositories.waaseyaa-artifacts "$repository"
+"$composer_bin" require --working-dir="$consumer" 'waaseyaa/full:*' --no-update --no-interaction
 
 "$composer_bin" install --working-dir="$consumer" \
     --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install.out" 2>&1 \
@@ -147,6 +149,8 @@ php "$consumer/boot.php" >"$work/boot.out" 2>&1 \
     || { cat "$work/boot.out" >&2; echo 'The artifact-installed consumer could not boot.' >&2; exit 1; }
 grep -Fq 'split-artifact kernel boot OK' "$work/boot.out"
 grep -Fq 'split-artifact entity round-trip OK' "$work/boot.out"
+grep -Fq 'split-artifact ai-vector absence OK (search 501)' "$work/boot.out"
+test ! -e "$consumer/vendor/waaseyaa/ai-vector"
 
 echo "== Surface: --no-dev exclusion"
 mkdir -p "$nodev"
@@ -168,6 +172,57 @@ cp "$root/tests/SplitArtifactAcceptance/boot.php" "$nodev/boot.php"
 php "$nodev/boot.php" >"$work/boot-nodev.out" 2>&1 \
     || { cat "$work/boot-nodev.out" >&2; echo 'The --no-dev artifact consumer could not boot.' >&2; exit 1; }
 grep -Fq 'split-artifact entity round-trip OK' "$work/boot-nodev.out"
+grep -Fq 'split-artifact ai-vector absence OK (search 501)' "$work/boot-nodev.out"
+test ! -e "$nodev/vendor/waaseyaa/ai-vector"
+
+echo "== Surface: installed but disabled ai-vector"
+mkdir -p "$vector_nodev"
+( cd "$consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./composer.lock' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$vector_nodev"
+"$composer_bin" require --working-dir="$vector_nodev" 'waaseyaa/ai-vector:*' --no-update --no-interaction
+"$composer_bin" install --working-dir="$vector_nodev" \
+    --no-dev --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install-vector-nodev.out" 2>&1 \
+    || { tail -80 "$work/install-vector-nodev.out" >&2; exit 1; }
+php -r '
+    require $argv[1] . "/vendor/autoload.php";
+    if (!interface_exists("Waaseyaa\\AI\\Vector\\EmbeddingStorageInterface")) { fwrite(STDERR, "ai-vector production contract is absent\n"); exit(1); }
+    if (class_exists("Waaseyaa\\AI\\Vector\\Testing\\FakeEmbeddingProvider")) { fwrite(STDERR, "FakeEmbeddingProvider leaked into production autoload\n"); exit(1); }
+    $provider = new Waaseyaa\AI\Vector\AiVectorServiceProvider();
+    $provider->setKernelContext($argv[1], [], []);
+    $provider->register();
+    if ($provider->getBindings() !== []) { fwrite(STDERR, "disabled ai-vector registered bindings\n"); exit(1); }
+' "$vector_nodev"
+( cd "$vector_nodev" && php vendor/bin/waaseyaa list --raw ) >"$work/vector-nodev.commands" 2>&1
+if grep -Eq '^semantic:(warm|refresh)' "$work/vector-nodev.commands"; then
+    cat "$work/vector-nodev.commands" >&2
+    echo 'Disabled ai-vector advertised semantic commands.' >&2
+    exit 1
+fi
+(
+    cd "$vector_nodev"
+    WAASEYAA_AI_VECTOR_ENABLED=true WAASEYAA_AI_VECTOR_BACKEND=database php vendor/bin/waaseyaa list --raw
+) >"$work/vector-nodev-enabled.commands" 2>&1
+for semantic_command in semantic:warm semantic:refresh; do
+    if ! awk '{print $1}' "$work/vector-nodev-enabled.commands" | grep -Fxq "$semantic_command"; then
+        cat "$work/vector-nodev-enabled.commands" >&2
+        echo "Enabled ai-vector did not advertise $semantic_command." >&2
+        exit 1
+    fi
+done
+for semantic_command in semantic:warm semantic:refresh; do
+    set +e
+    (
+        cd "$vector_nodev"
+        WAASEYAA_AI_VECTOR_ENABLED=true WAASEYAA_AI_VECTOR_BACKEND=database php vendor/bin/waaseyaa "$semantic_command" --json
+    ) >"$work/vector-nodev-enabled.$semantic_command.out" 2>&1
+    command_status=$?
+    set -e
+    if [ "$command_status" -ne 1 ] || ! grep -Fq 'skipped_no_provider' "$work/vector-nodev-enabled.$semantic_command.out"; then
+        cat "$work/vector-nodev-enabled.$semantic_command.out" >&2
+        echo "Enabled ai-vector command $semantic_command did not execute its deferred warmer binding." >&2
+        exit 1
+    fi
+done
 
 # A harness that has only ever passed is not evidence. Every live assertion is
 # re-run against deliberately corrupted overlays and must fail; if any survives,

@@ -65,10 +65,10 @@ final class SovereigntyConfigTest extends TestCase
         $defaults = SovereigntyDefaults::for(SovereigntyProfile::Local);
 
         self::assertSame('filesystem', $defaults['storage']);
-        self::assertSame('sqlite', $defaults['embeddings']);
+        self::assertSame('database', $defaults['embeddings']);
         self::assertSame('ollama', $defaults['llm_provider']);
         self::assertSame('whisper_ollama', $defaults['transcriber']);
-        self::assertSame('sqlite', $defaults['vector_store']);
+        self::assertSame('database', $defaults['vector_store']);
         self::assertSame('sync', $defaults['queue_backend']);
     }
 
@@ -78,10 +78,10 @@ final class SovereigntyConfigTest extends TestCase
         $defaults = SovereigntyDefaults::for(SovereigntyProfile::NorthOps);
 
         self::assertSame('s3', $defaults['storage']);
-        self::assertSame('pgvector', $defaults['embeddings']);
+        self::assertSame('database', $defaults['embeddings']);
         self::assertSame('api', $defaults['llm_provider']);
         self::assertSame('api', $defaults['transcriber']);
-        self::assertSame('pgvector', $defaults['vector_store']);
+        self::assertSame('database', $defaults['vector_store']);
         self::assertSame('redis', $defaults['queue_backend']);
     }
 

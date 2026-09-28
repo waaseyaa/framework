@@ -10,8 +10,6 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\IngestDashboardHandler;
 use Waaseyaa\CLI\Handler\IngestRunHandler;
 use Waaseyaa\CLI\Handler\SearchReindexHandler;
-use Waaseyaa\CLI\Handler\SemanticRefreshHandler;
-use Waaseyaa\CLI\Handler\SemanticWarmHandler;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -159,68 +157,5 @@ final class IngestSearchSemanticServiceProvider extends ServiceProvider implemen
             handler: [SearchReindexHandler::class, 'execute'],
         );
 
-        yield new HandlerCommand(
-            name: 'semantic:warm',
-            description: 'Warm semantic embeddings for deterministic read paths',
-            options: [
-                new HandlerOption(
-                    name: 'type',
-                    shortcut: 't',
-                    mode: HandlerOptionMode::Array_,
-                    description: 'Entity type ID(s) to warm (repeat option or pass comma-separated values)',
-                    default: ['node'],
-                ),
-                new HandlerOption(
-                    name: 'limit',
-                    shortcut: 'l',
-                    mode: HandlerOptionMode::Required,
-                    description: 'Per-type candidate limit (0 = no limit)',
-                    default: '0',
-                ),
-                new HandlerOption(
-                    name: 'json',
-                    mode: HandlerOptionMode::None,
-                    description: 'Emit the full warming report as JSON',
-                ),
-            ],
-            handler: [SemanticWarmHandler::class, 'execute'],
-        );
-
-        yield new HandlerCommand(
-            name: 'semantic:refresh',
-            description: 'Run resumable semantic index refresh batches',
-            options: [
-                new HandlerOption(
-                    name: 'type',
-                    shortcut: 't',
-                    mode: HandlerOptionMode::Array_,
-                    description: 'Entity type ID(s) to refresh (repeat option or pass comma-separated values)',
-                    default: ['node'],
-                ),
-                new HandlerOption(
-                    name: 'batch-size',
-                    shortcut: 'b',
-                    mode: HandlerOptionMode::Required,
-                    description: 'Maximum entities per batch execution',
-                    default: '200',
-                ),
-                new HandlerOption(
-                    name: 'cursor',
-                    mode: HandlerOptionMode::Required,
-                    description: 'Resume cursor JSON (e.g. {"type_index":0,"offset":200})',
-                ),
-                new HandlerOption(
-                    name: 'until-complete',
-                    mode: HandlerOptionMode::None,
-                    description: 'Keep running batches until the refresh completes',
-                ),
-                new HandlerOption(
-                    name: 'json',
-                    mode: HandlerOptionMode::None,
-                    description: 'Emit machine-readable JSON output',
-                ),
-            ],
-            handler: [SemanticRefreshHandler::class, 'execute'],
-        );
     }
 }

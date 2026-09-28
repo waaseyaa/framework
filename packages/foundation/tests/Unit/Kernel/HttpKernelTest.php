@@ -149,7 +149,7 @@ final class HttpKernelTest extends TestCase
         $databasePath = $this->projectRoot . '/search.sqlite';
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];",
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test'], 'ai' => ['vector_enabled' => " . ($withAiVector ? 'true' : 'false') . ", 'vector_backend' => 'database']];",
         );
         file_put_contents($this->projectRoot . '/config/entity-types.php', '<?php return [];');
         $this->writeInstalledPackageProviders([

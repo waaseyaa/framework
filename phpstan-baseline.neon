@@ -148,7 +148,7 @@ parameters:
 			message: '#^Loose comparison via "\=\=" is not allowed\.$#'
 			identifier: equal.notAllowed
 			count: 1
-			path: packages/ai-vector/src/Testing/FakeEmbeddingProvider.php
+			path: packages/ai-vector/testing/FakeEmbeddingProvider.php
 
 		-
 			message: '#^Cannot call method execute\(\) on PDOStatement\|false\.$#'
@@ -287,42 +287,6 @@ parameters:
 			identifier: identical.alwaysFalse
 			count: 1
 			path: packages/cli/src/Handler/IngestRunHandler.php
-
-		-
-			message: '#^Offset ''duration_ms'' on array\{contract_version\: string, contract_surface\: string, status\: string, requested_entity_types\: list\<string\>, batch_size\: int, batch_processed\: int, stored_total\: int, removed_total\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Handler/SemanticRefreshHandler.php
-
-		-
-			message: '#^Offset ''missing_total'' on array\{contract_version\: string, contract_surface\: string, status\: string, requested_entity_types\: list\<string\>, batch_size\: int, batch_processed\: int, stored_total\: int, removed_total\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Handler/SemanticRefreshHandler.php
-
-		-
-			message: '#^Offset ''processed_total'' on array\{contract_version\: string, contract_surface\: string, status\: string, requested_entity_types\: list\<string\>, batch_size\: int, batch_processed\: int, stored_total\: int, removed_total\: int, \.\.\.\} on left side of \?\? does not exist\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Handler/SemanticRefreshHandler.php
-
-		-
-			message: '#^Offset ''removed_total'' on array\{contract_version\: string, contract_surface\: string, status\: string, requested_entity_types\: list\<string\>, batch_size\: int, batch_processed\: int, stored_total\: int, removed_total\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Handler/SemanticRefreshHandler.php
-
-		-
-			message: '#^Offset ''status'' on array\{contract_version\: string, contract_surface\: string, status\: string, requested_entity_types\: list\<string\>, batch_size\: int, batch_processed\: int, stored_total\: int, removed_total\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 3
-			path: packages/cli/src/Handler/SemanticRefreshHandler.php
-
-		-
-			message: '#^Offset ''stored_total'' on array\{contract_version\: string, contract_surface\: string, status\: string, requested_entity_types\: list\<string\>, batch_size\: int, batch_processed\: int, stored_total\: int, removed_total\: int, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Handler/SemanticRefreshHandler.php
 
 		-
 			message: '#^Casting to float something that''s already float\.$#'

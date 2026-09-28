@@ -259,6 +259,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 2
+        },
+        {
             "path": "packages/api/migrations/2026_08_12_000001_broadcast_schema.php",
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",

@@ -7,9 +7,9 @@ namespace Waaseyaa\Foundation\Sovereignty;
 /**
  * Profile-specific defaults for sovereignty-related subsystems.
  *
- * SelfHosted intentionally mirrors Local except queue_backend today; when real
- * self-hosted deployments need clearer separation (object storage, non-SQLite
- * embeddings/vector_store), extend the self_hosted row—see #1098.
+ * SelfHosted intentionally mirrors Local except queue_backend today. Vector
+ * storage names the implemented portable database backend; it does not imply
+ * a native vector extension.
  */
 final class SovereigntyDefaults
 {
@@ -17,26 +17,26 @@ final class SovereigntyDefaults
     private const DEFAULTS = [
         'local' => [
             'storage' => 'filesystem',
-            'embeddings' => 'sqlite',
+            'embeddings' => 'database',
             'llm_provider' => 'ollama',
             'transcriber' => 'whisper_ollama',
-            'vector_store' => 'sqlite',
+            'vector_store' => 'database',
             'queue_backend' => 'sync',
         ],
         'self_hosted' => [
             'storage' => 'filesystem',
-            'embeddings' => 'sqlite',
+            'embeddings' => 'database',
             'llm_provider' => 'ollama',
             'transcriber' => 'whisper_ollama',
-            'vector_store' => 'sqlite',
+            'vector_store' => 'database',
             'queue_backend' => 'database',
         ],
         'northops' => [
             'storage' => 's3',
-            'embeddings' => 'pgvector',
+            'embeddings' => 'database',
             'llm_provider' => 'api',
             'transcriber' => 'api',
-            'vector_store' => 'pgvector',
+            'vector_store' => 'database',
             'queue_backend' => 'redis',
         ],
     ];

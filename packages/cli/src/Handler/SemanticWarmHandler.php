@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
@@ -13,14 +12,14 @@ use Waaseyaa\CLI\Command\SymfonyCommandIO;
 final class SemanticWarmHandler
 {
     public function __construct(
-        private readonly SemanticIndexWarmer $warmer,
+        private readonly \Closure $warm,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
     {
         $entityTypes = $this->parseEntityTypeOption($io->option('type'));
         $limit = max(0, (int) ($io->option('limit') ?? 0));
-        $report = $this->warmer->warm($entityTypes, $limit);
+        $report = ($this->warm)($entityTypes, $limit);
 
         if ((bool) $io->option('json')) {
             $io->writeln(json_encode($report, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));

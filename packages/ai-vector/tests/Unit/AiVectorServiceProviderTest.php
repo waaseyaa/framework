@@ -15,6 +15,7 @@ use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
+use Waaseyaa\AI\Vector\UnsupportedVectorBackendException;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
@@ -37,6 +38,57 @@ use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 #[CoversClass(AiVectorServiceProvider::class)]
 final class AiVectorServiceProviderTest extends TestCase
 {
+    #[Test]
+    public function installed_but_disabled_binds_nothing_and_registers_no_listeners(): void
+    {
+        [$provider, $dispatcher] = $this->lifecycleProvider([], enabled: false);
+
+        $provider->boot();
+
+        self::assertSame([], $provider->getBindings());
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_SAVE->value));
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_DELETE->value));
+    }
+
+    #[Test]
+    public function installed_but_disabled_ignores_an_inapplicable_malformed_backend(): void
+    {
+        $provider = new AiVectorServiceProvider();
+        $provider->setKernelContext('/tmp/test', [
+            'ai' => ['vector_enabled' => false, 'vector_backend' => null],
+        ], []);
+
+        $provider->register();
+
+        self::assertSame([], $provider->getBindings());
+    }
+
+    #[Test]
+    public function unsupported_backend_is_refused_before_any_binding(): void
+    {
+        $provider = new AiVectorServiceProvider();
+        $provider->setKernelContext('/tmp/test', [
+            'ai' => ['vector_enabled' => true, 'vector_backend' => 'pgvector'],
+        ], []);
+
+        $this->expectException(UnsupportedVectorBackendException::class);
+        $this->expectExceptionMessage('[AIV-BACKEND-001]');
+        $provider->register();
+    }
+
+    #[Test]
+    public function malformed_explicit_backend_is_refused_instead_of_defaulted(): void
+    {
+        $provider = new AiVectorServiceProvider();
+        $provider->setKernelContext('/tmp/test', [
+            'ai' => ['vector_enabled' => true, 'vector_backend' => ['pgvector']],
+        ], []);
+
+        $this->expectException(UnsupportedVectorBackendException::class);
+        $this->expectExceptionMessage('Vector backend "array" is not supported');
+        $provider->register();
+    }
+
     #[Test]
     public function resolvesEmbeddingStorageThroughKernelServicesDatabase(): void
     {
@@ -66,6 +118,19 @@ final class AiVectorServiceProviderTest extends TestCase
         $report = $warmer->warm(['node']);
 
         $this->assertSame('skipped_no_provider', $report['status']);
+    }
+
+    #[Test]
+    public function exposes_deferred_cli_callbacks_without_a_cli_dependency(): void
+    {
+        $provider = $this->providerWithKernelServices([]);
+        $warm = $provider->resolve('waaseyaa.ai-vector.semantic_warm');
+        $refresh = $provider->resolve('waaseyaa.ai-vector.semantic_refresh');
+
+        self::assertInstanceOf(\Closure::class, $warm);
+        self::assertInstanceOf(\Closure::class, $refresh);
+        self::assertSame('skipped_no_provider', $warm(['node'], 0)['status']);
+        self::assertSame('skipped_no_provider', $refresh(['node'], 200, null)['status']);
     }
 
     #[Test]
@@ -194,14 +259,14 @@ final class AiVectorServiceProviderTest extends TestCase
      * @param EmbeddingStorageInterface|null $earlierBinding what kernel services return for the storage interface, as when an earlier provider binds it
      * @return array{AiVectorServiceProvider, SymfonyEventDispatcherAdapter, DBALDatabase}
      */
-    private function lifecycleProvider(array $config, ?EmbeddingStorageInterface $earlierBinding = null): array
+    private function lifecycleProvider(array $config, ?EmbeddingStorageInterface $earlierBinding = null, bool $enabled = true): array
     {
         $database = DBALDatabase::createSqlite(':memory:');
         RuntimeSchemaMigrations::aiVector($database);
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
         $provider = new AiVectorServiceProvider();
-        $provider->setKernelContext(sys_get_temp_dir(), $config, []);
+        $provider->setKernelContext(sys_get_temp_dir(), $this->activationConfig($config, $enabled), []);
         // The real bus never re-enters a provider for an interface it doesn't
         // bind; the guard keeps this fake from recursing through resolve()'s
         // kernel-services fallback.
@@ -267,7 +332,7 @@ final class AiVectorServiceProviderTest extends TestCase
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
 
         $provider = new AiVectorServiceProvider();
-        $provider->setKernelContext('/tmp/test', $config, []);
+        $provider->setKernelContext('/tmp/test', $this->activationConfig($config), []);
         $provider->setKernelServices(new class ($entityTypeManager) implements KernelServicesInterface {
             public function __construct(
                 private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -289,6 +354,15 @@ final class AiVectorServiceProviderTest extends TestCase
         $provider->register();
 
         return $provider;
+    }
+
+    /** @param array<string, mixed> $config */
+    private function activationConfig(array $config, bool $enabled = true): array
+    {
+        $ai = is_array($config['ai'] ?? null) ? $config['ai'] : [];
+        $config['ai'] = ['vector_enabled' => $enabled] + $ai;
+
+        return $config;
     }
 }
 

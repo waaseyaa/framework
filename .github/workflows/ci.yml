@@ -119,6 +119,45 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  ai-vector-postgresql:
+    name: ai-vector/postgresql
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: waaseyaa_test
+          POSTGRES_USER: waaseyaa
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U waaseyaa -d waaseyaa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql
+          coverage: none
+
+      - name: Install dependencies
+        uses: ./.github/actions/composer-install-retry
+
+      - name: Qualify portable embedding storage on PostgreSQL
+        env:
+          WAASEYAA_AIV_POSTGRES_URL: postgresql://waaseyaa@127.0.0.1:5432/waaseyaa_test
+        run: php vendor/bin/phpunit packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php --no-coverage
+
   release-pipeline-fixtures:
     name: Release pipeline fixtures
     if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -3022,7 +3061,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
-    needs: [frontend-build, packaged-form, ci-package-isolation]
+    needs: [frontend-build, packaged-form, ci-package-isolation, ai-vector-postgresql]
     if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require public and package contracts
@@ -3030,12 +3069,14 @@ jobs:
           FRONTEND_BUILD: ${{ needs.frontend-build.result }}
           PACKAGED_FORM: ${{ needs.packaged-form.result }}
           PACKAGE_ISOLATION: ${{ needs.ci-package-isolation.result }}
+          AI_VECTOR_POSTGRESQL: ${{ needs.ai-vector-postgresql.result }}
         run: |
           failed=0
           for item in \
             "frontend-build=$FRONTEND_BUILD" \
             "packaged-form=$PACKAGED_FORM" \
-            "ci-package-isolation=$PACKAGE_ISOLATION"; do
+            "ci-package-isolation=$PACKAGE_ISOLATION" \
+            "ai-vector-postgresql=$AI_VECTOR_POSTGRESQL"; do
             if [ "${item#*=}" != success ]; then
               echo "::error title=Public and package contracts::${item%%=*} finished ${item#*=}"
               failed=1

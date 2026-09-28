@@ -10,6 +10,10 @@
             "rationale": "The #2445 connection and stalled-body regression proof requires loopback process support on ci-test-shards."
         },
         {
+            "path": "packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php",
+            "rationale": "The portable embedding storage and production migration proof requires the PostgreSQL service owned by ci/ai-vector-postgresql."
+        },
+        {
             "path": "packages/http-client/tests/Unit/StreamHttpClientTransportTest.php",
             "rationale": "Credential, redirect, timeout, and response-cap transport proofs require php -S and loopback support on ci-test-shards."
         }

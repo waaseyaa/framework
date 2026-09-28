@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
@@ -13,7 +12,7 @@ use Waaseyaa\CLI\Command\SymfonyCommandIO;
 final class SemanticRefreshHandler
 {
     public function __construct(
-        private readonly SemanticIndexWarmer $warmer,
+        private readonly \Closure $warmBatch,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -25,7 +24,7 @@ final class SemanticRefreshHandler
 
         $reports = [];
         do {
-            $report = $this->warmer->warmBatch($entityTypes, $batchSize, $cursor);
+            $report = ($this->warmBatch)($entityTypes, $batchSize, $cursor);
             $reports[] = $report;
             $cursor = is_array($report['next_cursor'] ?? null) ? $report['next_cursor'] : null;
         } while ($untilComplete && $cursor !== null && ($report['status'] ?? '') !== 'skipped_no_provider');

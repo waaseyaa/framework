@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "84213eed0accea3a209c3ce69851c8b5",
+    "content-hash": "59668b107cf14e50219530bac85f38f9",
     "packages": [
         {
             "name": "deployer/deployer",
@@ -3379,60 +3379,6 @@
             }
         },
         {
-            "name": "waaseyaa/ai-vector",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "packages/ai-vector",
-                "reference": "2391f525ecfd23f8204b2bee96b19087b4d73089"
-            },
-            "require": {
-                "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.302",
-                "waaseyaa/api": "^0.1.0-alpha.302",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.302",
-                "waaseyaa/entity": "^0.1.0-alpha.302",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.302",
-                "waaseyaa/foundation": "^0.1.0-alpha.302",
-                "waaseyaa/queue": "^0.1.0-alpha.302",
-                "waaseyaa/workflows": "^0.1.0-alpha.302"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^13.0",
-                "waaseyaa/testing": "^0.1.0-alpha.302"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "0.1.x-dev",
-                    "dev-develop/v1.1": "0.1.x-dev"
-                },
-                "waaseyaa": {
-                    "providers": [
-                        "Waaseyaa\\AI\\Vector\\AiVectorServiceProvider"
-                    ],
-                    "migrations": "migrations"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Waaseyaa\\AI\\Vector\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Waaseyaa\\AI\\Vector\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Vector embedding storage and similarity search for Waaseyaa",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
             "name": "waaseyaa/analytics",
             "version": "dev-main",
             "dist": {
@@ -3873,14 +3819,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "a188540c1970470dd3598f201cb29094ad4535bf"
+                "reference": "a241b7356d0b646d2500b277d3fbbfe7986ba97f"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/console": "^8.0",
                 "waaseyaa/access": "^0.1.0-alpha.302",
                 "waaseyaa/admin-surface": "^0.1.0-alpha.302",
-                "waaseyaa/ai-vector": "^0.1.0-alpha.302",
                 "waaseyaa/audit": "^0.1.0-alpha.302",
                 "waaseyaa/auth": "^0.1.0-alpha.302",
                 "waaseyaa/cache": "^0.1.0-alpha.302",
@@ -3913,6 +3858,7 @@
                 "phpunit/phpunit": "^13.0",
                 "waaseyaa/ai-agent": "^0.1.0-alpha.302",
                 "waaseyaa/ai-tools": "^0.1.0-alpha.302",
+                "waaseyaa/ai-vector": "^0.1.0-alpha.302",
                 "waaseyaa/api": "^0.1.0-alpha.302",
                 "waaseyaa/mcp": "^0.1.0-alpha.302",
                 "waaseyaa/node": "^0.1.0-alpha.302",
@@ -3925,6 +3871,7 @@
                 "ext-pcntl": "Required for clean SIGINT handling in --watch mode",
                 "waaseyaa/ai-agent": "Provides the optional ai:* operator commands",
                 "waaseyaa/ai-tools": "Provides the transport-neutral tool registry and dispatch contracts used by optional mcp:serve",
+                "waaseyaa/ai-vector": "Provides opt-in semantic:warm and semantic:refresh operator commands",
                 "waaseyaa/mcp": "Provides the optional mcp:registry-manifest command that emits official Registry server.json",
                 "waaseyaa/oidc": "Provides the optional oidc:* operator commands"
             },
@@ -3961,6 +3908,7 @@
                         "Waaseyaa\\CLI\\Provider\\SchedulePerfServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\SiteServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\IngestSearchSemanticServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\SemanticServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\UserPermissionServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\ConfigCacheDbAuditServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\MiscAServiceProvider",
@@ -13166,6 +13114,61 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Trace recording, cost tracking, and anomaly detection for Waaseyaa agentic framework",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/ai-vector",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-vector",
+                "reference": "a0e2468d9b282c97171cdad6c1cf633323107ad3"
+            },
+            "require": {
+                "php": ">=8.5",
+                "waaseyaa/access": "^0.1.0-alpha.302",
+                "waaseyaa/api": "^0.1.0-alpha.302",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.302",
+                "waaseyaa/entity": "^0.1.0-alpha.302",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.302",
+                "waaseyaa/foundation": "^0.1.0-alpha.302",
+                "waaseyaa/queue": "^0.1.0-alpha.302",
+                "waaseyaa/workflows": "^0.1.0-alpha.302"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/testing": "^0.1.0-alpha.302"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                },
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\AI\\Vector\\AiVectorServiceProvider"
+                    ],
+                    "migrations": "migrations"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Vector\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Vector\\Testing\\": "testing/",
+                    "Waaseyaa\\AI\\Vector\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Vector embedding storage and similarity search for Waaseyaa",
             "transport-options": {
                 "relative": true
             }

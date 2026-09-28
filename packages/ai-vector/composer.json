@@ -63,6 +63,7 @@
     },
     "autoload-dev": {
         "psr-4": {
+            "Waaseyaa\\AI\\Vector\\Testing\\": "testing/",
             "Waaseyaa\\AI\\Vector\\Tests\\": "tests/"
         }
     },

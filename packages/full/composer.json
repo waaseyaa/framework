@@ -7,7 +7,6 @@
         "waaseyaa/ai-pipeline": "^0.1.0-alpha.302",
         "waaseyaa/ai-schema": "^0.1.0-alpha.302",
         "waaseyaa/ai-tools": "^0.1.0-alpha.302",
-        "waaseyaa/ai-vector": "^0.1.0-alpha.302",
         "waaseyaa/attachment": "^0.1.0-alpha.302",
         "waaseyaa/cms": "^0.1.0-alpha.302",
         "waaseyaa/relationship": "^0.1.0-alpha.302",
@@ -16,6 +15,7 @@
     },
     "suggest": {
         "waaseyaa/ai-agent": "^0.1.0-alpha.271 for agent execution and orchestration",
+        "waaseyaa/ai-vector": "^0.1.0-alpha.302 for explicitly enabled semantic embeddings and search",
         "waaseyaa/graphql": "^0.1.0-alpha.261",
         "waaseyaa/inertia": "^0.1.0-alpha.261",
         "waaseyaa/mcp": "^0.1.0-alpha.271 for the remote MCP endpoint"
@@ -42,10 +42,6 @@
         {
             "type": "path",
             "url": "../ai-tools"
-        },
-        {
-            "type": "path",
-            "url": "../ai-vector"
         },
         {
             "type": "path",

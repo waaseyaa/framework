@@ -252,7 +252,7 @@ Do NOT use `-v` flag -- PHPUnit 10.5 rejects it.
 
 ### Test fixtures
 
-- `FakeEmbeddingProvider` (`packages/ai-vector/src/Testing/FakeEmbeddingProvider.php`) -- Deterministic, hash-based vectors. Default 128 dimensions. Use for all tests needing embeddings.
+- `FakeEmbeddingProvider` (`packages/ai-vector/testing/FakeEmbeddingProvider.php`) -- Development-only, deterministic hash-based vectors. Default 128 dimensions. Consumers must map `Waaseyaa\\AI\\Vector\\Testing\\` to the package's `testing/` directory in their own `autoload-dev`; Composer does not load dependency `autoload-dev` rules.
 - `InMemoryVectorStore` (`packages/ai-vector/src/InMemoryVectorStore.php`) -- Cosine similarity, no external dependencies. Use for all vector storage tests.
 - `TestAgent` (`packages/ai-agent/tests/Unit/TestAgent.php`) -- Configurable test agent with settable results and exceptions.
 

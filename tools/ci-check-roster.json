@@ -380,8 +380,8 @@
         },
         "merge-public-package-contracts": {
           "context": "merge/public-package-contracts", "invariant": "public-package-contracts", "failure_owner": "package-maintainers", "required": true,
-          "prerequisite_contexts": ["Frontend build", "packaged-form", "ci/package-isolation"],
-          "prerequisite_jobs": ["frontend-build", "packaged-form", "ci-package-isolation"]
+          "prerequisite_contexts": ["Frontend build", "packaged-form", "ci/package-isolation", "ai-vector/postgresql"],
+          "prerequisite_jobs": ["frontend-build", "packaged-form", "ci-package-isolation", "ai-vector-postgresql"]
         },
         "merge-consumer-acceptance": {
           "context": "merge/consumer-acceptance", "invariant": "consumer-acceptance", "failure_owner": "framework-maintainers", "required": true,

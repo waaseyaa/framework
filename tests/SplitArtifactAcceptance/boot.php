@@ -44,6 +44,26 @@ try {
 
     fwrite(STDOUT, "split-artifact kernel boot OK\n");
 
+    if (!interface_exists('Waaseyaa\\AI\\Vector\\EmbeddingStorageInterface')) {
+        $server = $_SERVER;
+        $get = $_GET;
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/api/search?q=absent&type=user';
+        $_SERVER['QUERY_STRING'] = 'q=absent&type=user';
+        $_GET = ['q' => 'absent', 'type' => 'user'];
+        try {
+            $response = $kernel->handle();
+        } finally {
+            $_SERVER = $server;
+            $_GET = $get;
+        }
+        if ($response->getStatusCode() !== 501) {
+            fwrite(STDERR, "::error::split-artifact consumer without ai-vector did not return 501 for semantic search\n");
+            exit(1);
+        }
+        fwrite(STDOUT, "split-artifact ai-vector absence OK (search 501)\n");
+    }
+
     $marker = 'split-artifact-' . bin2hex(random_bytes(4));
     $repository = $entityTypes->getRepository('user');
     $uid = $repository->save(User::make([

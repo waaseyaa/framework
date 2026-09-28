@@ -167,6 +167,13 @@ return [
 
     // AI embedding pipeline configuration.
     'ai' => [
+        // Installing waaseyaa/ai-vector does not activate it. Opt in explicitly.
+        'vector_enabled' => filter_var(
+            getenv('WAASEYAA_AI_VECTOR_ENABLED') ?: false,
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        // Portable DatabaseInterface storage is the only qualified backend.
+        'vector_backend' => getenv('WAASEYAA_AI_VECTOR_BACKEND') ?: 'database',
         // 'ollama' or 'openai'. Empty disables embedding generation.
         'embedding_provider' => getenv('WAASEYAA_EMBEDDING_PROVIDER') ?: '',
         'ollama_endpoint' => getenv('WAASEYAA_OLLAMA_ENDPOINT') ?: 'http://127.0.0.1:11434/api/embeddings',

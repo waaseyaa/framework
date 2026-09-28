@@ -215,8 +215,14 @@ final class EmbeddingCompositionTest extends TestCase
     private function writeConfig(bool $withProvider): void
     {
         // A configured provider binds EmbeddingProviderInterface. Nothing here calls the endpoint.
-        $ai = $withProvider ? "'ai' => ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings']," : '';
-        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing', {$ai}];");
+        $ai = ['vector_enabled' => true, 'vector_backend' => 'database'];
+        if ($withProvider) {
+            $ai += ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings'];
+        }
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            '<?php return ' . var_export(['database' => ':memory:', 'environment' => 'testing', 'ai' => $ai], true) . ';',
+        );
     }
 
     /** @param class-string<AbstractKernel> $class */
