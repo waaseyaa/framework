@@ -12,7 +12,8 @@ separate, undecided brand. Other operators must be able to create their own
 branded builders on the same base. Studio is the provisional OSS name; this
 decision changes no license.
 
-The commercial SaaS working repository is `jonesrussell/waaseyaa-cloud`.
+The commercial SaaS has a separate private working repository; its locator and
+product roadmap are intentionally not part of this public Framework contract.
 Intersnipe is a separate AI-first domaining product, not that SaaS's brand.
 Its domain discovery, evaluation, portfolio and buyer/seller experience remain
 product-owned. Reuse should serve those outcomes, not make the product a generic

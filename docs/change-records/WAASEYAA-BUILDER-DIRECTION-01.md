@@ -50,3 +50,10 @@ boundaries. No runtime tests ran; both original main checkouts remained clean.
 A full README link scan also encountered the pre-existing missing `LICENSE.txt`
 target. The candidate does not change that link; qualification above is scoped
 to new links rather than claiming the whole README has no broken links.
+
+## 2026-09-27 integration refresh
+
+The documentation was rebased onto current main for direct integration. Public
+Framework prose deliberately describes the separate commercial repository
+without publishing its private locator. The Framework and Studio companions
+retain the same ownership, shared-editor and second-builder boundaries.
