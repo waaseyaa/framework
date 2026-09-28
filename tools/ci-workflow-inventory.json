@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "50121ba9a94f64d3988fca3cc87c6f7b8a9f29f3caaf4b3731bf1a46577344dc"
+                "sha256": "b6aab97fec31f1891154fe39c9dc156eaf77dfe9bfb71c2c2f1bb81e84464a5a"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -84,7 +84,7 @@
             },
             {
                 "file": "release-cut.yml",
-                "sha256": "318cd5d62179028e6e5a5084de33e7c40fe4d3b0dff84cc24da4f6b8c3359e75"
+                "sha256": "f0befdab2abdb3f4b4ad815ad04bc648144e29f3d920fc06c473a8f369dd24a8"
             },
             {
                 "file": "release-gate.yml",
@@ -118,8 +118,8 @@
     },
     "summary": {
         "workflow_count": 22,
-        "job_count": 97,
-        "visible_context_count": 173,
+        "job_count": 99,
+        "visible_context_count": 175,
         "unresolved_expression_count": 18
     },
     "workflows": [
@@ -1379,7 +1379,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "50121ba9a94f64d3988fca3cc87c6f7b8a9f29f3caaf4b3731bf1a46577344dc",
+            "source_sha256": "b6aab97fec31f1891154fe39c9dc156eaf77dfe9bfb71c2c2f1bb81e84464a5a",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -1399,6 +1399,12 @@
                     {
                         "event": "workflow_dispatch",
                         "inputs": [
+                            {
+                                "name": "profile",
+                                "required": true,
+                                "type": "choice",
+                                "has_default": true
+                            },
                             {
                                 "name": "sha",
                                 "required": false,
@@ -1420,7 +1426,7 @@
                 "kind": "unresolved-expression",
                 "value": {
                     "group": "ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
-                    "cancel-in-progress": "${{ github.event_name == 'pull_request' }}"
+                    "cancel-in-progress": "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}"
                 }
             },
             "defaults": null,
@@ -1475,9 +1481,25 @@
                     "needed_by": [
                         "merge-consumer-acceptance"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -1549,6 +1571,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-source-repository-policy"
                     ],
                     "if": null,
@@ -1634,17 +1657,29 @@
                     ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-test-shards",
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -1768,6 +1803,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-source-repository-policy"
                     ],
                     "if": null,
@@ -1851,9 +1887,25 @@
                     "needed_by": [
                         "merge-public-package-contracts"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -1929,10 +1981,28 @@
                     "needed_by": [
                         "merge-browser-acceptance"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
-                        "inherited_from": [],
+                        "own_condition": true,
+                        "inherited_from": [
+                            "frontend-build"
+                        ],
                         "propagates_prerequisite_failure": true
                     },
                     "aggregate": null,
@@ -2048,17 +2118,30 @@
                     ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-random-order-shard",
+                            "prepare-random-order-plan",
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -2188,10 +2271,30 @@
                     "needed_by": [
                         "ci-random-order"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
-                        "inherited_from": [],
+                        "own_condition": true,
+                        "inherited_from": [
+                            "prepare-random-order-plan",
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": true
                     },
                     "aggregate": null,
@@ -2360,10 +2463,29 @@
                         "ci-coverage",
                         "ci-unit-tests"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
-                        "inherited_from": [],
+                        "own_condition": true,
+                        "inherited_from": [
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": true
                     },
                     "aggregate": null,
@@ -2495,17 +2617,29 @@
                     ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-test-shards",
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -2586,9 +2720,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -2660,9 +2810,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -2734,9 +2900,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -2808,9 +2990,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -2883,6 +3081,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-source-repository-policy"
                     ],
                     "if": null,
@@ -2963,9 +3162,25 @@
                     "needed_by": [
                         "merge-consumer-acceptance"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -3041,9 +3256,25 @@
                     "needed_by": [
                         "merge-platform-runtime-acceptance"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -3118,9 +3349,25 @@
                     "needed_by": [
                         "merge-consumer-acceptance"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -3201,9 +3448,25 @@
                         "ci-playwright-smoke",
                         "merge-public-package-contracts"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -3264,6 +3527,203 @@
                     }
                 },
                 {
+                    "key": "full-qualification",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "ci/full-qualification",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "ci/full-qualification",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "merge-browser-acceptance",
+                        "merge-consumer-acceptance",
+                        "merge-php-behavior-coverage",
+                        "merge-platform-runtime-acceptance",
+                        "merge-public-package-contracts",
+                        "merge-random-order",
+                        "merge-release-integrity",
+                        "merge-security-authorization",
+                        "merge-source-repository-policy"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "classification": [
+                            "always",
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [
+                            "bimaaji-skill-resources",
+                            "ci-package-isolation",
+                            "ci-playwright-smoke",
+                            "ci-random-order-shard",
+                            "ci-test-shards",
+                            "core-only-boot",
+                            "frankenphp-worker",
+                            "fresh-install-boot",
+                            "frontend-build",
+                            "mutation-pilot",
+                            "native-host-contract",
+                            "packaged-form",
+                            "prepare-random-order-plan",
+                            "prepare-test-plan",
+                            "release-publish-shape",
+                            "site-reference-consumer",
+                            "skeleton-create-project",
+                            "skeleton-create-project-windows",
+                            "spec-drift"
+                        ],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "merge-browser-acceptance",
+                            "merge-consumer-acceptance",
+                            "merge-php-behavior-coverage",
+                            "merge-platform-runtime-acceptance",
+                            "merge-public-package-contracts",
+                            "merge-random-order",
+                            "merge-release-integrity",
+                            "merge-security-authorization",
+                            "merge-source-repository-policy"
+                        ],
+                        "result_checked_prerequisites": [
+                            "merge-browser-acceptance",
+                            "merge-consumer-acceptance",
+                            "merge-php-behavior-coverage",
+                            "merge-platform-runtime-acceptance",
+                            "merge-public-package-contracts",
+                            "merge-random-order",
+                            "merge-release-integrity",
+                            "merge-security-authorization",
+                            "merge-source-repository-policy"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "merge-browser-acceptance",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-consumer-acceptance",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-php-behavior-coverage",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-platform-runtime-acceptance",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-public-package-contracts",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-random-order",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-release-integrity",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-security-authorization",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "merge-source-repository-policy",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
+                        "hosted_signals": []
+                    }
+                },
+                {
                     "key": "immutable-source-artifact",
                     "name": {
                         "kind": "literal",
@@ -3309,7 +3769,9 @@
                         }
                     },
                     "needs": [],
-                    "needed_by": [],
+                    "needed_by": [
+                        "main-feedback"
+                    ],
                     "if": null,
                     "expected_skip": {
                         "own_condition": false,
@@ -3399,6 +3861,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-consumer-acceptance"
                     ],
                     "if": null,
@@ -3423,6 +3886,183 @@
                         "commands": [
                             "bin/check-ingestion-defaults"
                         ],
+                        "hosted_signals": []
+                    }
+                },
+                {
+                    "key": "main-feedback",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "ci/main-feedback",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "ci/main-feedback",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "aggregate",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": true,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 5
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": {
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "effective_permissions": {
+                        "scope": "job",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": []
+                    },
+                    "needs": [
+                        "check-dead-code",
+                        "ci-lint",
+                        "composer-policy",
+                        "immutable-source-artifact",
+                        "ingestion-defaults",
+                        "manifest-conformance",
+                        "security-defaults",
+                        "support-contract",
+                        "verify-gates"
+                    ],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "always() && github.event_name == 'push' && github.ref == 'refs/heads/main'",
+                        "normalized": "always() && github.event_name == 'push' && github.ref == 'refs/heads/main'",
+                        "classification": [
+                            "always",
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
+                    "expected_skip": {
+                        "own_condition": false,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": {
+                        "gate": "always",
+                        "prerequisites": [
+                            "check-dead-code",
+                            "ci-lint",
+                            "composer-policy",
+                            "immutable-source-artifact",
+                            "ingestion-defaults",
+                            "manifest-conformance",
+                            "security-defaults",
+                            "support-contract",
+                            "verify-gates"
+                        ],
+                        "result_checked_prerequisites": [
+                            "check-dead-code",
+                            "ci-lint",
+                            "composer-policy",
+                            "immutable-source-artifact",
+                            "ingestion-defaults",
+                            "manifest-conformance",
+                            "security-defaults",
+                            "support-contract",
+                            "verify-gates"
+                        ],
+                        "result_unchecked_prerequisites": []
+                    },
+                    "dependency_result_references": [
+                        {
+                            "job": "check-dead-code",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "ci-lint",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "composer-policy",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "immutable-source-artifact",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "ingestion-defaults",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "manifest-conformance",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "security-defaults",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "support-contract",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        },
+                        {
+                            "job": "verify-gates",
+                            "locations": [
+                                "steps.env"
+                            ]
+                        }
+                    ],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [],
+                        "consumes": []
+                    },
+                    "action_uses": [],
+                    "step_count": 1,
+                    "local_equivalent": {
+                        "status": "no-recognised-command",
+                        "commands": [],
                         "hosted_signals": []
                     }
                 },
@@ -3473,6 +4113,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-source-repository-policy"
                     ],
                     "if": null,
@@ -3551,20 +4192,33 @@
                     "needs": [
                         "ci-playwright-smoke"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-playwright-smoke",
+                            "frontend-build"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -3652,20 +4306,35 @@
                         "ingestion-defaults",
                         "skeleton-create-project"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "bimaaji-skill-resources",
+                            "core-only-boot",
+                            "fresh-install-boot",
+                            "skeleton-create-project"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -3783,20 +4452,35 @@
                         "ci-unit-tests",
                         "mutation-pilot"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-test-shards",
+                            "mutation-pilot",
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -3899,20 +4583,35 @@
                         "native-host-contract-evidence",
                         "skeleton-create-project-windows"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "frankenphp-worker",
+                            "native-host-contract",
+                            "site-reference-consumer",
+                            "skeleton-create-project-windows"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -4022,20 +4721,34 @@
                         "frontend-build",
                         "packaged-form"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-package-isolation",
+                            "frontend-build",
+                            "packaged-form"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -4135,20 +4848,35 @@
                     "needs": [
                         "ci-random-order"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "ci-random-order-shard",
+                            "prepare-random-order-plan",
+                            "prepare-test-plan",
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -4232,20 +4960,32 @@
                     "needs": [
                         "release-publish-shape"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "release-publish-shape"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -4329,16 +5069,26 @@
                     "needs": [
                         "security-defaults"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
@@ -4430,16 +5180,26 @@
                         "manifest-conformance",
                         "verify-gates"
                     ],
-                    "needed_by": [],
+                    "needed_by": [
+                        "full-qualification"
+                    ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
@@ -4558,9 +5318,25 @@
                     "needed_by": [
                         "merge-php-behavior-coverage"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -4658,17 +5434,28 @@
                     ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "site-reference-consumer",
+                            "skeleton-create-project-windows"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -4853,9 +5640,25 @@
                     "needed_by": [
                         "native-host-contract-evidence"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -4957,17 +5760,27 @@
                     ],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "always()",
-                        "normalized": "always()",
+                        "raw": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
+                        "normalized": "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')",
                         "classification": [
-                            "always"
+                            "always",
+                            "event",
+                            "ref"
                         ],
-                        "references": [],
-                        "literals": []
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
                     },
                     "expected_skip": {
                         "own_condition": false,
-                        "inherited_from": [],
+                        "inherited_from": [
+                            "native-host-contract"
+                        ],
                         "propagates_prerequisite_failure": false
                     },
                     "aggregate": {
@@ -5071,9 +5884,25 @@
                     "needed_by": [
                         "merge-public-package-contracts"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5152,10 +5981,28 @@
                         "ci-random-order",
                         "ci-random-order-shard"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
-                        "inherited_from": [],
+                        "own_condition": true,
+                        "inherited_from": [
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": true
                     },
                     "aggregate": null,
@@ -5248,10 +6095,28 @@
                         "ci-random-order-shard",
                         "ci-test-shards"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
-                        "inherited_from": [],
+                        "own_condition": true,
+                        "inherited_from": [
+                            "spec-drift"
+                        ],
                         "propagates_prerequisite_failure": true
                     },
                     "aggregate": null,
@@ -5357,9 +6222,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5445,9 +6326,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5519,9 +6416,25 @@
                     "needed_by": [
                         "merge-release-integrity"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5591,6 +6504,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-security-authorization"
                     ],
                     "if": null,
@@ -5669,9 +6583,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5743,9 +6673,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5819,9 +6765,25 @@
                     "needed_by": [
                         "native-host-consumer-cli-evidence"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -5912,9 +6874,25 @@
                     "needed_by": [
                         "merge-consumer-acceptance"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -6004,9 +6982,25 @@
                         "merge-platform-runtime-acceptance",
                         "native-host-consumer-cli-evidence"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -6106,9 +7100,25 @@
                         "prepare-random-order-plan",
                         "prepare-test-plan"
                     ],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -6178,9 +7188,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -6252,9 +7278,25 @@
                     },
                     "needs": [],
                     "needed_by": [],
-                    "if": null,
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "normalized": "github.event_name != 'push' || github.ref != 'refs/heads/main'",
+                        "classification": [
+                            "event",
+                            "ref"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "github.ref"
+                        ],
+                        "literals": [
+                            "push",
+                            "refs/heads/main"
+                        ]
+                    },
                     "expected_skip": {
-                        "own_condition": false,
+                        "own_condition": true,
                         "inherited_from": [],
                         "propagates_prerequisite_failure": false
                     },
@@ -6347,6 +7389,7 @@
                     "needs": [],
                     "needed_by": [
                         "ci-test-shards",
+                        "main-feedback",
                         "prepare-random-order-plan",
                         "prepare-test-plan"
                     ],
@@ -6443,6 +7486,7 @@
                     },
                     "needs": [],
                     "needed_by": [
+                        "main-feedback",
                         "merge-source-repository-policy"
                     ],
                     "if": null,
@@ -8588,7 +9632,7 @@
         {
             "file": "release-cut.yml",
             "name": "Cut Release",
-            "source_sha256": "318cd5d62179028e6e5a5084de33e7c40fe4d3b0dff84cc24da4f6b8c3359e75",
+            "source_sha256": "f0befdab2abdb3f4b4ad815ad04bc648144e29f3d920fc06c473a8f369dd24a8",
             "triggers": {
                 "events": [
                     "workflow_dispatch"

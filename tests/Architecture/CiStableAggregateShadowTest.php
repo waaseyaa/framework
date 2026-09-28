@@ -11,6 +11,8 @@ use Symfony\Component\Yaml\Yaml;
 
 final class CiStableAggregateShadowTest extends TestCase
 {
+    private const FULL_PROFILE_IF = "always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')";
+
     /**
      * @var array<string, array{context: string, invariant: string, prerequisites: list<string>}>
      */
@@ -86,7 +88,7 @@ final class CiStableAggregateShadowTest extends TestCase
             self::assertSame(5, $job['timeout-minutes'] ?? null, $jobId);
             self::assertSame([], $job['permissions'] ?? null, $jobId);
             self::assertSame($expected['prerequisites'], $job['needs'] ?? null, $jobId);
-            self::assertSame('always()', $job['if'] ?? null, $jobId);
+            self::assertSame(self::FULL_PROFILE_IF, $job['if'] ?? null, $jobId);
 
             $steps = $job['steps'] ?? null;
             self::assertIsArray($steps, $jobId);

@@ -123,8 +123,10 @@ rather than every ancestor. Full local suites require a concrete impact or
 acceptance reason. During the solo-maintainer sprint, ordinary reviewed batches
 may fast-forward directly to `main`; pull requests remain optional review
 surfaces. Hosted main CI is feedback and a red head must have a recorded repair
-owner. The release-cut path remains fail-closed and preserves the exact release
-commit validated by its gates. See
+owner. Ordinary main pushes run the bounded `ci/main-feedback` profile;
+pull-request and manual dispatch runs retain the full graph. The release-cut
+path explicitly dispatches the full profile and preserves the exact release
+commit validated by `ci/full-qualification`. See
 [commit-qualification.md](../cookbook/commit-qualification.md). No per-commit
 full-suite or default preflight CI jobs are added by this policy.
 
@@ -168,7 +170,7 @@ The workflow:
 
 1. Validates semver shape (same regex as the legacy script).
 2. Guards `v1.0*` tags against missing `release-approvals/v1.0.approved` (same gate `split.yml` runs after the fact — fails earlier).
-3. **Gate 1: requires green CI on the release base.** `bin/wait-for-green-ci` polls the Actions API for a completed, successful `ci.yml` run at main HEAD. A red base fails the cut before anything is mutated.
+3. **Gate 1: requires green main feedback on the release base.** `bin/wait-for-green-ci` polls the Actions API for a completed, successful `ci.yml` run at main HEAD. A red base fails the cut before anything is mutated; this early guard does not replace Gate 2's full exact-candidate proof.
 4. Verifies the tag does not already exist (locally or on origin).
 5. Runs `bin/check-changelog-shape`, which requires one canonical, empty root
    `## [Unreleased]`, then validates and renders at least one fragment with
@@ -182,7 +184,7 @@ The workflow:
 7. Stages every release mutation (including fragment additions/deletions and
    archive), commits as `github-actions[bot]`, and pushes the release commit to a
    throwaway gate branch (`release-cut/<version>`) — **not** to main.
-8. **Gate 2: requires green CI on the exact commit being tagged.** Dispatches `ci.yml` on the gate branch (it has a `workflow_dispatch` trigger for this) and waits for a green conclusion at the release commit's SHA. The skeleton consumer job installs the just-advanced skeleton from that exact monorepo checkout and its split-package paths because the new version cannot exist on Packagist before the tag. The subsequent release-commit push to main uses the same source path so its CI cannot circularly block split publication; ordinary pull requests and non-release main pushes retain the published-release create-project check. Both paths execute post-create setup and `audit-site`.
+8. **Gate 2: requires full green CI on the exact commit being tagged.** Dispatches `ci.yml` with `profile=full` on the gate branch and waits for the named `ci/full-qualification` decision at the release commit's SHA. The skeleton consumer job installs the just-advanced skeleton from that exact monorepo checkout and its split-package paths because the new version cannot exist on Packagist before the tag. The subsequent release-commit push to main uses the same source path so its feedback run cannot circularly block split publication; ordinary pull requests retain the published-release create-project check. Both full-profile paths execute post-create setup and `audit-site`.
 9. Only then creates the annotated tag and pushes main fast-forward + tag in one **atomic** push using `SPLIT_GITHUB_TOKEN`. The gate branch is deleted either way.
 
 **A tag cannot exist without green Linux CI at that exact SHA.** This is the systemic fix from the alpha.200–202 red-at-tag post-mortem: red jobs (the alpha.200 b1 interface stub, the alpha.202 integration-test misses, the three-release-red `ci/skeleton-create-project` job) can no longer ride into a tagged release, and there is no "the fix will go out in the next cut" path — the cut simply refuses.
@@ -305,7 +307,9 @@ temporary allowance to the final projection. `FW-SPRINT-MAIN-POLICY-01`
 supersedes that projection as an ordinary-landing requirement for the current
 solo-maintainer sprint. The aggregate jobs remain CI diagnostics; the live
 ruleset retains only deletion and non-fast-forward protection. Release-cut's
-exact-SHA gates are unchanged.
+exact-SHA boundary remains full and fail-closed. `FW-CI-MAIN-FEEDBACK-PROFILE-01`
+adds `ci/main-feedback` for ordinary main pushes and `ci/full-qualification`
+for pull-request/manual runs; only the latter can satisfy Gate 2.
 
 ## Release readiness is not deployment
 

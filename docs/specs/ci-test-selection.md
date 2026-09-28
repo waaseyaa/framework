@@ -5,7 +5,7 @@ warn-only stale-spec-deferrals job. The unsharded random-order proof,
 seed replay, concurrency, failure-only evidence, and no-publication
 authority contracts are unchanged. -->
 
-Status: LIVE. Anchor: #2404. The issue stays open — its original changed-package
+Status: LIVE. Anchors: #2404 and #3170. The original issue stays open — its changed-package
 selection proposal was investigated, measured, and rejected; §3 preserves that
 investigation as architectural evidence rather than deleting it.
 
@@ -35,9 +35,10 @@ against real merge history, and ultimately removed after the measurement
 itself was found to rest on an unsound dependency graph. **§3** preserves the
 investigation in full because it is real architectural evidence — a
 considered, evidence-based "no" — not something to quietly delete. What ships
-today shards the complete inventory unconditionally; there is no subset, no
-selection document, and no changed-path classification anywhere in this
-pipeline.
+today shards the complete inventory in the full qualification profile; there
+is no subset, no selection document, and no changed-path classification
+anywhere in this pipeline. Ordinary `main` pushes use the separate feedback
+profile from #3170 and do not start either PHPUnit matrix.
 
 Two independent PHPUnit matrices exist in `ci.yml`, sharing one planner
 (`bin/build-phpunit-shards`) and one dependency artifact (§7.3), but serving
@@ -51,13 +52,16 @@ different purposes:
 
 ## 2. Invariants
 
-1. `ci/random-order` executes the complete configured inventory on every run
-   — pull request, `main` push, and dispatch alike. There is no narrower
-   mode.
+1. `ci/random-order` executes the complete configured inventory on every full
+   profile run: pull requests and explicit `workflow_dispatch` qualification.
+   It is not selected on an ordinary `main` push. There is no narrower
+   random-order inventory mode.
 2. The nightly proof (§7.2) runs the same complete inventory **unsharded**,
    restoring the cross-shard interaction coverage a matrix necessarily drops.
-3. `ci/random-order` remains a single required status context. Its name is
-   fixed by the `main-protection` ruleset and must not change.
+3. `ci/random-order` remains one stable full-profile status context. During
+   the solo-maintainer sprint it is diagnostic rather than a live branch
+   protection requirement, and its name must not change independently of the
+   governed roster.
 4. Package-safe grouping: no atomic group's files
    (`packages/<name>`, `tests/<TopDir>`, or `tests`) are ever split across
    shards or across the per-suite processes within a shard, so a group's
@@ -65,9 +69,9 @@ different purposes:
 5. Suite assignment is total and unique: every discovered test file resolves
    to exactly one `phpunit.xml.dist` testsuite, or planning fails closed
    (exit 2) — see §5.
-6. Coverage, security, architecture, governance, spec-drift, and the hosted
-   FrankenPHP worker-runtime lane (`ci/frankenphp-worker`) are untouched by this
-   spec and remain unconditional.
+6. Coverage, spec-drift, architecture, and the hosted FrankenPHP worker-runtime lane
+   (`ci/frankenphp-worker`) remain full-profile proofs. Global security,
+   governance controls remain in ordinary main feedback.
 
 Skip classification is separately governed by
 [`phpunit-skip-governance.md`](phpunit-skip-governance.md). Sharding never
@@ -476,9 +480,10 @@ head from deciding the current head while preserving exact-run retry reuse.
 
 ### 7.4 Aggregator contract
 
-`ci/random-order` publishes the required status context. `if: always()`
-alone is insufficient — it would publish success after skipped shards. The
-job fails unless both of:
+`ci/random-order` publishes the stable full-profile context. Its event-profile
+condition is combined with `always()`; `always()` alone is insufficient — it
+would publish success after skipped shards. When selected, the job fails
+unless both of:
 
 - `needs.prepare-random-order-plan.result == 'success'`
 - `needs.ci-random-order-shard.result == 'success'` — GitHub's aggregate
@@ -565,7 +570,8 @@ documents themselves as retained artifacts and workflow `::notice`s.
 Acceptance for a future shard-count change (§4) requires median and p95
 critical-path time plus runner-minutes from at least 10 comparable runs
 showing both metrics improve at three shards, one green pull-request run,
-one green post-merge `main` run, and one green complete nightly proof.
+one green manually dispatched full-profile run, and one green complete
+nightly proof.
 
 ## 10. Non-goals
 
@@ -573,5 +579,6 @@ Reducing dependency-install redundancy further than the single run-scoped
 artifact already shipped here (for example, reusing an archive across
 separate workflow runs for the same exact head), immutable artifact
 promotion, and any change to coverage thresholds or the required-check
-roster are out of scope for this spec. No release, split, or deployment
-behaviour is touched.
+roster are out of scope for this spec. The event-level feedback/full split is
+owned by `FW-CI-MAIN-FEEDBACK-PROFILE-01`; release, split, and deployment
+authority remain unchanged.

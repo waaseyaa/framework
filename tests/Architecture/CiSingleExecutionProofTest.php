@@ -15,7 +15,10 @@ final class CiSingleExecutionProofTest extends TestCase
         $workflow = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
         self::assertIsString($workflow);
 
-        self::assertStringContainsString('cancel-in-progress: ${{ github.event_name == \'pull_request\' }}', $workflow);
+        self::assertStringContainsString(
+            'cancel-in-progress: ${{ github.event_name == \'pull_request\' || (github.event_name == \'push\' && github.ref == \'refs/heads/main\') }}',
+            $workflow,
+        );
         self::assertStringContainsString('prepare-test-plan:', $workflow);
         self::assertStringContainsString('php bin/build-phpunit-shards', $workflow);
         self::assertStringContainsString('ci-test-shards:', $workflow);

@@ -68,8 +68,9 @@ The behavioral taxonomy is:
 - **Hosted PHPUnit:** CI assigns every configured test file exactly once to
   timing-balanced package-safe shards. The same execution emits JUnit and
   Clover evidence; the required unit and coverage checks aggregate that shared
-  evidence rather than rerunning the suite. Superseded pull-request runs cancel
-  immediately, while main runs are never cancelled.
+  evidence rather than rerunning the suite. Superseded pull-request and
+  ordinary main-feedback runs cancel immediately. Manual full qualification
+  runs are never cancelled by a newer main push.
 - **Installation:** `composer hooks:install` installs small worktree-aware shims; `composer hooks:doctor` verifies them. Unknown user hooks are never overwritten.
 - **Inventory:** `composer test:inventory` reports Git-tracked-only PHP,
   PHPUnit, Vitest, Playwright, nondeterminism, and helper-adoption signals.
@@ -88,7 +89,9 @@ The behavioral taxonomy is:
   never advertise an artifact produced by a `--no-coverage` run.
 - Preserve package-local fixture loading when parallelizing PHP tests; shard
   whole packages, retain a logged replayable random-order lane, and keep the
-  complete suite authoritative on main.
+  complete suite authoritative in pull-request and manually dispatched full
+  qualification. Ordinary main pushes run the bounded global/static feedback
+  profile and cannot satisfy the release qualification decision.
 - Pilot mutation testing on bounded security/editorial packages. Blocking MSI
   thresholds follow stable evidence; they are not guessed in advance.
 - Track first-attempt browser failures even when Playwright retry succeeds.

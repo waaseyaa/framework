@@ -22,7 +22,7 @@ forward protection. Force pushes and deletion remain prohibited.
 - focused tests and a failure discriminator appropriate to the changed risk;
 - independent review for authentication, authorization, persistence,
   execution, isolation, security, and custody changes;
-- normal main CI, with failures visible and assigned rather than suppressed;
+- bounded main-feedback CI, with failures visible and assigned rather than suppressed;
 - no update to main while release split or fan-out is active;
 - exact-SHA release-cut gates before any tag or package publication.
 
@@ -40,3 +40,13 @@ If a landed batch causes an unacceptable regression, repair it with the next
 small fast-forward commit or revert the offending commit with a new commit.
 Never rewrite main. A release cut refuses to proceed until the exact candidate
 passes its full hosted qualification.
+
+## Hosted feedback profile
+
+`FW-CI-MAIN-FEEDBACK-PROFILE-01` implements the sprint distinction between
+integration feedback and release qualification. Ordinary main pushes run
+global/static controls and publish `ci/main-feedback`; superseded runs cancel.
+Pull requests and explicit dispatches retain the complete graph and publish
+`ci/full-qualification`. Release-cut requests that full profile and checks the
+named decision on the exact candidate, so this optimization does not weaken
+the tag boundary.

@@ -59,6 +59,8 @@ final class CiCheckRosterManifestTest extends TestCase
         'native-host-consumer-linux',
         'native-host-consumer-windows',
         'native-host-consumer-aggregate',
+        'main-feedback-decision',
+        'full-qualification-decision',
         'release-publish-evidence',
         'enable-native-auto-merge',
     ];
@@ -271,8 +273,8 @@ final class CiCheckRosterManifestTest extends TestCase
         yield 'random-order task gate' => ['random-task', 'random-order cadence decision must retain every-pull-request execution with the frozen Task 4 evidence'];
         yield 'auto-merge selector' => ['auto-merge-selector', 'native auto-merge selection must be workflow_dispatch OR the exact labeled-PR predicate'];
         yield 'auto-merge execution' => ['auto-merge-disposition', 'native auto-merge must permit successful operational execution'];
-        yield 'mutation selection' => ['mutation-selection', 'mutation-pilot must remain an unconditional required pull-request policy'];
-        yield 'mutation cadence' => ['mutation-cadence', 'mutation-pilot must remain an unconditional required pull-request policy'];
+        yield 'mutation selection' => ['mutation-selection', 'mutation-pilot must remain a full-profile pull-request policy'];
+        yield 'mutation cadence' => ['mutation-cadence', 'mutation-pilot must remain a full-profile pull-request policy'];
         yield 'no active merge group' => ['active-merge-group', 'current producers must not claim merge-group execution'];
         yield 'cancellation policy' => ['aggregate-cancellation', 'aggregate cancellation must fail'];
         yield 'workflow-local lineage' => ['cross-workflow-lineage', 'php-behavior-aggregate prerequisite php-test-shards must be workflow-local'];
@@ -544,12 +546,18 @@ final class CiCheckRosterManifestTest extends TestCase
         }
 
         $mutation = $this->producer($manifest, 'mutation-pilot');
-        $unconditional = ['composition' => 'all_of', 'selectors' => [['type' => 'unconditional']]];
-        if (($mutation['selection'] ?? null) !== $unconditional
-            || ($mutation['disposition'] ?? null) !== 'required'
+        $fullProfile = [
+            'composition' => 'any_of',
+            'selectors' => [
+                ['type' => 'event', 'event' => 'pull_request'],
+                ['type' => 'event', 'event' => 'workflow_dispatch'],
+            ],
+        ];
+        if (($mutation['selection'] ?? null) !== $fullProfile
+            || ($mutation['disposition'] ?? null) !== 'expected-skip'
             || ($mutation['authority'] ?? null) !== 'merge'
             || ($mutation['cadence'] ?? null) !== ['pull-request']) {
-            $errors[] = 'mutation-pilot must remain an unconditional required pull-request policy';
+            $errors[] = 'mutation-pilot must remain a full-profile pull-request policy';
         }
 
         $autoMerge = $this->producer($manifest, 'enable-native-auto-merge');

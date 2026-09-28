@@ -86,7 +86,9 @@ final class CiReleaseWorkflowParityTest extends TestCase
         // selected by EXACT head_sha, and the default is still ci.yml, so every
         // pre-existing two-argument call site keeps its original meaning.
         self::assertStringContainsString('WORKFLOW="${3:-ci.yml}"', $greenCiGate);
+        self::assertStringContainsString('REQUIRED_JOB="${4:-}"', $greenCiGate);
         self::assertStringContainsString('actions/workflows/${WORKFLOW}/runs?head_sha=${SHA}', $greenCiGate);
+        self::assertStringContainsString('actions/runs/${run_id}/jobs?per_page=100', $greenCiGate);
         self::assertStringContainsString('if [ "$conclusion" = "success" ]', $greenCiGate);
         self::assertStringContainsString('if [ "$TIMEOUT" = "0" ]', $greenCiGate);
 
@@ -212,8 +214,8 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertStringNotContainsString('after the setup-php steps above', $release);
 
         // Gate 2: the suite, on the exact release SHA.
-        self::assertStringContainsString('gh workflow run ci.yml --ref "release-cut/${VERSION}"', $release);
-        self::assertStringContainsString('bash bin/wait-for-green-ci "$RELEASE_SHA" 2700', $release);
+        self::assertStringContainsString('gh workflow run ci.yml --ref "release-cut/${VERSION}" -f profile=full', $release);
+        self::assertStringContainsString('bash bin/wait-for-green-ci "$RELEASE_SHA" 2700 ci.yml ci/full-qualification', $release);
 
         // Gate 3: Release Readiness, on that same exact SHA.
         self::assertStringContainsString('gh workflow run release.yml --ref "release-cut/${VERSION}" -f sha="$RELEASE_SHA"', $release);

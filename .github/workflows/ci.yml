@@ -15,13 +15,20 @@ on:
         description: 'Exact commit SHA to check out (empty = tip of the dispatched ref)'
         required: false
         type: string
+      profile:
+        description: 'Qualification profile'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - 'full'
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 jobs:
   immutable-source-artifact:
@@ -114,6 +121,7 @@ jobs:
 
   release-pipeline-fixtures:
     name: Release pipeline fixtures
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -128,6 +136,7 @@ jobs:
 
   release-evidence:
     name: Deterministic release evidence
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -182,6 +191,7 @@ jobs:
 
   composer-deps-audit:
     name: composer-deps-audit (warn-only)
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -219,6 +229,7 @@ jobs:
     # such question to ask on a post-merge push to main, so skip it there.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -339,6 +350,7 @@ jobs:
 
   prepare-test-plan:
     name: Prepare timing-balanced PHPUnit plan
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [support-contract, spec-drift]
@@ -417,6 +429,7 @@ jobs:
 
   ci-test-shards:
     name: ci/test-shard-${{ matrix.id }}
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [support-contract, spec-drift, prepare-test-plan]
@@ -542,7 +555,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [ci-test-shards]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require every timing-balanced shard
         env:
@@ -551,6 +564,7 @@ jobs:
 
   prepare-random-order-plan:
     name: Prepare random-order plan
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [support-contract, spec-drift]
@@ -594,6 +608,7 @@ jobs:
 
   ci-random-order-shard:
     name: ci/random-order-shard-${{ matrix.id }}
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [prepare-random-order-plan, prepare-test-plan]
@@ -694,7 +709,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [prepare-random-order-plan, ci-random-order-shard]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       # `if: always()` alone would publish success after skipped shards, so the
       # aggregator asserts planning succeeded and the shard matrix's
@@ -723,6 +738,7 @@ jobs:
 
   ci-package-isolation:
     name: ci/package-isolation
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -793,7 +809,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [ci-test-shards]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -847,6 +863,7 @@ jobs:
 
   mutation-pilot:
     name: ci/mutation-pilot
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -887,6 +904,7 @@ jobs:
           retention-days: 30
 
   skeleton-create-project:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: ci/skeleton-create-project
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -1256,6 +1274,7 @@ jobs:
   # Every step is PowerShell and PHP. The Linux consumer harnesses are bash and
   # cannot run here, which is the point: the portable boundary is the PHP entry.
   skeleton-create-project-windows:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: ci/skeleton-create-project-windows
     runs-on: windows-2025
     timeout-minutes: 30
@@ -1551,6 +1570,7 @@ jobs:
   # this contract on both hosts; they remain a narrow existing proof, not the
   # local AI-plane parity #2680 owns.
   native-host-contract:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: ci/native-host-contract-${{ matrix.host }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
@@ -1727,7 +1747,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [native-host-contract]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require both native-host leaves
         env:
@@ -1767,7 +1787,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [site-reference-consumer, skeleton-create-project-windows]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require both consumer lanes
         env:
@@ -1804,6 +1824,7 @@ jobs:
         run: php bin/native-host-evidence consumer-verify-set --dir=build/native-host-consumer-evidence --hosts=linux,windows
 
   packaged-form:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: packaged-form
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1845,6 +1866,7 @@ jobs:
   # ordinary runs, this harness builds its consumer from an archive of this
   # exact checkout, so both lanes install the same candidate.
   site-reference-consumer:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: site-reference-consumer
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1923,6 +1945,7 @@ jobs:
           overwrite: true
 
   fresh-install-boot:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2426: a fresh packaged-form consumer must boot. Access-policy discovery
     # runs inside AbstractKernel::boot(), so a policy whose dependency graph
     # demands post-activation configuration state makes a brand-new install
@@ -1973,6 +1996,7 @@ jobs:
         run: bash tests/PackagedForm/check-custom-field-admission
 
   site-recipe-provider-activation:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2857: prove a recipe-selected provider reaches literal root composer.json
     # and a real packaged kernel from the exact candidate. The rival keeps the
     # generated compatibility fragment and provider class byte-identical while
@@ -2009,6 +2033,7 @@ jobs:
         run: bash tests/PackagedForm/check-site-recipe-provider-activation
 
   bimaaji-skill-resources:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2656: `bimaaji:install` must work from a real packaged consumer. The
     # canonical Agent Skills used to live at the monorepo root, so the command
     # only ever succeeded in the repository that did not need it. This job
@@ -2048,6 +2073,7 @@ jobs:
         run: bash tests/PackagedForm/check-bimaaji-skill-resources
 
   site-init-profile-acceptance:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2442 / FW-SITE-INIT-PROFILES-01: prove the declarative preset contract
     # from copied candidate package bytes. This deliberately stops before the
     # #2857 provider-activation boundary and does not claim authenticated
@@ -2080,6 +2106,7 @@ jobs:
         run: bash tests/PackagedForm/check-site-init-profile-acceptance
 
   cli-health-report:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2820: `health:report` must run in a consumer application that adds no
     # container bindings of its own. The command crashed in every such
     # consumer ("Cannot auto-wire HealthReportHandler: unresolvable parameter
@@ -2123,6 +2150,7 @@ jobs:
         run: bash tests/PackagedForm/check-cli-health-report
 
   cli-sync-rules:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2832: prove package-owned rules from candidate bytes in direct and aggregate consumers.
     name: ci/cli-sync-rules
     runs-on: ubuntu-24.04
@@ -2152,6 +2180,7 @@ jobs:
         run: bash tests/PackagedForm/check-cli-sync-rules
 
   cli-io-consumer-contract:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2961: `Waaseyaa\CLI\Io\StdinSource` is declared public, and Composer
     # honours `autoload-dev` for the root package ONLY — so a regression that
     # makes it unreachable downstream is invisible in-tree and invisible to
@@ -2187,6 +2216,7 @@ jobs:
         run: bash tests/PackagedForm/check-cli-io-consumer-contract
 
   split-artifact-acceptance:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2649 (child of #2527). Release Gate 2 must prove that the EXACT candidate
     # SURVIVES PACKAGING, not merely that it boots. ci/fresh-install-boot builds
     # its consumer from path repositories, so vendor/waaseyaa is symlinked into
@@ -2252,6 +2282,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   studio-alpha-acceptance:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2789. Packaged Studio-alpha acceptance: ONE disposable consumer,
     # installed from the EXACT candidate sealed into a local Composer artifact
     # repository by the same engine ci/split-artifact-acceptance uses, driven
@@ -2336,6 +2367,7 @@ jobs:
           if-no-files-found: warn
 
   core-only-boot:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # Boots the kernel from a consumer that requires ONLY waaseyaa/core, installed via a path
     # repository so it tests the SOURCE core metapackage (no release lag). Guards the class of
     # bug where core omits a fail-closed kernel boot dependency (e.g. waaseyaa/scheduler, fixed
@@ -2411,6 +2443,7 @@ jobs:
           WAASEYAA_DB="$work/storage/core-only.sqlite" php "$work/boot.php"
 
   frankenphp-worker:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # #2494: real FrankenPHP worker-runtime acceptance against the shipped
     # production front controller. PHP built-in server and mocked processes
     # are not substitutes. Missing binary is an infrastructure failure.
@@ -2627,6 +2660,7 @@ jobs:
           esac
 
   ci-playwright-smoke:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: ci/playwright-smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -2720,6 +2754,7 @@ jobs:
           retention-days: 7
 
   frontend-build:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: Frontend build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -2837,6 +2872,7 @@ jobs:
         run: bash bin/check-ingestion-defaults
 
   release-publish-shape:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     name: Release publish shape
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2895,7 +2931,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [manifest-conformance, check-dead-code, ci-lint, verify-gates, composer-policy]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require source and repository policy
         env:
@@ -2925,7 +2961,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [ci-coverage, ci-unit-tests, mutation-pilot]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require PHP behavior and coverage
         env:
@@ -2951,7 +2987,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [ci-random-order]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require random-order execution
         env:
@@ -2969,7 +3005,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [security-defaults]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require security and authorization
         env:
@@ -2987,7 +3023,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [frontend-build, packaged-form, ci-package-isolation]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require public and package contracts
         env:
@@ -3013,7 +3049,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [ingestion-defaults, core-only-boot, skeleton-create-project, fresh-install-boot, bimaaji-skill-resources]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require consumer acceptance
         env:
@@ -3043,7 +3079,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [ci-playwright-smoke]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require browser acceptance
         env:
@@ -3061,7 +3097,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [frankenphp-worker, skeleton-create-project-windows, native-host-contract-evidence, native-host-consumer-cli-evidence]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require platform and runtime acceptance
         env:
@@ -3089,7 +3125,7 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     needs: [release-publish-shape]
-    if: always()
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
     steps:
       - name: Require release integrity
         env:
@@ -3100,3 +3136,87 @@ jobs:
             echo "::error title=Release integrity::${item%%=*} finished ${item#*=}"
             exit 1
           fi
+
+  # Ordinary main pushes are integration feedback during the solo-maintainer
+  # sprint. This stable decision requires the global/static controls that can
+  # catch a broad contract regression quickly, while the full PHPUnit,
+  # random-order, browser, platform and release proofs remain on PR and
+  # explicit-dispatch qualification runs below.
+  main-feedback:
+    name: ci/main-feedback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [immutable-source-artifact, support-contract, composer-policy, ci-lint, check-dead-code, verify-gates, manifest-conformance, ingestion-defaults, security-defaults]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Require the bounded main-feedback profile
+        env:
+          IMMUTABLE_SOURCE: ${{ needs.immutable-source-artifact.result }}
+          SUPPORT_CONTRACT: ${{ needs.support-contract.result }}
+          COMPOSER_POLICY: ${{ needs.composer-policy.result }}
+          LINT: ${{ needs.ci-lint.result }}
+          DEAD_CODE: ${{ needs.check-dead-code.result }}
+          VERIFY_GATES: ${{ needs.verify-gates.result }}
+          MANIFEST_CONFORMANCE: ${{ needs.manifest-conformance.result }}
+          INGESTION_DEFAULTS: ${{ needs.ingestion-defaults.result }}
+          SECURITY_DEFAULTS: ${{ needs.security-defaults.result }}
+        run: |
+          failed=0
+          for item in \
+            "immutable-source-artifact=$IMMUTABLE_SOURCE" \
+            "support-contract=$SUPPORT_CONTRACT" \
+            "composer-policy=$COMPOSER_POLICY" \
+            "ci-lint=$LINT" \
+            "check-dead-code=$DEAD_CODE" \
+            "verify-gates=$VERIFY_GATES" \
+            "manifest-conformance=$MANIFEST_CONFORMANCE" \
+            "ingestion-defaults=$INGESTION_DEFAULTS" \
+            "security-defaults=$SECURITY_DEFAULTS"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=Main feedback profile::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  # Release-cut requires this named decision in addition to the workflow's
+  # overall success. A green ordinary main-feedback run therefore cannot be
+  # mistaken for the complete exact-SHA qualification boundary.
+  full-qualification:
+    name: ci/full-qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    needs: [merge-source-repository-policy, merge-php-behavior-coverage, merge-random-order, merge-security-authorization, merge-public-package-contracts, merge-consumer-acceptance, merge-browser-acceptance, merge-platform-runtime-acceptance, merge-release-integrity]
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main')
+    steps:
+      - name: Require every full-qualification decision
+        env:
+          SOURCE_POLICY: ${{ needs.merge-source-repository-policy.result }}
+          PHP_BEHAVIOR: ${{ needs.merge-php-behavior-coverage.result }}
+          RANDOM_ORDER: ${{ needs.merge-random-order.result }}
+          SECURITY_AUTHORIZATION: ${{ needs.merge-security-authorization.result }}
+          PUBLIC_PACKAGES: ${{ needs.merge-public-package-contracts.result }}
+          CONSUMER_ACCEPTANCE: ${{ needs.merge-consumer-acceptance.result }}
+          BROWSER_ACCEPTANCE: ${{ needs.merge-browser-acceptance.result }}
+          PLATFORM_RUNTIME: ${{ needs.merge-platform-runtime-acceptance.result }}
+          RELEASE_INTEGRITY: ${{ needs.merge-release-integrity.result }}
+        run: |
+          failed=0
+          for item in \
+            "merge/source-repository-policy=$SOURCE_POLICY" \
+            "merge/php-behavior-and-coverage=$PHP_BEHAVIOR" \
+            "merge/random-order=$RANDOM_ORDER" \
+            "merge/security-authorization=$SECURITY_AUTHORIZATION" \
+            "merge/public-package-contracts=$PUBLIC_PACKAGES" \
+            "merge/consumer-acceptance=$CONSUMER_ACCEPTANCE" \
+            "merge/browser-acceptance=$BROWSER_ACCEPTANCE" \
+            "merge/platform-runtime-acceptance=$PLATFORM_RUNTIME" \
+            "merge/release-integrity=$RELEASE_INTEGRITY"; do
+            if [ "${item#*=}" != success ]; then
+              echo "::error title=Full qualification::${item%%=*} finished ${item#*=}"
+              failed=1
+            fi
+          done
+          exit "$failed"

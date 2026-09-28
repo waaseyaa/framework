@@ -23,6 +23,21 @@ whole-file hashes.
 
 ## The contract
 
+### Hosted execution profiles
+
+`ci.yml` exposes two event-selected profiles. An ordinary push to `main` runs
+the bounded global and static controls and publishes `ci/main-feedback`.
+Pull-request runs and explicit dispatches run the complete graph and publish
+`ci/full-qualification`. Expensive PHPUnit, random-order, package-isolation,
+consumer, browser, platform, and release-integrity jobs are not started by the
+main-feedback profile. This is event selection, not changed-package selection.
+
+The two decisions are not interchangeable. Release-cut dispatches
+`profile=full` on the exact release candidate and `bin/wait-for-green-ci`
+requires the visible `ci/full-qualification` job to conclude successfully.
+A successful main-feedback workflow cannot satisfy that publication boundary.
+The tracked CI inventory and governed roster record the profile conditions.
+
 ### 1. `bin/check-pr-preflight` — one local command mirroring CI's repo-state gates
 
 Runs every fast **repo-state** gate that hosted CI reports, using the same commands CI uses,

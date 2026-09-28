@@ -322,8 +322,8 @@ jobs:
           # ci.yml only auto-runs on pushes to main, so dispatch it on the
           # gate branch explicitly (ci.yml has a workflow_dispatch trigger
           # for exactly this).
-          gh workflow run ci.yml --ref "release-cut/${VERSION}"
-          bash bin/wait-for-green-ci "$RELEASE_SHA" 2700
+          gh workflow run ci.yml --ref "release-cut/${VERSION}" -f profile=full
+          bash bin/wait-for-green-ci "$RELEASE_SHA" 2700 ci.yml ci/full-qualification
 
       - name: "Gate 3/5: require green Release Readiness on the exact commit"
         # ci.yml proves the suite; Release Readiness additionally builds the

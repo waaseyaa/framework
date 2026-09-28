@@ -28,7 +28,7 @@ unknown, state that uncertainty and choose the smallest suite that resolves it.
 | Implementation | Reproduce the defect, then run changed-component tests and directly affected callers. |
 | Independent review | Review the immutable diff and write independent failure discriminators; exercise affected contracts. Reuse valid implementation results for unchanged checks. |
 | Integration | One appropriately scoped combined qualification of interacting changes, owned by the integrator. |
-| Hosted CI | Observe the landed `main` head, record failures, and repair the affected batch. Exact-SHA green CI is mandatory at release cut. |
+| Hosted CI | Observe the landed `main` head through the bounded `ci/main-feedback` profile, record failures, and repair the affected batch. Pull requests and explicit dispatches retain full qualification. Release-cut requires exact-SHA `ci/full-qualification`. |
 
 After a repair, review the new delta and affected behavior. Do not restart the
 entire review or full local suite merely because a commit ID changed.
