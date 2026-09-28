@@ -23,14 +23,17 @@ final class HostedQualificationCheckpointTest extends TestCase
         $this->scratch = sys_get_temp_dir() . '/waaseyaa-hosted-checkpoint-' . bin2hex(random_bytes(6));
         $this->repository = $this->scratch . '/candidate';
         $remote = $this->scratch . '/remote.git';
-        new Filesystem()->mkdir([$this->repository, $remote]);
+        $filesystem = new Filesystem();
+        $filesystem->mkdir([$this->repository . '/bin', $remote]);
+        $filesystem->copy($this->root . '/bin/git', $this->repository . '/bin/git');
+        chmod($this->repository . '/bin/git', 0o755);
 
         $this->git($remote, ['init', '--bare']);
         $this->git($this->repository, ['init', '--initial-branch=checkpoint']);
         $this->git($this->repository, ['config', 'user.name', 'Checkpoint Test']);
         $this->git($this->repository, ['config', 'user.email', 'checkpoint@example.test']);
         file_put_contents($this->repository . '/candidate.txt', "candidate\n");
-        $this->git($this->repository, ['add', 'candidate.txt']);
+        $this->git($this->repository, ['add', 'candidate.txt', 'bin/git']);
         $this->git($this->repository, ['commit', '-m', 'candidate']);
         $this->git($this->repository, ['remote', 'add', 'origin', $remote]);
         $this->git($this->repository, ['push', '--set-upstream', 'origin', 'checkpoint']);

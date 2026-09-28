@@ -37,8 +37,10 @@ final class VendorFreshnessPreconditionTest extends TestCase
 
     protected function tearDown(): void
     {
+        $filesystem = new Filesystem();
         foreach ($this->fixtures as $fixture) {
-            new Filesystem()->remove($fixture);
+            $filesystem->chmod($fixture, 0o755, 0o000, true);
+            $filesystem->remove($fixture);
         }
         $this->fixtures = [];
     }
@@ -841,10 +843,22 @@ final class VendorFreshnessPreconditionTest extends TestCase
     {
         $fs = new Filesystem();
         $fs->mkdir($root . '/bin/lib');
-        foreach (['bin/check-pr-preflight', 'bin/lib/vendor-freshness.php', 'bin/lib/repository-git.php', 'bin/lib/repository-bash.php'] as $path) {
+        foreach (['bin/check-pr-preflight', 'bin/git', 'bin/lib/preflight-evidence.php', 'bin/lib/vendor-freshness.php', 'bin/lib/repository-git.php', 'bin/lib/repository-bash.php'] as $path) {
             $fs->copy($this->root . '/' . $path, $root . '/' . $path);
         }
         chmod($root . '/bin/check-pr-preflight', 0o755);
+        chmod($root . '/bin/git', 0o755);
+
+        foreach ([
+            ['init', '-q'],
+            ['config', 'user.email', 'fixture@example.test'],
+            ['config', 'user.name', 'Fixture'],
+            ['add', '.'],
+            ['commit', '-q', '-m', 'fixture'],
+        ] as $arguments) {
+            $result = $this->runProcess(['git', '-C', $root, ...$arguments], $root);
+            self::assertSame(0, $result['exit'], $result['stderr'] . $result['stdout']);
+        }
     }
 
     private function writeManifest(string $root): string
