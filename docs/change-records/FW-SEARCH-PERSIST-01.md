@@ -224,3 +224,20 @@ and an HTTP smoke of five routes; that candidate predates the review repairs.
 - #3110: general adoption of drifted databases.
 - Checking FETDER production's tables against its manifest is a separately
   authorized deploy step.
+
+## 2026-09-27 direct-main integration refresh
+
+The reviewed eight-commit series was rebased from `6359a4428` onto current
+`main` at `0af5fcb4b`. `git range-diff` reports seven commits as patch-identical.
+The dependency commit differs only because current main advanced first-party
+lock metadata to alpha.302; `support/s1-sqlite-dependency-bytes.json` records
+the SHA-256 of the rebased `composer.lock`. The code candidate is `c34082b1e`;
+this section is its documentation-only successor.
+
+In a fresh disposable WSL clone with a candidate-local locked install, both S1
+checkers passed, the complete search package and direct caller selection passed
+187 tests with 669 assertions and no skips, and PHPStan reported no errors for
+`packages/search`. Native Windows reproduced the host-boundary limitation
+already recorded above: the same selection has one symlink skip and the POSIX
+`bin/git` architecture test cannot execute there. The Linux run is the
+qualification authority for those two boundaries.
