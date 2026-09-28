@@ -28,7 +28,7 @@
         "files": [
             {
                 "file": "admin-dist.yml",
-                "sha256": "f2b8451c1adde2dde479a22bc52a85ad5d5f83d8d94f0b3e0f66a798379d2dc5"
+                "sha256": "59fa393c076edf447c25d8c78d1e8a10b1e2032dbdeeceb00e367597c7acbfbd"
             },
             {
                 "file": "admin.yml",
@@ -65,10 +65,6 @@
             {
                 "file": "github-release.yml",
                 "sha256": "f94e5d163640b6956f81171ec6d2fbf7747a770dc6c6e23278aec83cd8bec886"
-            },
-            {
-                "file": "manual-claude-review.yml",
-                "sha256": "e083a293d3c3763c470c3bf5a45cc8ce452bf5eaf0bb280f7873b3935b62219a"
             },
             {
                 "file": "nightly.yml",
@@ -121,16 +117,16 @@
         ]
     },
     "summary": {
-        "workflow_count": 23,
-        "job_count": 98,
-        "visible_context_count": 174,
+        "workflow_count": 22,
+        "job_count": 97,
+        "visible_context_count": 173,
         "unresolved_expression_count": 18
     },
     "workflows": [
         {
             "file": "admin-dist.yml",
             "name": "Admin SPA Distribution Build",
-            "source_sha256": "f2b8451c1adde2dde479a22bc52a85ad5d5f83d8d94f0b3e0f66a798379d2dc5",
+            "source_sha256": "59fa393c076edf447c25d8c78d1e8a10b1e2032dbdeeceb00e367597c7acbfbd",
             "triggers": {
                 "events": [
                     "push",
@@ -376,7 +372,7 @@
                     },
                     "action_uses": [
                         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-                        "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
+                        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
                     ],
                     "step_count": 6,
                     "local_equivalent": {
@@ -7852,144 +7848,6 @@
                     ]
                 }
             ],
-            "duplicate_contexts": [],
-            "unresolved_expressions": []
-        },
-        {
-            "file": "manual-claude-review.yml",
-            "name": "Manual Claude review",
-            "source_sha256": "e083a293d3c3763c470c3bf5a45cc8ce452bf5eaf0bb280f7873b3935b62219a",
-            "triggers": {
-                "events": [
-                    "issue_comment"
-                ],
-                "selectors": [
-                    {
-                        "event": "issue_comment",
-                        "types": [
-                            "created"
-                        ]
-                    }
-                ]
-            },
-            "permissions": {
-                "kind": "literal",
-                "shorthand": null,
-                "grants": {
-                    "contents": "read",
-                    "pull-requests": "write"
-                }
-            },
-            "concurrency": {
-                "kind": "unresolved-expression",
-                "value": {
-                    "group": "manual-claude-review-${{ github.event.issue.number }}",
-                    "cancel-in-progress": false
-                }
-            },
-            "defaults": null,
-            "env": [],
-            "jobs": [
-                {
-                    "key": "review",
-                    "name": {
-                        "kind": "literal",
-                        "raw": "Manual Claude review",
-                        "derivation": "literal"
-                    },
-                    "contexts": [
-                        {
-                            "context": "Manual Claude review",
-                            "derivation": "literal",
-                            "matrix": null
-                        }
-                    ],
-                    "structural_role": "execution",
-                    "role_evidence": {
-                        "publication_signals": [],
-                        "orchestration_signals": [],
-                        "aggregate_condition_with_needs": false,
-                        "feeds_same_workflow_consumer": false
-                    },
-                    "expansion": "singleton",
-                    "strategy": null,
-                    "matrix": null,
-                    "reusable_workflow": null,
-                    "runs_on": {
-                        "kind": "literal",
-                        "value": "ubuntu-latest"
-                    },
-                    "timeout_minutes": {
-                        "kind": "literal",
-                        "value": 20
-                    },
-                    "continue_on_error": null,
-                    "environment": null,
-                    "defaults": null,
-                    "permissions": null,
-                    "effective_permissions": {
-                        "scope": "workflow",
-                        "kind": "literal",
-                        "shorthand": null,
-                        "grants": {
-                            "contents": "read",
-                            "pull-requests": "write"
-                        }
-                    },
-                    "needs": [],
-                    "needed_by": [],
-                    "if": {
-                        "kind": "unresolved-expression",
-                        "raw": "github.event.issue.pull_request && github.event.comment.body == '@claude review' && github.event.comment.user.login == 'jonesrussell' && github.event.comment.user.type == 'User' && github.actor == 'jonesrussell'",
-                        "normalized": "github.event.issue.pull_request && github.event.comment.body == '@claude review' && github.event.comment.user.login == 'jonesrussell' && github.event.comment.user.type == 'User' && github.actor == 'jonesrussell'",
-                        "classification": [
-                            "actor",
-                            "comment",
-                            "pull-request"
-                        ],
-                        "references": [
-                            "github.actor",
-                            "github.event.comment.body",
-                            "github.event.comment.user.login",
-                            "github.event.comment.user.type",
-                            "github.event.issue.pull_request"
-                        ],
-                        "literals": [
-                            "@claude review",
-                            "User",
-                            "jonesrussell"
-                        ]
-                    },
-                    "expected_skip": {
-                        "own_condition": true,
-                        "inherited_from": [],
-                        "propagates_prerequisite_failure": false
-                    },
-                    "aggregate": null,
-                    "dependency_result_references": [],
-                    "outputs": [],
-                    "artifacts": {
-                        "produces": [],
-                        "consumes": []
-                    },
-                    "action_uses": [
-                        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
-                        "actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b",
-                        "anthropics/claude-code-action@a874e9ecd7bb36efdad65429c6b35815f5a08f10"
-                    ],
-                    "step_count": 4,
-                    "local_equivalent": {
-                        "status": "hosted-signals-only",
-                        "commands": [],
-                        "hosted_signals": [
-                            "gh-cli",
-                            "github-token",
-                            "secrets"
-                        ]
-                    }
-                }
-            ],
-            "artifact_flows": [],
             "duplicate_contexts": [],
             "unresolved_expressions": []
         },

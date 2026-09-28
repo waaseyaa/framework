@@ -38,3 +38,12 @@ Activation requires the default-branch workflow, the repository subscription
 secret, and Codex GitHub access. A setup PR alone is not evidence of activation.
 No live review is claimed before a deliberate test against a selected PR.
 Merge through ordinary framework governance only after required checks pass.
+
+## Retirement
+
+The maintainer retired the temporary hosted Claude review action on 2026-09-27.
+The workflow was removed, its generated inventory was refreshed, and the
+repository subscription secret was no longer required. Independent review
+remains risk-based and may use local Claude or Codex tooling against an exact
+candidate. A pull request is not required solely to host an agent review during
+the private-MVP sprint.
