@@ -190,10 +190,15 @@ echo "== Surface: installed but disabled ai-vector"
 mkdir -p "$vector_nodev"
 ( cd "$full_consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./composer.lock' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
     | tar --no-same-owner --no-same-permissions -xf - -C "$vector_nodev"
-"$composer_bin" require --working-dir="$vector_nodev" 'waaseyaa/ai-vector:*' --no-update --no-interaction
+"$composer_bin" require --working-dir="$vector_nodev" 'waaseyaa/ai-vector:*' --no-update --no-interaction \
+    >"$work/require-vector-nodev.out" 2>&1 \
+    || { tail -80 "$work/require-vector-nodev.out" >&2; exit 1; }
 "$composer_bin" install --working-dir="$vector_nodev" \
     --no-dev --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install-vector-nodev.out" 2>&1 \
     || { tail -80 "$work/install-vector-nodev.out" >&2; exit 1; }
+( cd "$vector_nodev" && php vendor/bin/waaseyaa install:init ) >"$work/install-init-vector-nodev.out" 2>&1 \
+    || { cat "$work/install-init-vector-nodev.out" >&2; echo 'The governed installation phase failed on the ai-vector consumer.' >&2; exit 1; }
+grep -Fq 'Installation is complete.' "$work/install-init-vector-nodev.out"
 php -r '
     require $argv[1] . "/vendor/autoload.php";
     if (!interface_exists("Waaseyaa\\AI\\Vector\\EmbeddingStorageInterface")) { fwrite(STDERR, "ai-vector production contract is absent\n"); exit(1); }
@@ -203,7 +208,8 @@ php -r '
     $provider->register();
     if ($provider->getBindings() !== []) { fwrite(STDERR, "disabled ai-vector registered bindings\n"); exit(1); }
 ' "$vector_nodev"
-( cd "$vector_nodev" && php vendor/bin/waaseyaa list --raw ) >"$work/vector-nodev.commands" 2>&1
+( cd "$vector_nodev" && php vendor/bin/waaseyaa list --raw ) >"$work/vector-nodev.commands" 2>&1 \
+    || { cat "$work/vector-nodev.commands" >&2; exit 1; }
 if grep -Eq '^semantic:(warm|refresh)' "$work/vector-nodev.commands"; then
     cat "$work/vector-nodev.commands" >&2
     echo 'Disabled ai-vector advertised semantic commands.' >&2

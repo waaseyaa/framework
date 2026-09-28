@@ -40,7 +40,7 @@ final class CiStableAggregateShadowTest extends TestCase
         'merge-public-package-contracts' => [
             'context' => 'merge/public-package-contracts',
             'invariant' => 'public-package-contracts',
-            'prerequisites' => ['frontend-build', 'packaged-form', 'ci-package-isolation'],
+            'prerequisites' => ['frontend-build', 'packaged-form', 'ci-package-isolation', 'ai-vector-postgresql'],
         ],
         'merge-consumer-acceptance' => [
             'context' => 'merge/consumer-acceptance',
@@ -107,11 +107,11 @@ final class CiStableAggregateShadowTest extends TestCase
             }
         }
 
-        // The 22 legacy required contexts plus ci/native-host-contract and
-        // ci/native-host-consumer-cli (#2678), added behind the existing
-        // merge/platform-runtime-acceptance decision.
-        self::assertCount(24, $covered);
-        self::assertCount(24, array_unique($covered));
+        // The 22 legacy required contexts plus ci/native-host-contract,
+        // ci/native-host-consumer-cli (#2678), and ai-vector/postgresql,
+        // added behind existing stable decisions.
+        self::assertCount(25, $covered);
+        self::assertCount(25, array_unique($covered));
     }
 
     #[Test]
@@ -182,7 +182,7 @@ final class CiStableAggregateShadowTest extends TestCase
         sort($requiredNames);
         sort($interfaceContexts);
         self::assertSame($requiredNames, $interfaceContexts);
-        self::assertCount(24, array_unique($prerequisiteContexts));
+        self::assertCount(25, array_unique($prerequisiteContexts));
     }
 
     #[Test]
