@@ -19,7 +19,13 @@ Use this workflow only within the established user-authorized scope for Waaseyaa
 
 If the host has a coding-agent routing file (on the maintainer's machine: Hermes `integrations/coding-agents/ROUTING.md` under the Codex documents folder), read it immediately before selecting or dispatching a coding model. It is the sole authority for current model roles, settings, exceptions, and fallback policy. Without one, use the current harness model and say so. Do not duplicate its volatile roster in this skill or silently substitute models.
 
-For Claude audits and independent reviews from Codex, also load the `claude-code` skill when it is installed, and follow its qualified invocation and evidence rules.
+Independent review is a subagent role, not a second pass by the integration
+owner. Dispatch a reviewer subagent against an immutable commit or diff. Keep
+the contract AI-agnostic: do not require, prefer, or silently substitute a
+particular model, vendor, or model-specific skill. Give the reviewer the same
+evidence contract regardless of the available subagent implementation. If
+subagent delegation is unavailable or not authorized, report review as
+pending; do not substitute self-review and call it independent.
 
 Run independent implementation or review lanes in parallel only when the user authorized multi-agent delivery and the lanes have disjoint ownership or an explicit integration boundary. An independent-review requirement does not itself authorize parallel implementation or multi-agent delivery. Assign one accountable integration owner. Run independent hosted checks in parallel. Serialize shared-file integration, heavy full qualification, and merges so evidence and failures remain attributable.
 
@@ -42,7 +48,7 @@ Record the candidate identity, last verified activity, review handoff, landing, 
 
 1. Turn acceptance criteria into discriminating tests or other concrete evidence before implementation.
 2. Make the smallest coherent change within the assigned files. Run focused checks in the lane.
-3. Review the actual immutable delta with an independent perspective. Default to one risk-based review of the complete candidate. Add separate review lanes only for materially distinct high-risk boundaries that cannot be assessed efficiently in the primary pass, and only within authorized multi-agent scope. Never use a fixed reviewer count as a quality proxy.
+3. Dispatch a reviewer subagent for the actual immutable delta. Default to one risk-based review of the complete candidate. The subagent returns findings with file and line evidence, acceptance gaps, and a clear approve or changes-requested verdict. Add separate review lanes only for materially distinct high-risk boundaries that cannot be assessed efficiently in the primary pass, and only within authorized multi-agent scope. Never use a fixed reviewer count as a quality proxy.
 4. When the established user-authorized scope includes publishing, checkpoint reviewed work and open or update its pull request early. Qualify the exact head that reviewers and hosted checks can see.
 5. Do not repeat a full review or full suite when the source, base, relevant contract, and test plan have not changed. A meaningful source or base delta requires refreshed evidence proportionate to its risk.
 6. Serialize heavy final qualification and merge; independent hosted checks may run in parallel. Record exact commit IDs, commands, counts, hosted run links or IDs, timestamps, and any skips or residual scope.
@@ -53,7 +59,7 @@ Give reviewers the immutable diff, acceptance criteria, change record, and exist
 
 When the full hosted qualification is green on the exact candidate, fast-forward that identical SHA to `main` and observe the bounded main-feedback run. Do not dispatch another full qualification merely because the ref moved. A new full qualification is required when source bytes change or an applicable repository or release policy explicitly requires it.
 
-Dashboard and job status must be backed by a current source-linked request or run. Check the job ID, selected model, source head, status timestamp, and artifact before reporting progress. Label stale observations as historical; elapsed time or a cached dashboard row is not fresh evidence.
+Dashboard and job status must be backed by a current source-linked request or run. For implementation jobs, check the job ID, selected model, source head, status timestamp, and artifact before reporting progress. For review jobs, check the task ID, source head, status timestamp, and artifact; record a harness or model identity when the system exposes it as provenance, but never use it as a review-quality claim. Label stale observations as historical; elapsed time or a cached dashboard row is not fresh evidence.
 
 ## Repair hosted CI without restarting delivery
 

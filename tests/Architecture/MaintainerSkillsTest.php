@@ -80,6 +80,32 @@ final class MaintainerSkillsTest extends TestCase
     }
 
     #[Test]
+    public function the_repository_skills_require_ai_agnostic_subagent_reviews_without_weakening_implementation_routing(): void
+    {
+        $delivery = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-delivery/SKILL.md');
+        self::assertStringContainsString('Independent review is a subagent role', $delivery);
+        self::assertStringContainsString('do not require, prefer, or silently substitute a', $delivery);
+        self::assertStringContainsString('particular model, vendor, or model-specific skill', $delivery);
+        self::assertStringContainsString('do not substitute self-review and call it independent', $delivery);
+        self::assertStringContainsString('report review as', $delivery);
+        self::assertStringContainsString('pending', $delivery);
+        self::assertStringContainsString('For implementation jobs, check the job ID, selected model, source head', $delivery);
+        self::assertStringContainsString('never use it as a review-quality claim', $delivery);
+
+        $convergence = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-package-convergence/SKILL.md');
+        self::assertStringContainsString('Every verifier, refutation reviewer, tie-break reviewer, and immutable-candidate', $convergence);
+        self::assertStringContainsString('reviewer is a subagent role', $convergence);
+        self::assertStringContainsString('never substitutes its own second pass for an independent', $convergence);
+        self::assertStringContainsString('subagent verdict', $convergence);
+
+        $orchestration = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-package-convergence/references/audit-orchestration.md');
+        self::assertStringContainsString('Review and verification roles are always delegated to subagents', $orchestration);
+        self::assertStringContainsString('must not select a model or', $orchestration);
+        self::assertStringContainsString('vendor', $orchestration);
+        self::assertStringContainsString('orchestrator must not replace them with self-review', $orchestration);
+    }
+
+    #[Test]
     public function the_repository_skills_contain_exactly_the_reviewed_files(): void
     {
         // A file added to, or dropped from, a skill must be a reviewed change to this list.

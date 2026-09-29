@@ -4,8 +4,11 @@ How to run one package audit with parallel agents and still produce a record
 people can review. The method is in the skill; this is the execution model.
 
 Parallel agents need authorized multi-agent scope (see the agent contract).
-Without it, run the lanes and the two tier-A lenses one after another, and
-record the reduced independence in the scorecard and on each tier-A finding.
+Review and verification roles are always delegated to subagents, whether they
+run concurrently or serially. Their prompts, evidence, and verdict format must
+work with any available subagent implementation and must not select a model or
+vendor. Without authorization to delegate those roles, leave their evidence
+pending; the orchestrator must not replace them with self-review.
 
 ## Size the run first
 
