@@ -167,6 +167,25 @@ packages need more than one. Record which you applied and why the others don't a
 
 ### 5. Review the boundaries
 
+**Adapter truthfulness.** Treat every production adapter, wrapper, bridge,
+facade, proxy and compatibility layer as a claim about terminal behavior, not
+as proof that the behavior exists. Trace a real call from a supported
+composition root through the full adapter chain to its terminal implementation.
+Verify that the terminal implementation is production-reachable in each
+installation profile that claims the capability and that the chain preserves
+the promised inputs, fields, authorization and refusal behavior, errors,
+mutations, persistence effects, transaction boundaries, retries and lifecycle
+transitions that apply. Identify test-only or fake delegates, effective no-ops,
+manufactured success, swallowed failures and lossy translation. An adapter that
+only relocates coupling, hides an incomplete or defective implementation, or
+makes an unavailable capability appear available is a finding.
+
+Prove the chain through a real composition root with at least one positive path
+and one applicable refusal or failure path. Assert the terminal side effect or
+returned state, and include a discriminator showing that a no-op or fake
+delegate could not pass. Mocks can isolate a separate unit contract, but they
+do not prove adapter truthfulness.
+
 **Dependencies.** Look past imports: dependence on another package's
 internals, initialization order, shared mutable state, provider callbacks,
 service-locator lookups, and changes that force coordinated edits across

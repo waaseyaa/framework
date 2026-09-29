@@ -247,3 +247,19 @@ candidate):
   controls are in place, the groups brief is in durable custody, its retained
   probes run from the repository, and its record and ledger have had an
   independent review.
+
+## Adapter truthfulness amendment (2026-09-29)
+
+Structural adapters can make a package boundary look coherent while the
+terminal implementation remains incomplete, unreachable, lossy or effectively
+a no-op. Interface shape and mock-backed unit tests do not prove that the
+claimed capability exists in production.
+
+Every production adapter chain is now traced from a supported composition root
+to its terminal implementation. The audit checks production reachability and
+behavioral preservation across normal results, refusals, failures, mutations,
+persistence and applicable lifecycle behavior. Evidence includes a positive
+path, an applicable refusal or failure path, the terminal effect or returned
+state, and a discriminator that fails for a fake or no-op delegate. An adapter
+that only relocates coupling, hides a defective implementation, or advertises
+an unavailable capability is a finding.

@@ -41,6 +41,7 @@ not just counts.
 - Temporal coupling: initialization order, early resolution, retries and coordinated readiness across packages
 - Shared mutable state, captured service/provider objects and service-locator dependencies hidden from import graphs
 - Change coupling: a concrete change that requires synchronized edits across owners, and whether that coordination is intentional
+- Adapter chains from a supported composition root to their terminal implementations; what each layer owns, whether the terminal implementation is production-reachable, and whether a wrapper conceals rather than repairs defective behavior
 
 For PHP, prefer a scoped Deptrac configuration with uncovered dependencies reported and failed. Include controls proving an allowed edge passes, a forbidden edge fails, and an unclassified edge fails.
 
@@ -52,6 +53,7 @@ For PHP, prefer a scoped Deptrac configuration with uncovered dependencies repor
 - Concurrency, revision, mutation-token, replay, and idempotency contracts
 - Optional capability discovery versus actual route or service availability
 - Malformed input, unavailable dependency, partial failure, and recovery behavior
+- Adapter truthfulness across inputs, fields, authorization, refusals, errors, mutations, persistence effects, transaction boundaries, retries, and lifecycle transitions
 
 ## Code quality and cohesion
 
@@ -60,6 +62,7 @@ For PHP, prefer a scoped Deptrac configuration with uncovered dependencies repor
 - Interfaces with no production implementation or consumer
 - Implementations reachable only from tests or obsolete examples
 - Abstractions that hide ownership rather than clarifying it
+- Adapters backed by test-only or fake delegates, effective no-ops, manufactured success, swallowed failures, lossy translation, or an unavailable terminal capability
 
 Do not remove a suspected dead surface until dynamic registration, reflection, serialization names, generated consumers, package exports, fixtures, and downstream repositories have been checked.
 
@@ -90,6 +93,7 @@ Keep an unverified candidate separate from a demonstrated replacement opportunit
 - Schema, generated-output freshness, and workflow path-filter checks
 - Architecture controls with positive, negative, and uncovered cases
 - Mutation or discriminator evidence where a passing test could otherwise be vacuous
+- Real-composition adapter controls with a positive path, an applicable refusal or failure path, an asserted terminal effect or returned state, and a discriminator that fails for a no-op or fake delegate
 
 ## Documentation and delivery forms
 
