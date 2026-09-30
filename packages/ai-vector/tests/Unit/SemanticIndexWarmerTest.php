@@ -22,18 +22,83 @@ use Waaseyaa\Entity\Storage\EntityStorageInterface;
 final class SemanticIndexWarmerTest extends TestCase
 {
     #[Test]
+    public function warm_and_batch_remove_missing_vectors_and_propagate_failed_indexing(): void
+    {
+        foreach (['warm', 'warmBatch'] as $method) {
+            foreach ([false, true] as $missing) {
+                $query = $this->createStub(EntityQueryInterface::class);
+                $query->method('accessCheck')->willReturnSelf();
+                $query->method('execute')->willReturn(['01']);
+                $repository = $this->createStub(EntityRepositoryInterface::class);
+                $repository->method('getQuery')->willReturn($query);
+                $repository->method('findMany')->willReturn($missing ? [] : [new SemanticWarmerEntity('01', 'node', ['title' => 'Published', 'status' => 1, 'workflow_state' => 'published'])]);
+                $manager = $this->createStub(EntityTypeManagerInterface::class);
+                $manager->method('hasDefinition')->willReturn(true);
+                $manager->method('getRepository')->willReturn($repository);
+                $provider = $this->createStub(EmbeddingProviderInterface::class);
+                $provider->method('embed')->willThrowException(new \RuntimeException('provider unavailable'));
+                $storage = $this->createMock(EmbeddingStorageInterface::class);
+                $storage->expects(self::never())->method('store');
+                $storage->expects(self::once())->method('delete')->with('node', '01');
+                $warmer = new SemanticIndexWarmer($manager, $storage, $provider, indexPolicy: $this->nodePolicy());
+                $failure = null;
+                try {
+                    $report = $warmer->$method(['node']);
+                } catch (\RuntimeException $exception) {
+                    $failure = $exception;
+                }
+                if ($missing) {
+                    self::assertNull($failure);
+                    self::assertSame(1, $report['missing_total']);
+                    self::assertSame(0, $report['stored_total']);
+                } else {
+                    self::assertNotNull($failure, 'Failed refresh must not return a successful report.');
+                    self::assertSame('provider unavailable', $failure->getMessage());
+                }
+            }
+        }
+    }
+
+    #[Test]
     public function itWarmsDeterministicallyAndRespectsWorkflowVisibility(): void
     {
         $query = new class implements EntityQueryInterface {
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
-            public function execute(): array { return [3, 1, 2]; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
+            public function execute(): array
+            {
+                return [3, 1, 2];
+            }
         };
 
         $nodeA = new SemanticWarmerEntity(1, 'node', ['title' => 'Anchor', 'status' => 1, 'workflow_state' => 'published']);
@@ -117,15 +182,42 @@ final class SemanticIndexWarmerTest extends TestCase
     public function itSupportsResumableBatchRefreshCursors(): void
     {
         $query = new class implements EntityQueryInterface {
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
-            public function execute(): array { return [1, 2, 3]; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
+            public function execute(): array
+            {
+                return [1, 2, 3];
+            }
         };
 
         $node1 = new SemanticWarmerEntity(1, 'node', ['title' => 'One', 'status' => 1, 'workflow_state' => 'published']);
@@ -179,15 +271,42 @@ final class SemanticIndexWarmerTest extends TestCase
     public function refreshing_a_newly_excluded_type_removes_its_existing_vectors_without_embedding(): void
     {
         $query = new class implements EntityQueryInterface {
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
-            public function execute(): array { return [7]; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
+            public function execute(): array
+            {
+                return [7];
+            }
         };
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
@@ -204,12 +323,12 @@ final class SemanticIndexWarmerTest extends TestCase
         $storage->expects(self::never())->method('store');
         $storage->expects(self::once())->method('delete')->with('user', '7');
 
-        $report = (new SemanticIndexWarmer(
+        $report = new SemanticIndexWarmer(
             entityTypeManager: $manager,
             embeddingStorage: $storage,
             embeddingProvider: $provider,
             indexPolicy: $this->nodePolicy(),
-        ))->warm(['user']);
+        )->warm(['user']);
 
         self::assertSame(0, $report['stored_total']);
         self::assertSame(1, $report['removed_total']);
@@ -219,15 +338,42 @@ final class SemanticIndexWarmerTest extends TestCase
     public function refreshing_a_newly_excluded_type_purges_vectors_without_a_provider(): void
     {
         $query = new class implements EntityQueryInterface {
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
-            public function execute(): array { return [7]; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
+            public function execute(): array
+            {
+                return [7];
+            }
         };
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
@@ -242,12 +388,12 @@ final class SemanticIndexWarmerTest extends TestCase
         $storage->expects(self::never())->method('store');
         $storage->expects(self::once())->method('delete')->with('user', '7');
 
-        $report = (new SemanticIndexWarmer(
+        $report = new SemanticIndexWarmer(
             entityTypeManager: $manager,
             embeddingStorage: $storage,
             embeddingProvider: null,
             indexPolicy: $this->nodePolicy(),
-        ))->warm(['user']);
+        )->warm(['user']);
 
         self::assertSame('ok', $report['status']);
         self::assertSame(0, $report['stored_total']);
@@ -277,14 +423,44 @@ final readonly class SemanticWarmerEntity implements EntityInterface
         private array $values,
     ) {}
 
-    public function id(): int|string|null { return $this->id; }
-    public function uuid(): string { return 'uuid'; }
-    public function label(): string { return (string) ($this->values['title'] ?? ''); }
-    public function getEntityTypeId(): string { return $this->entityTypeId; }
-    public function bundle(): string { return 'default'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return $this->values[$name] ?? null; }
-    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
-    public function toArray(): array { return $this->values; }
-    public function language(): string { return 'en'; }
+    public function id(): int|string|null
+    {
+        return $this->id;
+    }
+    public function uuid(): string
+    {
+        return 'uuid';
+    }
+    public function label(): string
+    {
+        return (string) ($this->values['title'] ?? '');
+    }
+    public function getEntityTypeId(): string
+    {
+        return $this->entityTypeId;
+    }
+    public function bundle(): string
+    {
+        return 'default';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
+    public function get(string $name): mixed
+    {
+        return $this->values[$name] ?? null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        throw new \LogicException('Readonly');
+    }
+    public function toArray(): array
+    {
+        return $this->values;
+    }
+    public function language(): string
+    {
+        return 'en';
+    }
 }

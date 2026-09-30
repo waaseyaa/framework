@@ -128,10 +128,9 @@ named test (exit 1); original production bytes were restored and checked against
 the immutable commit. No runtime repair was required. Initial review lane
 integrity passed. Repair review and final exact-head qualification remain pending.
 
-Committed-diff preflight exposed coverage-companion ownership for changed
-lifecycle/warmer/router branches. The real public wire/lifecycle suite now lives
-in the package Contract directory as `PublicSemanticSearchConformanceTest`,
-with coverage-bearing declarations for its six exercised production boundaries.
-Its real operations and assertions remain intact, with no synthetic coverage
-touches or duplicate mock-only replacement. Root owns this relocation and the
-regenerated construction/schema rosters.
+Committed-diff preflight requires coverage-bearing companions for changed
+lifecycle/warmer/router branches. The cross-package real storage/wire suite
+remains at the root integration boundary; focused Unit companions exercise
+failed indexing cleanup, truthful missing refresh counts, invalid router limits
+and sanitized dependency resolution. No new package dependency or baseline is
+introduced. Root owns these tests and regenerated construction/schema rosters.

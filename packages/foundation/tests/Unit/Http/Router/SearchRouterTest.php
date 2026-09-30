@@ -15,6 +15,22 @@ use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 final class SearchRouterTest extends TestCase
 {
     #[Test]
+    public function invalid_limits_and_resolution_failures_have_sanitized_public_responses(): void
+    {
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
+        $router = new SearchRouter(embeddingServices: static fn() => throw new \RuntimeException('private-dsn'));
+        foreach (['1.5' => 400, '2' => 503] as $limit => $status) {
+            $request = Request::create('/api/search', 'GET', ['q' => 'query', 'type' => 'node', 'limit' => (string) $limit]);
+            $request->attributes->set('_account', $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class));
+            $request->attributes->set('_broadcast_storage', new \Waaseyaa\Api\Controller\BroadcastStorage($db));
+            $response = $router->handle($request);
+            self::assertSame($status, $response->getStatusCode());
+            self::assertStringNotContainsString('private-dsn', $response->getContent());
+        }
+    }
+
+    #[Test]
     public function supports_search_semantic(): void
     {
         $router = new SearchRouter();
@@ -47,8 +63,9 @@ final class SearchRouterTest extends TestCase
         $request->attributes->set('_account', $account);
         $request->attributes->set('_broadcast_storage', $broadcastStorage);
         $request->attributes->set('_parsed_body', null);
-        $request->attributes->set('_waaseyaa_context',
-            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request)
+        $request->attributes->set(
+            '_waaseyaa_context',
+            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request),
         );
 
         $response = $router->handle($request);
@@ -68,8 +85,9 @@ final class SearchRouterTest extends TestCase
         $request->attributes->set('_account', $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class));
         $request->attributes->set('_broadcast_storage', new \Waaseyaa\Api\Controller\BroadcastStorage($db));
         $request->attributes->set('_parsed_body', null);
-        $request->attributes->set('_waaseyaa_context',
-            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request)
+        $request->attributes->set(
+            '_waaseyaa_context',
+            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request),
         );
 
         self::assertSame(501, $router->handle($request)->getStatusCode());
