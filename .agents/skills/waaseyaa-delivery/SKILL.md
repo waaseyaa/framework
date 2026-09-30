@@ -15,6 +15,23 @@ Use this workflow only within the established user-authorized scope for Waaseyaa
 4. Keep residual work explicit. Do not close a parent issue or mark an item Done when only a bounded slice landed.
 5. When the user authorizes end-to-end delivery, treat design and planning as internal checkpoints. Continue into implementation, review, pull request, qualification, and any authorized landing without pausing for another approval unless a material unresolved decision, blocker, or authority boundary requires user input.
 
+## Prefer maintained infrastructure
+
+For Framework work, apply `docs/governance/agent-contract.md` "Maintained
+infrastructure before custom mechanisms" during design, implementation and
+review, including changes to maintenance tooling and skills. Use suitable
+maintained Symfony components by default, whether already installed or not.
+Keep only Waaseyaa-specific policy and minimal integration code.
+
+Before introducing or materially extending a custom generic mechanism, verify
+the supported component's fit and record the decision with equivalence tests
+and installation/public-contract impact. Challenge new duplication in review.
+Retaining custom code requires an evidenced capability or compatibility gap,
+an owner and a review trigger; temporary migration constraints need a bounded
+follow-up and removal condition. Absence from the lockfile, dependency count
+or implementation size alone is not an exception. Record existing duplication
+outside the authorized slice for remediation without expanding that slice.
+
 ## Route work deliberately
 
 If the host has a coding-agent routing file (on the maintainer's machine: Hermes `integrations/coding-agents/ROUTING.md` under the Codex documents folder), read it immediately before selecting or dispatching a coding model. It is the sole authority for current model roles, settings, exceptions, and fallback policy. Without one, use the current harness model and say so. Do not duplicate its volatile roster in this skill or silently substitute models.

@@ -218,18 +218,25 @@ import checks. Prefer exact structural compatibility, schema validation, build
 exports and real package installation over prose comparisons or
 hand-maintained symbol lists.
 
-**Symfony reuse.** For substantial custom infrastructure, check whether an
-installed Symfony component already owns the generic mechanism while Waaseyaa
-keeps its domain policy. Start with installed components and supported
-versions, and verify against the component's source, tests and official docs.
-Compare semantics, public compatibility, failure behavior, installation
-profiles, dependency weight and migration cost; name the Waaseyaa behavior
-that remains, the smallest adapter, and the equivalence tests. Record retain,
-simplify around Symfony, replace, or defer, with evidence and an owner.
-Similar names or fewer lines are not evidence. Don't introduce Symfony just to
-remove working code, don't replace authorization or sovereignty policy with a
-generic mechanism, and don't make unrelated replacement a consumer-unblock
-prerequisite. Audit findings don't authorize replacement work.
+**Symfony reuse.** Apply the repository's maintained-infrastructure rule in
+`docs/governance/agent-contract.md`. For generic infrastructure, maintained
+Symfony components are the default and existing home-rolled equivalents are
+replacement candidates, including build and maintenance tooling. Evaluate
+suitable components even when they are not installed; verify supported
+versions against source, tests and official documentation. Inventory the
+custom mechanisms, real callers and overlapping component capabilities using
+[the audit checklist](references/package-audit-checklist.md).
+
+Name the domain policy that remains in Waaseyaa, direct use or the smallest
+necessary adapter, compatibility and installation impact, and discriminating
+equivalence tests. Missing dependencies, fewer lines or existing passing tests
+alone do not justify retaining duplicated infrastructure. A retain decision
+needs an evidenced capability or compatibility gap, owner and review trigger.
+A defer decision needs a bounded migration follow-up with acceptance and a
+removal condition. Route verified opportunities into remediation rather than
+leaving them as optional observations. Preserve authorization, sovereignty and
+lifecycle contracts; don't recreate the component behind a generic wrapper.
+Audit findings don't authorize replacement work or unrelated scope expansion.
 
 **Behavior.** Ask of the package:
 

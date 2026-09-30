@@ -5,6 +5,15 @@ contract. Read it before substantive work. This file is the Claude Code adapter
 for architecture, subsystem routing, commands, and repository-specific gotchas;
 it cannot expand authorization or weaken the shared contract.
 
+## Infrastructure reuse
+
+Follow `docs/governance/agent-contract.md` "Maintained infrastructure before
+custom mechanisms" for every package and maintenance tool. Use suitable
+maintained Symfony components by default, including components not yet
+installed. Audit existing custom equivalents for replacement; keep Waaseyaa
+domain policy in minimal integration code. Custom exceptions require evidence,
+ownership and a review trigger.
+
 ## Project Structure
 - Monorepo: PHP packages live in `packages/`; the consumer-facing metapackages are `core` (engine), `cms` (`core` + content types), and `full` (expanded reusable tooling without opt-in domains). The JS admin SPA lives in `packages/admin/` and has no `composer.json`.
 - **Metapackage menu vs. `waaseyaa/framework`:** downstream consumers `composer require` one curated metapackage (`waaseyaa/core`/`cms`/`full`) — see `docs/roadmap/packagist-publishing-plan.md` and ADR-004 §8. The dev `skeleton/` requires `waaseyaa/framework`, whose default dependency graph follows the same opt-in-domain boundary even though the monorepo contains every package. The metapackage require-graphs are version-swept by `bin/sync-internal-versions`, split-mirrored by `split.yml`, and guarded by CI: `ci/core-only-boot` boots the kernel on `waaseyaa/core` alone (`tests/CoreOnlyBoot/boot.php`), `ci/packaged-form` runs a consumer that requires `waaseyaa/core` (`tests/PackagedForm/`), and `MetapackageSmokeTest` checks autoloadability. A fourth metapackage, `waaseyaa/ai-development`, is **`require-dev` only** (ADR-022 D-1): it assembles the local AI-development plane, the `skeleton/` installs it under `require-dev`, and `bin/check-composer-policy` **CP009** fails if it — or `waaseyaa/ai-agent`, which homes `LocalOperatorPrincipal` — enters the production require closure of `waaseyaa/framework`, `core`, `cms`, or `full`.

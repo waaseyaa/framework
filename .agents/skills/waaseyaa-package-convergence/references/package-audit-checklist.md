@@ -68,7 +68,7 @@ Do not remove a suspected dead surface until dynamic registration, reflection, s
 
 ## Custom infrastructure versus Symfony
 
-For substantial custom mechanisms, record candidates in applicable areas such as console, routing, dependency injection, configuration, validation, serialization, events, caching, HTTP and process execution. This is a review roster, not a replacement mandate.
+Inventory generic custom mechanisms in runtime packages and build/maintenance tooling, including console, routing, dependency injection, configuration, validation, serialization, events, caching, HTTP, messaging, locking and process execution. Maintained Symfony components are the default where behavior fits. Evaluate suitable components even when not installed. This roster drives bounded remediation, not automatic implementation authority.
 
 - Current custom responsibility, real callers and observable behavior
 - Candidate Symfony component, installed/supported version, and verified source/test or official-documentation evidence of fit
@@ -77,9 +77,10 @@ For substantial custom mechanisms, record candidates in applicable areas such as
 - Compatibility for public symbols, generated artifacts, stored formats and supported application extensions
 - Required/optional dependency and split-installation impact, migration effort and ongoing maintenance tradeoff
 - Equivalence controls for normal behavior, refusals, failure mapping and relevant lifecycle transitions
-- Disposition: retain, simplify around Symfony, replace, or defer; reason, owner and consumer-unblock relevance
+- Disposition: simplify around Symfony or replace when fit is established; retain only with an evidenced capability/compatibility gap, owner and review trigger; defer only with bounded migration acceptance and a removal condition
+- Remediation destination for each verified replacement opportunity, including those outside the current consumer unblock
 
-Keep an unverified candidate separate from a demonstrated replacement opportunity. Prefer maintained components when the supported behavior fits; keep custom policy when it expresses actual Waaseyaa ownership. Audit findings do not authorize replacement implementation.
+Keep an unverified candidate separate from a demonstrated replacement opportunity. Missing installation, fewer dependencies, fewer lines or existing custom tests alone do not justify retention. Preserve Waaseyaa policy and use minimal integration code rather than recreating a component behind a wrapper. Audit findings do not authorize replacement implementation.
 
 ## Tests and mechanical gates
 

@@ -63,6 +63,38 @@ maintainer.
   Install worktree `vendor/` (or otherwise satisfy local gates) before the
   first push if pre-push preflight requires it.
 
+## Maintained infrastructure before custom mechanisms
+
+Across Framework runtime packages, build and maintenance tooling, audits and
+skills, use maintained Symfony components for generic mechanisms when they
+meet the required behavior. Evaluate suitable components even when they are
+not installed. This is the default for new work and the target for existing
+home-rolled infrastructure, not merely an optional audit comparison.
+
+Keep Waaseyaa's domain policy, authorization and sovereignty decisions,
+lifecycle guarantees and public contracts in Waaseyaa. Prefer direct component
+use or the smallest adapter needed to preserve those contracts. Do not build
+a parallel framework or a generic wrapper that recreates the component's API.
+
+Before adding or materially extending a custom generic mechanism in any work,
+or retaining one during an audit, verify the relevant supported Symfony
+version against its source, tests and official documentation. Record the fit,
+compatibility and installation
+impact, the Waaseyaa behavior that remains, and equivalence tests for success,
+refusal, failure and lifecycle behavior. Absence from the lockfile, fewer
+dependencies, fewer lines or existing custom tests alone do not justify
+maintaining an equivalent implementation.
+
+A custom exception needs an evidenced capability or compatibility gap, an
+owner and a review trigger. Temporary migration constraints require a bounded
+follow-up with acceptance and a removal condition; they do not establish a
+permanent architectural preference. Audits inventory existing reinventions and
+route verified replacement opportunities into remediation. Routine fixes
+record opportunities outside their scope rather than silently expanding into
+unrelated migrations. Reviewers challenge new duplication and unsupported
+retention decisions. This rule does not grant implementation or publication
+authority beyond the user's task.
+
 ## Change workflow
 
 - Anchor substantive work to a stable, repository-portable change record.
