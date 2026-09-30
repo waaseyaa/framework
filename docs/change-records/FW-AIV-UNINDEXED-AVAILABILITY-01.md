@@ -109,3 +109,12 @@ Independent immutable review and exact-head hosted full qualification remain
 pending at this committed checkpoint. Hosted real PostgreSQL owns the complete
 backend verdict; local SQLite passes do not substitute for it. Final immutable
 SHA, retained source artifact, review and landing evidence belong in #3176.
+
+The first exact-head full run at `d68857c36582e9b3007c85283274e76cc75de0c8`
+passed real PostgreSQL (34 tests, 505 assertions), but normal and random-order
+lanes exposed one shared migration-inventory fixture that still expected two
+migrations. The repair includes the history migration, requires its installed
+column and retains repeated-run idempotence plus schema-manifest verification.
+This is a fixture-only repair; the production candidate remains unchanged.
+The repaired immutable head requires focused re-review and a fresh complete
+exact-head hosted verdict before landing.
