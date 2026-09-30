@@ -179,6 +179,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 |---------|------|-------------|---------|
 | `HttpClientInterface` | interface | internal | — |
 | `SseLineStreamInterface` | interface | public | — |
+| `SymfonyHttpClient` | final class | internal | — |
 
 ### i18n
 
@@ -592,6 +593,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Event\BeforeSaveEvent` | final class | public | Dispatched before any backend write; listeners may abort via `AbortOperationException` (M-001, WP04) |
 | `Event\EntityLifecycleEventInterface` | interface | public | Marker for all four coordinator lifecycle events (M-001, WP04) |
 | `Event\EntityMutationAuthorityBackfilledEvent` | final readonly class | public | — |
+| `Event\EntitySourceChangedEvent` | final readonly class | public | Immediate source projection notification inside the mutation transaction; identifies its database connection |
 | `Exception\BundleAmbiguousFieldException` | final class | public | — |
 | `Exception\BundleUniqueKeyConflictException` | final class | public | Stable repository conflict for a database-enforced bundle key (`BUNDLE_UNIQUE_KEY_CONFLICT`) (#2603) |
 | `Exception\BundleUniqueKeyMigrationException` | final class | public | Stable schema-sync refusal when existing bundle rows duplicate a declared key (`bundle_unique_key_duplicates`) (#2603) |
@@ -993,11 +995,26 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
-| `DistanceMetric` | enum | public | — |
+| `AiVectorServiceProvider` | final class | public | Opt-in composition of canonical storage, providers, policy and indexing lifecycle |
+| `DatabaseEmbeddingExecutionGuard` | final class | public | Durable same-database SQLite and PostgreSQL freshness fence |
+| `DatabaseEmbeddingStorage` | final class | public | Canonical storage on a migration-owned SQLite or PostgreSQL database |
+| `EmbeddingExecutionGuardInterface` | interface | public | Shared publication and transactional source-invalidation fence paired with storage |
+| `EmbeddingExecutor` | final class | internal | Shared lifecycle and refresh policy execution and guarded cleanup |
+| `EmbeddingHttpTransport` | final class | internal | Shared bounded HTTP mechanism for built-in embedding providers |
+| `EmbeddingIndexPolicy` | final readonly class | public | Default-deny entity-type, field-projection, and provider-egress policy for embedding generation |
 | `EmbeddingInterface` | interface | public | Extends `EmbeddingProviderInterface` with batch embedding generation |
+| `EmbeddingProviderEgressInterface` | interface | public | Declares whether an embedding provider may transmit source text off-host |
 | `EmbeddingProviderInterface` | interface | public | Generates a vector embedding for a single text string |
+| `EmbeddingSaveProviderInterface` | interface | public | Explicit bounded save-time provider operation |
+| `EmbeddingSourceChangedListener` | final readonly class | internal | Transaction-side source invalidation adapter |
 | `EmbeddingStorageInterface` | interface | public | Stores and similarity-searches raw float vectors by entity type and ID |
-| `VectorStoreInterface` | interface | public | Stores and queries entity embeddings in a vector backend (pgvector, Qdrant, etc.) |
+| `EntityEmbeddingListener` | final class | public | Policy-enforced save and revision projection lifecycle |
+| `InvalidEmbeddingIndexPolicyException` | final class | public | Stable refusal for malformed embedding index and egress configuration |
+| `OllamaEmbeddingProvider` | final class | public | Ollama embedding and egress implementation |
+| `OpenAiEmbeddingProvider` | final class | public | OpenAI embedding and egress implementation |
+| `ProviderCredentialConfigurationException` | final class | public | Non-sensitive provider credential refusal |
+| `SearchController` | final class | public | JSON:API semantic_search v1.0 wire entry point |
+| `SemanticIndexWarmer` | final class | public | Strict operator indexing and refresh reports using the shared policy |
 
 ## Layer 6: Interfaces
 

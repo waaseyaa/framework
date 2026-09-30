@@ -83,26 +83,30 @@ final class EmbeddingsServingPathSchemaAuthorityTest extends TestCase
     {
         $storage = new DatabaseEmbeddingStorage($this->database);
         $provider = new FakeEmbeddingProvider(dimensions: 8);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturnCallback(static fn(string $id): EntityInterface => $id === '7'
+            ? new ServingPathProbeEntity(7, 'node', 'draft', ['status' => 0, 'workflow_state' => 'draft'])
+            : new ServingPathProbeEntity((int) $id, 'note', $id === '1' ? 'first note' : 'second note'));
+        $repository->method('findMany')->willReturn([]);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'note');
+        $manager->method('getRepository')->willReturn($repository);
 
         $listener = new EntityEmbeddingListener(
             storage: $storage,
             embeddingProvider: $provider,
+            entityTypeManager: $manager,
             indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
                 'note' => ['fields' => ['label'], 'allow_external' => false],
                 'node' => ['fields' => ['label'], 'allow_external' => false],
             ]]]),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         );
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(1, 'note', 'first note')));
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
         // A node that isn't publicly served: the listener deletes its vector.
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(7, 'node', 'draft', ['status' => 0, 'workflow_state' => 'draft'])));
-        new EntityEmbeddingCleanupListener($storage)->onPostDelete(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
-
-        $repository = $this->createStub(EntityRepositoryInterface::class);
-        $repository->method('findMany')->willReturn([]);
-        $manager = $this->createStub(EntityTypeManagerInterface::class);
-        $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'note');
-        $manager->method('getRepository')->willReturn($repository);
+        new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostDelete(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
 
         $document = new SearchController(
             entityTypeManager: $manager,

@@ -62,3 +62,23 @@ defines HTTP JSON:API and MCP identity, scores, ordering, current field-filtered
 metadata, empty results and refusals. Shipped schemas live in this package's
 `resources/` and `ai-tools/resources/`. The shared storage conformance suite
 runs on real SQLite and hosted PostgreSQL; host stores must pass it too.
+
+## Execution
+
+HTTP lifecycle indexing uses one synchronous two-second network attempt after
+true commit. CLI refresh and queries retain Ollama's 15-second and OpenAI's
+20-second transfer budgets. Database and whole-request/batch time are separate.
+Maintained Symfony HttpClient under `waaseyaa/http-client` owns HTTP mechanics;
+no ext-curl requirement or embedding queue remains.
+
+Source mutations transactionally advance durable generations and invalidate
+vectors. Lifecycle indexing and refresh share guarded publication and fresh
+served reads. Custom storage needs a compatible qualified execution guard;
+custom HTTP-save providers need `EmbeddingSaveProviderInterface`.
+
+The application operator schedules full `semantic:refresh` sweeps to its
+freshness SLA and monitors listener errors, failed commands and search coverage.
+Imports and failed embeddings can leave coverage absent until reconciliation.
+Quiesce old workers and refresh when changing boot-time indexing policy. See
+`docs/specs/semantic-search-contract.md` and FW-AIV-EXECUTION-01 for topology,
+migration, custom-provider obligations and recovery details.

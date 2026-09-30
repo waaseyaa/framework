@@ -10,8 +10,6 @@ use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
-use Waaseyaa\Queue\Message\GenericMessage;
-use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 /**
@@ -42,12 +40,9 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  * subscriptions, a live-view rollback would leave a stale embedding until
  * the next ordinary edit.
  *
- * When no {@see EntityTypeManagerInterface} is wired (degraded/standalone
- * construction — e.g. `SemanticIndexWarmer`'s inline instantiation, or a
- * unit test), `onPostSave()`/`onRevisionReverted()` fall back to the
- * triggering event's own entity object (pre-option-1 behavior, unchanged);
- * `onRevisionPointerMoved()` (which carries no entity object at all) then
- * has nothing to re-source and no-ops.
+ * Indexing requires a repository manager that reads fresh served rows. Missing
+ * composition refuses indexing and invalidates; event content is never a
+ * freshness fallback. Standalone callers must supply the same source fence.
  *
  * Two modes (FW-AIV-COMP-01). The default indexing mode embeds served,
  * indexable content and removes the vector otherwise. `invalidateOnly` mode,
@@ -65,7 +60,6 @@ final class EntityEmbeddingListener
     private readonly EmbeddingIndexPolicy $indexPolicy;
 
     public function __construct(
-        private readonly ?QueueInterface $queue = null,
         private readonly ?EmbeddingStorageInterface $storage = null,
         private readonly ?EmbeddingProviderInterface $embeddingProvider = null,
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
@@ -73,6 +67,7 @@ final class EntityEmbeddingListener
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly bool $invalidateOnly = false,
         ?EmbeddingIndexPolicy $indexPolicy = null,
+        private readonly ?EmbeddingExecutionGuardInterface $executionGuard = null,
     ) {
         $this->indexPolicy = $indexPolicy ?? EmbeddingIndexPolicy::fromArray([], $this->workflowVisibility);
         $this->logger = $logger ?? new NullLogger();
@@ -80,7 +75,7 @@ final class EntityEmbeddingListener
 
     public function onPostSave(EntityEvent $event): void
     {
-        $this->reindex($event->entity->getEntityTypeId(), $event->entity->id(), $event->entity);
+        $this->reindex($event->entity->getEntityTypeId(), $event->entity->id());
     }
 
     /**
@@ -88,7 +83,7 @@ final class EntityEmbeddingListener
      */
     public function onRevisionPointerMoved(RevisionPointerMovedEvent $event): void
     {
-        $this->reindex($event->entityTypeId, $event->entityId, null);
+        $this->reindex($event->entityTypeId, $event->entityId);
     }
 
     /**
@@ -96,108 +91,42 @@ final class EntityEmbeddingListener
      */
     public function onRevisionReverted(EntityEvent $event): void
     {
-        $this->reindex($event->entity->getEntityTypeId(), $event->entity->id(), $event->entity);
+        $this->reindex($event->entity->getEntityTypeId(), $event->entity->id());
     }
 
     /**
-     * The re-sourced re-index/de-index core (CW-v1 option-1 §3.3). `$fallbackEntity`
-     * is used ONLY when no `entityTypeManager` is wired — see class docblock.
+     * Reads current served content through the repository under the shared fence.
      */
-    private function reindex(string $entityType, int|string|null $entityId, ?EntityInterface $fallbackEntity): void
+    private function reindex(string $entityType, int|string|null $entityId): void
     {
         if ($entityId === null || $entityId === '') {
             return;
         }
 
-        $entityIdString = (string) $entityId;
-
-        if ($this->invalidateOnly) {
-            $this->removeVector($entityType, $entityIdString);
-
-            return;
-        }
-
-        if ($this->entityTypeManager !== null) {
-            try {
-                $entity = $this->entityTypeManager->getRepository($entityType)->find($entityIdString);
-            } catch (\Throwable $exception) {
-                // The served content can't be read, so indexability is unknown:
-                // remove the vector rather than leave it possibly stale.
-                $this->logger->error(sprintf(
-                    'Embedding re-source failed for %s:%s: %s',
-                    $entityType,
-                    $entityIdString,
-                    $exception->getMessage(),
-                ));
-                $this->removeVector($entityType, $entityIdString);
-
+        try {
+            if ($this->storage === null || $this->executionGuard === null) {
+                throw new \LogicException('[AIV-EXECUTION-001] Indexing requires storage and a shared execution guard.');
+            }
+            $executor = new EmbeddingExecutor($this->storage, $this->executionGuard, $this->indexPolicy, $this->embeddingProvider);
+            if ($this->invalidateOnly) {
+                $executor->invalidate($entityType, (string) $entityId);
                 return;
             }
-        } elseif ($fallbackEntity !== null) {
-            $entity = $fallbackEntity;
-        } else {
-            // No entityTypeManager AND no fallback entity (a pointer-move
-            // event with no wired re-source path) — nothing safe to do.
-            return;
-        }
-
-        if (!$entity instanceof EntityInterface) {
-            $this->removeVector($entityType, $entityIdString);
-
-            return;
-        }
-
-        $embeddingText = $this->indexPolicy->embeddingText($entity, $this->embeddingProvider);
-        if ($embeddingText === null) {
-            $this->removeVector($entityType, $entityIdString);
-
-            return;
-        }
-
-        if ($this->storage !== null && $this->embeddingProvider !== null) {
-            try {
-                $vector = $this->embeddingProvider->embed($embeddingText);
-                $this->storage->store($entityType, $entityIdString, $vector);
-            } catch (\Throwable $exception) {
-                $this->logger->error(sprintf(
-                    'Embedding update failed for %s:%s: %s',
-                    $entityType,
-                    $entityIdString,
-                    $exception->getMessage(),
-                ));
-                // A failed replacement must not leave the previous projection
-                // searchable as though it represented the current served row.
-                $this->removeVector($entityType, $entityIdString);
+            if ($this->embeddingProvider !== null && !$this->embeddingProvider instanceof EmbeddingSaveProviderInterface) {
+                $executor->invalidate($entityType, (string) $entityId);
+                throw new \LogicException('[AIV-EXECUTION-002] HTTP indexing requires a save-budget provider.');
             }
-        }
-
-        if ($this->queue === null) {
-            return;
-        }
-
-        $this->queue->dispatch(new GenericMessage(
-            type: 'ai_vector.embed_entity',
-            payload: [
-                'entity_type' => $entityType,
-                'entity_id' => $entityIdString,
-                'langcode' => $entity->language(),
-            ],
-        ));
-    }
-
-    private function removeVector(string $entityType, string $entityId): void
-    {
-        if ($this->storage === null) {
-            return;
-        }
-
-        try {
-            $this->storage->delete($entityType, $entityId);
+            if ($this->entityTypeManager === null) {
+                $executor->invalidate($entityType, (string) $entityId);
+                throw new \LogicException('[AIV-EXECUTION-005] Indexing requires fresh served repository reads.');
+            }
+            $load = fn(): ?EntityInterface => $this->entityTypeManager->getRepository($entityType)->find((string) $entityId);
+            $executor->index($entityType, (string) $entityId, $load, save: true);
         } catch (\Throwable $exception) {
             $this->logger->error(sprintf(
-                'Embedding removal failed for %s:%s: %s',
+                'Embedding update failed for %s:%s: %s',
                 $entityType,
-                $entityId,
+                (string) $entityId,
                 $exception->getMessage(),
             ));
         }

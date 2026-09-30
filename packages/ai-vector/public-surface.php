@@ -8,6 +8,12 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingExecutionGuardInterface', 'disposition' => 'public', 'purpose' => 'Shared publication and transactional source-invalidation fence paired with storage'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\DatabaseEmbeddingExecutionGuard', 'disposition' => 'public', 'purpose' => 'Durable same-database SQLite and PostgreSQL freshness fence'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingSaveProviderInterface', 'disposition' => 'public', 'purpose' => 'Explicit bounded save-time provider operation'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingExecutor', 'disposition' => 'internal', 'purpose' => 'Shared lifecycle and refresh policy execution and guarded cleanup'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingSourceChangedListener', 'disposition' => 'internal', 'purpose' => 'Transaction-side source invalidation adapter'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingHttpTransport', 'disposition' => 'internal', 'purpose' => 'Shared bounded HTTP mechanism for built-in embedding providers'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingIndexPolicy', 'disposition' => 'public', 'purpose' => 'Default-deny entity-type, field-projection, and provider-egress policy for embedding generation'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingInterface', 'disposition' => 'public', 'purpose' => 'Extends `EmbeddingProviderInterface` with batch embedding generation'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingProviderEgressInterface', 'disposition' => 'public', 'purpose' => 'Declares whether an embedding provider may transmit source text off-host'],

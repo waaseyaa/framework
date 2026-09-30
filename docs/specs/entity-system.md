@@ -2693,3 +2693,19 @@ type-mapping table.
 <!-- Spec reviewed 2026-05-17 - dead-code Phase 3 Bucket 4: @api PHPDoc sweep on additional public-API classes. No behavioural change. -->
 
 <!-- Spec reviewed 2026-05-18 - WP07 (agent-executor mission) rebase + rewire: no behavioural change to this subsystem; touch refreshes drift-detector timestamp. -->
+
+## Transactional served-source notifications (FW-AIV-EXECUTION-01)
+
+EntityRepository emits EntitySourceChangedEvent after writes that change served
+content and before their database transaction commits. Its exact string identity
+and actual DatabaseInterface connection allow subscribers to invalidate derived
+state atomically with the source. Listener failure rolls back the source mutation;
+provider/network work must never run in this event. Post-save/delete notifications
+run after true commit, including nested transaction completion. Forward draft and
+history-only writes that do not change served content do not invalidate its vector.
+
+ai-vector uses this event to advance durable generations and delete vectors in
+the source transaction; it publishes only under the same generation lock after a
+fresh served read. See semantic-search-contract.md for topology, custom repository
+obligations and reconciliation. This event does not replace mutation authorization
+or transaction authority and does not make policy configuration versioned.

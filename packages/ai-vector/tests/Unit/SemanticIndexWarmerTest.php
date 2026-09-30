@@ -31,7 +31,7 @@ final class SemanticIndexWarmerTest extends TestCase
                 $query->method('execute')->willReturn(['01']);
                 $repository = $this->createStub(EntityRepositoryInterface::class);
                 $repository->method('getQuery')->willReturn($query);
-                $repository->method('findMany')->willReturn($missing ? [] : [new SemanticWarmerEntity('01', 'node', ['title' => 'Published', 'status' => 1, 'workflow_state' => 'published'])]);
+                $repository->method('find')->willReturn($missing ? null : new SemanticWarmerEntity('01', 'node', ['title' => 'Published', 'status' => 1, 'workflow_state' => 'published']));
                 $manager = $this->createStub(EntityTypeManagerInterface::class);
                 $manager->method('hasDefinition')->willReturn(true);
                 $manager->method('getRepository')->willReturn($repository);
@@ -40,7 +40,7 @@ final class SemanticIndexWarmerTest extends TestCase
                 $storage = $this->createMock(EmbeddingStorageInterface::class);
                 $storage->expects(self::never())->method('store');
                 $storage->expects(self::once())->method('delete')->with('node', '01');
-                $warmer = new SemanticIndexWarmer($manager, $storage, $provider, indexPolicy: $this->nodePolicy());
+                $warmer = new SemanticIndexWarmer($manager, $storage, $provider, indexPolicy: $this->nodePolicy(), executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
                 $failure = null;
                 try {
                     $report = $warmer->$method(['node']);
@@ -108,11 +108,9 @@ final class SemanticIndexWarmerTest extends TestCase
         $storage = $this->createStub(EntityStorageInterface::class);
 
         // C-22 WP3: read path now goes through the canonical repository.
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->expects(self::once())->method('findMany')
-            ->with([1, 2, 3])
-            ->willReturn([$nodeA, $nodeB, $nodeC]);
+        $repository->method('find')->willReturnCallback(static fn($id) => [1 => $nodeA, 2 => $nodeB, 3 => $nodeC][$id]);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
@@ -141,6 +139,7 @@ final class SemanticIndexWarmerTest extends TestCase
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $provider,
             indexPolicy: $this->nodePolicy(),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         );
 
         $report = $warmer->warm(['node']);
@@ -169,6 +168,7 @@ final class SemanticIndexWarmerTest extends TestCase
             embeddingStorage: $embeddingStorage,
             embeddingProvider: null,
             indexPolicy: $this->nodePolicy(),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         );
 
         $report = $warmer->warm(['node']);
@@ -230,13 +230,7 @@ final class SemanticIndexWarmerTest extends TestCase
         // C-22 WP3: read path now goes through the canonical repository.
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('findMany')->willReturnCallback(
-            static fn(array $ids): array => array_values(array_filter([
-                1 => $node1,
-                2 => $node2,
-                3 => $node3,
-            ], static fn($entity, $id): bool => in_array($id, $ids, true), ARRAY_FILTER_USE_BOTH)),
-        );
+        $repository->method('find')->willReturnCallback(static fn($id) => [1 => $node1, 2 => $node2, 3 => $node3][$id] ?? null);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->expects(self::exactly(2))->method('hasDefinition')->with('node')->willReturn(true);
@@ -255,6 +249,7 @@ final class SemanticIndexWarmerTest extends TestCase
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $provider,
             indexPolicy: $this->nodePolicy(),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         );
 
         $first = $warmer->warmBatch(['node'], 2, null);
@@ -310,9 +305,7 @@ final class SemanticIndexWarmerTest extends TestCase
         };
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('findMany')->willReturn([
-            new SemanticWarmerEntity(7, 'user', ['name' => 'Private person']),
-        ]);
+        $repository->method('find')->willReturn(new SemanticWarmerEntity(7, 'user', ['name' => 'Private person']));
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->expects(self::once())->method('hasDefinition')->with('user')->willReturn(true);
         $manager->expects(self::exactly(2))->method('getRepository')->with('user')->willReturn($repository);
@@ -328,6 +321,7 @@ final class SemanticIndexWarmerTest extends TestCase
             embeddingStorage: $storage,
             embeddingProvider: $provider,
             indexPolicy: $this->nodePolicy(),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         )->warm(['user']);
 
         self::assertSame(0, $report['stored_total']);
@@ -377,9 +371,7 @@ final class SemanticIndexWarmerTest extends TestCase
         };
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('findMany')->willReturn([
-            new SemanticWarmerEntity(7, 'user', ['name' => 'Private person']),
-        ]);
+        $repository->method('find')->willReturn(new SemanticWarmerEntity(7, 'user', ['name' => 'Private person']));
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->expects(self::once())->method('hasDefinition')->with('user')->willReturn(true);
         $manager->expects(self::exactly(2))->method('getRepository')->with('user')->willReturn($repository);
@@ -393,6 +385,7 @@ final class SemanticIndexWarmerTest extends TestCase
             embeddingStorage: $storage,
             embeddingProvider: null,
             indexPolicy: $this->nodePolicy(),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         )->warm(['user']);
 
         self::assertSame('ok', $report['status']);

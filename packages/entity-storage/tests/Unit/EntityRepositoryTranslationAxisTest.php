@@ -30,6 +30,8 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
 {
     private DBALDatabase $db;
     private EntityRepository $repo;
+    /** @var list<string> */
+    private array $sourceChanges = [];
 
     protected function setUp(): void
     {
@@ -61,7 +63,14 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->db);
         $dispatcher = $this->createStub(EventDispatcherInterface::class);
-        $dispatcher->method('dispatch')->willReturnArgument(0);
+        $dispatcher->method('dispatch')->willReturnCallback(function (object $event): object {
+            if ($event instanceof \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent) {
+                self::assertSame($this->db, $event->database);
+                self::assertTrue($this->db->getConnection()->isTransactionActive());
+                $this->sourceChanges[] = $event->entityId;
+            }
+            return $event;
+        });
 
         $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
@@ -70,6 +79,22 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
             new RevisionableStorageDriver($resolver, $entityType),
             $this->db,
         );
+    }
+
+    #[Test]
+    public function served_translation_write_notifies_but_history_only_revision_write_does_not(): void
+    {
+        $entity = new TestRevisionableEntity(values: ['title' => 'Default', 'uuid' => 'translation-source']);
+        $entity->enforceIsNew();
+        $this->repo->save($entity);
+        $id = (string) $entity->id();
+        $this->sourceChanges = [];
+        $this->repo->saveTranslation($id, 'oj', ['title' => 'Served'], expected: $this->mutationToken($id));
+        self::assertSame([$id], $this->sourceChanges);
+        $this->sourceChanges = [];
+        $this->repo->saveTranslationRevision($id, 'oj', ['title' => 'History'], expected: $this->mutationToken($id));
+        self::assertSame([], $this->sourceChanges);
+        self::assertSame('Served', $this->repo->loadTranslation($id, 'oj')?->label());
     }
 
     #[Test]

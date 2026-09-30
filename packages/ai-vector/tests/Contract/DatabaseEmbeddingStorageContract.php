@@ -14,6 +14,9 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
 /** Real database failure discriminators shared by both supported drivers. */
 abstract class DatabaseEmbeddingStorageContract extends EmbeddingStorageContract
 {
+    use EmbeddingFreshnessContract;
+    use EmbeddingConcurrentSourceContract;
+
     protected DBALDatabase $database;
 
     abstract protected function installInsertFailure(): void;

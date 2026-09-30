@@ -21,6 +21,8 @@ final class HostEmbeddingServicesProvider extends ServiceProvider
     public function register(): void
     {
         $this->singleton(EmbeddingStorageInterface::class, static fn(): EmbeddingStorageInterface => new HostEmbeddingStorage());
+        // Synthetic host storage is paired with its explicitly test-only guard.
+        $this->singleton(\Waaseyaa\AI\Vector\EmbeddingExecutionGuardInterface::class, static fn(): \Waaseyaa\AI\Vector\EmbeddingExecutionGuardInterface => new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
         $this->singleton(EmbeddingProviderInterface::class, static fn(): EmbeddingProviderInterface => new FakeEmbeddingProvider(dimensions: 8));
     }
 }

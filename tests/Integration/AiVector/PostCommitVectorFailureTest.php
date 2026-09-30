@@ -84,7 +84,7 @@ final class PostCommitVectorFailureTest extends TestCase
     public function a_committed_delete_succeeds_logs_and_lets_later_listeners_run_when_vector_cleanup_fails(): void
     {
         $node = $this->saveNode(published: true);
-        $this->listen(EntityEvents::POST_DELETE->value, [new EntityEmbeddingCleanupListener($this->failingStorage(), logger: $this->logger()), 'onPostDelete']);
+        $this->listen(EntityEvents::POST_DELETE->value, [new EntityEmbeddingCleanupListener($this->failingStorage(), logger: $this->logger(), executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard()), 'onPostDelete']);
 
         $this->repository()->delete($node);
 
@@ -97,14 +97,14 @@ final class PostCommitVectorFailureTest extends TestCase
     public function a_committed_non_indexable_save_succeeds_logs_and_lets_later_listeners_run_when_vector_removal_fails(): void
     {
         $node = $this->saveNode(published: true);
-        $this->listen(EntityEvents::POST_SAVE->value, [new EntityEmbeddingListener(storage: $this->failingStorage(), logger: $this->logger(), entityTypeManager: $this->kernel->getEntityTypeManager()), 'onPostSave']);
+        $this->listen(EntityEvents::POST_SAVE->value, [new EntityEmbeddingListener(storage: $this->failingStorage(), logger: $this->logger(), entityTypeManager: $this->kernel->getEntityTypeManager(), executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard()), 'onPostSave']);
 
         // Unpublishing makes the node non-indexable, so the listener removes its vector.
         $node->set('status', false);
         $this->repository()->save($node);
 
         self::assertSame(0, $this->storedStatus($node), 'the unpublish committed');
-        $this->assertLoggedStorageFailure();
+        $this->assertLoggedStorageFailure('AIV-EXECUTION-007');
         self::assertSame(1, $this->laterListenerRuns, 'a later POST_SAVE listener still ran');
     }
 
@@ -184,10 +184,10 @@ final class PostCommitVectorFailureTest extends TestCase
         };
     }
 
-    private function assertLoggedStorageFailure(): void
+    private function assertLoggedStorageFailure(string $expected = 'vector storage unavailable'): void
     {
         $errors = array_values(array_filter($this->logged, static fn(array $entry): bool => $entry[0] === LogLevel::ERROR));
         self::assertCount(1, $errors, 'the storage failure is logged once, as an error');
-        self::assertStringContainsString('vector storage unavailable', $errors[0][1]);
+        self::assertStringContainsString($expected, $errors[0][1]);
     }
 }

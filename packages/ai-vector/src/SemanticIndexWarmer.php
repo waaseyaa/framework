@@ -12,7 +12,6 @@ final class SemanticIndexWarmer
 {
     public const string CONTRACT_VERSION = 'v1.0';
     public const string CONTRACT_SURFACE = 'semantic_index_warm';
-    private const int DEFAULT_CHUNK_SIZE = 200;
     private readonly EmbeddingIndexPolicy $indexPolicy;
 
     public function __construct(
@@ -21,6 +20,7 @@ final class SemanticIndexWarmer
         private readonly ?EmbeddingProviderInterface $embeddingProvider,
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
         ?EmbeddingIndexPolicy $indexPolicy = null,
+        private readonly ?EmbeddingExecutionGuardInterface $executionGuard = null,
     ) {
         $this->indexPolicy = $indexPolicy ?? EmbeddingIndexPolicy::fromArray([], $this->workflowVisibility);
     }
@@ -234,52 +234,19 @@ final class SemanticIndexWarmer
         $removed = 0;
         $missing = 0;
 
-        foreach (array_chunk($ids, self::DEFAULT_CHUNK_SIZE) as $chunk) {
-            // findMany() returns a plain list; re-key by id to preserve the isset() lookup below.
-            $entities = [];
-            if ($chunk !== []) {
-                foreach ($repository->findMany($chunk) as $loadedEntity) {
-                    $entities[$loadedEntity->id()] = $loadedEntity;
-                }
-            }
-            foreach ($chunk as $id) {
-                if (!isset($entities[$id])) {
-                    $this->embeddingStorage->delete($entityTypeId, (string) $id);
-                    $missing++;
-                    continue;
-                }
-
-                $entity = $entities[$id];
-                if (!$entity instanceof EntityInterface) {
-                    $this->embeddingStorage->delete($entityTypeId, (string) $id);
-                    $missing++;
-                    continue;
-                }
-
-                $text = $this->indexPolicy->embeddingText($entity, $this->embeddingProvider);
-                if ($text === null) {
-                    $this->embeddingStorage->delete($entityTypeId, (string) $id);
-                    $removed++;
-                } else {
-                    \assert($this->embeddingProvider !== null);
-                    try {
-                        $vector = $this->embeddingProvider->embed($text);
-                        $this->embeddingStorage->store($entityTypeId, (string) $id, $vector);
-                    } catch (\Throwable $exception) {
-                        // Refresh is an operator command, not a post-commit
-                        // listener. Invalidate stale data and propagate failure;
-                        // never count an unsuccessful write as stored.
-                        try {
-                            $this->embeddingStorage->delete($entityTypeId, (string) $id);
-                        } catch (\Throwable) {
-                            // Preserve the original failure for the command.
-                        }
-                        throw $exception;
-                    }
-                    $stored++;
-                }
+        if ($this->executionGuard === null) {
+            throw new \LogicException('[AIV-EXECUTION-001] Refresh requires a shared execution guard.');
+        }
+        $executor = new EmbeddingExecutor($this->embeddingStorage, $this->executionGuard, $this->indexPolicy, $this->embeddingProvider);
+        foreach ($ids as $id) {
+            $outcome = $executor->index($entityTypeId, (string) $id, fn(): ?EntityInterface => $repository->find($id));
+            if ($outcome === 'missing') {
+                $missing++;
+            } else {
                 $processed++;
             }
+            $stored += $outcome === 'stored' ? 1 : 0;
+            $removed += $outcome === 'removed' ? 1 : 0;
         }
 
         return [

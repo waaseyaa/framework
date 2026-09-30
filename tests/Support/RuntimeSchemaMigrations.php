@@ -66,6 +66,7 @@ final class RuntimeSchemaMigrations
     public static function aiVector(DBALDatabase $database): void
     {
         self::apply($database, 'packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php');
+        self::apply($database, 'packages/ai-vector/migrations/2026_09_30_000001_embedding_generations.php');
     }
 
     public static function search(DBALDatabase $database): void

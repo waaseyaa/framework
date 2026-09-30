@@ -49,6 +49,7 @@ return [
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\BeforeDeleteEvent', 'disposition' => 'public', 'purpose' => 'Dispatched before any backend delete (M-001, WP04)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\BeforeSaveEvent', 'disposition' => 'public', 'purpose' => 'Dispatched before any backend write; listeners may abort via `AbortOperationException` (M-001, WP04)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\EntityLifecycleEventInterface', 'disposition' => 'public', 'purpose' => 'Marker for all four coordinator lifecycle events (M-001, WP04)'],
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\EntitySourceChangedEvent', 'disposition' => 'public', 'purpose' => 'Immediate source projection notification inside the mutation transaction; identifies its database connection'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\EntityMutationAuthorityBackfilledEvent', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Exception\\BundleAmbiguousFieldException', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Exception\\BundleUniqueKeyConflictException', 'disposition' => 'public', 'purpose' => 'Stable repository conflict for a database-enforced bundle key (`BUNDLE_UNIQUE_KEY_CONFLICT`) (#2603)'],

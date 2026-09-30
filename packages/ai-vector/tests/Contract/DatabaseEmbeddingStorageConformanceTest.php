@@ -10,12 +10,22 @@ use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 final class DatabaseEmbeddingStorageConformanceTest extends DatabaseEmbeddingStorageContract
 {
+    private \Waaseyaa\Testing\Database\TemporarySqliteDatabase $temporary;
+
     protected function setUp(): void
     {
-        $database = DBALDatabase::createSqlite(':memory:');
+        $this->temporary = new \Waaseyaa\Testing\Database\TemporarySqliteDatabase();
+        $database = $this->temporary->database();
+        self::assertInstanceOf(DBALDatabase::class, $database);
         $this->database = $database;
         RuntimeSchemaMigrations::aiVector($database);
         $this->storage = new DatabaseEmbeddingStorage($database);
+    }
+
+    protected function tearDown(): void
+    {
+        $this->database->getConnection()->close();
+        $this->temporary->remove();
     }
 
     protected function installInsertFailure(): void

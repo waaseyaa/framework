@@ -95,7 +95,7 @@ ai-schema   -> entity
 ai-agent    -> access, ai-observability, ai-tools, api, audit, bimaaji, config,
                database-legacy, entity, entity-storage, foundation, http-client, routing
 ai-pipeline -> entity, foundation
-ai-vector   -> access, api, entity, entity-storage, foundation, queue, workflows
+ai-vector   -> access, api, database-legacy, entity, entity-storage, foundation, workflows
 ```
 
 `ai-schema` is an independently shipped utility; no agent runtime or MCP
@@ -839,6 +839,79 @@ endpoints. A provider that does not implement the interface is treated as
 external.
 
 `EmbeddingProviderFactory::fromConfig()` still returns `null` when `ai.embedding_provider` is unset or unknown (the warmer reports `skipped_no_provider`), but a configured `openai` provider is fail-closed: a raw `ai.openai_api_key` value, a missing kernel `SecretResolverRegistry`, or a missing/invalid typed `ai.openai_credential_reference` throws `ProviderCredentialConfigurationException` — there is no environment-variable fallback.
+
+### Embedding execution and reconciliation (FW-AIV-EXECUTION-01)
+
+HTTP saves, served revision pointer moves and reverts index synchronously after
+true commit. Other kernels invalidate only. Lifecycle indexing and CLI
+warm/refresh use one `EmbeddingExecutor` freshness protocol and fresh repository
+reads, never an event snapshot or a preloaded entity chunk.
+
+A served-source mutation emits `EntitySourceChangedEvent` after its writes and
+inside its database transaction. The ai-vector subscriber advances the exact
+identity's generation and deletes its vector in that same transaction.
+Publication obtains the generation lock, checks the operation token, rereads the
+served projection without acquiring entity mutation locks, and replaces the
+vector before releasing that lock. A concurrent source change must advance the
+same generation before it can commit. Provider calls run outside source and
+publication transactions. This closes the final-reread/publication race on both
+supported backends; atomic vector replacement alone would not close it.
+Generation tombstones survive deletion. Superseded completion and failure
+cleanup cannot overwrite or remove a newer vector. Only confirmed stores count
+as stored; a superseded operation is not a successful store.
+
+The built-in database guard requires source, generation and vector storage on
+the same database connection. Missing generation schema refuses activation or
+execution. Custom storage requires a compatible explicitly bound guard qualified
+for atomic source invalidation and publication, and a repository that supplies
+fresh served reads. Cached custom repositories must participate in that protocol.
+`EmbeddingStorageInterface` remains the sole storage contract.
+
+| Operation | Built-in network-transfer budget |
+| --- | --- |
+| HTTP lifecycle `embedForSave()` | 2 seconds |
+| CLI warm/refresh and semantic query, Ollama `embed()` | 15 seconds |
+| CLI warm/refresh and semantic query, OpenAI `embed()` | 20 seconds |
+
+Each transfer has one attempt, no retries or redirect following, verified TLS,
+and a 1 MiB response cap. Symfony's total `max_duration` bounds connection and
+body, alongside its inactivity timeout. These are network bounds, not a whole
+HTTP request, credential-resolution, database, or multi-entity batch deadline.
+The longer operator/query budgets preserve legitimate workloads exceeding the
+save-time budget. Timeout, HTTP refusal and malformed response fail explicitly.
+Post-commit listener failures are logged; operator failures propagate. Cleanup
+is conditional on the current token and is never reported successful if it fails.
+
+HTTP custom providers must implement `EmbeddingSaveProviderInterface` and honor
+its one-attempt two-second network obligation. Missing capability refuses
+save-time embedding and invalidates. Arbitrary PHP providers or callable
+transport overrides cannot be preempted; their owners must qualify the budget.
+
+`waaseyaa/http-client` owns the maintained Symfony HTTP implementation.
+ai-vector's minimal `EmbeddingHttpTransport` retains payload, status and JSON
+validation, while providers retain credential and endpoint policy. The split
+http-client package requires Symfony HttpClient ^7.0 and contracts ^3.0; the
+candidate lock uses HttpClient 7.4.20. Symfony's native fallback supports hosts
+without ext-curl. Existing StreamHttpClient and ai-agent transport consolidation
+remain with their package maintainers, outside this slice.
+
+There is no embedding queue producer, retry worker or automatic repair loop.
+The unsupported listener `queue` argument, `ai_vector.embed_entity` dispatch and
+queue dependency are removed. Application owners remove historical orphan
+messages rather than replay them. The application operator owns reconciliation:
+schedule a full `semantic:refresh` sweep at the application's declared freshness
+SLA, monitor listener errors, nonzero command exits and eligible-content search
+coverage, and rerun the sweep after provider/storage recovery. Committed source
+changes invalidate immediately; coverage can remain absent until a successful
+HTTP indexing attempt or scheduled/manual refresh. No immediate coverage promise
+is made for imports, CLI saves, worker mutations or failed provider calls.
+
+Policy configuration is immutable for a booted process. Deployments changing
+projection or exclusion must quiesce old workers, apply migrations, purge
+excluded vectors, restart with the new policy and run a full refresh before
+claiming reconciled coverage. The generation guard is a content freshness fence,
+not a durable cross-process policy-version authority. The default-deny policy,
+explicit label/egress permission and AIV-POLICY-001 refusal remain unchanged.
 
 ### Canonical embedding storage and semantic search
 

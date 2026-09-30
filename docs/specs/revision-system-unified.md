@@ -637,3 +637,19 @@ returns null, and later undisciplined drafts tip-track again.
 
 <!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): added §3b optimistic locking — SaveContext::withExpectedRevisionId() expectation seam, two-stage check (fail-fast pre-check before any write/event + guarded pointer-claim UPDATE inside the save transaction, affected-rows unambiguous because the pointer always moves), RevisionConflictException payload with null-current = "no readable head (row vanished or pre-backfill pointer-less row)", the six-row LogicException rejection matrix (new / non-revisionable / two-axis / non-revision-creating / no-DB / no-revision-driver), context-less paths unstatable by construction, two-axis langcode-scoped-guard lift path beside §3a. No-expectation saves byte-identical (zero added queries, pinned). -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: added §2a (revision_author column + additive sync on both live revision tables), §4a (authorship recording/resolution order/null-vs-0/revert authorship, RevisionMetadata hydration on loads, RevisionPointerMovedEvent), §6a (explicit FR-009 retirement of the dormant RevisionTableBuilder `<entity>__revision` vid dialect incl. its revision_created_at metadata block; live revision_author is the single authoritative author definition). Refs #1644, #1645. -->
+
+## Transactional served-source notifications (FW-AIV-EXECUTION-01)
+
+EntityRepository emits EntitySourceChangedEvent after writes that change served
+content and before their database transaction commits. Its exact string identity
+and actual DatabaseInterface connection allow subscribers to invalidate derived
+state atomically with the source. Listener failure rolls back the source mutation;
+provider/network work must never run in this event. Post-save/delete notifications
+run after true commit, including nested transaction completion. Forward draft and
+history-only writes that do not change served content do not invalidate its vector.
+
+ai-vector uses this event to advance durable generations and delete vectors in
+the source transaction; it publishes only under the same generation lock after a
+fresh served read. See semantic-search-contract.md for topology, custom repository
+obligations and reconciliation. This event does not replace mutation authorization
+or transaction authority and does not make policy configuration versioned.

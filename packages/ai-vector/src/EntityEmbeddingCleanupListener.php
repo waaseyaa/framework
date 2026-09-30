@@ -22,6 +22,7 @@ final class EntityEmbeddingCleanupListener
     public function __construct(
         private readonly EmbeddingStorageInterface $storage,
         ?LoggerInterface $logger = null,
+        private readonly ?EmbeddingExecutionGuardInterface $executionGuard = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -35,7 +36,19 @@ final class EntityEmbeddingCleanupListener
 
         $entityType = $event->entity->getEntityTypeId();
         try {
-            $this->storage->delete($entityType, (string) $entityId);
+            if ($this->executionGuard === null) {
+                throw new \LogicException('[AIV-EXECUTION-001] Cleanup requires a shared execution guard.');
+            }
+            if (!$this->executionGuard->supportsStorage($this->storage)) {
+                throw new \LogicException('[AIV-EXECUTION-003] Cleanup requires compatible storage and guard.');
+            }
+            $token = $this->executionGuard->begin($entityType, (string) $entityId);
+            $this->executionGuard->runIfCurrent(
+                $entityType,
+                (string) $entityId,
+                $token,
+                fn() => $this->storage->delete($entityType, (string) $entityId),
+            );
         } catch (\Throwable $exception) {
             $this->logger->error(sprintf(
                 'Embedding removal failed for %s:%s after delete: %s',

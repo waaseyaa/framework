@@ -7,7 +7,7 @@ namespace Waaseyaa\AI\Vector;
 /**
  * @api
  */
-final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
+final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface, EmbeddingSaveProviderInterface
 {
     /**
      * @param callable(string, array<string, string>, array<string, mixed>): array<string, mixed>|null $transport
@@ -21,12 +21,22 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProv
 
     public function embed(string $text): array
     {
+        return $this->embedWithDeadline($text, 15000);
+    }
+
+    public function embedForSave(string $text): array
+    {
+        return $this->embedWithDeadline($text, 2000);
+    }
+
+    private function embedWithDeadline(string $text, int $deadlineMs): array
+    {
         $payload = [
             'model' => $this->model,
             'prompt' => $text,
         ];
 
-        $response = $this->request($payload);
+        $response = $this->request($payload, $deadlineMs);
         $embedding = $response['embedding'] ?? null;
         if (!is_array($embedding)) {
             throw new \RuntimeException('Invalid Ollama embedding response.');
@@ -64,7 +74,7 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProv
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
-    private function request(array $payload): array
+    private function request(array $payload, int $deadlineMs): array
     {
         $headers = ['Content-Type' => 'application/json'];
 
@@ -72,31 +82,7 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProv
             return (array) ($this->transport)($this->endpoint, $headers, $payload);
         }
 
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'POST',
-                'header' => "Content-Type: application/json\r\n",
-                'content' => json_encode($payload, JSON_THROW_ON_ERROR),
-                'timeout' => 15,
-            ],
-        ]);
-
-        $raw = file_get_contents($this->endpoint, false, $context);
-        if ($raw === false) {
-            throw new \RuntimeException('Failed to call Ollama embeddings endpoint.');
-        }
-
-        try {
-            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            throw new \RuntimeException('Invalid JSON from Ollama embeddings endpoint: ' . $e->getMessage());
-        }
-
-        if (!is_array($decoded)) {
-            throw new \RuntimeException('Invalid JSON from Ollama embeddings endpoint.');
-        }
-
-        return $decoded;
+        return EmbeddingHttpTransport::request($this->endpoint, $headers, $payload, $deadlineMs);
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Waaseyaa\AI\Vector;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
@@ -80,6 +81,11 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
         $indexPolicy = EmbeddingIndexPolicy::fromArray($this->config);
 
         $this->singleton(
+            EmbeddingExecutionGuardInterface::class,
+            fn(): EmbeddingExecutionGuardInterface => new DatabaseEmbeddingExecutionGuard($this->resolve(DatabaseInterface::class)),
+        );
+
+        $this->singleton(
             EmbeddingIndexPolicy::class,
             fn(): EmbeddingIndexPolicy => $indexPolicy,
         );
@@ -117,6 +123,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
                 $this->composedStorage(),
                 $this->composedProvider(),
                 indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
+                executionGuard: $this->composedGuard(),
             ),
         );
         $this->singleton(
@@ -157,14 +164,21 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
 
         $storage = $this->composedStorage();
         $logger = $this->lifecycleLogger();
+        $guard = $this->composedGuard();
+        if (!$guard->supportsStorage($storage)) {
+            throw new \LogicException('[AIV-EXECUTION-003] Bind a compatible execution guard with custom embedding storage.');
+        }
+        $sourceListener = new EmbeddingSourceChangedListener($storage, $guard);
+        $dispatcher->addListener(EntitySourceChangedEvent::class, [$sourceListener, 'onSourceChanged']);
 
-        $cleanup = new EntityEmbeddingCleanupListener($storage, $logger);
+        $cleanup = new EntityEmbeddingCleanupListener($storage, $logger, $guard);
         $dispatcher->addListener(EntityEvents::POST_DELETE->value, [$cleanup, 'onPostDelete']);
 
         $this->lifecycleDispatcher = $dispatcher;
         $this->subscribeSaveListener(new EntityEmbeddingListener(
             storage: $storage,
             indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
+            executionGuard: $this->composedGuard(),
             logger: $logger,
             invalidateOnly: true,
         ));
@@ -190,6 +204,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
             storage: $this->composedStorage(),
             embeddingProvider: $provider,
             indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
+            executionGuard: $this->composedGuard(),
             logger: $this->lifecycleLogger(),
             entityTypeManager: $this->resolveOptional(EntityTypeManagerInterface::class),
         ));
@@ -223,6 +238,12 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
      * earlier provider binds the interface. Without kernel services (bare
      * construction) it is this provider's binding.
      */
+    private function composedGuard(): EmbeddingExecutionGuardInterface
+    {
+        $bound = $this->kernelServices?->get(EmbeddingExecutionGuardInterface::class);
+        return $bound instanceof EmbeddingExecutionGuardInterface ? $bound : $this->resolve(EmbeddingExecutionGuardInterface::class);
+    }
+
     private function composedStorage(): EmbeddingStorageInterface
     {
         $bound = $this->kernelServices?->get(EmbeddingStorageInterface::class);

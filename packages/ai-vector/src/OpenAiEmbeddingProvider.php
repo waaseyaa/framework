@@ -10,7 +10,7 @@ use Waaseyaa\Foundation\Security\SecretHandle;
 /**
  * @api
  */
-final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
+final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface, EmbeddingSaveProviderInterface
 {
     public const string CREDENTIAL_PURPOSE = 'waaseyaa.ai.embedding.v1';
 
@@ -52,12 +52,22 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProv
 
     public function embed(string $text): array
     {
+        return $this->embedWithDeadline($text, 20000);
+    }
+
+    public function embedForSave(string $text): array
+    {
+        return $this->embedWithDeadline($text, 2000);
+    }
+
+    private function embedWithDeadline(string $text, int $deadlineMs): array
+    {
         $payload = [
             'model' => $this->model,
             'input' => $text,
         ];
 
-        $response = $this->request($payload);
+        $response = $this->request($payload, $deadlineMs);
         $data = $response['data'] ?? null;
         $embedding = is_array($data) && isset($data[0]['embedding']) ? $data[0]['embedding'] : null;
         if (!is_array($embedding)) {
@@ -91,19 +101,19 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProv
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
-    private function request(array $payload): array
+    private function request(array $payload, int $deadlineMs): array
     {
         if ($this->transport !== null) {
             return ($this->transport)($this->endpoint, $payload);
         }
 
         return $this->credential->consume(new OpenAiEmbeddingCredentialOperation(
-            function (array $headers, string $version) use ($payload): array {
+            function (array $headers, string $version) use ($payload, $deadlineMs): array {
                 if ($this->authenticatedTransport !== null) {
                     return ($this->authenticatedTransport)($this->endpoint, $headers, $payload);
                 }
 
-                return $this->requestAuthenticated($payload, $headers);
+                return $this->requestAuthenticated($payload, $headers, $deadlineMs);
             },
         ));
     }
@@ -113,37 +123,9 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProv
      * @param array<string, string> $headers
      * @return array<string, mixed>
      */
-    private function requestAuthenticated(array $payload, array $headers): array
+    private function requestAuthenticated(array $payload, array $headers, int $deadlineMs): array
     {
-        $headerLines = [];
-        foreach ($headers as $name => $value) {
-            $headerLines[] = $name . ': ' . $value;
-        }
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'POST',
-                'header' => implode("\r\n", $headerLines) . "\r\n",
-                'content' => json_encode($payload, JSON_THROW_ON_ERROR),
-                'timeout' => 20,
-            ],
-        ]);
-
-        $raw = file_get_contents($this->endpoint, false, $context);
-        if ($raw === false) {
-            throw new \RuntimeException('Failed to call OpenAI embeddings endpoint.');
-        }
-
-        try {
-            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            throw new \RuntimeException('Invalid JSON from OpenAI embeddings endpoint: ' . $e->getMessage());
-        }
-
-        if (!is_array($decoded)) {
-            throw new \RuntimeException('Invalid JSON from OpenAI embeddings endpoint.');
-        }
-
-        return $decoded;
+        return EmbeddingHttpTransport::request($this->endpoint, $headers, $payload, $deadlineMs);
     }
 
     /**

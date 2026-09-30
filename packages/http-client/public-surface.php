@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\HttpClient\\SymfonyHttpClient', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\HttpClient\\HttpClientInterface', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\HttpClient\\SseLineStreamInterface', 'disposition' => 'public'],
     ],

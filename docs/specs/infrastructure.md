@@ -294,6 +294,19 @@ Authoritative dispositions are in each element's owning package-local `packages/
 | state | `StateInterface` | State machine internals |
 | mail | `MailerInterface`, `TransportInterface` | `@internal` foundation seam (#798 closed — single `Mailer` + transport stack) |
 | http-client | `HttpClientInterface` | Minimal wrapper, not yet stable |
+
+FW-AIV-EXECUTION-01 adds internal `SymfonyHttpClient` under the existing HTTP
+infrastructure owner. Maintained Symfony HttpClient handles HTTP networking;
+the adapter preserves Waaseyaa `HttpResponse` and non-2xx response semantics.
+It enforces positive finite total and idle transfer deadlines, verified TLS,
+no redirects or automatic retries, and a bounded streamed response canceled
+on completion or failure. The Native fallback works without ext-curl; Symfony
+selects an available transport. Injected Symfony clients must honor those
+options. Existing `StreamHttpClient` consumers are unchanged in this slice.
+ai-vector owns only credential consumption, payload and JSON/vector policy.
+Its save operation uses 2s; CLI/query use Ollama 15s or OpenAI 20s. These are
+network deadlines, not a database, credential-resolution or whole-request SLA.
+See the execution change record for equivalence tests and reconciliation.
 | ingestion | `PayloadValidatorInterface`, `MessageEnvelopeValidator` | Ingestion validation internals |
 | testing | `WaaseyaaTestCase`, `AbstractGraphQlSchemaContractTestCase` | Test base classes, not consumer API |
 

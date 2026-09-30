@@ -1,7 +1,7 @@
 # `waaseyaa/ai-vector` audit
 
 - **Audit state:** in progress. It isn't assessed yet, for two reasons:
-  1. bounded storage/wire remediation awaits exact-head qualification (FW-AIV-STORAGE-CONTRACT-01);
+  1. remaining execution and search-cost slices await completion (#3142, #3143);
   2. AIV-SEC-001 hasn't completed private triage.
 - **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`). AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 are resolved by #3139/#3155 (`d58d526ab`) (FW-AIV-COMP-01). AIV-DIST-001 and AIV-BACKEND-001 are resolved by #3140 (FW-AIV-DIST-01). AIV-DOMAIN-001 is resolved by the first #3141 candidate (FW-AIV-INDEXING-POLICY-01): indexing is default-deny, fields and off-host permission are explicit, and refresh removes excluded vectors.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
@@ -13,7 +13,7 @@
   - FW-AIV-DIST-01 (#3140): removed the package from Framework, CLI and full runtime requirements; added explicit activation and backend refusal; moved the fake provider to development autoload; qualified PostgreSQL.
   - FW-AIV-INDEXING-POLICY-01 (#3141 candidate 1): added one default-deny policy for lifecycle and refresh indexing, explicit field projection and provider-egress decisions, and reconciliation of excluded vectors.
 
-  - FW-AIV-STORAGE-CONTRACT-01 (#3141 candidate 2): canonical storage, obsolete family removal, truthful declarations, strict refresh and public wire schemas. Final review and hosted qualification remain pending.
+  - FW-AIV-STORAGE-CONTRACT-01 (#3141 candidate 2): canonical storage, obsolete family removal, truthful declarations, strict refresh and public wire schemas. Final independent review and hosted qualification passed at landed main `701dca820`; final evidence is #3141 comment 5906594738.
 
   Nothing else was re-audited. The findings' observed evidence describes the base.
 - **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
@@ -29,9 +29,9 @@
   - The CLI `semantic:warm` and `semantic:refresh` handlers use `SemanticIndexWarmer`.
   - ai-tools `VectorSearchTool` duck-types its interfaces.
   - Since FW-AIV-DIST-01, Framework, CLI and full only use it when the application requires it directly. Installation alone is inert; `ai.vector_enabled` must be true.
-- **Dependencies:** requires entity, entity-storage, queue, api, access, workflows, foundation and (since FW-AIV-PERSIST-01) database-legacy, all used; there are no undeclared imports. Embedding providers are optional and chosen by config.
+- **Dependencies:** requires entity, entity-storage, api, access, workflows, foundation and (since FW-AIV-PERSIST-01) database-legacy, all used; there are no undeclared imports. Embedding providers are optional and chosen by config. FW-AIV-EXECUTION-01 removes queue and delegates maintained Symfony HTTP mechanics to http-client.
 - **Storage:** there is one implementation. At the base it was SQLite through raw PDO. Since FW-AIV-PERSIST-01 it is `DatabaseEmbeddingStorage` over `DatabaseInterface`, on the migration-owned `embeddings` table. FW-AIV-DIST-01 names that backend `database`, qualifies it on SQLite and PostgreSQL, and refuses all other selectors.
-- **Public surface:** see AIV-PUBLIC-001. FW-AIV-INDEXING-POLICY-01 declares its three new policy and egress symbols, FW-AIV-STORAGE-CONTRACT-01 reconciles declarations, removes the duplicate family and declares the wire contract; final qualification is pending.
+- **Public surface:** see AIV-PUBLIC-001. FW-AIV-INDEXING-POLICY-01 declares its three new policy and egress symbols, FW-AIV-STORAGE-CONTRACT-01 reconciles declarations, removes the duplicate family and declares the wire contract; final qualification passed (#3141 comment 5906594738).
 - **Evidence it works:**
   - Source: at the base, 89 package unit tests and 12 related integration tests pass. With FW-AIV-PERSIST-01, 107 package tests pass, including the migration and serving-path schema-authority tests.
   - Distributed form: production dependency graphs exclude ai-vector by default; the installed-but-disabled provider is inert; exact-candidate hosted qualification owns the split and `--no-dev` proof.
@@ -52,21 +52,29 @@ The retained source files, the migration and `public-surface.php`, plus the mani
 | `src/EmbeddingIndexPolicy.php` | Default-deny entity-type, field-projection and provider-egress policy | owned and coherent | reproduced | Shared by lifecycle and refresh since FW-AIV-INDEXING-POLICY-01 |
 | `src/EmbeddingProviderEgressInterface.php` | Provider off-host classification seam | owned and coherent | reproduced | Unknown providers are conservatively external |
 | `src/InvalidEmbeddingIndexPolicyException.php` | Named malformed-policy refusal | owned and coherent | reproduced | Uses `[AIV-POLICY-001]` |
-| `src/EntityEmbeddingListener.php` | Re-index on save and revision moves (HTTP only at the base) | necessary but under-specified | reproduced | Synchronous remote call remains AIV-EXEC-001; indexability and egress are explicit since FW-AIV-INDEXING-POLICY-01 |
+| `src/EntityEmbeddingListener.php` | Re-index on save and revision moves | owned and coherent | reproduced | FW-AIV-EXECUTION-01 retains synchronous HTTP indexing, bounds built-in transfers and removes orphan dispatch |
+| `migrations/2026_09_30_000001_embedding_generations.php` | Durable exact-identity generation tombstones | owned and coherent | reviewed | Required migration for source/publication fencing; current qualification pending |
+| `src/EmbeddingExecutionGuardInterface.php` | Atomic source invalidation and conditional publication seam | owned and coherent | reviewed | Custom storage binds a compatible qualified guard; current qualification pending |
+| `src/DatabaseEmbeddingExecutionGuard.php` | Shared-transaction SQLite/PostgreSQL generation fence | owned and coherent | reviewed | Source, generation and vector storage share a connection; retains deletion tombstones; current qualification pending |
+| `src/EmbeddingExecutor.php` | Shared lifecycle and refresh publication protocol | owned and coherent | reviewed | Fresh served reads and guarded store/failure cleanup; provider runs outside source transactions; current qualification pending |
+| `src/EmbeddingSaveProviderInterface.php` | Explicit bounded-save provider capability | owned and coherent | reviewed | Custom provider budget obligation; arbitrary PHP cannot be preempted; current qualification pending |
+| `src/EmbeddingSourceChangedListener.php` | Entity-storage transactional event integration | owned and coherent | reviewed | Advances generation and deletes vector before source commit without provider work; current qualification pending |
+| `testing/InMemoryEmbeddingExecutionGuard.php` | Development-only single-process guard double | owned and coherent | reviewed | Synthetic test support only, not production/backend qualification |
+| `src/EmbeddingHttpTransport.php` | Internal bounded HTTP adapter | owned and coherent | reviewed | Minimal policy adapter over http-client Symfony transport; operation-specific deadlines and 1 MiB response cap; current qualification pending |
 | `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | owned and coherent | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001); not best-effort at the base (AIV-EXEC-002); best-effort since FW-AIV-COMP-01 |
 | `src/SearchController.php` | Semantic and keyword search, graph rerank | necessary but under-specified | reproduced (synthetic) | AIV-SEC-001, AIV-HTTP-001 |
 | `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reproduced | Shares the lifecycle policy and deletes vectors for requested excluded types |
 | `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places at the base (AIV-COMP-001), once, by the provider, since FW-AIV-COMP-01 |
 | `src/EmbeddingProviderInterface.php` | Single-text embedding contract | owned and coherent | reviewed | |
 | `src/EmbeddingInterface.php` | Adds batch and dimension methods | necessary but under-specified | reviewed | Only implemented, never required by a caller |
-| `src/OllamaEmbeddingProvider.php` | Ollama HTTP provider | owned and coherent | reproduced | Only literal loopback endpoints classify as on-host; `file_get_contents`, 15 s timeout (AIV-SYMFONY-001) |
-| `src/OpenAiEmbeddingProvider.php` | OpenAI HTTP provider | owned and coherent | reproduced | Always classifies as off-host; credential through `SecretHandle`; 20 s timeout |
+| `src/OllamaEmbeddingProvider.php` | Ollama HTTP provider | owned and coherent | reviewed | Only literal loopback endpoints classify as on-host; Symfony transport: save 2 s, regular calls 15 s; current qualification pending (FW-AIV-EXECUTION-01) |
+| `src/OpenAiEmbeddingProvider.php` | OpenAI HTTP provider | owned and coherent | reviewed | Always classifies as off-host; credential through `SecretHandle`; save 2 s, regular calls 20 s; current qualification pending |
 | `src/OpenAiEmbeddingCredentialOperation.php` | Secret-consumer operation | owned and coherent | reviewed | `@internal`, registered with the secret registry |
 | `src/ProviderCredentialConfigurationException.php` | Credential config refusal | owned and coherent | reviewed | |
 | `testing/FakeEmbeddingProvider.php` | Deterministic test provider | owned and coherent | reproduced | Development autoload only since FW-AIV-DIST-01 |
 | `composer.json` | Manifest and provider discovery | owned and coherent | reviewed | |
 | `README.md` | Package description | owned and coherent | reviewed | Canonical storage and wire links reconciled by FW-AIV-STORAGE-CONTRACT-01 |
-| `public-surface.php` | Public declarations | owned and coherent | reviewed | Reconciled by FW-AIV-STORAGE-CONTRACT-01; qualification pending |
+| `public-surface.php` | Public declarations | owned and coherent | reviewed | Reconciled by FW-AIV-STORAGE-CONTRACT-01; qualified in #3141 |
 
 ## Findings
 
@@ -82,11 +90,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 | `AIV-SEC-001` | Search response metadata can disclose entities removed from the results | withheld | confirmed | reproduced (synthetic) | repair | private report | Private report, then fix |
 | `AIV-HTTP-001` | Every semantic search loads all relationship entities | medium | confirmed | reviewed | repair | #3143, sequenced with the private work | Bound or index the rerank query |
 | `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reproduced | resolved | #3141 candidate 1 (FW-AIV-INDEXING-POLICY-01) | None; explicit policy and cleanup evidence landed |
-| `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reviewed | repair or remove | #3142 | Wire async indexing or remove the dead path |
+| `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reproduced | implemented, qualification pending | #3142 | Bounded synchronous candidate FW-AIV-EXECUTION-01 |
 | `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reproduced | resolved | #3139/#3155 (`d58d526ab`) | None; best-effort, proven through a real repository |
-| `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | reviewed | document, deprecate or remove | #3141 | Choose the canonical contract |
+| `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | qualified | resolved | #3141 | Canonical storage and wire qualification complete |
 | `AIV-DIST-001` | ai-vector is installed by default through `waaseyaa/cli`; a test helper ships in production | medium | confirmed | reproduced | resolved | #3140 (FW-AIV-DIST-01) | None; dependency, activation and dev-autoload boundaries are explicit |
-| `AIV-SYMFONY-001` | Hand-rolled HTTP client in both providers | low | likely | reviewed | defer | accepted residual; review trigger owned by #3142 | Revisit when #3142's trigger fires |
+| `AIV-SYMFONY-001` | Hand-rolled HTTP client in both providers | low | confirmed | reproduced | replacement implemented, qualification pending | #3142 | Maintained Symfony via http-client, operation budgets and equivalence tests; current qualification pending |
 | `AIV-R-001` | Lead: any first entity save creates the table | — | refuted | reproduced | refuted | — | none |
 | `AIV-R-002` | Lead: the package imports undeclared dependencies | — | refuted | reviewed | refuted | — | none |
 | `AIV-R-003` | Lead: the in-`src` test helper breaks `--no-dev` boot | — | refuted | reviewed | refuted | — | none |
@@ -215,7 +223,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** entity saves over HTTP wait on the embedding provider when one is configured. The queue path is dead code.
 - **Severity and confidence:** medium; confirmed.
 - **Refutation:** none found.
-- **Disposition and owner:** wire async indexing with a handler, or remove the message; #3142.
+- **Disposition and owner:** FW-AIV-EXECUTION-01 (#3142) retains synchronous indexing with a two-second save transfer and separate regular budgets; shared transactional source-generation fencing prevents stale publication/cleanup; removes queue argument, dispatch and dependency. Review/qualification pending.
 - **Dependencies:** AIV-COMP-001.
 - **Acceptance:** saves don't block on the provider, or the synchronous behavior is documented, and the message either has a handler with tests or is removed.
 - **Residual risk:** none.
@@ -282,11 +290,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** duplicated transport code and weak failure semantics.
 - **Severity and confidence:** low; likely. The fit of `waaseyaa/http-client` was not verified.
 - **Refutation:** not assessed.
-- **Disposition and owner:** deferred as an accepted residual. #3142 owns the review trigger (see #3137).
+- **Disposition and owner:** trigger fired in FW-AIV-EXECUTION-01 (#3142). Replace duplicated provider HTTP with maintained Symfony under waaseyaa/http-client, preserving minimal provider policy integration. Supersedes the custom cURL draft and absent-lock rationale. Operation-specific budgets and real loopback HTTP equivalence tests cover both providers; independent review/current qualification pending.
 - **Dependencies:** AIV-EXEC-001.
 - **Acceptance:** an equivalence test for timeout, error and response-shape handling if replaced.
 - **Residual risk:** none.
-- **Next action:** record retain, simplify or replace, with an equivalence test, if #3142 changes provider transport, retries or timeouts, or moves embedding off the request path.
+- **Next action:** independent review and exact-head hosted qualification of FW-AIV-EXECUTION-01. Custom providers/transports must enforce the documented HTTP budget; arbitrary PHP cannot be preempted.
 
 ### Refuted leads
 
@@ -326,7 +334,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - Access filtering applies to `data`: AIV-SEC-001.
   - Cost: AIV-HTTP-001.
   - Wire contract declaration: AIV-PUBLIC-001.
-  - Contract conformance: FW-AIV-STORAGE-CONTRACT-01 declares the HTTP/MCP schemas and real migrated-storage response tests, including empty, optional metadata and refusal cases. Final qualification is pending.
+  - Contract conformance: FW-AIV-STORAGE-CONTRACT-01 declares the HTTP/MCP schemas and real migrated-storage response tests, including empty, optional metadata and refusal cases. Final qualification passed (#3141 comment 5906594738).
   - No CSRF concern: the route is GET only.
 - **Distribution:**
   - Installation profiles: AIV-DIST-001, resolved by FW-AIV-DIST-01.
@@ -381,3 +389,35 @@ success counts and invalidate stale vectors. Prior AIV-PUBLIC-001 observations
 remain historical base evidence; this delta addresses them, pending immutable
 review and hosted qualification. Execution/cost and private triage remain with
 #3142, #3143 and AIV-SEC-001; no whole-package convergence claim is made.
+
+## FW-AIV-EXECUTION-01 delta checkpoint
+
+Current #3142 candidate is based on `701dca820`. Execution inventory and bounded
+design are in FW-AIV-EXECUTION-01. #3141 completion is verified by hosted full
+run 36683606861, main feedback 36684901597 and issue comment 5906594738.
+Historical pending checkpoints in its change records remain historical.
+#3142 immutable review, current exact-head full qualification and reviewable PR remain pending. The maintainer requires stopping before merge; issues remain open. No whole-package
+assessment is claimed; #3143 and private AIV-SEC-001 remain separately sequenced.
+
+### Current execution scope and residual ownership
+
+The strengthened #3142 acceptance includes inherited stale publication and stale
+cleanup for either execution model. Lifecycle and refresh share fresh served
+reads and generation-guarded publication; source changes advance/invalidate
+inside the source transaction. Independent-connection SQLite/PostgreSQL evidence
+is required, not inferred from synthetic same-connection interleavings.
+
+http-client owns Symfony transport mechanics; ai-vector owns projection,
+credentials, payload and response policy. New source event belongs to
+entity-storage. Generation guard, executor and subscriber are necessary execution
+integration, with current candidate review and hosted qualification pending.
+Source/vector atomic topology and uncached repository reads are custom-binding
+obligations. Boot-time policy rollout must quiesce old workers and reconcile;
+there is no durable configuration-version fence.
+
+Application operators own scheduled full refresh at their freshness SLA and
+monitoring listener errors, command failures and eligible search coverage.
+Invalidation can leave coverage absent until reconciliation. Existing unrelated
+http-client/ai-agent transport consolidation remains with those owners at their
+next transport-policy change. #3137 stays open; #3143 and private AIV-SEC-001 are
+separately sequenced. This checkpoint does not mark the package assessed.

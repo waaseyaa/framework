@@ -377,3 +377,28 @@ That ADR is the concrete path for the Minoo-shaped cleanup. Minoo `main` no long
 ### If you see `[MISSING_BUNDLE_SUBTABLE]`
 
 Your app has registered bundle-scoped fields for a bundle whose storage subtable has not been materialized yet. The save path will keep the base-row write, but the bundle-field values for that write will not persist. Ship or run the schema migration / sync that creates the missing `{base}__{bundle}` subtable before saving that bundle in production.
+
+## FW-AIV-EXECUTION-01 (#3142): bounded, freshness-safe execution
+
+Run migrations before activating ai-vector: `embedding_generations` is required
+and its deletion tombstones must be retained. Source, vectors and the built-in
+guard must share one database connection and transaction topology. Custom storage
+bindings must also bind a qualified `EmbeddingExecutionGuardInterface`; fresh
+repository reads are required. Direct listener construction needs that guard and
+an entity manager. Remove `queue:` arguments and adjust positional construction.
+Remove historical orphan `ai_vector.embed_entity` messages from application queues.
+
+Install the declared Symfony HttpClient dependency through `waaseyaa/http-client`.
+The former draft ext-curl requirement and package-local cURL transport are
+superseded. HTTP lifecycle embedding uses `embedForSave()` with a two-second
+network budget. Normal CLI/query calls retain Ollama 15s and OpenAI 20s budgets.
+Custom save providers must implement `EmbeddingSaveProviderInterface` and qualify
+its budget; arbitrary callbacks cannot be forcibly preempted. Whole requests and
+CLI batches have no aggregate two-second promise.
+
+Application operators own scheduled full `semantic:refresh` reconciliation,
+monitoring listener errors, command failures and eligible-content coverage against
+their freshness SLA. There is no retry worker. For policy changes, quiesce old
+workers, migrate, purge excluded vectors, restart and refresh. The source freshness
+fence does not version configuration across booted processes. See
+`docs/specs/semantic-search-contract.md` for complete obligations.

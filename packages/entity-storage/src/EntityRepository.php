@@ -53,6 +53,7 @@ use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\EntityMutationAuthorityBackfilledEvent;
+use Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
 use Waaseyaa\EntityStorage\Exception\MissingEntityMutationTokenException;
@@ -1213,6 +1214,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // Wrap revision + base table writes in a transaction (invariant #4).
         // Skip if already inside a UnitOfWork transaction.
         $transaction = ($unitOfWork === null) ? $this->database?->transaction() : null;
+        $completion = $this->completionFor($transaction);
         // A new entity with an auto-assigned id does not know its id until the
         // base row is inserted below. A community-scoped revision also requires
         // that stamped base row as its ownership anchor, even for an explicit
@@ -1424,7 +1426,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $this->installTokenAfterCommit($entity, $successorMutationToken, $unitOfWork);
             }
 
-            $transaction?->commit();
+            if ($writeBase) {
+                $this->dispatchSourceChanged($writtenId !== '' ? $writtenId : $id);
+            }
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
@@ -1445,33 +1449,46 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
         $result = $isNew ? EntityConstants::SAVED_NEW : EntityConstants::SAVED_UPDATED;
 
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity, $originalEntity),
-            EntityEvents::POST_SAVE->value,
-            $unitOfWork,
-        );
-
-        if ($createRevision && $this->revisionDriver !== null) {
+        $notify = function () use ($entity, $originalEntity, $unitOfWork, $createRevision, $resolvedContext, $isNew): void {
             $this->dispatchEvent(
                 $this->eventFactory->create($entity, $originalEntity),
-                EntityEvents::REVISION_CREATED->value,
+                EntityEvents::POST_SAVE->value,
                 $unitOfWork,
             );
-        }
 
-        // GitHub #1449: AfterSaveEvent fires after all writes succeed.
-        // Mirrors EntityStorageCoordinator behaviour: AfterSaveEvent does
-        // NOT fire when the transaction rolls back (the throw above exits
-        // before this point).
-        $this->dispatchEvent(
-            new AfterSaveEvent($entity, $resolvedContext, $createRevision),
-            AfterSaveEvent::class,
-            $unitOfWork,
-        );
+            if ($createRevision && $this->revisionDriver !== null) {
+                $this->dispatchEvent(
+                    $this->eventFactory->create($entity, $originalEntity),
+                    EntityEvents::REVISION_CREATED->value,
+                    $unitOfWork,
+                );
+            }
 
-        if ($entity instanceof EntityBase) {
-            $entity->postSave($isNew);
+            // GitHub #1449: AfterSaveEvent fires after all writes succeed.
+            // Mirrors EntityStorageCoordinator behaviour: AfterSaveEvent does
+            // NOT fire when the transaction rolls back (the throw above exits
+            // before this point).
+            $this->dispatchEvent(
+                new AfterSaveEvent($entity, $resolvedContext, $createRevision),
+                AfterSaveEvent::class,
+                $unitOfWork,
+            );
+
+            if ($entity instanceof EntityBase) {
+                if ($unitOfWork !== null) {
+                    $unitOfWork->afterCommit(static fn() => $entity->postSave($isNew));
+                } else {
+                    $entity->postSave($isNew);
+                }
+            }
+
+        };
+        if ($completion !== null) {
+            $completion->afterCommit($notify);
+        } else {
+            $notify();
         }
+        $this->commitCompletionTransaction($transaction);
 
         return $result;
     }
@@ -1511,39 +1528,65 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $entityTypeId = $this->entityType->id();
         $id = (string) $entity->id();
 
-        if ($this->mutationAuthority !== null) {
-            $this->mutationAuthority->tombstone($this->requireMutationToken($entity));
+        $transaction = $unitOfWork === null ? $this->database?->transaction() : null;
+        $completion = $this->completionFor($transaction);
+        try {
+            if ($this->mutationAuthority !== null) {
+                $this->mutationAuthority->tombstone($this->requireMutationToken($entity));
+            }
+
+            if ($entity instanceof EntityBase) {
+                $entity->preDelete();
+            }
+
+            // #2728: PRE_DELETE is a GUARD event, so it dispatches IMMEDIATELY —
+            // inside any open delete transaction — exactly as doSave() dispatches
+            // PRE_SAVE / BeforeSaveEvent. A refusing listener's throw propagates
+            // out of the UnitOfWork callback and rolls back the row, its revisions
+            // and the mutation-authority tombstone. Handing it $unitOfWork buffered
+            // it past the commit, so guards refused work that was already durable.
+            $this->dispatchEvent(
+                $this->eventFactory->create($entity, $entity),
+                EntityEvents::PRE_DELETE->value,
+            );
+
+            if ($this->revisionDriver !== null && $this->entityType->isRevisionable()) {
+                $this->revisionDriver->deleteAllRevisions($id);
+            }
+
+            $this->driver->remove($entityTypeId, $id);
+            $this->dispatchSourceChanged($id);
+
+            if ($completion !== null) {
+                $this->dispatchAfterCommit(
+                    $this->eventFactory->create($entity, $entity),
+                    EntityEvents::POST_DELETE->value,
+                    $completion,
+                );
+                if ($entity instanceof EntityBase) {
+                    $completion->afterCommit(static fn() => $entity->postDelete());
+                }
+            }
+        } catch (\Throwable $error) {
+            $transaction?->rollBack();
+            throw $error;
+        }
+        $this->commitCompletionTransaction($transaction);
+
+        if ($completion === null) {
+            $this->dispatchEvent(
+                $this->eventFactory->create($entity, $entity),
+                EntityEvents::POST_DELETE->value,
+                $unitOfWork,
+            );
         }
 
         if ($entity instanceof EntityBase) {
-            $entity->preDelete();
-        }
-
-        // #2728: PRE_DELETE is a GUARD event, so it dispatches IMMEDIATELY —
-        // inside any open delete transaction — exactly as doSave() dispatches
-        // PRE_SAVE / BeforeSaveEvent. A refusing listener's throw propagates
-        // out of the UnitOfWork callback and rolls back the row, its revisions
-        // and the mutation-authority tombstone. Handing it $unitOfWork buffered
-        // it past the commit, so guards refused work that was already durable.
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity, $entity),
-            EntityEvents::PRE_DELETE->value,
-        );
-
-        if ($this->revisionDriver !== null && $this->entityType->isRevisionable()) {
-            $this->revisionDriver->deleteAllRevisions($id);
-        }
-
-        $this->driver->remove($entityTypeId, $id);
-
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity, $entity),
-            EntityEvents::POST_DELETE->value,
-            $unitOfWork,
-        );
-
-        if ($entity instanceof EntityBase) {
-            $entity->postDelete();
+            if ($unitOfWork !== null) {
+                $unitOfWork->afterCommit(static fn() => $entity->postDelete());
+            } elseif ($completion === null) {
+                $entity->postDelete();
+            }
         }
     }
 
@@ -1576,6 +1619,16 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $unitOfWork->bufferEvent($event, $eventName);
         } else {
             $this->eventDispatcher->dispatch($event, $eventName);
+        }
+    }
+
+    private function dispatchSourceChanged(string $entityId): void
+    {
+        if ($this->database !== null) {
+            $this->dispatchEvent(
+                new EntitySourceChangedEvent($this->entityType->id(), $entityId, $this->database),
+                EntitySourceChangedEvent::class,
+            );
         }
     }
 
@@ -1801,6 +1854,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 EntityEvents::REVISION_REVERTED->value,
                 $completion,
             );
+            if (!$beforeEvent->defaultRevisionSemantics()) {
+                $this->dispatchSourceChanged($entityId);
+            }
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
@@ -1957,6 +2013,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 RevisionPointerMovedEvent::class,
                 $completion,
             );
+            $this->dispatchSourceChanged($entityId);
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
@@ -2120,6 +2177,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 EntityEvents::POST_SAVE->value,
                 $completion,
             );
+            $this->dispatchSourceChanged($entityId);
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
@@ -2318,6 +2376,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     $completion,
                 );
             }
+            $this->dispatchSourceChanged($entityId);
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
@@ -2658,6 +2717,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     $completion,
                 );
             }
+            $this->dispatchSourceChanged($entityId);
         } catch (\Throwable $e) {
             $transaction->rollBack();
             throw $e;
@@ -3038,6 +3098,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $revisionId = $this->writeRevisionRow($id, $values, $log, author: $actor);
                 $values[$this->revisionKey()] = $revisionId;
                 $this->writeDriverRow($this->entityType->id(), $id, $values);
+                $this->dispatchSourceChanged($id);
                 $transaction?->commit();
             } catch (\Throwable $e) {
                 $transaction?->rollBack();

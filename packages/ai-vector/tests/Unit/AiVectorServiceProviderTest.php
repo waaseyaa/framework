@@ -17,8 +17,8 @@ use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\AI\Vector\InvalidEmbeddingIndexPolicyException;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\AI\Vector\UnsupportedVectorBackendException;
-use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -262,6 +262,15 @@ final class AiVectorServiceProviderTest extends TestCase
         self::assertSame(1, $this->vectorCount($database), 'the provider\'s own storage is not the one consumers use');
     }
 
+    #[Test]
+    public function custom_storage_without_a_paired_guard_refuses_composition(): void
+    {
+        [$provider] = $this->lifecycleProvider([], $this->createStub(EmbeddingStorageInterface::class), pairedGuard: false);
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('AIV-EXECUTION-003');
+        $provider->boot();
+    }
+
     private function publishedNode(): ProviderLifecycleEntity
     {
         return new ProviderLifecycleEntity(1, 'node', ['status' => 1, 'workflow_state' => 'published', 'title' => 'Indexable']);
@@ -269,8 +278,8 @@ final class AiVectorServiceProviderTest extends TestCase
 
     /**
      * A provider over an in-memory database with the ai-vector table, a real
-     * kernel dispatcher, and no entity type manager, so the embedding listener
-     * indexes the event's own entity. Like the kernel bus, the fake kernel
+     * kernel dispatcher and no entity type manager. HTTP indexing therefore
+     * refuses missing fresh repository composition. Like the kernel bus, the fake kernel
      * services return an earlier binding when there is one and otherwise this
      * provider's own.
      *
@@ -278,7 +287,7 @@ final class AiVectorServiceProviderTest extends TestCase
      * @param EmbeddingStorageInterface|null $earlierBinding what kernel services return for the storage interface, as when an earlier provider binds it
      * @return array{AiVectorServiceProvider, SymfonyEventDispatcherAdapter, DBALDatabase}
      */
-    private function lifecycleProvider(array $config, ?EmbeddingStorageInterface $earlierBinding = null, bool $enabled = true): array
+    private function lifecycleProvider(array $config, ?EmbeddingStorageInterface $earlierBinding = null, bool $enabled = true, bool $pairedGuard = true): array
     {
         $database = DBALDatabase::createSqlite(':memory:');
         RuntimeSchemaMigrations::aiVector($database);
@@ -301,13 +310,17 @@ final class AiVectorServiceProviderTest extends TestCase
                 $resolving = false;
             }
         };
-        $provider->setKernelServices(new class ($database, $dispatcher, $earlierBinding, $ownBinding) implements KernelServicesInterface {
+        $provider->setKernelServices(new class ($database, $dispatcher, $earlierBinding, $ownBinding, $pairedGuard) implements KernelServicesInterface {
+            private readonly \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard $hostGuard;
             public function __construct(
                 private readonly DBALDatabase $database,
                 private readonly SymfonyEventDispatcherAdapter $dispatcher,
                 private readonly ?EmbeddingStorageInterface $earlierBinding,
                 private readonly \Closure $ownBinding,
-            ) {}
+                private readonly bool $pairedGuard,
+            ) {
+                $this->hostGuard = new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard();
+            }
 
             public function get(string $abstract): ?object
             {
@@ -316,6 +329,7 @@ final class AiVectorServiceProviderTest extends TestCase
                     \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $this->dispatcher,
                     EmbeddingStorageInterface::class => $this->earlierBinding ?? ($this->ownBinding)($abstract),
                     EmbeddingProviderInterface::class => ($this->ownBinding)($abstract),
+                    \Waaseyaa\AI\Vector\EmbeddingExecutionGuardInterface::class => $this->earlierBinding !== null && $this->pairedGuard ? $this->hostGuard : ($this->ownBinding)($abstract),
                     default => null,
                 };
             }
@@ -405,14 +419,44 @@ final readonly class ProviderLifecycleEntity implements EntityInterface
     /** @param array<string, mixed> $values */
     public function __construct(private int $id, private string $type, private array $values = []) {}
 
-    public function id(): int|string|null { return $this->id; }
-    public function uuid(): string { return ''; }
-    public function label(): string { return (string) ($this->values['title'] ?? ''); }
-    public function getEntityTypeId(): string { return $this->type; }
-    public function bundle(): string { return 'default'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return $this->values[$name] ?? null; }
-    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
-    public function toArray(): array { return ['id' => $this->id] + $this->values; }
-    public function language(): string { return 'en'; }
+    public function id(): int|string|null
+    {
+        return $this->id;
+    }
+    public function uuid(): string
+    {
+        return '';
+    }
+    public function label(): string
+    {
+        return (string) ($this->values['title'] ?? '');
+    }
+    public function getEntityTypeId(): string
+    {
+        return $this->type;
+    }
+    public function bundle(): string
+    {
+        return 'default';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
+    public function get(string $name): mixed
+    {
+        return $this->values[$name] ?? null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        throw new \LogicException('Readonly');
+    }
+    public function toArray(): array
+    {
+        return ['id' => $this->id] + $this->values;
+    }
+    public function language(): string
+    {
+        return 'en';
+    }
 }

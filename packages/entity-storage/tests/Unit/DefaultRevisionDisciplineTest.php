@@ -52,6 +52,66 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $this->dispatcher = new EventDispatcher();
     }
 
+    #[Test]
+    public function served_revision_mutations_notify_inside_transaction_and_draft_only_save_does_not(): void
+    {
+        $repo = $this->buildRepo();
+        $changes = [];
+        $this->dispatcher->addListener(
+            \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class,
+            function (\Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent $event) use (&$changes, $repo): void {
+                self::assertSame($this->db, $event->database);
+                self::assertTrue($this->db->getConnection()->isTransactionActive());
+                $changes[] = [$event->entityId, $repo->find($event->entityId)?->label()];
+            },
+        );
+        $entity = new TestRevisionableEntity(values: ['id' => '1', 'uuid' => 'source-events', 'title' => 'v1']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+        $entity = $repo->find('1');
+        $entity->set('title', 'v2');
+        $repo->save($entity);
+        $repo->setCurrentRevision('1', 1, $repo->find('1')->mutationToken());
+        $repo->rollback('1', 2, $repo->find('1')->mutationToken());
+        $repo->promotePublishedRevision('1', 1, $repo->find('1')->mutationToken());
+        $repo->clearPublishedRevision('1', $repo->find('1')->mutationToken());
+        self::assertSame([['1', 'v1'], ['1', 'v2'], ['1', 'v1'], ['1', 'v2'], ['1', 'v1'], ['1', 'v1']], $changes);
+        $repo->promotePublishedRevision('1', 1, $repo->find('1')->mutationToken());
+        $changes = [];
+        $draft = $repo->find('1');
+        $draft->set('title', 'forward draft');
+        $draft->setDefaultRevisionDiscipline(true);
+        $repo->save($draft);
+        self::assertSame([], $changes);
+        self::assertSame('v1', $repo->find('1')->label());
+    }
+
+    #[Test]
+    public function source_projection_refusal_rolls_back_revision_promotion(): void
+    {
+        $repo = $this->buildRepo();
+        $entity = new TestRevisionableEntity(values: ['id' => '1', 'uuid' => 'refused-source', 'title' => 'v1']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+        $entity = $repo->find('1');
+        $entity->set('title', 'v2');
+        $repo->save($entity);
+        $this->dispatcher->addListener(
+            \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class,
+            static function (): never {
+                throw new \RuntimeException('projection refused');
+            },
+        );
+        try {
+            $repo->promotePublishedRevision('1', 1, $repo->find('1')->mutationToken());
+            self::fail('Promotion must roll back.');
+        } catch (\RuntimeException $error) {
+            self::assertSame('projection refused', $error->getMessage());
+        }
+        self::assertSame('v2', $repo->find('1')->label());
+        self::assertNull($repo->publishedRevisionId('1'));
+    }
+
     private function buildRepo(): EntityRepository
     {
         $entityType = new EntityType(

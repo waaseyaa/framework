@@ -240,7 +240,7 @@ final class VectorSearchIntegrationTest extends TestCase
         };
         foreach (['warm', 'warmBatch'] as $method) {
             $this->seed('01');
-            $warmer = new SemanticIndexWarmer($this->manager, $this->storage, $failing, indexPolicy: $policy);
+            $warmer = new SemanticIndexWarmer($this->manager, $this->storage, $failing, indexPolicy: $policy, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
             try {
                 $warmer->$method(['tool_test']);
                 self::fail('Failed indexing must not return a successful report.');
@@ -250,14 +250,14 @@ final class VectorSearchIntegrationTest extends TestCase
             self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10));
         }
         $this->seed('01');
-        new EntityEmbeddingListener(storage: $this->storage, embeddingProvider: $failing, indexPolicy: $policy)->onPostSave(new EntityEvent($this->entities['01']));
+        new EntityEmbeddingListener(storage: $this->storage, embeddingProvider: $failing, indexPolicy: $policy, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostSave(new EntityEvent($this->entities['01']));
         self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10), 'post-commit failure is swallowed but old vector is removed');
 
         foreach (['warm', 'warmBatch'] as $method) {
             $this->seed('01');
             $this->queriedIds = ['01'];
             $this->entities = [];
-            $report = new SemanticIndexWarmer($this->manager, $this->storage, $this->provider, indexPolicy: $policy)->$method(['tool_test']);
+            $report = new SemanticIndexWarmer($this->manager, $this->storage, $this->provider, indexPolicy: $policy, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->$method(['tool_test']);
             self::assertSame(1, $report['missing_total']);
             self::assertSame(0, $report['stored_total']);
             self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10));

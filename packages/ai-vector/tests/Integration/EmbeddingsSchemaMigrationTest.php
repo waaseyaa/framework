@@ -80,10 +80,10 @@ final class EmbeddingsSchemaMigrationTest extends TestCase
         self::assertSame('migrations', $composer['extra']['waaseyaa']['migrations'] ?? null);
 
         $all = new MigrationLoader(dirname($packageRoot, 2), new PackageManifest(migrations: ['waaseyaa/ai-vector' => $packageRoot . '/migrations']))->loadAll();
-        self::assertSame(['waaseyaa/ai-vector:2026_09_24_000001_embeddings_schema'], array_merge(...array_values(array_map('array_keys', $all))));
+        self::assertSame(['waaseyaa/ai-vector:2026_09_24_000001_embeddings_schema', 'waaseyaa/ai-vector:2026_09_30_000001_embedding_generations'], array_merge(...array_values(array_map('array_keys', $all))));
 
         $migrator = new Migrator($this->connection, new MigrationRepository($this->connection));
-        self::assertSame(1, $migrator->run($all)->count);
+        self::assertSame(2, $migrator->run($all)->count);
         self::assertTrue($this->connection->createSchemaManager()->tablesExist(['embeddings']));
         self::assertSame(0, $migrator->run($all)->count);
         $this->assertManifestDescribesLiveSchema();
@@ -188,7 +188,7 @@ final class EmbeddingsSchemaMigrationTest extends TestCase
         $this->coordinated(function () use ($ddl): void {
             $this->connection->executeStatement($ddl);
         });
-        $this->connection->executeStatement("INSERT INTO embeddings (entity_type, entity_id, vector" . (str_contains($ddl, 'updated_at') ? ', updated_at' : '') . (str_contains($ddl, 'model') ? ', model' : '') . ") VALUES ('note', '1', '[1]'" . (str_contains($ddl, 'updated_at') ? ", 1" : '') . (str_contains($ddl, 'model') ? ", 'm'" : '') . ')');
+        $this->connection->executeStatement('INSERT INTO embeddings (entity_type, entity_id, vector' . (str_contains($ddl, 'updated_at') ? ', updated_at' : '') . (str_contains($ddl, 'model') ? ', model' : '') . ") VALUES ('note', '1', '[1]'" . (str_contains($ddl, 'updated_at') ? ', 1' : '') . (str_contains($ddl, 'model') ? ", 'm'" : '') . ')');
         // The row insert is data, not schema; re-record so only the migration is under test.
         $this->coordinated(static function (): void {});
         $before = $this->tableSnapshot();

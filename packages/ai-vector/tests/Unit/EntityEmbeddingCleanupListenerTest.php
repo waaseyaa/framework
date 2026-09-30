@@ -23,7 +23,7 @@ final class EntityEmbeddingCleanupListenerTest extends TestCase
             ->method('delete')
             ->with('node', '42');
 
-        $listener = new EntityEmbeddingCleanupListener($storage);
+        $listener = new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
         $listener->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
     }
 
@@ -33,7 +33,7 @@ final class EntityEmbeddingCleanupListenerTest extends TestCase
         $storage = $this->createMock(EmbeddingStorageInterface::class);
         $storage->expects($this->never())->method('delete');
 
-        $listener = new EntityEmbeddingCleanupListener($storage);
+        $listener = new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
         $listener->onPostDelete(new EntityEvent(new CleanupTestEntity(null, 'node')));
     }
 
@@ -57,7 +57,7 @@ final class EntityEmbeddingCleanupListenerTest extends TestCase
             }
         };
 
-        new EntityEmbeddingCleanupListener($storage, $logger)->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
+        new EntityEmbeddingCleanupListener($storage, $logger, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
 
         self::assertCount(1, $errors);
         self::assertStringContainsString('storage offline', $errors[0]);
@@ -71,14 +71,44 @@ final readonly class CleanupTestEntity implements EntityInterface
         private string $entityTypeId,
     ) {}
 
-    public function id(): int|string|null { return $this->id; }
-    public function uuid(): string { return 'uuid'; }
-    public function label(): string { return 'Label'; }
-    public function getEntityTypeId(): string { return $this->entityTypeId; }
-    public function bundle(): string { return 'default'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return null; }
-    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
-    public function toArray(): array { return []; }
-    public function language(): string { return 'en'; }
+    public function id(): int|string|null
+    {
+        return $this->id;
+    }
+    public function uuid(): string
+    {
+        return 'uuid';
+    }
+    public function label(): string
+    {
+        return 'Label';
+    }
+    public function getEntityTypeId(): string
+    {
+        return $this->entityTypeId;
+    }
+    public function bundle(): string
+    {
+        return 'default';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
+    public function get(string $name): mixed
+    {
+        return null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        throw new \LogicException('Readonly');
+    }
+    public function toArray(): array
+    {
+        return [];
+    }
+    public function language(): string
+    {
+        return 'en';
+    }
 }

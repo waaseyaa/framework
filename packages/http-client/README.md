@@ -6,7 +6,16 @@ Minimal HTTP client for JSON APIs and webhooks.
 
 `HttpClientInterface` exposes a generic `request(string $method, string $url, …)` plus `get()` / `post()` convenience helpers — other verbs (PUT/DELETE/PATCH/…) go through `request()`; there are no dedicated `put()`/`delete()`/`patch()` methods. `StreamHttpClient` is the production implementation backed by PHP streams. Returns `HttpResponse` value objects (no shared state) and throws `HttpRequestException` on transport failures, including response bodies that exceed the configured size ceiling or end before their declared `Content-Length`. Designed as an injectable seam — tests replace `HttpClientInterface` with a fake rather than mocking PHP's stream layer.
 
-Key classes: `HttpClientInterface`, `StreamHttpClient`, `HttpResponse`, `HttpRequestException`.
+`SymfonyHttpClient` is an additive implementation using maintained Symfony
+networking. Its constructor selects a total network transfer budget and maximum
+decoded body size. It uses verified TLS, no redirects or retries, streams with
+buffering disabled, refuses overflow and incomplete transfers, and returns
+non-success HTTP statuses for the caller to interpret. Failure messages omit
+upstream diagnostics; the URL and method remain in the existing typed exception
+properties. The optional Symfony client argument is a trusted integration/test
+seam and must preserve the configured transport guarantees.
+
+Key classes: `HttpClientInterface`, `StreamHttpClient`, `SymfonyHttpClient`, `HttpResponse`, `HttpRequestException`.
 
 ## Response framing boundary
 

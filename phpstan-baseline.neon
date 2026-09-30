@@ -79,21 +79,9 @@ parameters:
 			path: packages/ai-vector/src/SemanticIndexWarmer.php
 
 		-
-			message: '#^Instanceof between Waaseyaa\\Entity\\EntityInterface and Waaseyaa\\Entity\\EntityInterface will always evaluate to true\.$#'
-			identifier: instanceof.alwaysTrue
-			count: 1
-			path: packages/ai-vector/src/SemanticIndexWarmer.php
-
-		-
 			message: '#^Parameter \#1 \$startedAt of method Waaseyaa\\AI\\Vector\\SemanticIndexWarmer\:\:durationMs\(\) expects int, \(float\|int\<1, max\>\) given\.$#'
 			identifier: argument.type
 			count: 4
-			path: packages/ai-vector/src/SemanticIndexWarmer.php
-
-		-
-			message: '#^Strict comparison using \!\=\= between non\-empty\-list and array\{\} will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
 			path: packages/ai-vector/src/SemanticIndexWarmer.php
 
 		-

@@ -64,6 +64,12 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
         }
     }
 
+    /** @internal The freshness fence must use this exact database connection object. */
+    public function isOnDatabase(DatabaseInterface $database): bool
+    {
+        return $this->database === $database;
+    }
+
     public function findSimilar(array $queryVector, string $entityType, int $limit): array
     {
         VectorMath::identity($entityType);

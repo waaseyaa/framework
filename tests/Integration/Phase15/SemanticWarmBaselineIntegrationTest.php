@@ -153,6 +153,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
                 'node' => ['fields' => ['label', 'title', 'body', 'description'], 'allow_external' => false],
             ]]]),
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
         );
 
         $warmStarted = hrtime(true);

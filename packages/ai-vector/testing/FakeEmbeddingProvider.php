@@ -12,7 +12,7 @@ use Waaseyaa\AI\Vector\EmbeddingProviderEgressInterface;
  *
  * @internal
  */
-final class FakeEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
+final class FakeEmbeddingProvider implements EmbeddingInterface, \Waaseyaa\AI\Vector\EmbeddingSaveProviderInterface, EmbeddingProviderEgressInterface
 {
     public function __construct(
         private readonly int $dimensions = 128,
@@ -21,6 +21,11 @@ final class FakeEmbeddingProvider implements EmbeddingInterface, EmbeddingProvid
     public function embed(string $text): array
     {
         return $this->generateDeterministicVector($text);
+    }
+
+    public function embedForSave(string $text): array
+    {
+        return $this->embed($text);
     }
 
     public function embedBatch(array $texts): array

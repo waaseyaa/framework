@@ -31,6 +31,11 @@ final class PostgresEmbeddingStorageQualification extends DatabaseEmbeddingStora
         if ($schema->tablesExist(['embeddings'])) {
             $schema->dropTable('embeddings');
         }
+        if ($schema->tablesExist(['embedding_generations'])) {
+            $schema->dropTable('embedding_generations');
+        }
+        $generations = require dirname(__DIR__, 2) . '/migrations/2026_09_30_000001_embedding_generations.php';
+        $generations->up(new SchemaBuilder($this->connection));
         $migration = require dirname(__DIR__, 2) . '/migrations/2026_09_24_000001_embeddings_schema.php';
         \assert($migration instanceof Migration);
         $migration->up(new SchemaBuilder($this->connection));
@@ -55,6 +60,9 @@ final class PostgresEmbeddingStorageQualification extends DatabaseEmbeddingStora
             $schema = $this->connection->createSchemaManager();
             if ($schema->tablesExist(['embeddings'])) {
                 $schema->dropTable('embeddings');
+            }
+            if ($schema->tablesExist(['embedding_generations'])) {
+                $schema->dropTable('embedding_generations');
             }
             $this->connection->close();
         }
