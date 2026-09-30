@@ -165,6 +165,9 @@ final class EntityEmbeddingListener
                     $entityIdString,
                     $exception->getMessage(),
                 ));
+                // A failed replacement must not leave the previous projection
+                // searchable as though it represented the current served row.
+                $this->removeVector($entityType, $entityIdString);
             }
         }
 

@@ -25,7 +25,7 @@ use Waaseyaa\Entity\EntityType;
  * receive vector hits — entity ids + metadata — for entities it may not view.
  *
  * Before this fix the tool checked only `tool.vector.search`, then returned the
- * raw `EmbeddingStorageInterface::search()` rows (entity type/id + metadata, and
+ * raw `EmbeddingStorageInterface::findSimilar()` rows (entity type/id + metadata, and
  * the embedding vector) with no `canViewEntity()` filter — the same disclosure
  * class as #1768, for an authenticated initiator without `view` on the matched
  * entities.
@@ -81,8 +81,7 @@ final class VectorSearchAccessFilterTest extends TestCase
     }
 
     /**
-     * A storage double whose `search()` returns SimilarityResult-shaped rows
-     * (duck-typed: `->embedding->{entityTypeId,entityId,metadata}` + `->score`),
+     * A storage double whose `findSimilar()` returns canonical id/score arrays,
      * one per seeded entity id. Constructed without importing ai-vector, exactly
      * as the tool consumes it.
      *
@@ -92,25 +91,18 @@ final class VectorSearchAccessFilterTest extends TestCase
     {
         $results = [];
         foreach ($rows as $i => $row) {
-            $embedding = new \stdClass();
-            $embedding->entityTypeId = $row['type'];
-            $embedding->entityId = $row['id'];
-            $embedding->vector = [0.1, 0.2, 0.3];
-            $embedding->metadata = $row['metadata'];
-            $result = new \stdClass();
-            $result->embedding = $embedding;
-            $result->score = 1.0 - ($i * 0.1);
-            $results[] = $result;
+            $this->repo->seed(new ToolTestEntity(['id' => $row['id'], ...$row['metadata']]));
+            $results[$row['type']][] = ['id' => $row['id'], 'score' => 1.0 - ($i * 0.1)];
         }
 
         return new class ($results) {
-            /** @param list<object> $results */
+            /** @param array<string, list<array{id: string, score: float}>> $results */
             public function __construct(private readonly array $results) {}
 
             /** @param list<float> $vector */
-            public function search(array $vector, int $limit): array
+            public function findSimilar(array $vector, string $entityType, int $limit): array
             {
-                return array_slice($this->results, 0, $limit);
+                return array_slice($this->results[$entityType] ?? [], 0, $limit);
             }
         };
     }
@@ -271,7 +263,7 @@ final class VectorSearchAccessFilterTest extends TestCase
         $result = $tool->execute(['query' => 'find'], $this->account(['tool.vector.search']));
 
         $this->assertFalse($result->isError);
-        $metadata = $result->structuredContent['results'][0]['metadata'] ?? [];
+        $metadata = (array) ($result->structuredContent['results'][0]['metadata'] ?? []);
         $this->assertArrayHasKey('title', $metadata);
         $this->assertArrayNotHasKey('secret', $metadata, 'the field-access-forbidden metadata key must be dropped');
     }

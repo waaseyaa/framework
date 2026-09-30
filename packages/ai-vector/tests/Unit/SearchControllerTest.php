@@ -13,11 +13,11 @@ use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 
 #[CoversClass(SearchController::class)]
 final class SearchControllerTest extends TestCase
@@ -91,14 +91,38 @@ final class SearchControllerTest extends TestCase
     {
         $query = new class implements EntityQueryInterface {
             private int $call = 0;
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
             public function execute(): array
             {
                 $this->call++;
@@ -163,14 +187,38 @@ final class SearchControllerTest extends TestCase
     {
         $query = new class implements EntityQueryInterface {
             private int $call = 0;
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
             public function execute(): array
             {
                 $this->call++;
@@ -246,15 +294,42 @@ final class SearchControllerTest extends TestCase
             ->willReturn([$entityB, $entityA]);
 
         $relationshipQuery = new class implements EntityQueryInterface {
-            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-            public function exists(string $field): static { return $this; }
-            public function notExists(string $field): static { return $this; }
-            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-            public function range(int $offset, int $limit): static { return $this; }
-            public function count(): static { return $this; }
-            public function accessCheck(bool $check = true): static { return $this; }
-            public function setAccount(?AccountInterface $account): static { return $this; }
-            public function execute(): array { return [99]; }
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+            public function count(): static
+            {
+                return $this;
+            }
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
+            public function execute(): array
+            {
+                return [99];
+            }
         };
 
         $relationshipStorage = $this->createStub(EntityStorageInterface::class);
@@ -316,6 +391,8 @@ final class SearchControllerTest extends TestCase
         );
 
         $array = $controller->search('water', 'node', 5)->toArray();
+        $array['meta']['graph_context_counts'] = (array) $array['meta']['graph_context_counts'];
+        $array['meta']['score_breakdown'] = (array) $array['meta']['score_breakdown'];
 
         $this->assertSame('2', $array['data'][0]['id']);
         $this->assertSame('1', $array['data'][1]['id']);
@@ -342,19 +419,40 @@ final readonly class SearchEntity implements EntityInterface
         private array $values,
     ) {}
 
-    public function id(): int|string|null { return $this->id; }
-    public function uuid(): string { return ''; }
-    public function label(): string { return (string) ($this->values['title'] ?? ''); }
-    public function getEntityTypeId(): string { return $this->entityTypeId; }
-    public function bundle(): string { return 'default'; }
-    public function isNew(): bool { return false; }
+    public function id(): int|string|null
+    {
+        return $this->id;
+    }
+    public function uuid(): string
+    {
+        return '';
+    }
+    public function label(): string
+    {
+        return (string) ($this->values['title'] ?? '');
+    }
+    public function getEntityTypeId(): string
+    {
+        return $this->entityTypeId;
+    }
+    public function bundle(): string
+    {
+        return 'default';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
     public function get(string $name): mixed
     {
         $all = $this->toArray();
 
         return $all[$name] ?? null;
     }
-    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
+    public function set(string $name, mixed $value): static
+    {
+        throw new \LogicException('Readonly');
+    }
     public function toArray(): array
     {
         if ($this->entityTypeId === 'node') {
@@ -363,5 +461,8 @@ final readonly class SearchEntity implements EntityInterface
 
         return $this->values + ['id' => $this->id];
     }
-    public function language(): string { return 'en'; }
+    public function language(): string
+    {
+        return 'en';
+    }
 }

@@ -45,3 +45,20 @@ Key production contracts: `EmbeddingStorageInterface`,
 `EmbeddingProviderInterface`, `DatabaseEmbeddingStorage`, and
 `SemanticIndexWarmer`. `FakeEmbeddingProvider` is available only through the
 package's development autoloader.
+
+`EmbeddingStorageInterface` is the sole storage contract: atomic replacement
+of one finite numeric vector per exact entity type/string ID, idempotent delete,
+and `findSimilar()` arrays containing only `id` and cosine `score`. Results sort
+by descending score, then bytewise ID; dimensions must match. Language variants
+and stored metadata are unsupported. The old DTO/store family is removed; see
+[UPGRADING.md](../../UPGRADING.md).
+
+Missing schema refuses with `[AIV-STORAGE-001]`, corrupt stored vectors with
+`[AIV-STORAGE-002]`. Warm/refresh counts only confirmed operations and propagates
+failures. Post-commit listeners log failures and invalidate stale vectors.
+
+The [semantic search contract](../../docs/specs/semantic-search-contract.md)
+defines HTTP JSON:API and MCP identity, scores, ordering, current field-filtered
+metadata, empty results and refusals. Shipped schemas live in this package's
+`resources/` and `ai-tools/resources/`. The shared storage conformance suite
+runs on real SQLite and hosted PostgreSQL; host stores must pass it too.

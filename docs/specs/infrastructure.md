@@ -1,4 +1,16 @@
 # Infrastructure
+
+## Semantic search routing
+
+Foundation `SearchRouter` consumes the provider-bound canonical embedding storage
+and provider. `/api/search` requires nonblank `q`, a registered `type`, and an
+integer `limit` (clamped by the controller). Invalid input returns 400; unavailable
+services return 501; unexpected resolution or storage failures return a sanitized
+503. Provider embedding failure retains the declared keyword fallback. Exact
+identity, score ordering, optional graph metadata and JSON schemas are defined in
+[the semantic search contract](semantic-search-contract.md). Acceptance uses the
+real router and migrated SQLite storage in `VectorSearchIntegrationTest`.
+
 <!-- Spec reviewed 2026-09-08 - #3025: CacheConfiguration::getConfiguredBins()
 is the canonical, deterministically-ordered enumeration of every bin a
 configuration registers (class-mapped or factory-registered), covered in the

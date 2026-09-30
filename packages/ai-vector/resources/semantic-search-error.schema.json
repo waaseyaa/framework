@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "semantic_search JSON:API refusal",
+  "type": "object",
+  "required": ["jsonapi", "errors"],
+  "additionalProperties": false,
+  "properties": {
+    "jsonapi": {"type": "object", "required": ["version"], "additionalProperties": false, "properties": {"version": {"const": "1.1"}}},
+    "errors": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["status", "title", "detail"], "additionalProperties": false, "properties": {"status": {"enum": ["400", "404", "500", "501", "503"]}, "title": {"type": "string", "minLength": 1}, "detail": {"type": "string", "minLength": 1}, "code": {"type": "string", "minLength": 1}}}}
+  }
+}

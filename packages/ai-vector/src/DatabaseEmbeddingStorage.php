@@ -12,8 +12,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Stores embeddings in the `embeddings` table owned by ai-vector's migration
  * (FW-AIV-PERSIST-01), through the framework database layer.
  *
- * It never creates schema. Until the migration has run, writes and deletes
- * are skipped and searches find nothing; each call logs a warning.
+ * It never creates schema. Missing schema refuses with AIV-STORAGE-001.
  */
 final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
 {
@@ -31,9 +30,9 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
 
     public function store(string $entityType, string $id, array $vector): void
     {
-        if (!$this->tableReady('store')) {
-            return;
-        }
+        VectorMath::identity($entityType, $id);
+        VectorMath::validate($vector);
+        $this->requireTable('store');
 
         $payload = json_encode(array_map(
             static fn(float|int $value): float => (float) $value,
@@ -67,9 +66,9 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
 
     public function findSimilar(array $queryVector, string $entityType, int $limit): array
     {
-        if (!$this->tableReady('search')) {
-            return [];
-        }
+        VectorMath::identity($entityType);
+        VectorMath::validate($queryVector);
+        $this->requireTable('search');
 
         $query = array_map(
             static fn(float|int $value): float => (float) $value,
@@ -86,9 +85,6 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
         foreach ($rows as $row) {
             $row = (array) $row;
             $vector = $this->decodeVector($row['vector'] ?? null);
-            if ($vector === null) {
-                continue;
-            }
             if (count($vector) !== count($query)) {
                 $dimensionMismatches++;
                 continue;
@@ -96,11 +92,14 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
 
             $results[] = [
                 'id' => (string) ($row['entity_id'] ?? ''),
-                'score' => InMemoryVectorStore::cosineSimilarity($query, $vector),
+                'score' => VectorMath::cosine($query, $vector),
             ];
         }
 
-        usort($results, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
+        usort($results, static function (array $a, array $b): int {
+            $scoreOrder = $b['score'] <=> $a['score'];
+            return $scoreOrder !== 0 ? $scoreOrder : strcmp($a['id'], $b['id']);
+        });
 
         if ($dimensionMismatches > 0) {
             $this->logger->warning(sprintf(
@@ -115,9 +114,8 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
 
     public function delete(string $entityType, string $id): void
     {
-        if (!$this->tableReady('delete')) {
-            return;
-        }
+        VectorMath::identity($entityType, $id);
+        $this->requireTable('delete');
 
         $this->database->delete(self::TABLE)
             ->condition('entity_type', $entityType)
@@ -129,16 +127,16 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
      * Read-only presence check. A present table is remembered; an absent one
      * is re-checked on every call, so a migration applied later is picked up.
      */
-    private function tableReady(string $operation): bool
+    private function requireTable(string $operation): void
     {
         if ($this->tableKnownPresent) {
-            return true;
+            return;
         }
 
         if ($this->database->schema()->tableExists(self::TABLE)) {
             $this->tableKnownPresent = true;
 
-            return true;
+            return;
         }
 
         $this->logger->warning(sprintf(
@@ -147,32 +145,38 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
             self::TABLE,
         ));
 
-        return false;
+        throw new \RuntimeException('[AIV-STORAGE-001] Embeddings schema is unavailable. Run migrate.');
     }
 
     /**
-     * @return list<float>|null
+     * @return non-empty-list<float>
      */
-    private function decodeVector(mixed $raw): ?array
+    private function decodeVector(mixed $raw): array
     {
         if (!is_string($raw) || $raw === '') {
-            return null;
+            throw new \UnexpectedValueException('[AIV-STORAGE-002] Invalid stored embedding.');
         }
 
         try {
             $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\Throwable) {
-            return null;
+        } catch (\JsonException $exception) {
+            throw new \UnexpectedValueException('[AIV-STORAGE-002] Invalid stored embedding.', previous: $exception);
         }
 
         if (!is_array($decoded)) {
-            return null;
+            throw new \UnexpectedValueException('[AIV-STORAGE-002] Invalid stored embedding.');
+        }
+
+        try {
+            VectorMath::validate($decoded);
+        } catch (\InvalidArgumentException $exception) {
+            throw new \UnexpectedValueException('[AIV-STORAGE-002] Invalid stored embedding.', previous: $exception);
         }
 
         $vector = [];
         foreach ($decoded as $value) {
             if (!is_int($value) && !is_float($value)) {
-                return null;
+                throw new \UnexpectedValueException('[AIV-STORAGE-002] Invalid stored embedding.');
             }
             $vector[] = (float) $value;
         }

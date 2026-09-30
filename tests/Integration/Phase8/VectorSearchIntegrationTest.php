@@ -4,595 +4,289 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase8;
 
+use Opis\JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\AI\Vector\EntityEmbedder;
-use Waaseyaa\AI\Vector\InMemoryVectorStore;
-use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
+use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
+use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
+use Waaseyaa\AI\Tools\Vector\VectorSearchTool;
+use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
+use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
+use Waaseyaa\AI\Vector\EntityEmbeddingListener;
+use Waaseyaa\AI\Vector\SearchController;
+use Waaseyaa\AI\Vector\SemanticIndexWarmer;
+use Waaseyaa\Api\Controller\BroadcastStorage;
+use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\Node\Node;
-use Waaseyaa\Taxonomy\Term;
+use Waaseyaa\Foundation\Http\Router\SearchRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
-/**
- * Entity embedding and similarity search with real entities.
- *
- * Exercises: waaseyaa/ai-vector (EntityEmbedder, InMemoryVectorStore,
- * FakeEmbeddingProvider) with waaseyaa/node (Node) and waaseyaa/taxonomy (Term).
- */
+/** Real migrated storage and real public responses; repository fixtures are synthetic. */
 #[CoversNothing]
 final class VectorSearchIntegrationTest extends TestCase
 {
-    private FakeEmbeddingProvider $embeddingProvider;
-    private InMemoryVectorStore $vectorStore;
-    private VectorSearchIntegrationTestEntityTypeManager $entityTypeManager;
-    private EntityAccessHandler $allowAllAccessHandler;
-    private EntityEmbedder $embedder;
+    private DatabaseEmbeddingStorage $storage;
+    private EntityRepositoryInterface $repository;
+    /** @var array<string, EntityInterface> */
+    private array $entities = [];
+    private DBALDatabase $database;
+    private ?array $queriedIds = null;
+    private SingleTypeEntityTypeManager $manager;
+    private EmbeddingProviderInterface $provider;
     private AccountInterface $account;
 
     protected function setUp(): void
     {
-        $this->embeddingProvider = new FakeEmbeddingProvider(128);
-        $this->vectorStore = new InMemoryVectorStore();
-        $this->entityTypeManager = new VectorSearchIntegrationTestEntityTypeManager();
-        $this->allowAllAccessHandler = new EntityAccessHandler([new VectorSearchIntegrationTestAllowAllPolicy()]);
-        $this->account = new VectorSearchIntegrationTestAccount();
-        $this->embedder = new EntityEmbedder(
-            $this->embeddingProvider,
-            $this->vectorStore,
-            $this->allowAllAccessHandler,
-            $this->entityTypeManager,
-        );
-    }
-
-    /**
-     * Embeds an entity and registers it with the fake entity type manager so
-     * `EntityEmbedder::searchSimilar()`'s access-filter gate can load it back
-     * (the gate looks up each candidate through
-     * `EntityTypeManagerInterface::getRepository()->find()`).
-     */
-    private function embed(EntityInterface $entity): \Waaseyaa\AI\Vector\EntityEmbedding
-    {
-        $this->entityTypeManager->register($entity);
-
-        return $this->embedder->embedEntity($entity);
-    }
-
-    #[Test]
-    public function embedMultipleNodesAndSearchForSimilarContent(): void
-    {
-        $phpNode = new Node([
-            'nid' => 1,
-            'type' => 'article',
-            'title' => 'Introduction to PHP Programming',
-            'uid' => 1,
-        ]);
-        $jsNode = new Node([
-            'nid' => 2,
-            'type' => 'article',
-            'title' => 'JavaScript Framework Comparison',
-            'uid' => 1,
-        ]);
-        $phpAdvNode = new Node([
-            'nid' => 3,
-            'type' => 'article',
-            'title' => 'Advanced PHP Design Patterns',
-            'uid' => 1,
-        ]);
-
-        $this->embed($phpNode);
-        $this->embed($jsNode);
-        $this->embed($phpAdvNode);
-
-        // Search for PHP-related content.
-        $results = $this->embedder->searchSimilar('PHP programming techniques', $this->account, 3);
-
-        $this->assertCount(3, $results);
-        // All results should have scores between 0 and 1.
-        foreach ($results as $result) {
-            $this->assertGreaterThan(-1.1, $result->score);
-            $this->assertLessThanOrEqual(1.0, $result->score);
-        }
-    }
-
-    #[Test]
-    public function embeddedEntityIsStoredAndRetrievable(): void
-    {
-        $node = new Node([
-            'nid' => 10,
-            'type' => 'page',
-            'title' => 'Stored Embedding Test',
-            'uid' => 1,
-        ]);
-
-        $embedding = $this->embed($node);
-
-        $this->assertSame('node', $embedding->entityTypeId);
-        $this->assertSame(10, $embedding->entityId);
-        $this->assertCount(128, $embedding->vector);
-        $this->assertSame('Stored Embedding Test', $embedding->metadata['label']);
-        $this->assertSame('page', $embedding->metadata['bundle']);
-        $this->assertGreaterThan(0, $embedding->createdAt);
-
-        // Retrieve from store.
-        $this->assertTrue($this->vectorStore->has('node', 10));
-        $stored = $this->vectorStore->get('node', 10);
-        $this->assertNotNull($stored);
-        $this->assertSame($embedding->vector, $stored->vector);
-    }
-
-    #[Test]
-    public function searchWithEntityTypeFilter(): void
-    {
-        $node1 = new Node([
-            'nid' => 1, 'type' => 'article', 'title' => 'PHP Article', 'uid' => 1,
-        ]);
-        $node2 = new Node([
-            'nid' => 2, 'type' => 'article', 'title' => 'JS Article', 'uid' => 1,
-        ]);
-        $term = new Term([
-            'tid' => 1, 'vid' => 'tags', 'name' => 'PHP Tag',
-        ]);
-
-        $this->embed($node1);
-        $this->embed($node2);
-        $this->embed($term);
-
-        // Search without filter: returns all.
-        $allResults = $this->embedder->searchSimilar('PHP', $this->account, 10);
-        $this->assertCount(3, $allResults);
-
-        // Search with node filter: only nodes.
-        $nodeResults = $this->embedder->searchSimilar('PHP', $this->account, 10, 'node');
-        $this->assertCount(2, $nodeResults);
-        foreach ($nodeResults as $result) {
-            $this->assertSame('node', $result->embedding->entityTypeId);
-        }
-
-        // Search with taxonomy_term filter.
-        $termResults = $this->embedder->searchSimilar('PHP', $this->account, 10, 'taxonomy_term');
-        $this->assertCount(1, $termResults);
-        $this->assertSame('taxonomy_term', $termResults[0]->embedding->entityTypeId);
-    }
-
-    #[Test]
-    public function removeEntityEmbeddingExcludesFromSearch(): void
-    {
-        $node1 = new Node([
-            'nid' => 1, 'type' => 'article', 'title' => 'Keep This', 'uid' => 1,
-        ]);
-        $node2 = new Node([
-            'nid' => 2, 'type' => 'article', 'title' => 'Remove This', 'uid' => 1,
-        ]);
-
-        $this->embed($node1);
-        $this->embed($node2);
-
-        $this->assertTrue($this->vectorStore->has('node', 2));
-
-        // Remove node 2's embedding.
-        $this->embedder->removeEntity('node', 2);
-
-        $this->assertFalse($this->vectorStore->has('node', 2));
-        $this->assertNull($this->vectorStore->get('node', 2));
-
-        // Search should only return node 1.
-        $results = $this->embedder->searchSimilar('article', $this->account, 10, 'node');
-        $this->assertCount(1, $results);
-        $this->assertSame(1, $results[0]->embedding->entityId);
-    }
-
-    #[Test]
-    public function fakeEmbeddingProviderIsDeterministic(): void
-    {
-        $text = 'The quick brown fox jumps over the lazy dog';
-
-        $vector1 = $this->embeddingProvider->embed($text);
-        $vector2 = $this->embeddingProvider->embed($text);
-
-        $this->assertSame($vector1, $vector2);
-        $this->assertCount(128, $vector1);
-
-        // Different text produces different vector.
-        $vector3 = $this->embeddingProvider->embed('A completely different sentence');
-        $this->assertNotSame($vector1, $vector3);
-    }
-
-    #[Test]
-    public function fakeEmbeddingProviderBatchEmbedding(): void
-    {
-        $texts = ['Hello world', 'Goodbye world', 'Hello world'];
-
-        $vectors = $this->embeddingProvider->embedBatch($texts);
-
-        $this->assertCount(3, $vectors);
-        // Same text produces same vector.
-        $this->assertSame($vectors[0], $vectors[2]);
-        // Different text produces different vector.
-        $this->assertNotSame($vectors[0], $vectors[1]);
-    }
-
-    #[Test]
-    public function embedDifferentEntityTypesAndFilterByType(): void
-    {
-        // Create nodes.
-        for ($i = 1; $i <= 3; $i++) {
-            $node = new Node([
-                'nid' => $i,
-                'type' => 'article',
-                'title' => "Article {$i} about Programming",
-                'uid' => 1,
-            ]);
-            $this->embed($node);
-        }
-
-        // Create terms.
-        for ($i = 1; $i <= 2; $i++) {
-            $term = new Term([
-                'tid' => $i,
-                'vid' => 'tags',
-                'name' => "Tag {$i} Programming",
-            ]);
-            $this->embed($term);
-        }
-
-        // Search all: 5 results.
-        $allResults = $this->embedder->searchSimilar('Programming', $this->account, 10);
-        $this->assertCount(5, $allResults);
-
-        // Search only nodes: 3 results.
-        $nodeResults = $this->embedder->searchSimilar('Programming', $this->account, 10, 'node');
-        $this->assertCount(3, $nodeResults);
-
-        // Search only terms: 2 results.
-        $termResults = $this->embedder->searchSimilar('Programming', $this->account, 10, 'taxonomy_term');
-        $this->assertCount(2, $termResults);
-    }
-
-    #[Test]
-    public function searchLimitRespectsMaxResults(): void
-    {
-        for ($i = 1; $i <= 5; $i++) {
-            $node = new Node([
-                'nid' => $i,
-                'type' => 'article',
-                'title' => "Node {$i}",
-                'uid' => 1,
-            ]);
-            $this->embed($node);
-        }
-
-        $results = $this->embedder->searchSimilar('Node', $this->account, 2);
-        $this->assertCount(2, $results);
-
-        $results = $this->embedder->searchSimilar('Node', $this->account, 10);
-        $this->assertCount(5, $results);
-    }
-
-    #[Test]
-    public function reEmbeddingOverwritesPreviousVector(): void
-    {
-        $node = new Node([
-            'nid' => 1,
-            'type' => 'article',
-            'title' => 'Original Title',
-            'uid' => 1,
-        ]);
-        $embedding1 = $this->embed($node);
-
-        // Change title and re-embed.
-        $node->setTitle('Completely Different Title');
-        $embedding2 = $this->embed($node);
-
-        // Vectors should differ since text changed.
-        $this->assertNotSame($embedding1->vector, $embedding2->vector);
-
-        // Store should only have one entry.
-        $stored = $this->vectorStore->get('node', 1);
-        $this->assertSame($embedding2->vector, $stored->vector);
-
-        // Search should return only one result for node type.
-        $results = $this->embedder->searchSimilar('title', $this->account, 10, 'node');
-        $this->assertCount(1, $results);
-    }
-
-    #[Test]
-    public function cosineSimilarityOfIdenticalVectorsIsOne(): void
-    {
-        $vector = $this->embeddingProvider->embed('test');
-        $similarity = InMemoryVectorStore::cosineSimilarity($vector, $vector);
-        $this->assertEqualsWithDelta(1.0, $similarity, 0.0001);
-    }
-
-    /**
-     * Exploit test (R-gate regression lock), with real persisted `Node`
-     * entities rather than mocks: before the access-filter gate,
-     * `searchSimilar()` returned every stored embedding regardless of the
-     * caller's access. Seed two real nodes, forbid view on one via a real
-     * `EntityAccessHandler` policy, and assert only the permitted node's
-     * result comes back.
-     */
-    #[Test]
-    public function searchSimilarDropsRealEntitiesTheAccountCannotView(): void
-    {
-        $permittedNode = new Node([
-            'nid' => 1, 'type' => 'article', 'title' => 'Permitted Node', 'uid' => 1,
-        ]);
-        $forbiddenNode = new Node([
-            'nid' => 2, 'type' => 'article', 'title' => 'Forbidden Node', 'uid' => 1,
-        ]);
-
-        $this->embed($permittedNode);
-        $this->embed($forbiddenNode);
-
-        $gatedAccessHandler = new EntityAccessHandler([
-            new VectorSearchIntegrationTestSelectiveForbidPolicy(forbiddenEntityId: 2),
-        ]);
-        $gatedEmbedder = new EntityEmbedder(
-            $this->embeddingProvider,
-            $this->vectorStore,
-            $gatedAccessHandler,
-            $this->entityTypeManager,
-        );
-
-        $results = $gatedEmbedder->searchSimilar('Node', $this->account, 10, 'node');
-
-        $this->assertCount(1, $results);
-        $this->assertSame(1, $results[0]->embedding->entityId);
-    }
-}
-
-/**
- * Local test doubles for the `EntityEmbedder` access-filter gate. Mirrors
- * the local-fake pattern already used per-file elsewhere (e.g. provider
- * tests): no shared autoload-dev fixture is wired for ai-vector.
- */
-final class VectorSearchIntegrationTestEntityTypeManager implements EntityTypeManagerInterface
-{
-    /** @var array<string, array<string, EntityInterface>> */
-    private array $entitiesByType = [];
-
-    public function register(EntityInterface $entity): void
-    {
-        $entityTypeId = $entity->getEntityTypeId();
-        $this->entitiesByType[$entityTypeId] ??= [];
-        $this->entitiesByType[$entityTypeId][(string) $entity->id()] = $entity;
-    }
-
-    public function hasDefinition(string $entityTypeId): bool
-    {
-        return isset($this->entitiesByType[$entityTypeId]);
-    }
-
-    public function getRepository(string $entityTypeId): EntityRepositoryInterface
-    {
-        return new VectorSearchIntegrationTestRepository($this->entitiesByType[$entityTypeId] ?? []);
-    }
-
-    public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function registerEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function registerCoreEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function getDefinitions(): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function getStorage(string $entityTypeId): \Waaseyaa\Entity\Storage\EntityStorageInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-}
-
-final class VectorSearchIntegrationTestRepository implements EntityRepositoryInterface
-{
-    /**
-     * @param array<string, EntityInterface> $entities
-     */
-    public function __construct(private readonly array $entities) {}
-
-    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
-    {
-        return $this->entities[$id] ?? null;
-    }
-
-    public function loadWorkingCopy(int|string $id): ?EntityInterface
-    {
-        return $this->find($id);
-    }
-
-    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
-    {
-        $found = [];
-        foreach ($ids as $id) {
-            if (isset($this->entities[(string) $id])) {
-                $found[] = $this->entities[(string) $id];
+        $database = DBALDatabase::createSqlite(':memory:');
+        $this->database = $database;
+        RuntimeSchemaMigrations::aiVector($database);
+        $this->storage = new DatabaseEmbeddingStorage($database);
+        $this->repository = $this->createStub(EntityRepositoryInterface::class);
+        $this->repository->method('find')->willReturnCallback(fn($id) => $this->entities[$id] ?? null);
+        $this->repository->method('findMany')->willReturnCallback(fn(array $ids): array => array_values(array_intersect_key($this->entities, array_fill_keys($ids, true))));
+        $query = $this->createStub(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('range')->willReturnSelf();
+        $query->method('setAccount')->willReturnSelf();
+        $query->method('execute')->willReturnCallback(fn(): array => $this->queriedIds ?? array_keys($this->entities));
+        $this->repository->method('getQuery')->willReturn($query);
+        $this->manager = new SingleTypeEntityTypeManager(new EntityType(
+            id: 'tool_test',
+            label: 'Test',
+            class: ToolTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+        ), $this->repository);
+        $this->provider = new class implements EmbeddingProviderInterface {
+            public function embed(string $text): array
+            {
+                return [1.0, 0.0];
             }
+        };
+        $this->account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
+        $this->account->method('id')->willReturn('contract');
+        $this->account->method('hasPermission')->willReturn(true);
+    }
+
+    private function seed(string $id, array $vector = [1.0, 0.0]): void
+    {
+        $this->entities[$id] = new ToolTestEntity(['id' => $id, 'title' => 'Current metadata ' . $id]);
+        $this->storage->store('tool_test', $id, $vector);
+    }
+
+    private function controller(?EntityTypeManagerInterface $manager = null): SearchController
+    {
+        $manager ??= $this->manager;
+        return new SearchController($manager, new ResourceSerializer($manager), $this->storage, $this->provider);
+    }
+
+    private function tool(?\Closure $storage = null, ?\Closure $provider = null): VectorSearchTool
+    {
+        return new VectorSearchTool($this->manager, $provider ?? fn() => $this->provider, $storage ?? fn() => $this->storage);
+    }
+
+    private function accessHandler(?string $denied = null): EntityAccessHandler
+    {
+        return new EntityAccessHandler([new class ($denied) implements AccessPolicyInterface {
+            public function __construct(private readonly ?string $denied) {}
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return true;
+            }
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return (string) $entity->id() === $this->denied ? AccessResult::forbidden() : AccessResult::allowed();
+            }
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::neutral();
+            }
+        }]);
+    }
+
+    private function assertSchema(array $payload, string $relative): void
+    {
+        $schema = json_decode(file_get_contents(dirname(__DIR__, 3) . '/' . $relative), false, 512, JSON_THROW_ON_ERROR);
+        $result = new Validator()->validate(json_decode(json_encode($payload, JSON_THROW_ON_ERROR)), $schema);
+        self::assertTrue($result->isValid(), json_encode($result->error()?->keyword(), JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function real_storage_controller_and_tool_preserve_exact_ids_scores_and_order(): void
+    {
+        $this->seed('01');
+        $this->seed('1');
+        $this->seed('opposite', [-1.0, 0.0]);
+        $this->storage->store('tool_test', 'deleted', [1.0, 0.0]);
+        $http = $this->controller()->search(' find ', 'tool_test')->toArray();
+        $this->assertSchema($http, 'packages/ai-vector/resources/semantic-search.schema.json');
+        self::assertSame(['01', '1', 'opposite'], array_column($http['data'], 'id'));
+        self::assertSame([1.0, 1.0, -1.0], array_column($http['meta']['scores'], 'score'));
+        self::assertSame('find', $http['meta']['query']);
+
+        $tool = $this->tool()->execute(['query' => 'find', 'entity_type' => 'tool_test'], $this->account);
+        self::assertFalse($tool->isError);
+        $this->assertSchema($tool->structuredContent, 'packages/ai-tools/resources/vector-search.schema.json');
+        self::assertSame(['01', '1', 'opposite'], array_column($tool->structuredContent['results'], 'id'));
+        $wire = json_decode($tool->content[0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('Current metadata 01', $wire['results'][0]['metadata']['title']);
+        self::assertArrayNotHasKey('vector', $wire['results'][0]);
+    }
+
+    #[Test]
+    public function real_router_response_conforms_and_invalid_route_input_refuses(): void
+    {
+        $this->seed('01');
+        $router = new SearchRouter(fn() => [$this->storage, $this->provider], $this->manager, $this->accessHandler());
+        $request = Request::create('/api/search?q=find&type=tool_test');
+        $request->attributes->set('_account', $this->account);
+        RuntimeSchemaMigrations::broadcast($this->database);
+        $request->attributes->set('_broadcast_storage', new BroadcastStorage($this->database));
+        $response = $router->handle($request);
+        self::assertSame(200, $response->getStatusCode());
+        $this->assertSchema(json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR), 'packages/ai-vector/resources/semantic-search.schema.json');
+        $request->query->remove('q');
+        $response = $router->handle($request);
+        self::assertSame(400, $response->getStatusCode());
+        $this->assertSchema(json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR), 'packages/ai-vector/resources/semantic-search-error.schema.json');
+    }
+
+    #[Test]
+    public function empty_results_invalid_inputs_and_failures_have_declared_shapes(): void
+    {
+        $empty = $this->controller()->search('none', 'tool_test')->toArray();
+        $this->assertSchema($empty, 'packages/ai-vector/resources/semantic-search.schema.json');
+        self::assertSame([], $empty['data']);
+        self::assertSame([], $empty['meta']['scores']);
+        $tool = $this->tool()->execute(['query' => 'none'], $this->account);
+        self::assertFalse($tool->isError);
+        $this->assertSchema($tool->structuredContent, 'packages/ai-tools/resources/vector-search.schema.json');
+        self::assertSame([], $tool->structuredContent['results']);
+        foreach ([['query' => ' '], ['query' => 'x', 'limit' => 0], ['query' => 'x', 'limit' => '2'], ['query' => 'x', 'entity_type' => 'absent']] as $input) {
+            self::assertTrue($this->tool()->execute($input, $this->account)->isError);
         }
-
-        return $found;
-    }
-
-    public function create(array $values = []): EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function getQuery(): EntityQueryInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function save(EntityInterface $entity, bool $validate = true): int
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function delete(EntityInterface $entity): void
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function exists(int|string $id): bool
-    {
-        return isset($this->entities[$id]);
-    }
-
-    public function count(array $criteria = []): int
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function listRevisions(int|string $entityId): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function loadPublishedRevision(int|string $entityId): ?EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function saveMany(array $entities, bool $validate = true): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function deleteMany(array $entities): int
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function findTranslations(EntityInterface $entity): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-
-    public function listTranslationRevisions(int|string $entityId, string $langcode): array
-    {
-        throw new \LogicException('Not needed by EntityEmbedder.');
-    }
-}
-
-final class VectorSearchIntegrationTestAccount implements AccountInterface
-{
-    public function id(): int|string
-    {
-        return 42;
-    }
-
-    public function hasPermission(string $permission): bool
-    {
-        return true;
-    }
-
-    public function getRoles(): array
-    {
-        return ['authenticated'];
-    }
-
-    public function isAuthenticated(): bool
-    {
-        return true;
-    }
-}
-
-final class VectorSearchIntegrationTestAllowAllPolicy implements AccessPolicyInterface
-{
-    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
-    {
-        return AccessResult::allowed('test: allow all');
-    }
-
-    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
-    {
-        return AccessResult::allowed('test: allow all');
-    }
-
-    public function appliesTo(string $entityTypeId): bool
-    {
-        return true;
-    }
-}
-
-final class VectorSearchIntegrationTestSelectiveForbidPolicy implements AccessPolicyInterface
-{
-    public function __construct(private readonly int|string $forbiddenEntityId) {}
-
-    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
-    {
-        if ((string) $entity->id() === (string) $this->forbiddenEntityId) {
-            return AccessResult::forbidden('test: selectively forbidden');
+        foreach ([[' ', 'tool_test', 400], ['x', 'absent', 404]] as [$query, $type, $status]) {
+            $document = $this->controller()->search($query, $type);
+            self::assertSame($status, $document->statusCode);
+            $this->assertSchema($document->toArray(), 'packages/ai-vector/resources/semantic-search-error.schema.json');
         }
-
-        return AccessResult::allowed('test: everything else permitted');
+        $this->storage = new DatabaseEmbeddingStorage(DBALDatabase::createSqlite(':memory:'));
+        $document = $this->controller()->search('x', 'tool_test');
+        self::assertSame(503, $document->statusCode);
+        $this->assertSchema($document->toArray(), 'packages/ai-vector/resources/semantic-search-error.schema.json');
+        self::assertStringNotContainsString('embeddings', json_encode($document->toArray()));
+        self::assertTrue($this->tool()->execute(['query' => 'x'], $this->account)->isError);
+        $error = $this->tool(provider: static fn() => throw new \RuntimeException('secret-dsn'))->execute(['query' => 'x'], $this->account);
+        self::assertTrue($error->isError);
+        self::assertStringNotContainsString('secret-dsn', json_encode($error));
     }
 
-    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    #[Test]
+    public function incompatible_host_storage_results_are_refused_by_both_public_consumers(): void
     {
-        return AccessResult::allowed('test: allow all');
+        $valid = ['id' => '1', 'score' => 1.0];
+        foreach ([[$valid, $valid], [['id' => '1', 'score' => INF]], [$valid + ['metadata' => []]], [['id' => 'z', 'score' => 1.0], ['id' => 'a', 'score' => 1.0]]] as $matches) {
+            $storage = new class ($matches) implements \Waaseyaa\AI\Vector\EmbeddingStorageInterface {
+                public function __construct(private readonly array $matches) {}
+                public function store(string $entityType, string $id, array $vector): void {}
+                public function delete(string $entityType, string $id): void {}
+                public function findSimilar(array $queryVector, string $entityType, int $limit): array
+                {
+                    return $this->matches;
+                }
+            };
+            $controller = new SearchController($this->manager, new ResourceSerializer($this->manager), $storage, $this->provider);
+            $response = $controller->search('x', 'tool_test');
+            self::assertSame(503, $response->statusCode);
+            $this->assertSchema($response->toArray(), 'packages/ai-vector/resources/semantic-search-error.schema.json');
+            self::assertTrue($this->tool(storage: fn() => $storage)->execute(['query' => 'x', 'entity_type' => 'tool_test'], $this->account)->isError);
+        }
     }
 
-    public function appliesTo(string $entityTypeId): bool
+    #[Test]
+    public function schema_rejects_missing_extra_and_invalid_score_fields(): void
     {
-        return true;
+        $this->seed('1');
+        $payload = $this->controller()->search('x', 'tool_test')->toArray();
+        $schema = json_decode(file_get_contents(dirname(__DIR__, 3) . '/packages/ai-vector/resources/semantic-search.schema.json'));
+        unset($payload['meta']['scores']);
+        self::assertFalse(new Validator()->validate(json_decode(json_encode($payload)), $schema)->isValid());
+        $payload = ['results' => [['entity_type' => 'tool_test', 'id' => '1', 'score' => 2, 'metadata' => new \stdClass(), 'vector' => [1]]]];
+        $schema = json_decode(file_get_contents(dirname(__DIR__, 3) . '/packages/ai-tools/resources/vector-search.schema.json'));
+        self::assertFalse(new Validator()->validate(json_decode(json_encode($payload)), $schema)->isValid());
+    }
+
+    #[Test]
+    public function lifecycle_and_both_refresh_paths_remove_stale_vectors_and_refuse_failed_counts(): void
+    {
+        $policy = EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => ['tool_test' => ['fields' => ['title'], 'allow_external' => true]]]]);
+        $failing = new class implements EmbeddingProviderInterface {
+            public function embed(string $text): array
+            {
+                throw new \RuntimeException('synthetic-provider-failure');
+            }
+        };
+        foreach (['warm', 'warmBatch'] as $method) {
+            $this->seed('01');
+            $warmer = new SemanticIndexWarmer($this->manager, $this->storage, $failing, indexPolicy: $policy);
+            try {
+                $warmer->$method(['tool_test']);
+                self::fail('Failed indexing must not return a successful report.');
+            } catch (\RuntimeException $error) {
+                self::assertSame('synthetic-provider-failure', $error->getMessage());
+            }
+            self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10));
+        }
+        $this->seed('01');
+        new EntityEmbeddingListener(storage: $this->storage, embeddingProvider: $failing, indexPolicy: $policy)->onPostSave(new EntityEvent($this->entities['01']));
+        self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10), 'post-commit failure is swallowed but old vector is removed');
+
+        foreach (['warm', 'warmBatch'] as $method) {
+            $this->seed('01');
+            $this->queriedIds = ['01'];
+            $this->entities = [];
+            $report = new SemanticIndexWarmer($this->manager, $this->storage, $this->provider, indexPolicy: $policy)->$method(['tool_test']);
+            self::assertSame(1, $report['missing_total']);
+            self::assertSame(0, $report['stored_total']);
+            self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10));
+        }
+    }
+
+    #[Test]
+    public function optional_graph_payload_conforms_and_only_names_visible_results(): void
+    {
+        $this->seed('01');
+        $this->seed('1');
+        $relationships = $this->createStub(EntityRepositoryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('setAccount')->willReturnSelf();
+        $query->method('execute')->willReturn(['edge']);
+        $relationships->method('getQuery')->willReturn($query);
+        $edge = new ToolTestEntity(['id' => 'edge', 'status' => 1, 'from_entity_type' => 'tool_test', 'from_entity_id' => '1', 'to_entity_type' => 'other', 'to_entity_id' => '2']);
+        $relationships->method('findMany')->willReturn([$edge]);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('hasDefinition')->willReturn(true);
+        $manager->method('getDefinition')->willReturn($this->manager->getDefinition('tool_test'));
+        $manager->method('getRepository')->willReturnCallback(fn(string $type) => $type === 'relationship' ? $relationships : $this->repository);
+        $manager->method('resolveFieldDefinitions')->willReturn([]);
+        $document = new SearchController($manager, new ResourceSerializer($manager), $this->storage, $this->provider, $this->accessHandler('1'), $this->account)->search('x', 'tool_test')->toArray();
+        $this->assertSchema($document, 'packages/ai-vector/resources/semantic-search.schema.json');
+        self::assertSame(['01'], array_column($document['data'], 'id'));
+        self::assertSame(['01'], array_keys((array) $document['meta']['score_breakdown']));
+        self::assertSame(['01'], array_keys((array) $document['meta']['graph_context_counts']));
+        self::assertSame(['01'], array_column($document['meta']['scores'], 'id'));
     }
 }

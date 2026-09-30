@@ -840,64 +840,18 @@ external.
 
 `EmbeddingProviderFactory::fromConfig()` still returns `null` when `ai.embedding_provider` is unset or unknown (the warmer reports `skipped_no_provider`), but a configured `openai` provider is fail-closed: a raw `ai.openai_api_key` value, a missing kernel `SecretResolverRegistry`, or a missing/invalid typed `ai.openai_credential_reference` throws `ProviderCredentialConfigurationException` — there is no environment-variable fallback.
 
-### VectorStoreInterface
+### Canonical embedding storage and semantic search
 
-**File:** `packages/ai-vector/src/VectorStoreInterface.php`
+`EmbeddingStorageInterface` is the only supported storage contract. Its
+`store(type, string id, vector)`, `findSimilar(query, type, limit)` and
+`delete(type, id)` operations are specified in
+[semantic-search-contract.md](semantic-search-contract.md), together with the
+HTTP JSON:API and MCP wire contracts and their shipped schemas.
 
-```php
-interface VectorStoreInterface
-{
-    public function store(EntityEmbedding $embedding): void;
-    public function delete(string $entityTypeId, int|string $entityId): void;
-    public function search(
-        array $queryVector,
-        int $limit = 10,
-        ?string $entityTypeId = null,
-        ?string $langcode = null,
-        array $fallbackLangcodes = [],
-    ): array;  // SimilarityResult[]
-    public function get(string $entityTypeId, int|string $entityId): ?EntityEmbedding;
-    public function has(string $entityTypeId, int|string $entityId): bool;
-}
-```
-
-The `search()` method supports language-aware retrieval: filter by `$langcode`, and if no results are found, try each `$fallbackLangcodes` in order.
-
-### EntityEmbedding
-
-**File:** `packages/ai-vector/src/EntityEmbedding.php`
-
-```php
-final readonly class EntityEmbedding
-{
-    public string $entityTypeId;
-    public int|string $entityId;
-    public array $vector;           // float[]
-    public string $langcode;        // '' means language-neutral
-    public array $metadata;         // e.g. {label, bundle}
-    public int $createdAt;
-}
-```
-
-### EntityEmbedder
-
-**File:** `packages/ai-vector/src/EntityEmbedder.php`
-
-High-level service that composes `EmbeddingInterface` and `VectorStoreInterface`:
-
-```php
-public function embedEntity(EntityInterface $entity): EntityEmbedding;
-public function searchSimilar(string $query, AccountInterface $account, int $limit = 10, ?string $entityTypeId = null): array;
-public function removeEntity(string $entityTypeId, int|string $entityId): void;
-```
-
-`searchSimilar()` REQUIRES an `AccountInterface` and filters fail-closed (B3, audit-remediation): each `SimilarityResult` is loaded through its entity type's repository and dropped unless the entity exists and `EntityAccessHandler::check($entity, 'view', $account)->isAllowed()`, mirroring `SearchController`'s gate. An unregistered entity type or a deleted entity is dropped. `EntityEmbedder`'s constructor therefore also takes an `EntityAccessHandler` and an `EntityTypeManagerInterface`. This closes what was a dormant access-unfiltered leak (zero production callers; both live search surfaces, `SearchController` and `VectorSearchTool`, already bypass `EntityEmbedder`).
-
-`embedEntity()` uses `buildEntityText()`: **`$entity->label() . ' ' . json_encode(EntityValues::toJsonReadyMap($entity), JSON_THROW_ON_ERROR)`** — cast-aware keys with JSON-safe scalars (backed enums → backing value, `DateTimeInterface` → ISO-8601 ATOM, nested arrays normalized). Same layering rule as JSON:API attributes (`ResourceSerializer` delegates recursive normalization to **`EntityValues::normalizeValueForJson()`**).
-
-**`EntityEmbeddingListener`:** delegates node visibility, declared field
-projection, and provider-egress decisions to the composed
-`EmbeddingIndexPolicy`.
+The former `VectorStoreInterface`/DTO family is removed under alpha DIR-003;
+it promised language variants and metadata the runtime never supported.
+UPGRADING.md contains the migration recipe. No compatibility adapter silently
+discards those promises. Save and refresh retain one `EmbeddingIndexPolicy`.
 
 ### Lifecycle composition and entry-point contract (FW-AIV-COMP-01)
 
@@ -998,23 +952,11 @@ later listeners still run.
 the lifecycle listener, including node visibility, field projection, egress,
 and deletion of denied entities.
 
-```mermaid
-flowchart LR
-  subgraph embedder["EntityEmbedder"]
-    L[label] --> T1["toJsonReadyMap JSON"]
-    T1 --> E1[embed]
-  end
-```
+
 
 **Vector search guards:** `SearchController` uses **`EntityValues::toCastAwareMap`** + **`statusToInt`** when filtering relationship/public context — do not switch those paths to raw `toArray()`.
 
 Canonical rules: `docs/specs/entity-system.md` (Casting & hydration architecture).
-
-### InMemoryVectorStore
-
-**File:** `packages/ai-vector/src/InMemoryVectorStore.php`
-
-In-memory implementation for testing. Uses cosine similarity. Stores embeddings keyed by `"{entityTypeId}:{entityId}:{langcode}"`. The `delete()` method removes all langcode variants for an entity.
 
 ### DatabaseEmbeddingStorage and the `embeddings` table
 
@@ -1032,8 +974,11 @@ database.
 - **Database access:** only through `DatabaseInterface`. There is no raw
   `\PDO`, and the storage never changes the connection's attributes.
 - **Writes:** `store()` deletes and inserts in one transaction.
-- **Migration not yet applied:** `store()` and `delete()` log a warning and do
-  nothing, and `findSimilar()` logs a warning and returns no matches.
+- **Migration not yet applied:** every operation refuses with
+  `[AIV-STORAGE-001]` after logging a warning; no schema is created.
+- **Invalid stored vectors:** search refuses with `[AIV-STORAGE-002]`.
+- **Refresh:** both operator paths count confirmed writes/deletes and propagate
+  failures. Missing hydration and failed reindexing invalidate old vectors.
 - **Backends:** `database` is qualified on SQLite and PostgreSQL. Native vector
   backends are unsupported and refused explicitly.
 
@@ -1491,14 +1436,8 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-vector/src/EmbeddingInterface.php` | `EmbeddingInterface` | Embedding provider contract |
 | `packages/ai-vector/src/OpenAiEmbeddingProvider.php` | `OpenAiEmbeddingProvider` | OpenAI embeddings (text-embedding-3-small) |
 | `packages/ai-vector/src/OllamaEmbeddingProvider.php` | `OllamaEmbeddingProvider` | Ollama local embeddings (nomic-embed-text) |
-| `packages/ai-vector/src/VectorStoreInterface.php` | `VectorStoreInterface` | Vector storage contract |
-| `packages/ai-vector/src/EntityEmbedding.php` | `EntityEmbedding` | Embedding value object |
-| `packages/ai-vector/src/SimilarityResult.php` | `SimilarityResult` | Search result with score |
-| `packages/ai-vector/src/EntityEmbedder.php` | `EntityEmbedder` | High-level embed + search service |
-| `packages/ai-vector/src/InMemoryVectorStore.php` | `InMemoryVectorStore` | In-memory store (cosine similarity) |
 | `packages/ai-vector/src/DatabaseEmbeddingStorage.php` | `DatabaseEmbeddingStorage` | `EmbeddingStorageInterface` on the migration-owned `embeddings` table |
 | `packages/ai-vector/migrations/2026_09_24_000001_embeddings_schema.php` | (migration) | Creates or adopts `embeddings`; refuses other shapes with `[AIV-DB001]` |
-| `packages/ai-vector/src/DistanceMetric.php` | `DistanceMetric` | Distance metric enum |
 | `packages/ai-vector/testing/FakeEmbeddingProvider.php` | `FakeEmbeddingProvider` | Development-only deterministic test embeddings |
 | `packages/ai-vector/src/SemanticIndexWarmer.php` | `SemanticIndexWarmer` | Deterministic semantic index warming service |
 | `packages/ai-vector/src/ProviderCredentialConfigurationException.php` | `ProviderCredentialConfigurationException` | Fail-closed refusal for raw/incomplete provider credential config |

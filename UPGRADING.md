@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+### One embedding storage contract (#3141 candidate 2)
+
+`EmbeddingStorageInterface` is canonical. The public `VectorStoreInterface`,
+`InMemoryVectorStore`, `EntityEmbedder`, `EntityEmbedding`, `SimilarityResult`
+and `DistanceMetric` family is removed under alpha DIR-003. No adapter can
+truthfully preserve its language variants, get/has methods and persisted
+metadata on the supported database contract. Custom stores must implement and
+pass `packages/ai-vector/tests/Contract/EmbeddingStorageContract.php`.
+
+```php
+// Resolve the application's composed storage and provider after activation.
+$storage = $services->get(\Waaseyaa\AI\Vector\EmbeddingStorageInterface::class);
+$provider = $services->get(\Waaseyaa\AI\Vector\EmbeddingProviderInterface::class);
+// Query a registered entity type; IDs are exact strings and scores are cosine.
+$hits = $storage->findSimilar($provider->embed('water'), 'node', 10);
+foreach ($hits as $hit) {
+    $entity = $entityTypeManager->getRepository('node')->find($hit['id']);
+    // Apply entity view and field access before returning entity metadata.
+}
+$storage->delete('node', '01');
+```
+
+Replace `store(new EntityEmbedding(...))` with `store($type, (string) $id,
+$vector)` only after the canonical `EmbeddingIndexPolicy` permits the source
+fields and provider egress. Prefer lifecycle indexing or `semantic:refresh`
+over a custom full-entity embedder. There is one vector per entity, not one per
+language. Applications requiring language variants need a separately designed
+and supported contract; do not silently drop the language or metadata.
+
+Tests using the removed in-memory store should use real migrated
+`DatabaseEmbeddingStorage` on SQLite. Runtime storage without the migration now
+throws `[AIV-STORAGE-001]` rather than silently succeeding. Apply `migrate`
+before indexing/search. Bad vector inputs throw `InvalidArgumentException`;
+corrupt stored data refuses with `[AIV-STORAGE-002]`. Refresh errors propagate
+and do not produce successful stored counts; post-commit listeners remain
+best-effort and invalidate old vectors after failed reindexing.
+
+Host-wired `vector.search` now consumes `findSimilar()` arrays; remove custom
+legacy `search()`/DTO resolver adapters. MCP metadata comes from the current
+access-filtered entity, IDs are strings, and stale entities are omitted.
+HTTP semantic results add ordered `meta.scores` with public resource `id`,
+exact storage `entity_id`, and cosine `score`. Graph score maps are JSON objects
+restricted to visible storage identities. Blank direct-controller queries now
+return 400, and backend failures return sanitized 503. See
+`docs/specs/semantic-search-contract.md` and the shipped schemas.
+
 ### The search projection is migration-owned (Waaseyaa\Search, #3146)
 
 `waaseyaa/search` now ships a package migration for its FTS5 projection

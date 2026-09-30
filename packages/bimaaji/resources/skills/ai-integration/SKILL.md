@@ -115,20 +115,23 @@ interface EmbeddingInterface
 }
 ```
 
-### VectorStoreInterface (`packages/ai-vector/src/VectorStoreInterface.php`)
+### EmbeddingStorageInterface (`packages/ai-vector/src/EmbeddingStorageInterface.php`)
 
 ```php
-namespace Waaseyaa\AI\Vector;
-
-interface VectorStoreInterface
+interface EmbeddingStorageInterface
 {
-    public function store(EntityEmbedding $embedding): void;
-    public function delete(string $entityTypeId, int|string $entityId): void;
-    public function search(array $queryVector, int $limit = 10, ?string $entityTypeId = null, ?string $langcode = null, array $fallbackLangcodes = []): array;
-    public function get(string $entityTypeId, int|string $entityId): ?EntityEmbedding;
-    public function has(string $entityTypeId, int|string $entityId): bool;
+    public function store(string $entityType, string $id, array $vector): void;
+    public function findSimilar(array $queryVector, string $entityType, int $limit): array;
+    public function delete(string $entityType, string $id): void;
 }
 ```
+
+One vector per exact type/string ID, no persisted metadata or language variants.
+Search returns `{id: string, score: float}` arrays in descending cosine order,
+ties by bytewise ID. Finite nonempty numeric lists are required. Missing schema
+and corrupt stored data refuse explicitly. The duplicate DTO/store family was
+removed in #3141 candidate 2; do not recreate it or an adapter that discards
+language/metadata. See `docs/specs/semantic-search-contract.md` and UPGRADING.md.
 
 ## Architecture
 
@@ -140,7 +143,7 @@ ai-tools         depends on: access, entity, entity-storage, foundation, media, 
 ai-agent         depends on: access, ai-observability, ai-tools, api, audit, bimaaji, config,
                              database-legacy, entity, entity-storage, foundation, http-client, routing
 ai-pipeline      depends on: entity, foundation
-ai-vector        depends on: access, api, entity, entity-storage, foundation, queue, workflows
+ai-vector        depends on: access, api, database-legacy, entity, entity-storage, foundation, queue, workflows
 ai-observability depends on: ai-agent, database-legacy, entity, entity-storage, foundation
 ```
 
@@ -184,25 +187,29 @@ The framework's MCP surface is `Waaseyaa\Mcp\McpServerCard` in `packages/mcp/`, 
 
 ### Vector Search Flow
 
-1. `EntityEmbedder::embedEntity()` builds text as `label + ' ' + json_encode(toArray())`
-2. Passes text to `EmbeddingInterface::embed()` to get a float vector
-3. Stores `EntityEmbedding` via `VectorStoreInterface::store()`
-4. Search: `EntityEmbedder::searchSimilar($query, $account, ...)` embeds the query string, calls `VectorStoreInterface::search()`, then filters fail-closed: each hit is loaded through its repository and dropped unless `EntityAccessHandler::check($entity, 'view', $account)` is Allowed (an account is REQUIRED)
-5. `InMemoryVectorStore::search()` computes cosine similarity, supports langcode filtering with fallbacks
+1. Explicit `ai.vector_enabled` activation composes one storage/provider pair.
+2. Shared default-deny `EmbeddingIndexPolicy` selects only configured fields and
+   explicit label inclusion, and permits off-host providers only explicitly.
+3. Lifecycle indexing and operator refresh use that policy and canonical
+   `EmbeddingStorageInterface`; excluded/missing entities lose their vector.
+4. `SearchController` and host-wired `VectorSearchTool` call `findSimilar`, load
+   current entities, enforce access, and emit the documented wire envelopes.
+5. Real migrated SQLite and hosted PostgreSQL pass the same storage conformance
+   suite. Never qualify a fake legacy store as evidence for the runtime.
 
 ## Common Mistakes
 
 ### JSON symmetry
 
-`EntityEmbedder` uses `json_encode(..., JSON_THROW_ON_ERROR)`. Always pair with `json_decode(..., JSON_THROW_ON_ERROR)`. Asymmetric usage causes silent null on corrupt data.
+Embedding storage uses `json_encode(..., JSON_THROW_ON_ERROR)`. Always pair with `json_decode(..., JSON_THROW_ON_ERROR)`. Asymmetric usage causes silent null on corrupt data.
 
 ### Final classes cannot be mocked
 
 All concrete classes in the AI packages are `final class`. PHPUnit's `createMock()` will fail on them. In tests:
-- Mock interfaces (`AgentToolInterface`, `ToolRegistryInterface`, `EmbeddingInterface`, `VectorStoreInterface`, `EntityTypeManagerInterface`, `AccountInterface`)
-- Use real instances for value objects (`AgentResult`, `AgentTool`, `AgentToolResult`, `EntityEmbedding`)
+- Mock interfaces (`AgentToolInterface`, `ToolRegistryInterface`, `EmbeddingInterface`, `EmbeddingStorageInterface`, `EntityTypeManagerInterface`, `AccountInterface`)
+- Use real instances for value objects (`AgentResult`, `AgentTool`, `AgentToolResult`)
 - Use `FakeEmbeddingProvider` for deterministic test embeddings
-- Use `InMemoryVectorStore` for vector storage in tests
+- Use real migrated `DatabaseEmbeddingStorage` on SQLite for storage conformance
 
 ### Tool access checks are enforced
 
@@ -212,13 +219,12 @@ Every tool in `packages/ai-tools/` enforces entity-level access against the init
 
 `AgentRun.initiator_id` stores the raw account id (string or int via the `_data` blob). Audit logs reference `account_id` similarly. Do not cast to `(int)` blindly — UUID-style ids will collapse to `0`.
 
-### EntityEmbedder text building
+### Embedding source projection
 
-`EntityEmbedder::buildEntityText()` concatenates `label() . ' ' . json_encode(toArray())`. If you need to customize what text gets embedded, you must modify `buildEntityText()` or create a new embedder. There is no text extraction hook.
+Configure `ai.vector_index` fields and explicit label inclusion. Do not embed
+`toArray()` or all fields as a fallback. Save and refresh share the same
+default-deny policy and explicit off-host permission.
 
-### InMemoryVectorStore key format
-
-Keys are `"{entityTypeId}:{entityId}:{langcode}"`. The `delete()` method removes all langcode variants by matching the prefix `"{entityTypeId}:{entityId}:"`. The `get()` method returns the first match for any langcode.
 
 ## Testing Patterns
 
@@ -228,7 +234,7 @@ Keys are `"{entityTypeId}:{entityId}:{langcode}"`. The `delete()` method removes
 - `packages/ai-tools/tests/Unit/` -- AgentTool, AgentToolResult, AttributeToolRegistry, stock tools
 - `packages/ai-agent/tests/Unit/` -- AgentExecutor, AgentResult, AgentAction, AgentContext, AgentDefinition, RunAgentHandler, AgentRunService, StalledRunReaper, repositories
 - `packages/ai-observability/tests/Unit/` -- AgentRunTelemetryListener, ModelPriceTable
-- `packages/ai-vector/tests/Unit/` -- InMemoryVectorStore, EntityEmbedder, EntityEmbedding, SimilarityResult, FakeEmbeddingProvider, DistanceMetric, LanguageAwareVectorTest
+- `packages/ai-vector/tests/Unit/` -- DatabaseEmbeddingStorage, lifecycle, policy, providers, SearchController; tests/Contract holds shared storage conformance
 - `tests/Integration/PhaseN/AgentRuntime/` -- CliInlineRunTest, EnqueueAndConsumeTest, AsyncHttpRunTest, CancellationTest, InteractiveHitlTest, ReaperTest, PurgeJobTest, TelemetryTest, McpClientToolSourceTest, EntityPersistenceTest
 
 ### Running tests
@@ -253,21 +259,7 @@ Do NOT use `-v` flag -- PHPUnit 10.5 rejects it.
 ### Test fixtures
 
 - `FakeEmbeddingProvider` (`packages/ai-vector/testing/FakeEmbeddingProvider.php`) -- Development-only, deterministic hash-based vectors. Default 128 dimensions. Consumers must map `Waaseyaa\\AI\\Vector\\Testing\\` to the package's `testing/` directory in their own `autoload-dev`; Composer does not load dependency `autoload-dev` rules.
-- `InMemoryVectorStore` (`packages/ai-vector/src/InMemoryVectorStore.php`) -- Cosine similarity, no external dependencies. Use for all vector storage tests.
-- `TestAgent` (`packages/ai-agent/tests/Unit/TestAgent.php`) -- Configurable test agent with settable results and exceptions.
-
-### Pattern: Testing vector search
-
-```php
-$provider = new FakeEmbeddingProvider(dimensions: 128);
-$store = new InMemoryVectorStore();
-$embedder = new EntityEmbedder($provider, $store, $accessHandler, $entityTypeManager);
-
-$embedding = $embedder->embedEntity($entity);
-// searchSimilar REQUIRES an account and returns only view-permitted results
-// (fail-closed: each hit is loaded and gated through EntityAccessHandler).
-$results = $embedder->searchSimilar('search query', $account, limit: 5, entityTypeId: 'node');
-```
+- `DatabaseEmbeddingStorage` uses the migration-owned database table. Run shared storage conformance on real SQLite and hosted PostgreSQL.
 
 ## Related Specs
 

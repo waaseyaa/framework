@@ -1,7 +1,7 @@
 # `waaseyaa/ai-vector` audit
 
 - **Audit state:** in progress. It isn't assessed yet, for two reasons:
-  1. search contract conformance remains open (there's no declared schema to check against);
+  1. bounded storage/wire remediation awaits exact-head qualification (FW-AIV-STORAGE-CONTRACT-01);
   2. AIV-SEC-001 hasn't completed private triage.
 - **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`). AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 are resolved by #3139/#3155 (`d58d526ab`) (FW-AIV-COMP-01). AIV-DIST-001 and AIV-BACKEND-001 are resolved by #3140 (FW-AIV-DIST-01). AIV-DOMAIN-001 is resolved by the first #3141 candidate (FW-AIV-INDEXING-POLICY-01): indexing is default-deny, fields and off-host permission are explicit, and refresh removes excluded vectors.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
@@ -12,6 +12,8 @@
 
   - FW-AIV-DIST-01 (#3140): removed the package from Framework, CLI and full runtime requirements; added explicit activation and backend refusal; moved the fake provider to development autoload; qualified PostgreSQL.
   - FW-AIV-INDEXING-POLICY-01 (#3141 candidate 1): added one default-deny policy for lifecycle and refresh indexing, explicit field projection and provider-egress decisions, and reconciliation of excluded vectors.
+
+  - FW-AIV-STORAGE-CONTRACT-01 (#3141 candidate 2): canonical storage, obsolete family removal, truthful declarations, strict refresh and public wire schemas. Final review and hosted qualification remain pending.
 
   Nothing else was re-audited. The findings' observed evidence describes the base.
 - **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
@@ -29,14 +31,14 @@
   - Since FW-AIV-DIST-01, Framework, CLI and full only use it when the application requires it directly. Installation alone is inert; `ai.vector_enabled` must be true.
 - **Dependencies:** requires entity, entity-storage, queue, api, access, workflows, foundation and (since FW-AIV-PERSIST-01) database-legacy, all used; there are no undeclared imports. Embedding providers are optional and chosen by config.
 - **Storage:** there is one implementation. At the base it was SQLite through raw PDO. Since FW-AIV-PERSIST-01 it is `DatabaseEmbeddingStorage` over `DatabaseInterface`, on the migration-owned `embeddings` table. FW-AIV-DIST-01 names that backend `database`, qualifies it on SQLite and PostgreSQL, and refuses all other selectors.
-- **Public surface:** see AIV-PUBLIC-001. FW-AIV-INDEXING-POLICY-01 declares its three new policy and egress symbols, but the pre-existing `@api` mismatch, duplicate storage family, and undeclared "stable" search wire contract remain for #3141 candidate 2.
+- **Public surface:** see AIV-PUBLIC-001. FW-AIV-INDEXING-POLICY-01 declares its three new policy and egress symbols, FW-AIV-STORAGE-CONTRACT-01 reconciles declarations, removes the duplicate family and declares the wire contract; final qualification is pending.
 - **Evidence it works:**
   - Source: at the base, 89 package unit tests and 12 related integration tests pass. With FW-AIV-PERSIST-01, 107 package tests pass, including the migration and serving-path schema-authority tests.
   - Distributed form: production dependency graphs exclude ai-vector by default; the installed-but-disabled provider is inert; exact-candidate hosted qualification owns the split and `--no-dev` proof.
 
 ## Roster
 
-All 24 PHP files under `src/`, the migration and `public-surface.php` (26 PHP files), plus the manifest and the README. The rows for `DatabaseEmbeddingStorage` and the migration reflect FW-AIV-PERSIST-01 and replace the base's `SqliteEmbeddingStorage` row. The policy and egress rows reflect FW-AIV-INDEXING-POLICY-01.
+The retained source files, the migration and `public-surface.php`, plus the manifest and the README. The rows for `DatabaseEmbeddingStorage` and the migration reflect FW-AIV-PERSIST-01 and replace the base's `SqliteEmbeddingStorage` row. The policy and egress rows reflect FW-AIV-INDEXING-POLICY-01.
 
 | File | Role | Classification | Evidence level | Notes |
 | --- | --- | --- | --- | --- |
@@ -45,7 +47,8 @@ All 24 PHP files under `src/`, the migration and `public-surface.php` (26 PHP fi
 | `src/UnsupportedVectorBackendException.php` | Named refusal for unimplemented backend claims | owned and coherent | reproduced | Uses `[AIV-BACKEND-001]` |
 | `src/DatabaseEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation, over `DatabaseInterface` | owned and coherent | reproduced | Replaced `SqliteEmbeddingStorage` (AIV-PERSIST-001, AIV-PERSIST-002) in FW-AIV-PERSIST-01; no DDL, no raw PDO |
 | `migrations/2026_09_24_000001_embeddings_schema.php` | Owns the `embeddings` table | owned and coherent | reproduced | Creates it, adopts a compatible table in place, refuses others with `[AIV-DB001]` (FW-AIV-PERSIST-01) |
-| `src/EmbeddingStorageInterface.php` | Storage contract used in production | owned and coherent | reviewed | Competes with `VectorStoreInterface` (AIV-PUBLIC-001) |
+| `src/EmbeddingStorageInterface.php` | Storage contract used in production | owned and coherent | reviewed | Canonical supported storage seam since FW-AIV-STORAGE-CONTRACT-01 |
+| `src/VectorMath.php` | Internal finite-vector validation and scaled cosine | owned and coherent | reproduced | Extreme finite inputs remain finite; zero vectors score zero |
 | `src/EmbeddingIndexPolicy.php` | Default-deny entity-type, field-projection and provider-egress policy | owned and coherent | reproduced | Shared by lifecycle and refresh since FW-AIV-INDEXING-POLICY-01 |
 | `src/EmbeddingProviderEgressInterface.php` | Provider off-host classification seam | owned and coherent | reproduced | Unknown providers are conservatively external |
 | `src/InvalidEmbeddingIndexPolicyException.php` | Named malformed-policy refusal | owned and coherent | reproduced | Uses `[AIV-POLICY-001]` |
@@ -60,16 +63,10 @@ All 24 PHP files under `src/`, the migration and `public-surface.php` (26 PHP fi
 | `src/OpenAiEmbeddingProvider.php` | OpenAI HTTP provider | owned and coherent | reproduced | Always classifies as off-host; credential through `SecretHandle`; 20 s timeout |
 | `src/OpenAiEmbeddingCredentialOperation.php` | Secret-consumer operation | owned and coherent | reviewed | `@internal`, registered with the secret registry |
 | `src/ProviderCredentialConfigurationException.php` | Credential config refusal | owned and coherent | reviewed | |
-| `src/VectorStoreInterface.php` | Second storage contract | duplicated or drifting contract | reviewed | No production implementation (AIV-PUBLIC-001) |
-| `src/InMemoryVectorStore.php` | In-memory `VectorStoreInterface` | unwired, unreachable or obsolete | reviewed | Test and dev only; hosts `cosineSimilarity()` used by production |
-| `src/EntityEmbedder.php` | Embed-and-search service over `VectorStoreInterface` | unwired, unreachable or obsolete | reviewed | No production caller |
-| `src/EntityEmbedding.php` | Value object for `VectorStoreInterface` | duplicated or drifting contract | reviewed | |
-| `src/SimilarityResult.php` | Value object for `VectorStoreInterface` | duplicated or drifting contract | reviewed | |
-| `src/DistanceMetric.php` | Metric enum | unwired, unreachable or obsolete | reviewed | Declared public; no production consumer |
 | `testing/FakeEmbeddingProvider.php` | Deterministic test provider | owned and coherent | reproduced | Development autoload only since FW-AIV-DIST-01 |
 | `composer.json` | Manifest and provider discovery | owned and coherent | reviewed | |
-| `README.md` | Package description | duplicated or drifting contract | reviewed | Names `VectorStoreInterface` as key; describes RAG integration that isn't wired |
-| `public-surface.php` | Public declarations | duplicated or drifting contract | reviewed | AIV-PUBLIC-001 |
+| `README.md` | Package description | owned and coherent | reviewed | Canonical storage and wire links reconciled by FW-AIV-STORAGE-CONTRACT-01 |
+| `public-surface.php` | Public declarations | owned and coherent | reviewed | Reconciled by FW-AIV-STORAGE-CONTRACT-01; qualification pending |
 
 ## Findings
 
@@ -256,11 +253,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** extension authors can't tell which contract is supported; removing either family later is a compatibility break.
 - **Severity and confidence:** low; confirmed.
 - **Refutation:** none found.
-- **Disposition and owner:** choose the canonical contract; deprecate or remove the other with a compatibility note; reconcile declarations; #3141.
+- **Disposition and owner:** FW-AIV-STORAGE-CONTRACT-01 removes the duplicate family under alpha DIR-003, documents migration, reconciles public declarations and publishes wire schemas. Immutable review and exact-head qualification pending; #3141.
 - **Dependencies:** #3138 and #3139 settle the storage shape first.
 - **Acceptance:** public-surface parity, a declaration for the search wire contract, and an updated README.
 - **Residual risk:** downstream users of the second family, if any exist outside this repository.
-- **Next action:** #3141.
+- **Next action:** qualify candidate 2 for #3141.
 
 ### `AIV-DIST-001`: installed by default through `waaseyaa/cli`; a test helper ships in production
 
@@ -329,7 +326,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
   - Access filtering applies to `data`: AIV-SEC-001.
   - Cost: AIV-HTTP-001.
   - Wire contract declaration: AIV-PUBLIC-001.
-  - Contract conformance: `SearchController` states a "stable" v1.0 contract, but there's no declared schema and no conformance test, so conformance can't be checked. Only the unit tests' response shapes were reviewed. This remains open.
+  - Contract conformance: FW-AIV-STORAGE-CONTRACT-01 declares the HTTP/MCP schemas and real migrated-storage response tests, including empty, optional metadata and refusal cases. Final qualification is pending.
   - No CSRF concern: the route is GET only.
 - **Distribution:**
   - Installation profiles: AIV-DIST-001, resolved by FW-AIV-DIST-01.
@@ -373,3 +370,14 @@ The maintainer approved the split on 2026-09-23 with adjustments, replacing the 
 - **#3142, execution model:** AIV-EXEC-001. It also owns the review trigger for the deferred AIV-SYMFONY-001.
 - **#3143, public search cost:** AIV-HTTP-001, sequenced with the private work.
 - **AIV-SEC-001:** handled through the repository's private reporting route.
+
+## Candidate 2 bounded delta
+
+FW-AIV-STORAGE-CONTRACT-01 removes the unsupported DTO/language/metadata storage
+family rather than adapting incompatible behavior. Production, CLI refresh and
+MCP consume `EmbeddingStorageInterface`; HTTP and MCP expose finite cosine
+scores, exact identity and current authorized metadata. Refresh failures refuse
+success counts and invalidate stale vectors. Prior AIV-PUBLIC-001 observations
+remain historical base evidence; this delta addresses them, pending immutable
+review and hosted qualification. Execution/cost and private triage remain with
+#3142, #3143 and AIV-SEC-001; no whole-package convergence claim is made.

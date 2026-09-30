@@ -92,7 +92,7 @@ final class AnonymousTierMcpContentBlockTest extends TestCase
             sprintf('%s must repeat its payload in structuredContent', $toolName),
         );
         self::assertSame(
-            $result->structuredContent,
+            json_decode(json_encode($result->structuredContent, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR),
             json_decode($texts[0], true, 512, JSON_THROW_ON_ERROR),
             sprintf('%s text block and structuredContent must be the same payload', $toolName),
         );
@@ -244,13 +244,7 @@ final class AnonymousTierMcpContentBlockTest extends TestCase
         $repo->seed(new ToolTestEntity(['id' => '1', 'title' => $title]));
         $etm = new SingleTypeEntityTypeManager($this->entityType('node'), $repo);
 
-        $embedding = new \stdClass();
-        $embedding->entityTypeId = 'node';
-        $embedding->entityId = '1';
-        $embedding->metadata = ['title' => $title];
-        $hit = new \stdClass();
-        $hit->embedding = $embedding;
-        $hit->score = 0.9;
+        $hit = ['id' => '1', 'score' => 0.9];
 
         // Duck-typed doubles, exactly as the tool consumes them (it never
         // imports the ai-vector value objects).
@@ -262,11 +256,11 @@ final class AnonymousTierMcpContentBlockTest extends TestCase
             }
         };
         $storage = new class ([$hit]) {
-            /** @param list<object> $results */
+            /** @param list<array{id: string, score: float}> $results */
             public function __construct(private readonly array $results) {}
 
             /** @param list<float> $vector */
-            public function search(array $vector, int $limit): array
+            public function findSimilar(array $vector, string $entityType, int $limit): array
             {
                 return $this->results;
             }

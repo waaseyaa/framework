@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waaseyaa.org/contracts/semantic-search/v1.0",
+  "title": "semantic_search v1.0 JSON:API success",
+  "type": "object",
+  "required": ["jsonapi", "data", "meta"],
+  "additionalProperties": false,
+  "properties": {
+    "jsonapi": {"type": "object", "required": ["version"], "additionalProperties": false, "properties": {"version": {"const": "1.1"}}},
+    "data": {"type": "array", "items": {"type": "object", "required": ["type", "id"], "properties": {"type": {"type": "string", "minLength": 1}, "id": {"type": "string", "minLength": 1}, "attributes": {"type": "object"}, "relationships": {"type": "object"}, "links": {"type": "object"}, "meta": {"type": "object"}}, "additionalProperties": false}},
+    "meta": {
+      "type": "object",
+      "required": ["contract_version", "contract_surface", "contract_stability", "semantic_extension_hooks", "query", "type", "limit", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {"const": "v1.0"},
+        "contract_surface": {"const": "semantic_search"},
+        "contract_stability": {"const": "stable"},
+        "semantic_extension_hooks": {"const": ["graph_context_rerank"]},
+        "query": {"type": "string", "minLength": 1},
+        "type": {"type": "string", "minLength": 1},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "mode": {"enum": ["semantic", "keyword"]},
+        "requested_mode": {"const": "semantic"},
+        "fallback_reason": {"const": "embedding_provider_error"},
+        "score_semantics": {"const": "cosine_similarity"},
+        "scores": {"type": "array", "items": {"type": "object", "required": ["id", "entity_id", "score"], "additionalProperties": false, "properties": {"id": {"type": "string", "minLength": 1}, "entity_id": {"type": "string", "minLength": 1}, "score": {"type": "number", "minimum": -1, "maximum": 1}}}},
+        "ranking": {"const": "semantic+graph_context"},
+        "ranking_weights": {"type": "object", "required": ["semantic", "graph_context"], "additionalProperties": false, "properties": {"semantic": {"const": 1.0}, "graph_context": {"const": 0.001}}},
+        "score_breakdown": {"type": "object", "additionalProperties": {"type": "object", "required": ["semantic", "graph_context", "combined", "base_rank"], "additionalProperties": false, "properties": {"semantic": {"type": "number", "minimum": -1, "maximum": 1}, "graph_context": {"type": "number", "minimum": 0}, "combined": {"type": "number"}, "base_rank": {"type": "integer", "minimum": 0}}}},
+        "graph_context_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      },
+      "allOf": [
+        {"if": {"properties": {"mode": {"const": "semantic"}}}, "then": {"required": ["scores", "score_semantics"]}, "else": {"not": {"anyOf": [{"required": ["scores"]}, {"required": ["score_semantics"]}, {"required": ["ranking"]}]}}},
+        {"dependentRequired": {"fallback_reason": ["requested_mode"], "requested_mode": ["fallback_reason"], "ranking": ["ranking_weights", "score_breakdown", "graph_context_counts"], "ranking_weights": ["ranking"], "score_breakdown": ["ranking"], "graph_context_counts": ["ranking"]}}
+      ]
+    }
+  }
+}

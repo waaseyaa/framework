@@ -16,6 +16,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
+/** @api JSON:API semantic-search entry point; semantic-search-contract.md. */
 final class SearchController
 {
     public const string CONTRACT_VERSION = 'v1.0';
@@ -43,6 +44,18 @@ final class SearchController
 
     public function search(string $query, string $entityTypeId, int $limit = 10): JsonApiDocument
     {
+        try {
+            return $this->searchResults($query, $entityTypeId, $limit);
+        } catch (\Throwable $exception) {
+            $this->logger->error('Semantic search failed: ' . $exception->getMessage());
+            return JsonApiDocument::fromErrors([
+                new JsonApiError('503', 'Service Unavailable', 'Search is temporarily unavailable.', 'SEMANTIC_SEARCH_UNAVAILABLE'),
+            ], statusCode: 503);
+        }
+    }
+
+    private function searchResults(string $query, string $entityTypeId, int $limit): JsonApiDocument
+    {
         if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
             return JsonApiDocument::fromErrors(
                 [JsonApiError::notFound("Unknown entity type: {$entityTypeId}.")],
@@ -52,7 +65,9 @@ final class SearchController
 
         $query = trim($query);
         if ($query === '') {
-            return JsonApiDocument::fromCollection([], meta: ['query' => '', 'mode' => 'empty']);
+            return JsonApiDocument::fromErrors([
+                new JsonApiError('400', 'Bad Request', 'Search requires a nonempty query.', 'INVALID_SEARCH_QUERY'),
+            ], statusCode: 400);
         }
 
         $limit = max(1, min(100, $limit));
@@ -118,6 +133,10 @@ final class SearchController
         }
 
         $resources = $this->serializer->serializeCollection($orderedEntities, $this->accessHandler, $this->account);
+        $visibleIds = array_map(static fn($entity): string => (string) $entity->id(), $orderedEntities);
+        $visibleKeys = array_fill_keys($visibleIds, true);
+        $hybridScores = array_intersect_key($hybridScores, $visibleKeys);
+        $graphContextCounts = array_intersect_key($graphContextCounts, $visibleKeys);
 
         $meta = [
             'contract_version' => self::CONTRACT_VERSION,
@@ -133,14 +152,25 @@ final class SearchController
             $meta['requested_mode'] = $requestedMode;
             $meta['fallback_reason'] = $fallbackReason;
         }
+        if ($mode === 'semantic') {
+            $meta['score_semantics'] = 'cosine_similarity';
+            $meta['scores'] = [];
+            foreach ($visibleIds as $index => $id) {
+                $meta['scores'][] = [
+                    'id' => $resources[$index]->id,
+                    'entity_id' => $id,
+                    'score' => $semanticScores[$id],
+                ];
+            }
+        }
         if ($graphRerankApplied) {
             $meta['ranking'] = 'semantic+graph_context';
             $meta['ranking_weights'] = [
                 'semantic' => self::DEFAULT_SEMANTIC_WEIGHT,
                 'graph_context' => self::DEFAULT_GRAPH_WEIGHT,
             ];
-            $meta['score_breakdown'] = $hybridScores;
-            $meta['graph_context_counts'] = $graphContextCounts;
+            $meta['score_breakdown'] = (object) $hybridScores;
+            $meta['graph_context_counts'] = (object) $graphContextCounts;
         }
 
         return JsonApiDocument::fromCollection($resources, meta: $meta);
@@ -291,22 +321,47 @@ final class SearchController
             return ['ids' => [], 'scores' => [], 'fallback_reason' => 'embedding_provider_error'];
         }
 
-        $matches = $this->embeddingStorage->findSimilar($queryVector, $entityTypeId, $limit);
+        $matches = $this->validateMatches($this->embeddingStorage->findSimilar($queryVector, $entityTypeId, $limit), $limit);
 
         $ids = [];
         $scores = [];
         foreach ($matches as $match) {
-            if (is_array($match) && is_string($match['id'] ?? null) && $match['id'] !== '') {
-                $rawId = $match['id'];
-                $id = ctype_digit($rawId) ? (int) $rawId : $rawId;
-                $ids[] = $id;
-                if (is_numeric($match['score'] ?? null)) {
-                    $scores[(string) $id] = (float) $match['score'];
-                }
-            }
+            $ids[] = $match['id'];
+            $scores[$match['id']] = $match['score'];
         }
 
         return ['ids' => $ids, 'scores' => $scores, 'fallback_reason' => null];
+    }
+
+    /**
+     * Validate host-bound implementations at the runtime boundary.
+     * @return list<array{id: string, score: float}>
+     */
+    private function validateMatches(mixed $matches, int $limit): array
+    {
+        if (!is_array($matches) || !array_is_list($matches) || count($matches) > $limit) {
+            throw new \UnexpectedValueException('Invalid embedding result list.');
+        }
+
+        $scores = [];
+        $previous = null;
+        foreach ($matches as $match) {
+            if (!is_array($match) || count($match) !== 2
+                || !is_string($match['id'] ?? null) || $match['id'] === ''
+                || !is_float($match['score'] ?? null) || !is_finite($match['score'])
+                || $match['score'] < -1.0 || $match['score'] > 1.0
+                || isset($scores[$match['id']])) {
+                throw new \UnexpectedValueException('Invalid embedding result contract.');
+            }
+            if ($previous !== null && ($match['score'] > $previous['score']
+                || ($match['score'] === $previous['score'] && strcmp($match['id'], $previous['id']) < 0))) {
+                throw new \UnexpectedValueException('Invalid embedding result ordering.');
+            }
+            $scores[$match['id']] = $match['score'];
+            $previous = $match;
+        }
+
+        return $matches;
     }
 
     /**

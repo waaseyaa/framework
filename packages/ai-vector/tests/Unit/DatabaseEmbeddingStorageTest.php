@@ -141,11 +141,18 @@ final class DatabaseEmbeddingStorageTest extends TestCase
         $storage = new DatabaseEmbeddingStorage($database, logger: $this->recordingLogger());
         $tablesBefore = $database->schema()->listTableNames();
 
-        $storage->store('node', '1', [1.0, 0.0]);
-        $storage->delete('node', '1');
-        $results = $storage->findSimilar([1.0, 0.0], 'node', 10);
-
-        $this->assertSame([], $results);
+        foreach ([
+            fn() => $storage->store('node', '1', [1.0, 0.0]),
+            fn() => $storage->delete('node', '1'),
+            fn() => $storage->findSimilar([1.0, 0.0], 'node', 10),
+        ] as $operation) {
+            try {
+                $operation();
+                self::fail('Missing migration must refuse.');
+            } catch (\RuntimeException $exception) {
+                self::assertStringContainsString('AIV-STORAGE-001', $exception->getMessage());
+            }
+        }
         $this->assertSame($tablesBefore, $database->schema()->listTableNames(), 'no table is created on the serving path');
         $this->assertFalse($database->schema()->tableExists('embeddings'));
         $this->assertCount(3, $this->logged, 'store, delete and search each report the missing migration');

@@ -210,7 +210,6 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/ai-tools/src/AbstractAgentTool.php' => 'AI tool label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/ai-tools/src/Entity/EntityFieldRedaction.php' => 'Anonymous entity.read/search project named fields through the guarded accessor and omit Protected denials without observing the value (JSON:API parity).',
         'packages/ai-vector/src/EmbeddingIndexPolicy.php' => 'Index-policy field projection reads only explicitly configured fields through the canonical guarded accessor.',
-        'packages/ai-vector/src/EntityEmbedder.php' => 'Embedding label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/api/src/Audit/ApiAuditQueryAdapter.php' => 'Audit query adapter input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/api/src/ResourceSerializer.php' => 'JSON:API reads each outward field through the guarded accessor and omits Protected denials without observing the value.',
         'packages/api/src/Workflow/WorkflowDefinitionsController.php' => 'Workflow label projection is reviewed activation-compatible through the canonical guarded accessor.',

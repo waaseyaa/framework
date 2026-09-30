@@ -43,12 +43,6 @@ parameters:
 			path: packages/ai-agent/src/Provider/RateLimitException.php
 
 		-
-			message: '#^Loose comparison via "\=\=" is not allowed\.$#'
-			identifier: equal.notAllowed
-			count: 2
-			path: packages/ai-vector/src/InMemoryVectorStore.php
-
-		-
 			message: '#^Casting to array\<string, mixed\> something that''s already array\<string, mixed\>\.$#'
 			identifier: cast.useless
 			count: 1

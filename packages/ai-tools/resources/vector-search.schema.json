@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waaseyaa.org/contracts/vector-search/v1.0",
+  "title": "vector.search v1.0 structuredContent and text JSON",
+  "type": "object",
+  "required": ["results"],
+  "additionalProperties": false,
+  "properties": {
+    "results": {
+      "type": "array", "maxItems": 50,
+      "items": {"type": "object", "required": ["entity_type", "id", "score", "metadata"], "additionalProperties": false,
+        "properties": {"entity_type": {"type": "string", "minLength": 1}, "id": {"type": "string", "minLength": 1}, "score": {"type": "number", "minimum": -1, "maximum": 1}, "metadata": {"type": "object"}}
+      }
+    }
+  }
+}

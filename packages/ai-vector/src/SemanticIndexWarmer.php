@@ -6,7 +6,6 @@ namespace Waaseyaa\AI\Vector;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 final class SemanticIndexWarmer
@@ -65,13 +64,6 @@ final class SemanticIndexWarmer
             return $report;
         }
 
-        $listener = new EntityEmbeddingListener(
-            queue: null,
-            storage: $this->embeddingStorage,
-            embeddingProvider: $this->embeddingProvider,
-            indexPolicy: $this->indexPolicy,
-        );
-
         foreach ($requestedEntityTypes as $entityTypeId) {
             if ($this->embeddingProvider === null && $this->indexPolicy->isDeclared($entityTypeId)) {
                 $report['by_type'][$entityTypeId] = $this->skippedNoProviderTypeReport();
@@ -93,7 +85,7 @@ final class SemanticIndexWarmer
             }
 
             $ids = $this->collectSortedIds($entityTypeId, $limit);
-            $typeStats = $this->processIdsInChunks($listener, $entityTypeId, $ids);
+            $typeStats = $this->processIdsInChunks($entityTypeId, $ids);
             $typeProcessed = $typeStats['processed'];
             $typeStored = $typeStats['stored'];
             $typeRemoved = $typeStats['removed'];
@@ -164,13 +156,6 @@ final class SemanticIndexWarmer
             return $report;
         }
 
-        $listener = new EntityEmbeddingListener(
-            queue: null,
-            storage: $this->embeddingStorage,
-            embeddingProvider: $this->embeddingProvider,
-            indexPolicy: $this->indexPolicy,
-        );
-
         $cursorTypeIndex = max(0, (int) ($cursor['type_index'] ?? 0));
         $cursorOffset = max(0, (int) ($cursor['offset'] ?? 0));
 
@@ -205,7 +190,7 @@ final class SemanticIndexWarmer
             }
 
             $slice = array_slice($ids, $offset, $remainingCapacity);
-            $typeStats = $this->processIdsInChunks($listener, $entityTypeId, $slice);
+            $typeStats = $this->processIdsInChunks($entityTypeId, $slice);
 
             $report['batch_processed'] += $typeStats['processed'];
             $report['stored_total'] += $typeStats['stored'];
@@ -240,7 +225,7 @@ final class SemanticIndexWarmer
     /**
      * @return array{processed: int, stored: int, removed: int, missing: int}
      */
-    private function processIdsInChunks(EntityEmbeddingListener $listener, string $entityTypeId, array $ids): array
+    private function processIdsInChunks(string $entityTypeId, array $ids): array
     {
         // C-22 WP3: read path now goes through the canonical repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
@@ -259,24 +244,41 @@ final class SemanticIndexWarmer
             }
             foreach ($chunk as $id) {
                 if (!isset($entities[$id])) {
+                    $this->embeddingStorage->delete($entityTypeId, (string) $id);
                     $missing++;
                     continue;
                 }
 
                 $entity = $entities[$id];
                 if (!$entity instanceof EntityInterface) {
+                    $this->embeddingStorage->delete($entityTypeId, (string) $id);
                     $missing++;
                     continue;
                 }
 
-                $listener->onPostSave(new EntityEvent($entity));
-                $processed++;
-
-                if ($this->indexPolicy->embeddingText($entity, $this->embeddingProvider) !== null) {
-                    $stored++;
-                } else {
+                $text = $this->indexPolicy->embeddingText($entity, $this->embeddingProvider);
+                if ($text === null) {
+                    $this->embeddingStorage->delete($entityTypeId, (string) $id);
                     $removed++;
+                } else {
+                    \assert($this->embeddingProvider !== null);
+                    try {
+                        $vector = $this->embeddingProvider->embed($text);
+                        $this->embeddingStorage->store($entityTypeId, (string) $id, $vector);
+                    } catch (\Throwable $exception) {
+                        // Refresh is an operator command, not a post-commit
+                        // listener. Invalidate stale data and propagate failure;
+                        // never count an unsuccessful write as stored.
+                        try {
+                            $this->embeddingStorage->delete($entityTypeId, (string) $id);
+                        } catch (\Throwable) {
+                            // Preserve the original failure for the command.
+                        }
+                        throw $exception;
+                    }
+                    $stored++;
                 }
+                $processed++;
             }
         }
 

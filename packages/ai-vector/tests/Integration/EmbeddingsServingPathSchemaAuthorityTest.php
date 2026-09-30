@@ -110,7 +110,11 @@ final class EmbeddingsServingPathSchemaAuthorityTest extends TestCase
             embeddingStorage: $storage,
             embeddingProvider: $provider,
         )->search('first note', 'note', 5)->toArray();
-        self::assertSame('semantic', $document['meta']['mode'] ?? null, 'the search ran in semantic mode');
+        if ($this->database->schema()->tableExists('embeddings')) {
+            self::assertSame('semantic', $document['meta']['mode'] ?? null);
+        } else {
+            self::assertSame('503', $document['errors'][0]['status'] ?? null, 'missing migration refuses without DDL');
+        }
     }
 
     private function assertManifestUnchangedAndNextTransitionSucceeds(?string $recorded): void
