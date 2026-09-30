@@ -1008,6 +1008,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `EmbeddingSaveProviderInterface` | interface | public | Explicit bounded save-time provider operation |
 | `EmbeddingSourceChangedListener` | final readonly class | internal | Transaction-side source invalidation adapter |
 | `EmbeddingStorageInterface` | interface | public | Stores and similarity-searches raw float vectors by entity type and ID |
+| `EntityEmbeddingCleanupListener` | final class | public | Standalone current-absence cleanup with fresh source reads under a shared guard |
 | `EntityEmbeddingListener` | final class | public | Policy-enforced save and revision projection lifecycle |
 | `InvalidEmbeddingIndexPolicyException` | final class | public | Stable refusal for malformed embedding index and egress configuration |
 | `OllamaEmbeddingProvider` | final class | public | Ollama embedding and egress implementation |

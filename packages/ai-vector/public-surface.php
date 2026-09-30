@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EntityEmbeddingCleanupListener', 'disposition' => 'public', 'purpose' => 'Standalone current-absence cleanup with fresh source reads under a shared guard'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingExecutionGuardInterface', 'disposition' => 'public', 'purpose' => 'Shared publication and transactional source-invalidation fence paired with storage'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\DatabaseEmbeddingExecutionGuard', 'disposition' => 'public', 'purpose' => 'Durable same-database SQLite and PostgreSQL freshness fence'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingSaveProviderInterface', 'disposition' => 'public', 'purpose' => 'Explicit bounded save-time provider operation'],

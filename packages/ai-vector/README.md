@@ -82,3 +82,9 @@ Imports and failed embeddings can leave coverage absent until reconciliation.
 Quiesce old workers and refresh when changing boot-time indexing policy. See
 `docs/specs/semantic-search-contract.md` and FW-AIV-EXECUTION-01 for topology,
 migration, custom-provider obligations and recovery details.
+
+Invalidation is transactional and fail-closed for every kernel. Production has
+no delayed post-delete/invalidate-only subscription; only configured HTTP
+providers index after commit. Provider failure is best-effort after committed
+save, while source invalidation failure rolls back the source mutation. Monitor
+source errors and AIV-EXECUTION-007 indexing diagnostics separately.

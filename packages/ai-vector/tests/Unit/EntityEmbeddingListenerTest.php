@@ -23,11 +23,29 @@ use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 final class EntityEmbeddingListenerTest extends TestCase
 {
     #[Test]
+    public function an_unbudgeted_custom_provider_refuses_without_mutating_a_newer_vector(): void
+    {
+        $provider = $this->createMock(\Waaseyaa\AI\Vector\EmbeddingProviderInterface::class);
+        $provider->expects(self::never())->method('embed');
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects(self::never())->method('delete');
+        $storage->expects(self::never())->method('store');
+        $guard = $this->createMock(\Waaseyaa\AI\Vector\EmbeddingExecutionGuardInterface::class);
+        $guard->method('supportsStorage')->willReturn(true);
+        $guard->expects(self::never())->method('begin');
+        $logger = new EmbeddingListenerRecordingLogger();
+        new EntityEmbeddingListener(storage: $storage, embeddingProvider: $provider, logger: $logger, executionGuard: $guard)
+            ->onPostSave(new EntityEvent(new TestEmbeddingEntity(42, 'node')));
+        self::assertCount(1, $logger->errors);
+        self::assertStringContainsString('AIV-EXECUTION-002', $logger->errors[0]);
+    }
+
+    #[Test]
     public function a_save_without_fresh_repository_composition_never_indexes_event_content(): void
     {
         $storage = $this->createMock(EmbeddingStorageInterface::class);
         $storage->expects(self::never())->method('store');
-        $storage->expects(self::once())->method('delete')->with('node', '42');
+        $storage->expects(self::never())->method('delete');
         $provider = $this->createMock(\Waaseyaa\AI\Vector\EmbeddingSaveProviderInterface::class);
         $provider->expects(self::never())->method('embedForSave');
         $logger = new EmbeddingListenerRecordingLogger();
@@ -290,11 +308,11 @@ final class EntityEmbeddingListenerTest extends TestCase
     }
 
     #[Test]
-    public function a_pointer_move_without_fresh_repository_composition_invalidates_and_logs_refusal(): void
+    public function a_pointer_move_without_fresh_repository_composition_refuses_without_mutating(): void
     {
         $storage = $this->createMock(EmbeddingStorageInterface::class);
         $storage->expects($this->never())->method('store');
-        $storage->expects($this->once())->method('delete')->with('node', '42');
+        $storage->expects($this->never())->method('delete');
         $logger = new EmbeddingListenerRecordingLogger();
 
         $listener = new EntityEmbeddingListener(storage: $storage, logger: $logger, embeddingProvider: $this->createStub(\Waaseyaa\AI\Vector\EmbeddingSaveProviderInterface::class), executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
@@ -311,15 +329,18 @@ final class EntityEmbeddingListenerTest extends TestCase
     }
 
     #[Test]
-    public function invalidate_only_removes_the_vector_on_save_and_pointer_moves_without_calling_the_provider(): void
+    public function retired_invalidate_only_mode_refuses_without_deleting_newer_vectors(): void
     {
         $storage = $this->createMock(EmbeddingStorageInterface::class);
-        $storage->expects($this->exactly(3))->method('delete')->with('node', '42');
+        $storage->expects($this->never())->method('delete');
         $storage->expects($this->never())->method('store');
         $provider = $this->createMock(\Waaseyaa\AI\Vector\EmbeddingSaveProviderInterface::class);
         $provider->expects($this->never())->method('embedForSave');
 
-        $listener = new EntityEmbeddingListener(storage: $storage, embeddingProvider: $provider, invalidateOnly: true, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
+        $logger = new EmbeddingListenerRecordingLogger();
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->expects(self::never())->method('getRepository');
+        $listener = new EntityEmbeddingListener(storage: $storage, logger: $logger, embeddingProvider: $provider, entityTypeManager: $manager, invalidateOnly: true, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
         $published = new TestEmbeddingEntity(id: 42, entityTypeId: 'node', values: ['status' => 1, 'workflow_state' => 'published', 'title' => 'Indexable']);
         $listener->onPostSave(new EntityEvent($published));
         $listener->onRevisionReverted(new EntityEvent($published));
@@ -331,6 +352,10 @@ final class EntityEmbeddingListenerTest extends TestCase
             toRevisionId: 20,
             actorUid: 7,
         ));
+        self::assertCount(3, $logger->errors);
+        foreach ($logger->errors as $error) {
+            self::assertStringContainsString('AIV-EXECUTION-008', $error);
+        }
     }
 
     #[Test]

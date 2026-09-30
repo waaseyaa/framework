@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -18,6 +19,8 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
+#[CoversClass(EntitySourceChangedEvent::class)]
+#[CoversClass(EntityRepository::class)]
 final class EntitySourceChangedEventTest extends TestCase
 {
     private DBALDatabase $database;

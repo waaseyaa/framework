@@ -176,7 +176,7 @@ final class AiVectorServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function boot_registers_vector_invalidation_for_saves_and_deletes_on_the_kernel_dispatcher(): void
+    public function boot_registers_transactional_invalidation_and_delayed_postcommit_events_do_not_delete(): void
     {
         [$provider, $dispatcher, $database] = $this->lifecycleProvider([]);
         $storage = $provider->resolve(EmbeddingStorageInterface::class);
@@ -187,7 +187,9 @@ final class AiVectorServiceProviderTest extends TestCase
         $dispatcher->dispatch(new EntityEvent($this->publishedNode()), EntityEvents::POST_SAVE->value);
         $dispatcher->dispatch(new EntityEvent(new ProviderLifecycleEntity(2, 'note')), EntityEvents::POST_DELETE->value);
 
-        self::assertSame(0, $this->vectorCount($database), 'outside HTTP, a save and a delete both remove the vector');
+        self::assertSame(2, $this->vectorCount($database), 'delayed postcommit events do not remove newer vectors');
+        $database->getConnection()->transactional(fn() => $dispatcher->dispatch(new \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent('node', '1', $database)));
+        self::assertSame(1, $this->vectorCount($database));
     }
 
     #[Test]
@@ -198,9 +200,9 @@ final class AiVectorServiceProviderTest extends TestCase
         $provider->boot();
         $provider->boot();
 
-        self::assertSame(1, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_SAVE->value));
-        self::assertSame(1, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_DELETE->value));
-        self::assertSame(1, $this->aiVectorListenerCount($dispatcher, RevisionPointerMovedEvent::class));
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_SAVE->value));
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_DELETE->value));
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, RevisionPointerMovedEvent::class));
     }
 
     #[Test]
@@ -209,13 +211,13 @@ final class AiVectorServiceProviderTest extends TestCase
         // Binds an Ollama provider; nothing here calls its endpoint.
         [$provider, $dispatcher] = $this->lifecycleProvider(['ai' => ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings']]);
         $provider->boot();
-        $invalidating = $this->saveListener($dispatcher);
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_SAVE->value));
 
         $provider->configureHttpKernel(new HttpKernel(sys_get_temp_dir()));
         $embedding = $this->saveListener($dispatcher);
         $provider->configureHttpKernel(new HttpKernel(sys_get_temp_dir()));
 
-        self::assertNotSame($invalidating, $embedding, 'HTTP with a provider swaps in the embedding listener');
+        self::assertInstanceOf(EntityEmbeddingListener::class, $embedding);
         self::assertSame($embedding, $this->saveListener($dispatcher), 'a second configuration changes nothing');
         foreach ([EntityEvents::POST_SAVE->value, RevisionPointerMovedEvent::class, EntityEvents::REVISION_REVERTED->value] as $event) {
             self::assertSame(1, $this->aiVectorListenerCount($dispatcher, $event), $event);
@@ -229,12 +231,12 @@ final class AiVectorServiceProviderTest extends TestCase
         $provider->resolve(EmbeddingStorageInterface::class)->store('node', '1', [1.0, 0.0]);
 
         $provider->boot();
-        $invalidating = $this->saveListener($dispatcher);
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_SAVE->value));
         $provider->configureHttpKernel(new HttpKernel(sys_get_temp_dir()));
         $dispatcher->dispatch(new EntityEvent($this->publishedNode()), EntityEvents::POST_SAVE->value);
 
-        self::assertSame($invalidating, $this->saveListener($dispatcher));
-        self::assertSame(0, $this->vectorCount($database), 'the save removed the vector');
+        self::assertSame(0, $this->aiVectorListenerCount($dispatcher, EntityEvents::POST_SAVE->value));
+        self::assertSame(1, $this->vectorCount($database), 'postcommit event does not perform invalidation');
     }
 
     private function saveListener(SymfonyEventDispatcherAdapter $dispatcher): EntityEmbeddingListener
@@ -257,7 +259,7 @@ final class AiVectorServiceProviderTest extends TestCase
         $provider->resolve(EmbeddingStorageInterface::class)->store('note', '2', [1.0]);
 
         $provider->boot();
-        $dispatcher->dispatch(new EntityEvent(new ProviderLifecycleEntity(2, 'note')), EntityEvents::POST_DELETE->value);
+        $dispatcher->dispatch(new \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent('note', '2', $database));
 
         self::assertSame(1, $this->vectorCount($database), 'the provider\'s own storage is not the one consumers use');
     }

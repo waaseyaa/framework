@@ -26,14 +26,14 @@ use Waaseyaa\User\User;
 use Waaseyaa\User\UserServiceProvider;
 
 /**
- * FW-AIV-COMP-01 (#3139), AIV-EXEC-002: POST_SAVE and POST_DELETE run after
- * the entity mutation has committed. A vector storage failure there must be
- * best-effort: logged, never surfaced as a failure of the committed mutation,
- * and never stopping later listeners for the same event.
+ * Default invalidation runs inside the source transaction and fails closed:
+ * projection failure rolls back source changes before postcommit callbacks.
+ * Standalone freshly sourced postcommit indexing/cleanup remains best-effort:
+ * failure is logged without changing the already committed source outcome.
  *
  * Runs through a real repository and unit of work from a booted kernel. The
- * ai-vector listeners are registered explicitly with a storage that always
- * fails, so this test doesn't depend on how the listeners are composed.
+ * Listeners are registered explicitly with a storage that always fails.
+ * Separate composition tests pin the default transaction-side topology.
  */
 #[CoversNothing]
 final class PostCommitVectorFailureTest extends TestCase
@@ -81,10 +81,33 @@ final class PostCommitVectorFailureTest extends TestCase
     }
 
     #[Test]
+    public function transactional_invalidation_failure_rolls_back_source_before_postcommit_events(): void
+    {
+        $node = $this->saveNode(published: true);
+        $sourceListener = new \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener($this->failingStorage(), new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
+        $this->listen(\Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, [$sourceListener, 'onSourceChanged']);
+        $dispatcher = (fn() => $this->dispatcher)->call($this->kernel);
+        $postcommit = 0;
+        $dispatcher->addListener(EntityEvents::POST_SAVE->value, static function () use (&$postcommit): void {
+            ++$postcommit;
+        });
+        $node->set('status', false);
+        try {
+            $this->repository()->save($node);
+            self::fail('Projection invalidation failure must abort the mutation.');
+        } catch (\RuntimeException $error) {
+            self::assertStringContainsString('vector storage unavailable', $error->getMessage());
+        }
+        self::assertSame(1, $this->storedStatus($node), 'source unpublication rolled back');
+        self::assertSame(0, $postcommit, 'no postcommit save event on refused source change');
+        self::assertSame(0, $this->laterListenerRuns, 'later source subscriber was not run after refusal');
+    }
+
+    #[Test]
     public function a_committed_delete_succeeds_logs_and_lets_later_listeners_run_when_vector_cleanup_fails(): void
     {
         $node = $this->saveNode(published: true);
-        $this->listen(EntityEvents::POST_DELETE->value, [new EntityEmbeddingCleanupListener($this->failingStorage(), logger: $this->logger(), executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard()), 'onPostDelete']);
+        $this->listen(EntityEvents::POST_DELETE->value, [new EntityEmbeddingCleanupListener($this->failingStorage(), logger: $this->logger(), executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(), entityTypeManager: $this->kernel->getEntityTypeManager()), 'onPostDelete']);
 
         $this->repository()->delete($node);
 

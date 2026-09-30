@@ -106,7 +106,11 @@ final class EmbeddingsServingPathSchemaAuthorityTest extends TestCase
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
         // A node that isn't publicly served: the listener deletes its vector.
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(7, 'node', 'draft', ['status' => 0, 'workflow_state' => 'draft'])));
-        new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostDelete(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
+        $deletedRepository = $this->createStub(EntityRepositoryInterface::class);
+        $deletedRepository->method('find')->willReturn(null);
+        $deletedManager = $this->createStub(EntityTypeManagerInterface::class);
+        $deletedManager->method('getRepository')->willReturn($deletedRepository);
+        new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(), entityTypeManager: $deletedManager)->onPostDelete(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
 
         $document = new SearchController(
             entityTypeManager: $manager,

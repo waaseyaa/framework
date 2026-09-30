@@ -52,8 +52,9 @@ The served row is the source, so a forward draft cannot replace the published
 projection. If cleanup itself fails, storage remains unavailable; no claim of
 successful cleanup is made.
 
-Post-commit listeners catch/log failures so committed entity mutations remain
-successful. Operator warm/refresh calls propagate failure and count only
+Post-commit provider/indexing listeners catch/log failures so committed entity
+mutations remain successful. Transactional source-invalidation failures instead
+abort and roll back the source mutation atomically; they are not best-effort. Operator warm/refresh calls propagate failure and count only
 confirmed operations. Both refresh paths delete an exact ID if it disappears
 between query and hydration. They never report swallowed listener failures as
 stored. A provider-less declared type retains `skipped_no_provider`; excluded
@@ -75,16 +76,24 @@ vector before releasing that lock. A concurrent source change must advance the
 same generation before it can commit. Provider calls run outside source and
 publication transactions. This closes the final-reread/publication race on both
 supported backends; atomic vector replacement alone would not close it.
-Generation tombstones survive deletion. Superseded completion and failure
+Generation tombstones survive deletion. Production invalidation is subscribed
+only to the transactional source event, including HTTP mutations. There is no
+post-delete or non-HTTP post-commit invalidation subscription: a delayed callback
+must not advance a generation and delete a newer vector. HTTP post-commit indexing
+is registered only with a configured provider. Superseded completion and failure
 cleanup cannot overwrite or remove a newer vector. Only confirmed stores count
 as stored; a superseded operation is not a successful store.
 
 The built-in database guard requires source, generation and vector storage on
 the same database connection. Missing generation schema refuses activation or
-execution. Custom storage requires a compatible explicitly bound guard qualified
+source mutation/execution. Custom storage requires a compatible explicitly bound guard qualified
 for atomic source invalidation and publication, and a repository that supplies
 fresh served reads. Cached custom repositories must participate in that protocol.
-`EmbeddingStorageInterface` remains the sole storage contract.
+`EmbeddingStorageInterface` remains the sole storage contract. The retained
+`invalidateOnly` mode refuses `[AIV-EXECUTION-008]` without mutation; applications
+migrate to transactional source events. Standalone `EntityEmbeddingCleanupListener`
+requires a fresh manager, locks the generation and verifies source absence before
+removing a vector. Missing manager refuses without mutation.
 
 | Operation | Built-in network-transfer budget |
 | --- | --- |
@@ -98,7 +107,9 @@ body, alongside its inactivity timeout. These are network bounds, not a whole
 HTTP request, credential-resolution, database, or multi-entity batch deadline.
 The longer operator/query budgets preserve legitimate workloads exceeding the
 save-time budget. Timeout, HTTP refusal and malformed response fail explicitly.
-Post-commit listener failures are logged; operator failures propagate. Cleanup
+Post-commit provider failures are logged; operator failures propagate. Source
+invalidation failures abort the source transaction. Operators monitor source
+mutation errors and `[AIV-EXECUTION-007]` post-commit diagnostics separately. Cleanup
 is conditional on the current token and is never reported successful if it fails.
 
 HTTP custom providers must implement `EmbeddingSaveProviderInterface` and honor
@@ -109,7 +120,7 @@ transport overrides cannot be preempted; their owners must qualify the budget.
 `waaseyaa/http-client` owns the maintained Symfony HTTP implementation.
 ai-vector's minimal `EmbeddingHttpTransport` retains payload, status and JSON
 validation, while providers retain credential and endpoint policy. The split
-http-client package requires Symfony HttpClient ^7.0 and contracts ^3.0; the
+http-client package requires Symfony HttpClient ^7.4 and contracts ^3.0; the
 candidate lock uses HttpClient 7.4.20. Symfony's native fallback supports hosts
 without ext-curl. Existing StreamHttpClient and ai-agent transport consolidation
 remain with their package maintainers, outside this slice.

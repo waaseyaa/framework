@@ -41,14 +41,13 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  * the next ordinary edit.
  *
  * Indexing requires a repository manager that reads fresh served rows. Missing
- * composition refuses indexing and invalidates; event content is never a
+ * composition refuses indexing without mutation; event content is never a
  * freshness fallback. Standalone callers must supply the same source fence.
  *
- * Two modes (FW-AIV-COMP-01). The default indexing mode embeds served,
- * indexable content and removes the vector otherwise. `invalidateOnly` mode,
- * used outside HTTP (CLI, imports, workers), removes any existing vector on
- * every save or pointer move and never calls the embedding provider;
- * `semantic:refresh` re-indexes.
+ * HTTP indexing embeds current served, indexable content after commit.
+ * Transactional source-change notifications own production invalidation.
+ * The retained `invalidateOnly` option refuses without mutation: delayed
+ * post-commit invalidation must never erase a newer vector.
  *
  * Every storage and re-sourcing call is best-effort. These listeners run
  * after the entity mutation has committed, so a failure is logged once as an
@@ -104,20 +103,17 @@ final class EntityEmbeddingListener
         }
 
         try {
+            if ($this->invalidateOnly) {
+                throw new \LogicException('[AIV-EXECUTION-008] Invalidation requires the transactional source-change event.');
+            }
             if ($this->storage === null || $this->executionGuard === null) {
                 throw new \LogicException('[AIV-EXECUTION-001] Indexing requires storage and a shared execution guard.');
             }
             $executor = new EmbeddingExecutor($this->storage, $this->executionGuard, $this->indexPolicy, $this->embeddingProvider);
-            if ($this->invalidateOnly) {
-                $executor->invalidate($entityType, (string) $entityId);
-                return;
-            }
             if ($this->embeddingProvider !== null && !$this->embeddingProvider instanceof EmbeddingSaveProviderInterface) {
-                $executor->invalidate($entityType, (string) $entityId);
                 throw new \LogicException('[AIV-EXECUTION-002] HTTP indexing requires a save-budget provider.');
             }
             if ($this->entityTypeManager === null) {
-                $executor->invalidate($entityType, (string) $entityId);
                 throw new \LogicException('[AIV-EXECUTION-005] Indexing requires fresh served repository reads.');
             }
             $load = fn(): ?EntityInterface => $this->entityTypeManager->getRepository($entityType)->find((string) $entityId);

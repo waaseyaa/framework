@@ -208,6 +208,8 @@ php -r '
     $provider->register();
     if ($provider->getBindings() !== []) { fwrite(STDERR, "disabled ai-vector registered bindings\n"); exit(1); }
 ' "$vector_nodev"
+php "$root/tests/PackagedForm/ai-vector-installed-transport.php" "$vector_nodev" \
+    "$root/packages/ai-vector/tests/Support/embedding-http-peer.php"
 ( cd "$vector_nodev" && php vendor/bin/waaseyaa list --raw ) >"$work/vector-nodev.commands" 2>&1 \
     || { cat "$work/vector-nodev.commands" >&2; exit 1; }
 if grep -Eq '^semantic:(warm|refresh)' "$work/vector-nodev.commands"; then

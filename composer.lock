@@ -4848,11 +4848,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/http-client",
-                "reference": "297aa05bc5a1287a2941e05c7dbb20cc96ade9c7"
+                "reference": "6ea920537008cc33c1c6e1eddc0d3ed5ef5c633d"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/http-client": "^7.0",
+                "symfony/http-client": "^7.4",
                 "symfony/http-client-contracts": "^3.0"
             },
             "require-dev": {
@@ -13309,7 +13309,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
-                "reference": "d18abd4065a2f9257f60dd1d958737522b28e0b5"
+                "reference": "e54076253f2435558546a8daa2ba23ac5294e7de"
             },
             "require": {
                 "php": ">=8.5",

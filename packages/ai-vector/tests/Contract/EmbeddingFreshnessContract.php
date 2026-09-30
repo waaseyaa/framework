@@ -56,7 +56,7 @@ trait EmbeddingFreshnessContract
                         if (str_ends_with($race, 'delete')) {
                             $deleted = $served;
                             $served = null;
-                            new EntityEmbeddingCleanupListener($this->storage, executionGuard: $guard)
+                            new EntityEmbeddingCleanupListener($this->storage, executionGuard: $guard, entityTypeManager: $manager)
                                 ->onPostDelete(new EntityEvent($deleted));
                         } elseif (str_ends_with($race, 'exclude')) {
                             new EntityEmbeddingListener(
@@ -119,6 +119,24 @@ trait EmbeddingFreshnessContract
                 );
             }
         }
+    }
+
+    #[Test]
+    public function delayed_delete_and_invalidation_events_preserve_a_recreated_identity_vector(): void
+    {
+        $guard = new DatabaseEmbeddingExecutionGuard($this->database);
+        $served = new FreshnessEntity(['id' => '01', 'title' => 'recreated', 'status' => 1, 'workflow_state' => 'published']);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($served);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getRepository')->willReturn($repository);
+        $guard->begin('node', '01');
+        $this->storage->store('node', '01', [0, 1]);
+        $old = new EntityEvent(new FreshnessEntity(['id' => '01', 'title' => 'deleted old', 'status' => 1, 'workflow_state' => 'published']));
+        new EntityEmbeddingCleanupListener($this->storage, executionGuard: $guard, entityTypeManager: $manager)->onPostDelete($old);
+        self::assertSame([['id' => '01', 'score' => 1.0]], $this->storage->findSimilar([0, 1], 'node', 10));
+        new EntityEmbeddingListener(storage: $this->storage, executionGuard: $guard, entityTypeManager: $manager, invalidateOnly: true)->onPostSave($old);
+        self::assertSame([['id' => '01', 'score' => 1.0]], $this->storage->findSimilar([0, 1], 'node', 10));
     }
 
     #[Test]

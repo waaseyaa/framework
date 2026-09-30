@@ -20,12 +20,6 @@ final class EmbeddingExecutor
         }
     }
 
-    public function invalidate(string $type, string $id): void
-    {
-        $token = $this->guard->begin($type, $id);
-        $this->guard->runIfCurrent($type, $id, $token, fn() => $this->storage->delete($type, $id));
-    }
-
     /** @param \Closure(): ?EntityInterface $load */
     public function index(string $type, string $id, \Closure $load, bool $save = false): string
     {

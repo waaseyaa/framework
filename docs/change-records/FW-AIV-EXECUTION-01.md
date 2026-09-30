@@ -17,8 +17,8 @@
 HTTP save/revert/served-pointer listeners embed once after true commit when the
 shared default-deny projection allows current served content. CLI warm/refresh
 embeds synchronously per entity. Semantic HTTP and MCP queries embed directly;
-built-in batch providers loop over single calls. Non-HTTP lifecycle mutations
-invalidate only. The original listener was the sole generic
+built-in batch providers loop over single calls. All lifecycle mutations invalidate through the transactional source event;
+non-HTTP kernels have no post-commit indexing subscription. The original listener was the sole generic
 `ai_vector.embed_entity` producer, with no production queue injection or handler.
 QueueServiceProvider registers JobHandler, not this message. Remove that producer,
 listener constructor argument and ai-vector dependency without inventing a worker.
@@ -45,7 +45,15 @@ Publication locks that generation, verifies its token, rereads the current serve
 projection without acquiring source mutation locks, and stores atomically under
 the generation lock. A concurrent source change cannot commit before advancing
 that same generation. Network calls occur outside entity and publication
-transactions. Deletion retains tombstones. Older success and older failure cleanup
+transactions. Source invalidation is fail-closed: any failure rolls back the
+source mutation atomically, unlike best-effort post-commit provider failure.
+Production post-delete and non-HTTP/invalidate-only callbacks are removed.
+Delayed callbacks cannot mint a newer generation and erase an already newer
+vector. HTTP post-commit indexing is wired only with a configured provider.
+The retained invalidateOnly constructor mode refuses AIV-EXECUTION-008 without
+mutation; callers migrate to EntitySourceChangedEvent. Standalone cleanup needs
+a fresh entity manager, locks the generation and verifies current absence before
+deleting; missing manager refuses without mutation. Deletion retains tombstones. Older success and older failure cleanup
 are conditional on their token, so they cannot replace or delete a newer vector.
 Lifecycle indexing and both refresh entrypoints share EmbeddingExecutor and fresh
 repository reads. Preloaded chunks and event-snapshot publication are removed.
@@ -69,7 +77,7 @@ The additive SymfonyHttpClient implements the existing HTTP-client boundary;
 ai-vector's small EmbeddingHttpTransport keeps JSON/payload/status validation,
 and providers keep credential, endpoint and network-classification policy.
 
-The split dependency is symfony/http-client ^7.0 and contracts ^3.0, with
+The split dependency is symfony/http-client ^7.4 and contracts ^3.0, with
 HttpClient 7.4.20 in this candidate lock. Symfony owns connection, TLS, streaming,
 redirect and timeout mechanics. max_duration supplies total transfer enforcement,
 alongside timeout for inactivity, and the adapter enforces the response cap.
@@ -88,7 +96,8 @@ PostgreSQL storage, including independent-connection source/publication races.
 ## Reconciliation and limitations
 
 The application operator schedules a full semantic:refresh sweep at its declared
-freshness SLA, monitors listener errors, command failures and eligible search
+freshness SLA, monitors source-mutation errors, AIV-EXECUTION-007 post-commit diagnostics,
+command failures and eligible search
 coverage, and reruns reconciliation after provider/storage recovery. No retry
 worker or automatic repair loop is supplied. Source changes invalidate at commit;
 coverage can remain absent until successful HTTP indexing or scheduled/manual
@@ -107,6 +116,11 @@ and representative class origins are mandatory; no donor vendor or autoload
 workaround is permitted. Independent subagents review immutable candidates,
 including freshness, budgets/Symfony integration, compatibility and installation
 profiles. Exact-head hosted full qualification supplies the complete verdict.
+The split-artifact no-dev consumer executes the installed provider and Symfony
+Native/Curl adapters against a synthetic loopback peer. Its origin guard refuses
+source-checkout production classes; the native fallback is always exercised and
+the cURL profile runs when that extension is installed. This is hosted-owned
+installation evidence, not a local packaged-form qualification claim.
 
 Open a PR after initial independent review, repair review/CI findings, then
 report the green exact SHA and evidence for Russell and the separate architecture

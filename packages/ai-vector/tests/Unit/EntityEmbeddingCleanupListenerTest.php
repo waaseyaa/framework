@@ -15,6 +15,27 @@ use Waaseyaa\Entity\Event\EntityEvent;
 #[CoversClass(EntityEmbeddingCleanupListener::class)]
 final class EntityEmbeddingCleanupListenerTest extends TestCase
 {
+    private function manager(?EntityInterface $entity): \Waaseyaa\Entity\EntityTypeManagerInterface
+    {
+        $repository = $this->createStub(\Waaseyaa\Entity\Repository\EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($entity);
+        $manager = $this->createStub(\Waaseyaa\Entity\EntityTypeManagerInterface::class);
+        $manager->method('getRepository')->willReturn($repository);
+
+        return $manager;
+    }
+
+    #[Test]
+    public function missing_manager_refuses_without_deleting_and_recreated_entity_is_preserved(): void
+    {
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects(self::never())->method('delete');
+        $logger = $this->createMock(\Waaseyaa\Foundation\Log\LoggerInterface::class);
+        $logger->expects(self::once())->method('error')->with(self::stringContains('AIV-EXECUTION-005'));
+        new EntityEmbeddingCleanupListener($storage, logger: $logger, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
+        new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(), entityTypeManager: $this->manager(new CleanupTestEntity(42, 'node')))->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
+    }
+
     #[Test]
     public function deletesEmbeddingOnPostDeleteWhenEntityIdExists(): void
     {
@@ -23,7 +44,7 @@ final class EntityEmbeddingCleanupListenerTest extends TestCase
             ->method('delete')
             ->with('node', '42');
 
-        $listener = new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard());
+        $listener = new EntityEmbeddingCleanupListener($storage, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(), entityTypeManager: $this->manager(null));
         $listener->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
     }
 
@@ -57,7 +78,7 @@ final class EntityEmbeddingCleanupListenerTest extends TestCase
             }
         };
 
-        new EntityEmbeddingCleanupListener($storage, $logger, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
+        new EntityEmbeddingCleanupListener($storage, $logger, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(), entityTypeManager: $this->manager(null))->onPostDelete(new EntityEvent(new CleanupTestEntity(42, 'node')));
 
         self::assertCount(1, $errors);
         self::assertStringContainsString('storage offline', $errors[0]);

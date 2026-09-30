@@ -5,7 +5,7 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "symfony/http-client": "^7.0",
+        "symfony/http-client": "^7.4",
         "symfony/http-client-contracts": "^3.0"
     },
     "require-dev": {

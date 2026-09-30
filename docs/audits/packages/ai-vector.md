@@ -61,7 +61,7 @@ The retained source files, the migration and `public-surface.php`, plus the mani
 | `src/EmbeddingSourceChangedListener.php` | Entity-storage transactional event integration | owned and coherent | reviewed | Advances generation and deletes vector before source commit without provider work; current qualification pending |
 | `testing/InMemoryEmbeddingExecutionGuard.php` | Development-only single-process guard double | owned and coherent | reviewed | Synthetic test support only, not production/backend qualification |
 | `src/EmbeddingHttpTransport.php` | Internal bounded HTTP adapter | owned and coherent | reviewed | Minimal policy adapter over http-client Symfony transport; operation-specific deadlines and 1 MiB response cap; current qualification pending |
-| `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | owned and coherent | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001); not best-effort at the base (AIV-EXEC-002); best-effort since FW-AIV-COMP-01 |
+| `src/EntityEmbeddingCleanupListener.php` | Optional standalone cleanup after current absence is verified | owned and coherent | reviewed | Not subscribed in production; requires fresh manager and guarded absence check; current candidate qualification pending |
 | `src/SearchController.php` | Semantic and keyword search, graph rerank | necessary but under-specified | reproduced (synthetic) | AIV-SEC-001, AIV-HTTP-001 |
 | `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reproduced | Shares the lifecycle policy and deletes vectors for requested excluded types |
 | `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places at the base (AIV-COMP-001), once, by the provider, since FW-AIV-COMP-01 |
@@ -421,3 +421,14 @@ Invalidation can leave coverage absent until reconciliation. Existing unrelated
 http-client/ai-agent transport consolidation remains with those owners at their
 next transport-policy change. #3137 stays open; #3143 and private AIV-SEC-001 are
 separately sequenced. This checkpoint does not mark the package assessed.
+
+Candidate-1 review repair removes delayed unconditional invalidation: only the
+transactional source event invalidates production vectors. HTTP post-commit
+indexing needs a configured provider; non-HTTP and delete callbacks cannot erase
+a newer vector. Source invalidation errors roll back mutation atomically;
+post-commit provider errors retain best-effort semantics with AIV-EXECUTION-007
+diagnostics. Standalone cleanup verifies fresh absence under the generation lock;
+invalidateOnly refuses without mutation. These repairs require a new immutable
+review/qualification checkpoint. Symfony's maintained dependency floor is ^7.4,
+locked at 7.4.20. Historical FW-AIV-COMP-01 evidence is not a qualification claim
+for this changed transactional contract.

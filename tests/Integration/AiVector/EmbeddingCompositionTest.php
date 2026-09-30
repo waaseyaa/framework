@@ -73,7 +73,7 @@ final class EmbeddingCompositionTest extends TestCase
         [$storage, $provider] = $this->boundServices($kernel);
 
         $indexer = $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
-        $cleanup = $this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class);
+        $cleanup = $this->onlyListener($kernel, \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener::class);
 
         self::assertSame($storage, $this->property($indexer, 'storage'), 'the indexing listener uses the bound storage');
         self::assertSame($provider, $this->property($indexer, 'embeddingProvider'), 'the indexing listener uses the bound provider');
@@ -93,16 +93,13 @@ final class EmbeddingCompositionTest extends TestCase
     }
 
     #[Test]
-    public function http_kernel_without_a_configured_provider_invalidates_on_save(): void
+    public function http_kernel_without_provider_has_only_transactional_invalidation(): void
     {
         $this->writeConfig(withProvider: false);
         $kernel = $this->boot(HttpKernel::class);
-
-        $indexer = $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
-        self::assertTrue($this->property($indexer, 'invalidateOnly'));
-        self::assertNull($this->property($indexer, 'embeddingProvider'));
+        $this->assertNoPostcommitCleanup($kernel);
+        $this->onlyListener($kernel, \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener::class);
     }
-
     #[Test]
     public function re_entering_provider_boot_and_http_configuration_registers_each_listener_once(): void
     {
@@ -113,7 +110,7 @@ final class EmbeddingCompositionTest extends TestCase
         $provider->configureHttpKernel($kernel);
 
         $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
-        $this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class);
+        $this->onlyListener($kernel, \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener::class);
         $this->onlyListener($kernel, EntityEvents::REVISION_REVERTED->value, EntityEmbeddingListener::class);
     }
 
@@ -168,26 +165,32 @@ final class EmbeddingCompositionTest extends TestCase
         [$storage] = $this->boundServices($kernel);
 
         self::assertInstanceOf(HostEmbeddingStorage::class, $storage);
-        self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class), 'storage'));
-        self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class), 'storage'));
+        $this->assertNoPostcommitCleanup($kernel);
+        self::assertSame($storage, $this->property($this->onlyListener($kernel, \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener::class), 'storage'));
         self::assertSame($storage, $this->property($this->resolve($kernel, SemanticIndexWarmer::class), 'embeddingStorage'));
     }
 
     #[Test]
-    public function console_kernel_registers_lifecycle_listeners_with_the_provider_bound_storage(): void
+    public function console_kernel_registers_only_transactional_invalidation_with_bound_storage(): void
     {
         $kernel = $this->boot(ConsoleKernel::class);
         [$storage] = $this->boundServices($kernel);
-
-        $indexer = $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
-        $cleanup = $this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class);
-
-        self::assertSame($storage, $this->property($indexer, 'storage'));
-        self::assertSame($storage, $this->property($cleanup, 'storage'));
-        self::assertTrue($this->property($indexer, 'invalidateOnly'), 'outside HTTP, saves only remove vectors');
-        self::assertNull($this->property($indexer, 'embeddingProvider'), 'outside HTTP, the provider is never called');
+        $this->assertNoPostcommitCleanup($kernel);
+        $source = $this->onlyListener($kernel, \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener::class);
+        self::assertSame($storage, $this->property($source, 'storage'));
     }
 
+    private function assertNoPostcommitCleanup(AbstractKernel $kernel): void
+    {
+        $dispatcher = (fn() => $this->dispatcher)->call($kernel);
+        foreach ([EntityEvents::POST_SAVE->value, EntityEvents::POST_DELETE->value] as $event) {
+            foreach ($dispatcher->getListeners($event) as $listener) {
+                $object = is_array($listener) ? $listener[0] : $listener;
+                self::assertNotInstanceOf(EntityEmbeddingListener::class, $object);
+                self::assertNotInstanceOf(EntityEmbeddingCleanupListener::class, $object);
+            }
+        }
+    }
     /** @param list<class-string> $providers in registration order */
     private function writeProviders(array $providers): void
     {
@@ -205,7 +208,7 @@ final class EmbeddingCompositionTest extends TestCase
         self::assertSame($storage, $this->property($indexer, 'storage'), 'indexing listener storage');
         self::assertSame($provider, $this->property($indexer, 'embeddingProvider'), 'indexing listener provider');
         self::assertSame($policy, $this->property($indexer, 'indexPolicy'), 'indexing listener policy');
-        self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class), 'storage'), 'cleanup listener storage');
+        self::assertSame($storage, $this->property($this->onlyListener($kernel, \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent::class, \Waaseyaa\AI\Vector\EmbeddingSourceChangedListener::class), 'storage'), 'cleanup listener storage');
         $warmer = $this->resolve($kernel, SemanticIndexWarmer::class);
         self::assertSame($storage, $this->property($warmer, 'embeddingStorage'), 'warmer storage');
         self::assertSame($provider, $this->property($warmer, 'embeddingProvider'), 'warmer provider');

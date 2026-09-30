@@ -232,7 +232,11 @@ final class VectorSearchIntegrationTest extends TestCase
     public function lifecycle_and_both_refresh_paths_remove_stale_vectors_and_refuse_failed_counts(): void
     {
         $policy = EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => ['tool_test' => ['fields' => ['title'], 'allow_external' => true]]]]);
-        $failing = new class implements EmbeddingProviderInterface {
+        $failing = new class implements \Waaseyaa\AI\Vector\EmbeddingSaveProviderInterface {
+            public function embedForSave(string $text): array
+            {
+                return $this->embed($text);
+            }
             public function embed(string $text): array
             {
                 throw new \RuntimeException('synthetic-provider-failure');
@@ -250,7 +254,7 @@ final class VectorSearchIntegrationTest extends TestCase
             self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10));
         }
         $this->seed('01');
-        new EntityEmbeddingListener(storage: $this->storage, embeddingProvider: $failing, indexPolicy: $policy, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostSave(new EntityEvent($this->entities['01']));
+        new EntityEmbeddingListener(storage: $this->storage, embeddingProvider: $failing, entityTypeManager: $this->manager, indexPolicy: $policy, executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard())->onPostSave(new EntityEvent($this->entities['01']));
         self::assertSame([], $this->storage->findSimilar([1.0, 0.0], 'tool_test', 10), 'post-commit failure is swallowed but old vector is removed');
 
         foreach (['warm', 'warmBatch'] as $method) {

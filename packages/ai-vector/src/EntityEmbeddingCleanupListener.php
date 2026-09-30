@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Vector;
 
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
- * Removes an entity's vector after the entity is deleted.
+ * Standalone guarded cleanup of an identity whose current source is absent.
  *
- * POST_DELETE runs after the delete has committed, so removal is best-effort
- * (FW-AIV-COMP-01): a storage failure is logged once as an error and never
- * surfaced as a failure of the committed delete.
+ * Default composition uses transactional source invalidation instead. Direct
+ * callers require fresh repository reads and a participating source fence;
+ * a delayed delete event cannot erase a recreated entity's vector. Failures
+ * are logged and do not fail the already committed deletion.
+ * @api
  */
 final class EntityEmbeddingCleanupListener
 {
@@ -23,6 +26,7 @@ final class EntityEmbeddingCleanupListener
         private readonly EmbeddingStorageInterface $storage,
         ?LoggerInterface $logger = null,
         private readonly ?EmbeddingExecutionGuardInterface $executionGuard = null,
+        private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -42,12 +46,19 @@ final class EntityEmbeddingCleanupListener
             if (!$this->executionGuard->supportsStorage($this->storage)) {
                 throw new \LogicException('[AIV-EXECUTION-003] Cleanup requires compatible storage and guard.');
             }
+            if ($this->entityTypeManager === null) {
+                throw new \LogicException('[AIV-EXECUTION-005] Cleanup requires fresh served repository reads.');
+            }
             $token = $this->executionGuard->begin($entityType, (string) $entityId);
             $this->executionGuard->runIfCurrent(
                 $entityType,
                 (string) $entityId,
                 $token,
-                fn() => $this->storage->delete($entityType, (string) $entityId),
+                function () use ($entityType, $entityId): void {
+                    if ($this->entityTypeManager->getRepository($entityType)->find((string) $entityId) === null) {
+                        $this->storage->delete($entityType, (string) $entityId);
+                    }
+                },
             );
         } catch (\Throwable $exception) {
             $this->logger->error(sprintf(

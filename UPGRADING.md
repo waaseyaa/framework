@@ -402,3 +402,12 @@ their freshness SLA. There is no retry worker. For policy changes, quiesce old
 workers, migrate, purge excluded vectors, restart and refresh. The source freshness
 fence does not version configuration across booted processes. See
 `docs/specs/semantic-search-contract.md` for complete obligations.
+
+Production invalidation now runs exclusively through EntitySourceChangedEvent
+inside the source transaction. Its failure rolls back the mutation atomically;
+post-commit provider failure remains best-effort and is logged as
+AIV-EXECUTION-007. Remove post-delete and non-HTTP invalidate-only registrations.
+The retained invalidateOnly flag refuses AIV-EXECUTION-008 without mutation.
+Standalone EntityEmbeddingCleanupListener needs a fresh entity manager and checks
+absence under the generation lock; missing manager refuses without mutation.
+Monitor source mutation errors separately from reconciliation/indexing failures.

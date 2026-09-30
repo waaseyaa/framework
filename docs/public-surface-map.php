@@ -54,6 +54,7 @@ return [
     'Waaseyaa\AI\Vector\EmbeddingSaveProviderInterface' => 'public',
     'Waaseyaa\AI\Vector\EmbeddingSourceChangedListener' => 'internal',
     'Waaseyaa\AI\Vector\EmbeddingStorageInterface' => 'public',
+    'Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener' => 'public',
     'Waaseyaa\AI\Vector\EntityEmbeddingListener' => 'public',
     'Waaseyaa\AI\Vector\InvalidEmbeddingIndexPolicyException' => 'public',
     'Waaseyaa\AI\Vector\OllamaEmbeddingProvider' => 'public',

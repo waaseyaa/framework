@@ -352,7 +352,7 @@ name is dispatched.
 | `packages/database-legacy/` | `Waaseyaa\Database\` | 0 (Foundation) | DatabaseInterface, DBALDatabase (Doctrine DBAL), query builder (select/insert/update/delete), schema, transactions. Composer name keeps the `-legacy` suffix for historical reasons; see [ADR 007](../adr/007-database-legacy-package-naming.md). |
 | `packages/plugin/` | `Waaseyaa\Plugin\` | 0 (Foundation) | PluginManager, attribute-based plugin discovery, plugin factory |
 | `packages/mail/` | `Waaseyaa\Mail\` | 0 (Foundation) | `MailerInterface` + `Envelope`; pluggable `TransportInterface` (array, local file, SendGrid API when configured) |
-| `packages/http-client/` | `Waaseyaa\HttpClient\` | 0 (Foundation) | Minimal HTTP client for JSON APIs and webhooks, zero external dependencies |
+| `packages/http-client/` | `Waaseyaa\HttpClient\` | 0 (Foundation) | HTTP client for JSON APIs and webhooks; stream and maintained Symfony implementations |
 
 Infrastructure-layer split packages that ship as Packagist libraries are expected to carry the normal release metadata shape in `composer.json`: `minimum-stability: stable` and branch aliases for `dev-main` plus the active maintenance branch. That invariant matters for local path-repository workflows because canonical path repos must still satisfy `^0.1` constraints when apps override published packages during development.
 
@@ -1705,7 +1705,7 @@ not part of that coordinated path belong in package migrations so they run on
 
 ## HTTP Client
 
-Minimal HTTP client with no external dependencies (uses PHP streams). Zero composer dependencies — requires only `php: >=8.4`.
+The HTTP-client package supplies the existing stream implementation and an additive maintained Symfony implementation. Composer requires PHP >=8.4, symfony/http-client ^7.4 and symfony/http-client-contracts ^3.0; the execution candidate locks HttpClient 7.4.20.
 
 ### HttpClientInterface
 
@@ -3291,3 +3291,21 @@ Explicit validation opt-outs remain unchanged. This does not implement deletion
 restrictions, translation/revision write validation, or polymorphic references.
 The behavioral contract and focused evidence are in `entity-system.md` and
 `FW-ENTITY-REFERENCE-INTEGRITY-01`.
+
+## Embedding transport and transaction integration (FW-AIV-EXECUTION-01)
+
+SymfonyHttpClient under waaseyaa/http-client owns generic HTTP mechanics with
+total max_duration, inactivity timeout, verified TLS, no automatic redirects or
+retries and a configured response cap. ai-vector keeps a minimal payload/status/
+JSON adapter and provider policy. The maintained Symfony floor is ^7.4, locked
+7.4.20; native fallback does not require ext-curl. Existing stream consumers are
+unchanged. Save transfers use 2 seconds; Ollama CLI/query 15 seconds and OpenAI
+CLI/query 20 seconds. Whole request, credential and batch time are separate.
+
+EntitySourceChangedEvent carries the actual source connection after writes and
+before true commit. ai-vector invalidation participates in that transaction;
+failure aborts the source mutation. Provider calls run after true commit without
+entity transactions held. Production has no delayed post-delete or non-HTTP
+invalidation callbacks. Post-commit provider failure remains best-effort, logged
+with AIV-EXECUTION-007; the application operator monitors source errors separately
+and owns scheduled refresh reconciliation. See semantic-search-contract.md.

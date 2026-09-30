@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Vector\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Vector\DatabaseEmbeddingExecutionGuard;
@@ -11,10 +12,17 @@ use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
 use Waaseyaa\AI\Vector\EmbeddingExecutionGuardInterface;
 use Waaseyaa\AI\Vector\EmbeddingExecutor;
 use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
+use Waaseyaa\AI\Vector\EmbeddingSourceChangedListener;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
+#[CoversClass(DatabaseEmbeddingExecutionGuard::class)]
+#[CoversClass(DatabaseEmbeddingStorage::class)]
+#[CoversClass(EmbeddingExecutor::class)]
+#[CoversClass(EmbeddingSourceChangedListener::class)]
+#[CoversClass(EntitySourceChangedEvent::class)]
 final class EmbeddingExecutionGuardTest extends TestCase
 {
     #[Test]
@@ -40,7 +48,9 @@ final class EmbeddingExecutionGuardTest extends TestCase
         $token = $guard->begin('node', '01');
         $storage->store('node', '01', [1, 0]);
         $transaction = $database->transaction();
-        $guard->sourceChanged('node', '01', $database, $storage);
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(EntitySourceChangedEvent::class, [new EmbeddingSourceChangedListener($storage, $guard), 'onSourceChanged']);
+        $dispatcher->dispatch(new EntitySourceChangedEvent('node', '01', $database));
         self::assertSame([], $storage->findSimilar([1, 0], 'node', 10));
         try {
             $guard->begin('node', '01');

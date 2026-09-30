@@ -163,7 +163,6 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
         }
 
         $storage = $this->composedStorage();
-        $logger = $this->lifecycleLogger();
         $guard = $this->composedGuard();
         if (!$guard->supportsStorage($storage)) {
             throw new \LogicException('[AIV-EXECUTION-003] Bind a compatible execution guard with custom embedding storage.');
@@ -171,17 +170,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
         $sourceListener = new EmbeddingSourceChangedListener($storage, $guard);
         $dispatcher->addListener(EntitySourceChangedEvent::class, [$sourceListener, 'onSourceChanged']);
 
-        $cleanup = new EntityEmbeddingCleanupListener($storage, $logger, $guard);
-        $dispatcher->addListener(EntityEvents::POST_DELETE->value, [$cleanup, 'onPostDelete']);
-
         $this->lifecycleDispatcher = $dispatcher;
-        $this->subscribeSaveListener(new EntityEmbeddingListener(
-            storage: $storage,
-            indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
-            executionGuard: $this->composedGuard(),
-            logger: $logger,
-            invalidateOnly: true,
-        ));
     }
 
     public function configureHttpKernel(HttpKernel $kernel): void
@@ -196,7 +185,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
 
         $provider = $this->composedProvider();
         if ($provider === null) {
-            // No provider configured: HTTP saves invalidate like every other entry point.
+            // Transaction-side source invalidation remains the sole cleanup path.
             return;
         }
 
