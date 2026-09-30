@@ -203,6 +203,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/ai-vector/migrations/2026_09_30_000002_embedding_index_history.php",
+            "pattern": "schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "5566ab62c629658eeb0b06d5db226369fc3426a71e4d7204da1f59a07314ff5d",
+            "occurrence": 1
+        },
+        {
             "path": "packages/ai-vector/tests/Contract/DatabaseEmbeddingStorageConformanceTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -243,6 +250,146 @@
             "class": "test-only",
             "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
             "occurrence": 2
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 9
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 10
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/UnindexedAvailabilityContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 11
         },
         {
             "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
@@ -3554,6 +3701,13 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 26
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -13032,6 +13186,20 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "occurrence": 3
+        },
+        {
+            "path": "tests/Integration/AiVector/ConsoleVectorInvalidationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/AiVector/ConsoleVectorInvalidationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 2
         },
         {
             "path": "tests/Integration/BackendRegistry/Fixtures/backend_registry_runner.php",

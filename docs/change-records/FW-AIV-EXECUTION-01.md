@@ -1,5 +1,17 @@
 # FW-AIV-EXECUTION-01: bounded synchronous embedding execution
 
+## Superseding completion and bounded follow-up
+
+#3142 completed through #3175 at `755a463ff28c659b0e7f855eaf9b79d94632b362`.
+Independent immutable review and hosted full qualification run 36725360835 passed;
+exact-SHA main feedback run 36729822200 passed. Pending language below records
+the historical pre-delivery checkpoint, rather than outstanding #3142 acceptance.
+The release accepted excluded-type failure coupling as AIV-EXEC-COUPLING-001.
+FW-AIV-UNINDEXED-AVAILABILITY-01 (#3176) narrows that coupling using durable
+monotonic history while preserving freshness and rollback for potentially indexed
+identities. Its review and qualification are recorded separately. #3137 stays
+open and #3143 remains gated.
+
 - Forge mirror: #3142; parent #3137 remains open.
 - Base: `701dca820f21d828b3b287a49202f889b38d40b1`.
 - Owner: root integration; disjoint implementation owners handle entity-storage,

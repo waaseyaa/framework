@@ -188,7 +188,14 @@ final class AiVectorServiceProviderTest extends TestCase
         $dispatcher->dispatch(new EntityEvent(new ProviderLifecycleEntity(2, 'note')), EntityEvents::POST_DELETE->value);
 
         self::assertSame(2, $this->vectorCount($database), 'delayed postcommit events do not remove newer vectors');
-        $database->getConnection()->transactional(fn() => $dispatcher->dispatch(new \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent('node', '1', $database)));
+        $transaction = $database->transaction();
+        try {
+            $dispatcher->dispatch(new \Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent('node', '1', $database));
+            $transaction->commit();
+        } catch (\Throwable $error) {
+            $transaction->rollBack();
+            throw $error;
+        }
         self::assertSame(1, $this->vectorCount($database));
     }
 

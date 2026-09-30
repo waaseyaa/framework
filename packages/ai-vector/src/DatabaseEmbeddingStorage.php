@@ -43,6 +43,7 @@ final class DatabaseEmbeddingStorage implements EmbeddingStorageInterface
         // unlike SQLite's INSERT OR REPLACE.
         $transaction = $this->database->transaction();
         try {
+            DatabaseEmbeddingExecutionGuard::recordStorageWrite($this->database, $entityType, $id);
             $this->database->delete(self::TABLE)
                 ->condition('entity_type', $entityType)
                 ->condition('entity_id', $id)

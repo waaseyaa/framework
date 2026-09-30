@@ -849,7 +849,7 @@ reads, never an event snapshot or a preloaded entity chunk.
 
 A served-source mutation emits `EntitySourceChangedEvent` after its writes and
 inside its database transaction. The ai-vector subscriber advances the exact
-identity's generation and deletes its vector in that same transaction.
+identity's generation and invalidates potentially indexed vectors in that same transaction.
 Publication obtains the generation lock, checks the operation token, rereads the
 served projection without acquiring entity mutation locks, and replaces the
 vector before releasing that lock. A concurrent source change must advance the
@@ -874,6 +874,20 @@ fresh served reads. Cached custom repositories must participate in that protocol
 migrate to transactional source events. Standalone `EntityEmbeddingCleanupListener`
 requires a fresh manager, locks the generation and verifies source absence before
 removing a vector. Missing manager refuses without mutation.
+
+The built-in guard's monotonic `potentially_indexed` marker allows only
+policy-undeclared, proven never-indexed identities to skip projection deletion
+while retaining source-token advancement. Provider intent and canonical direct
+stores promote history before indexing; pure excluded cleanup does not. Existing
+generations are conservatively historical after migration and legacy vectors
+are backfilled. Previously indexed or uncertain identities retain fail-closed
+invalidation and rollback; missing/corrupt authority refuses. This does not
+tolerate entity-database failure or add deferred deletion. Artifact installation
+must reconcile imported vectors with serving history without accepting artifact
+tokens. Quiesce old writers before migrating/activating this protocol. See
+FW-AIV-UNINDEXED-AVAILABILITY-01 and the semantic search contract for the complete
+availability, compatibility and operator obligations. Public storage/guard
+interface signatures and network budgets are unchanged.
 
 | Operation | Built-in network-transfer budget |
 | --- | --- |

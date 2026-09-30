@@ -181,7 +181,7 @@
                     "path": "docs/change-records/FW-AIV-EXECUTION-01.md"
                 }
             ],
-            "notes": "Bounded remediation under #3137 remains in progress: #3141 is independently reviewed, qualified and landed; FW-AIV-EXECUTION-01 (#3142) implements bounded synchronous indexing and removes orphan dispatch, pending review and qualification. #3143 and private AIV-SEC-001 remain separately sequenced; no whole-package assessment is claimed."
+            "notes": "Bounded remediation under #3137 remains in progress: #3141 and #3142 are independently reviewed, qualified and landed; FW-AIV-UNINDEXED-AVAILABILITY-01 (#3176) narrows accepted projection-failure coupling debt, pending review and qualification. #3143 and private AIV-SEC-001 remain separately sequenced; no whole-package assessment is claimed."
         },
         {
             "package": "waaseyaa/analytics",

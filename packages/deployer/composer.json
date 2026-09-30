@@ -6,6 +6,10 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
@@ -15,6 +19,7 @@
         "deployer/deployer": "^7.0"
     },
     "require-dev": {
+        "waaseyaa/database-legacy": "^0.1.0-alpha.302",
         "waaseyaa/foundation": "^0.1.0-alpha.302"
     },
     "autoload": {

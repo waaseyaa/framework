@@ -39,6 +39,8 @@ final class PostgresEmbeddingStorageQualification extends DatabaseEmbeddingStora
         $migration = require dirname(__DIR__, 2) . '/migrations/2026_09_24_000001_embeddings_schema.php';
         \assert($migration instanceof Migration);
         $migration->up(new SchemaBuilder($this->connection));
+        $history = require dirname(__DIR__, 2) . '/migrations/2026_09_30_000002_embedding_index_history.php';
+        $history->up(new SchemaBuilder($this->connection));
         $this->database = new DBALDatabase($this->connection);
         $this->storage = new DatabaseEmbeddingStorage($this->database);
     }

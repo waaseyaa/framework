@@ -24,8 +24,10 @@ final class FrameworkRuntimeTableCatalogue
      * Version 3 (#3127) adds the declared legacy-to-current user schema
      * transition and stable-uuid identity merge semantics.
      * Version 4 (#3142) preserves serving embedding generation tombstones.
+     * Version 5 (#3176) promotes imported vector indexing history after exact
+     * serving-token preservation, minting fresh tokens for missing identities.
      */
-    public const int VERSION = 4;
+    public const int VERSION = 5;
 
     /** @return array<string, RuntimeTableDefinition> */
     public function definitions(): array

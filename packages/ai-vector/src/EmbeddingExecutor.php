@@ -23,14 +23,15 @@ final class EmbeddingExecutor
     /** @param \Closure(): ?EntityInterface $load */
     public function index(string $type, string $id, \Closure $load, bool $save = false): string
     {
-        $token = $this->guard->begin($type, $id);
+        $cleanupOnly = $this->guard instanceof DatabaseEmbeddingExecutionGuard && !$this->policy->isDeclared($type);
+        $token = $cleanupOnly ? $this->guard->beginForCleanup($type, $id) : $this->guard->begin($type, $id);
         try {
             $entity = $load();
             $text = $entity === null ? null : $this->policy->embeddingText($entity, $this->provider);
             if ($text === null) {
-                $current = $this->guard->runIfCurrent($type, $id, $token, fn() => $this->storage->delete($type, $id));
+                $current = $this->cleanup($type, $id, $token);
 
-                return !$current ? 'superseded' : ($entity === null ? 'missing' : 'removed');
+                return $current === 'superseded' ? 'superseded' : ($entity === null ? 'missing' : $current);
             }
             if ($this->provider === null) {
                 throw new \LogicException('Embedding provider unavailable.');
@@ -54,11 +55,20 @@ final class EmbeddingExecutor
             return $current ? $outcome : 'superseded';
         } catch (\Throwable $error) {
             try {
-                $this->guard->runIfCurrent($type, $id, $token, fn() => $this->storage->delete($type, $id));
+                $this->cleanup($type, $id, $token);
             } catch (\Throwable) {
                 throw new \RuntimeException('[AIV-EXECUTION-007] Embedding execution failed and guarded cleanup could not be confirmed.', 0, $error);
             }
             throw $error;
         }
+    }
+
+    private function cleanup(string $type, string $id, string $token): string
+    {
+        if ($this->guard instanceof DatabaseEmbeddingExecutionGuard) {
+            return $this->guard->cleanupOutcomeIfCurrent($type, $id, $token, $this->storage);
+        }
+
+        return $this->guard->runIfCurrent($type, $id, $token, fn() => $this->storage->delete($type, $id)) ? 'removed' : 'superseded';
     }
 }

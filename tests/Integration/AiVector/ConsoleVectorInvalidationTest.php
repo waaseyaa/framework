@@ -101,6 +101,34 @@ final class ConsoleVectorInvalidationTest extends TestCase
         self::assertFalse($this->hasVector($node));
     }
 
+    #[Test]
+    public function never_indexed_undeclared_repository_writes_survive_projection_failure(): void
+    {
+        $database = $this->kernel->getDatabase();
+        self::assertInstanceOf(DBALDatabase::class, $database);
+        $connection = $database->getConnection();
+        $connection->executeStatement('ALTER TABLE embeddings RENAME TO embeddings_fault');
+        try {
+            $node = $this->saveNode('Available during projection outage');
+            $id = (string) $node->id();
+            $node->set('title', 'Still available');
+            $this->repository()->save($node);
+            self::assertSame('Still available', $this->repository()->find($node->id())->get('title'));
+            self::assertSame(0, (int) $connection->fetchOne(
+                'SELECT potentially_indexed FROM embedding_generations WHERE entity_type = ? AND entity_id = ?',
+                ['node', $id],
+            ));
+            $this->repository()->delete($node);
+            self::assertNull($this->repository()->find($id));
+            self::assertSame(0, (int) $connection->fetchOne(
+                'SELECT potentially_indexed FROM embedding_generations WHERE entity_type = ? AND entity_id = ?',
+                ['node', $id],
+            ));
+        } finally {
+            $connection->executeStatement('ALTER TABLE embeddings_fault RENAME TO embeddings');
+        }
+    }
+
     private function saveNode(string $title): Node
     {
         $node = new Node(['title' => $title, 'slug' => 'n-' . bin2hex(random_bytes(3)), 'type' => 'page', 'status' => true, 'uid' => $this->ownerId]);

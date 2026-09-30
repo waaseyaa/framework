@@ -69,7 +69,7 @@ reads, never an event snapshot or a preloaded entity chunk.
 
 A served-source mutation emits `EntitySourceChangedEvent` after its writes and
 inside its database transaction. The ai-vector subscriber advances the exact
-identity's generation and deletes its vector in that same transaction.
+identity's generation and invalidates potentially indexed vectors in that same transaction.
 Publication obtains the generation lock, checks the operation token, rereads the
 served projection without acquiring entity mutation locks, and replaces the
 vector before releasing that lock. A concurrent source change must advance the
@@ -94,6 +94,36 @@ fresh served reads. Cached custom repositories must participate in that protocol
 migrate to transactional source events. Standalone `EntityEmbeddingCleanupListener`
 requires a fresh manager, locks the generation and verifies source absence before
 removing a vector. Missing manager refuses without mutation.
+
+### Never-indexed availability (FW-AIV-UNINDEXED-AVAILABILITY-01)
+
+The built-in guard records monotonic `potentially_indexed` history under the
+same generation-row lock. Only a policy-undeclared identity with authoritative
+history `0` can skip projection deletion during source mutation or pure cleanup.
+Its source transaction still advances the token. Indexing intent and canonical
+direct stores promote history to `1` before any provider or vector write; stores
+preserve an existing token and commit history with vector replacement. Deletion,
+exclusion and failure cleanup never clear that marker. Lifecycle and refresh
+share this distinction; excluded cleanup does not manufacture indexing history.
+Refresh counts such a bypass as processed, with zero stored and zero removed;
+authoritative never-indexed proof does not claim a projection deletion.
+
+This isolates healthy entity/generation state from projection outage for proven
+never-indexed identities. Declared types, historical vectors, provider intent and
+uncertain history keep transactional, fail-closed invalidation. Missing/corrupt
+history refuses; arbitrary entity-database failure is not tolerated. Older
+generation rows are conservatively historical after migration, even if they
+originated only from source changes. Their availability is not promised here.
+Custom guards retain their existing conservative contract unless qualified for
+the same history invariant. Public storage/guard interface signatures are unchanged.
+
+Quiesce older writers, migrate indexing history, and backfill legacy vectors
+before activating the bypass. Standalone embeddings-only storage stays supported;
+later execution activation requires backfill. Artifact installation preserves
+serving tokens and tombstones, then conservatively records imported vector
+identities as potentially indexed with truthful transformed-history evidence.
+Operators still repair projection failures and run refresh; this does not add
+deferred deletion, retries or broader outage availability for indexed entities.
 
 | Operation | Built-in network-transfer budget |
 | --- | --- |

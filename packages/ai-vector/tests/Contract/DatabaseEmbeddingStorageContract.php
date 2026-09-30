@@ -16,6 +16,7 @@ abstract class DatabaseEmbeddingStorageContract extends EmbeddingStorageContract
 {
     use EmbeddingFreshnessContract;
     use EmbeddingConcurrentSourceContract;
+    use UnindexedAvailabilityContract;
 
     protected DBALDatabase $database;
 

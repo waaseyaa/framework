@@ -81,7 +81,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
 
         $this->singleton(
             EmbeddingExecutionGuardInterface::class,
-            fn(): EmbeddingExecutionGuardInterface => new DatabaseEmbeddingExecutionGuard($this->resolve(DatabaseInterface::class)),
+            fn(): EmbeddingExecutionGuardInterface => new DatabaseEmbeddingExecutionGuard($this->resolve(DatabaseInterface::class), $indexPolicy),
         );
 
         $this->singleton(

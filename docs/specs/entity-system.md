@@ -2714,8 +2714,11 @@ provider/network work must never run in this event. Post-save/delete notificatio
 run after true commit, including nested transaction completion. Forward draft and
 history-only writes that do not change served content do not invalidate its vector.
 
-ai-vector uses this event to advance durable generations and delete vectors in
+ai-vector uses this event to advance durable generations and invalidate vectors in
 the source transaction; it publishes only under the same generation lock after a
 fresh served read. See semantic-search-contract.md for topology, custom repository
 obligations and reconciliation. This event does not replace mutation authorization
 or transaction authority and does not make policy configuration versioned.
+FW-AIV-UNINDEXED-AVAILABILITY-01 skips projection deletion only for undeclared
+identities whose indexing history proves never indexed under that same lock.
+Potentially indexed and uncertain identities retain invalidation and rollback.

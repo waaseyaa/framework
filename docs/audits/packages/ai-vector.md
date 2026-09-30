@@ -1,7 +1,7 @@
 # `waaseyaa/ai-vector` audit
 
 - **Audit state:** in progress. It isn't assessed yet, for two reasons:
-  1. remaining execution and search-cost slices await completion (#3142, #3143);
+  1. the search-cost slice remains gated (#3143), and bounded execution debt #3176 is in progress;
   2. AIV-SEC-001 hasn't completed private triage.
 - **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`). AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 are resolved by #3139/#3155 (`d58d526ab`) (FW-AIV-COMP-01). AIV-DIST-001 and AIV-BACKEND-001 are resolved by #3140 (FW-AIV-DIST-01). AIV-DOMAIN-001 is resolved by the first #3141 candidate (FW-AIV-INDEXING-POLICY-01): indexing is default-deny, fields and off-host permission are explicit, and refresh removes excluded vectors.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
@@ -14,6 +14,9 @@
   - FW-AIV-INDEXING-POLICY-01 (#3141 candidate 1): added one default-deny policy for lifecycle and refresh indexing, explicit field projection and provider-egress decisions, and reconciliation of excluded vectors.
 
   - FW-AIV-STORAGE-CONTRACT-01 (#3141 candidate 2): canonical storage, obsolete family removal, truthful declarations, strict refresh and public wire schemas. Final independent review and hosted qualification passed at landed main `701dca820`; final evidence is #3141 comment 5906594738.
+
+  - FW-AIV-EXECUTION-01 (#3142) completed at `755a463ff28c659b0e7f855eaf9b79d94632b362` through #3175. Independent immutable review, full qualification [36725360835](https://github.com/waaseyaa/framework/actions/runs/36725360835) and main feedback [36729822200](https://github.com/waaseyaa/framework/actions/runs/36729822200) passed. #3142 is closed; the rows below that say qualification pending retain their historical candidate checkpoint.
+  - FW-AIV-UNINDEXED-AVAILABILITY-01 (#3176) addresses accepted residual AIV-EXEC-COUPLING-001. A monotonic, locked indexing-history marker permits undeclared, proven-never-indexed source mutations during projection failure; historical, declared and uncertain identities retain fail-closed invalidation. Migration, direct storage and artifact installation preserve this proof. Current candidate review and exact-head full qualification remain pending.
 
   Nothing else was re-audited. The findings' observed evidence describes the base.
 - **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
@@ -54,6 +57,7 @@ The retained source files, the migration and `public-surface.php`, plus the mani
 | `src/InvalidEmbeddingIndexPolicyException.php` | Named malformed-policy refusal | owned and coherent | reproduced | Uses `[AIV-POLICY-001]` |
 | `src/EntityEmbeddingListener.php` | Re-index on save and revision moves | owned and coherent | reproduced | FW-AIV-EXECUTION-01 retains synchronous HTTP indexing, bounds built-in transfers and removes orphan dispatch |
 | `migrations/2026_09_30_000001_embedding_generations.php` | Durable exact-identity generation tombstones | owned and coherent | reviewed | Required migration for source/publication fencing; current qualification pending |
+| `migrations/2026_09_30_000002_embedding_index_history.php` | Monotonic potentially-indexed authority | owned and coherent | reproduced on SQLite | Conservatively adopts old generations and legacy vectors; #3176 immutable review and hosted PostgreSQL qualification pending |
 | `src/EmbeddingExecutionGuardInterface.php` | Atomic source invalidation and conditional publication seam | owned and coherent | reviewed | Custom storage binds a compatible qualified guard; current qualification pending |
 | `src/DatabaseEmbeddingExecutionGuard.php` | Shared-transaction SQLite/PostgreSQL generation fence | owned and coherent | reviewed | Source, generation and vector storage share a connection; retains deletion tombstones; current qualification pending |
 | `src/EmbeddingExecutor.php` | Shared lifecycle and refresh publication protocol | owned and coherent | reviewed | Fresh served reads and guarded store/failure cleanup; provider runs outside source transactions; current qualification pending |

@@ -43,6 +43,25 @@ publish again. These rows are mutable fences, so they use `preserve`, rather
 than append-only or identity-merge semantics. The rebuildable `embeddings`
 table keeps its existing `artifact` policy.
 
+Catalogue version 5 adds a bounded post-preservation reconciliation when
+`embedding_generations.potentially_indexed` is installed. The preparer first
+verifies the complete serving generation copy against its original ordered
+digest and count, as in version 4. It then validates every history marker as
+integer `0` or `1`. Each imported vector identity promotes its history to `1`
+without changing an existing serving token, including a deletion tombstone.
+A vector identity with no serving generation row receives a fresh preparer
+token and history `1`; its artifact token is never accepted. Serving rows
+without imported vectors retain both their token and marker exactly.
+
+This is indexing-history coordination owned by the Framework artifact producer,
+not a schema upgrade or general merge policy. Both installed generation schemas
+must still match. Upgrade and quiesce older writers before preparing a candidate
+using the new availability contract. Legacy generation schemas without the
+marker retain version 4 preservation behavior; applications without ai-vector
+retain their existing optional-table behavior. Invalid markers or a failed
+promotion refuse the preparation and remove the candidate without mutating
+either input.
+
 ## Discovery
 
 The catalogue is framework code and is released with `waaseyaa/deployer`.
@@ -92,6 +111,12 @@ It writes a new candidate; it never mutates either input.
 7. Foreign-key checking and `integrity_check` must pass after commit.
 
 The report contains table policy, pre/post row counts, and SHA-256 row digests.
+For version 5 embedding history, the before profile describes the serving
+input and the after profile describes the actual reconciled candidate. A count
+or digest difference is expected when imported vectors require promotion or
+fresh identities; it must never be reported as unchanged preservation. The
+exact preservation check occurs before this explicit transformation. No other
+`preserve` table receives this exception.
 It never contains row values, secrets, bearer tokens, or raw MCP arguments.
 
 ## Schema authority reconciliation
@@ -176,6 +201,7 @@ Installation fails before activation for:
 
 - unknown tables or catalogue versions;
 - incompatible runtime schemas;
+- corrupt embedding-history markers or failed imported-vector history promotion;
 - non-empty artifact-only runtime stores;
 - dangling account references;
 - append-only row-count or digest changes;

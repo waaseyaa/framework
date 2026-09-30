@@ -120,6 +120,14 @@ final class FrameworkRuntimeTableCatalogueTest extends TestCase
     }
 
     #[Test]
+    public function embedding_history_reconciliation_has_a_versioned_evidence_contract(): void
+    {
+        self::assertGreaterThanOrEqual(5, FrameworkRuntimeTableCatalogue::VERSION);
+        self::assertSame(RuntimeTablePolicy::Preserve,
+            new FrameworkRuntimeTableCatalogue()->definitions()['embedding_generations']->policy);
+    }
+
+    #[Test]
     public function definitions_are_unique_and_ordered_by_name(): void
     {
         $definitions = new FrameworkRuntimeTableCatalogue()->definitions();

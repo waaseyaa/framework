@@ -1,5 +1,12 @@
 # Infrastructure
 
+SQLite artifact runtime catalogue v5 conservatively promotes indexing history
+for imported vectors after preserving serving generation tokens and tombstones.
+Its preparation report records actual transformed candidate counts and digests.
+FW-AIV-UNINDEXED-AVAILABILITY-01 and sqlite-artifact-installation.md define this
+bounded exception to byte-exact generation preservation; legacy profiles without
+the history column retain their existing behavior.
+
 ## Semantic search routing
 
 Foundation `SearchRouter` consumes the provider-bound canonical embedding storage

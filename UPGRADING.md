@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Never-indexed projection-failure isolation (#3176)
+
+Quiesce older writers and apply the ai-vector indexing-history migration before
+activation. Existing generation rows become conservatively potentially indexed;
+legacy vectors without a generation row are backfilled. Never erase history or
+tombstones to improve availability. Missing/corrupt authority refuses.
+
+Only policy-undeclared identities proven never indexed bypass projection deletion
+when embedding storage fails. Entity/generation database availability remains
+required. Declared, previously indexed and uncertain identities retain the
+original transactional invalidation and rollback behavior. Pure excluded HTTP
+indexing and refresh preserve never-indexed status; provider intent and canonical
+direct stores promote it atomically. Existing public storage/guard signatures
+remain unchanged, and custom guards retain conservative behavior unless qualified
+for this invariant. Legacy embeddings-only storage remains supported, with
+backfill required before later execution activation.
+
+SQLite artifact preparation conservatively records imported vector identities
+after preserving serving generation tokens and tombstones; its versioned report
+describes transformed history rather than claiming an unchanged row digest.
+Operators still monitor projection failures and run reconciliation after recovery.
+No deferred deletion, automatic retry or general indexed-entity outage tolerance
+is supplied. See FW-AIV-UNINDEXED-AVAILABILITY-01.
+
 ### One embedding storage contract (#3141 candidate 2)
 
 `EmbeddingStorageInterface` is canonical. The public `VectorStoreInterface`,
@@ -415,5 +439,7 @@ Monitor source mutation errors separately from reconciliation/indexing failures.
 EntityBase `postSave()` and `postDelete()` remain transactional hooks. Related
 writes and thrown failures retain single, batch and enclosing-transaction rollback
 semantics; only notification events run after true commit. No hook migration is
-required. With ai-vector active, source invalidation remains fail-closed even for
-excluded types, so embedding-storage failure can block those saves as well.
+required. The original release coupled excluded types to projection availability.
+FW-AIV-UNINDEXED-AVAILABILITY-01 above narrows that coupling only for undeclared
+types whose locked durable history proves they were never potentially indexed.
+Previously indexed, declared and uncertain identities remain fail-closed.

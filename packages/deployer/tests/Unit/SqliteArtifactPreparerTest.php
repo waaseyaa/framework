@@ -7,9 +7,12 @@ namespace Waaseyaa\Deployer\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Deployer\RuntimeState\FrameworkRuntimeTableCatalogue;
 use Waaseyaa\Deployer\RuntimeState\RuntimeTablePolicy;
 use Waaseyaa\Deployer\RuntimeState\SqliteArtifactPreparer;
+use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
 #[CoversClass(FrameworkRuntimeTableCatalogue::class)]
 #[CoversClass(SqliteArtifactPreparer::class)]
@@ -63,6 +66,108 @@ final class SqliteArtifactPreparerTest extends TestCase
         self::assertSame($evidence->beforeDigest, $evidence->afterDigest);
         self::assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM embedding_generations WHERE token = 'old-inflight-token' OR entity_id = 'artifact-only'")->fetchColumn());
         $pdo = null;
+    }
+
+    #[Test]
+    public function imported_vectors_promote_history_without_importing_build_tokens_or_losing_tombstones(): void
+    {
+        $current = $this->embeddingHistoryDatabase('current.sqlite');
+        $artifact = $this->embeddingHistoryDatabase('artifact.sqlite');
+        $serving = $this->open($current);
+        $serving->exec("INSERT INTO embedding_generations VALUES ('note', '01', '11111111111111111111111111111111', 0), ('note', 'deleted', '22222222222222222222222222222222', 1), ('note', 'never', '33333333333333333333333333333333', 0)");
+        $build = $this->open($artifact);
+        $build->exec("INSERT INTO embedding_generations VALUES ('note', '01', '44444444444444444444444444444444', 0), ('note', 'new', '55555555555555555555555555555555', 0), ('note', 'build-only', '66666666666666666666666666666666', 1)");
+        $build->exec("INSERT INTO embeddings VALUES ('note', '01', '[1,0]', 1), ('note', 'new', '[0,1]', 1)");
+        $serving = $build = null;
+        $inputHashes = [hash_file('sha256', $current), hash_file('sha256', $artifact)];
+
+        $candidate = $this->directory . '/candidate.sqlite';
+        $report = new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current, $artifact, $candidate, []);
+        $pdo = $this->open($candidate);
+        $rows = $pdo->query('SELECT entity_id, token, potentially_indexed FROM embedding_generations ORDER BY entity_id')->fetchAll();
+        self::assertSame(['01', 'deleted', 'never', 'new'], array_column($rows, 'entity_id'));
+        self::assertSame(['11111111111111111111111111111111', '22222222222222222222222222222222', '33333333333333333333333333333333'], array_slice(array_column($rows, 'token'), 0, 3));
+        self::assertSame([1, 1, 0, 1], array_column($rows, 'potentially_indexed'));
+        self::assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $rows[3]['token']);
+        self::assertNotSame('55555555555555555555555555555555', $rows[3]['token']);
+        self::assertSame(2, (int) $pdo->query('SELECT COUNT(*) FROM embeddings')->fetchColumn());
+        $evidence = $report->tables['embedding_generations'];
+        self::assertSame(3, $evidence->beforeRows);
+        self::assertSame(4, $evidence->afterRows);
+        self::assertNotSame($evidence->beforeDigest, $evidence->afterDigest);
+        self::assertSame($this->embeddingHistoryDigest($pdo), $evidence->afterDigest);
+        self::assertSame($inputHashes, [hash_file('sha256', $current), hash_file('sha256', $artifact)]);
+        $pdo = null;
+    }
+
+    #[Test]
+    public function corrupt_serving_history_refuses_without_changing_inputs_or_leaving_a_candidate(): void
+    {
+        $current = $this->embeddingHistoryDatabase('current.sqlite');
+        $artifact = $this->embeddingHistoryDatabase('artifact.sqlite');
+        $pdo = $this->open($current);
+        $pdo->exec("INSERT INTO embedding_generations VALUES ('note', 'invalid', '77777777777777777777777777777777', 2)");
+        $pdo = null;
+        $inputHashes = [hash_file('sha256', $current), hash_file('sha256', $artifact)];
+        $candidate = $this->directory . '/candidate.sqlite';
+        try {
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                $current, $artifact, $candidate, []);
+            self::fail('Corrupt indexing history was accepted.');
+        } catch (\RuntimeException $error) {
+            self::assertStringContainsString('invalid potentially_indexed marker', $error->getMessage());
+        }
+        self::assertFileDoesNotExist($candidate);
+        self::assertSame($inputHashes, [hash_file('sha256', $current), hash_file('sha256', $artifact)]);
+    }
+
+    #[Test]
+    public function histories_without_imported_vectors_keep_exact_preservation_evidence(): void
+    {
+        $current = $this->embeddingHistoryDatabase('current.sqlite');
+        $artifact = $this->embeddingHistoryDatabase('artifact.sqlite');
+        $pdo = $this->open($current);
+        $pdo->exec("INSERT INTO embedding_generations VALUES ('note', 'never', '33333333333333333333333333333333', 0), ('note', 'deleted', '22222222222222222222222222222222', 1)");
+        $pdo = null;
+        $candidate = $this->directory . '/candidate.sqlite';
+        $report = new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current, $artifact, $candidate, []);
+        $evidence = $report->tables['embedding_generations'];
+        self::assertSame(2, $evidence->beforeRows);
+        self::assertSame($evidence->beforeRows, $evidence->afterRows);
+        self::assertSame($evidence->beforeDigest, $evidence->afterDigest);
+        $pdo = $this->open($candidate);
+        self::assertSame([['deleted', '22222222222222222222222222222222', 1], ['never', '33333333333333333333333333333333', 0]],
+            $pdo->query('SELECT entity_id, token, potentially_indexed FROM embedding_generations ORDER BY entity_id')->fetchAll(\PDO::FETCH_NUM));
+        $pdo = null;
+    }
+
+    #[Test]
+    public function failed_history_promotion_removes_candidate_and_preserves_both_inputs(): void
+    {
+        $current = $this->embeddingHistoryDatabase('current.sqlite');
+        $artifact = $this->embeddingHistoryDatabase('artifact.sqlite');
+        foreach ([$current, $artifact] as $path) {
+            $pdo = $this->open($path);
+            $pdo->exec("CREATE TRIGGER refuse_history_promotion BEFORE UPDATE OF potentially_indexed ON embedding_generations BEGIN SELECT RAISE(ABORT, 'history unavailable'); END");
+        }
+        $pdo = $this->open($current);
+        $pdo->exec("INSERT INTO embedding_generations VALUES ('note', '01', '77777777777777777777777777777777', 0)");
+        $pdo = $this->open($artifact);
+        $pdo->exec("INSERT INTO embeddings VALUES ('note', '01', '[1,0]', 1)");
+        $pdo = null;
+        $inputHashes = [hash_file('sha256', $current), hash_file('sha256', $artifact)];
+        $candidate = $this->directory . '/candidate.sqlite';
+        try {
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+                $current, $artifact, $candidate, []);
+            self::fail('A failed history promotion was reported successful.');
+        } catch (\PDOException $error) {
+            self::assertStringContainsString('history unavailable', $error->getMessage());
+        }
+        self::assertFileDoesNotExist($candidate);
+        self::assertSame($inputHashes, [hash_file('sha256', $current), hash_file('sha256', $artifact)]);
     }
 
     #[Test]
@@ -907,6 +1012,35 @@ final class SqliteArtifactPreparerTest extends TestCase
             $this->directory . '/candidate.sqlite',
             [],
         );
+    }
+
+    private function embeddingHistoryDatabase(string $name): string
+    {
+        $path = $this->directory . '/' . $name;
+        $database = DBALDatabase::createSqlite($path);
+        $schema = new SchemaBuilder($database->getConnection());
+        foreach (['2026_09_24_000001_embeddings_schema.php', '2026_09_30_000001_embedding_generations.php', '2026_09_30_000002_embedding_index_history.php'] as $filename) {
+            $migration = require dirname(__DIR__, 3) . '/ai-vector/migrations/' . $filename;
+            self::assertInstanceOf(Migration::class, $migration);
+            $migration->up($schema);
+        }
+        $database->getConnection()->close();
+
+        return $path;
+    }
+
+    private function embeddingHistoryDigest(\PDO $pdo): string
+    {
+        $hash = hash_init('sha256');
+        foreach ($pdo->query('SELECT * FROM embedding_generations ORDER BY entity_type, entity_id, token, potentially_indexed') as $row) {
+            foreach ($row as $column => $value) {
+                $encoded = is_int($value) ? 'i:' . $value : 's:' . base64_encode($value);
+                hash_update($hash, strlen($column) . ':' . $column . strlen($encoded) . ':' . $encoded);
+            }
+            hash_update($hash, "\n");
+        }
+
+        return hash_final($hash);
     }
 
     /** @param list<string> $schema @param list<string> $rows */

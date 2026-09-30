@@ -88,6 +88,59 @@ final class EmbeddingExecutionGuardTest extends TestCase
     }
 
     #[Test]
+    public function indexing_intent_is_monotonic_and_cleanup_preserves_never_indexed_history(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::aiVector($database);
+        $storage = new DatabaseEmbeddingStorage($database);
+        $guard = new DatabaseEmbeddingExecutionGuard($database, EmbeddingIndexPolicy::fromArray([]));
+        $cleanup = $guard->beginForCleanup('unrelated', '01');
+        self::assertSame(0, (int) $database->getConnection()->fetchOne('SELECT potentially_indexed FROM embedding_generations'));
+        self::assertSame('not_indexed', $guard->cleanupOutcomeIfCurrent('unrelated', '01', $cleanup, $storage));
+        $indexing = $guard->begin('unrelated', '01');
+        self::assertSame(1, (int) $database->getConnection()->fetchOne('SELECT potentially_indexed FROM embedding_generations'));
+        self::assertFalse($guard->cleanupIfCurrent('unrelated', '01', $cleanup, $storage));
+        $guard->beginForCleanup('unrelated', '01');
+        self::assertSame(1, (int) $database->getConnection()->fetchOne('SELECT potentially_indexed FROM embedding_generations'));
+        self::assertFalse($guard->runIfCurrent('unrelated', '01', $indexing, static fn() => self::fail('Old intent published.')));
+    }
+
+    #[Test]
+    public function canonical_store_promotes_history_preserves_token_and_deletion_never_clears_it(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::aiVector($database);
+        $storage = new DatabaseEmbeddingStorage($database);
+        $guard = new DatabaseEmbeddingExecutionGuard($database, EmbeddingIndexPolicy::fromArray([]));
+        $token = $guard->beginForCleanup('unrelated', '01');
+        $storage->store('unrelated', '01', [1, 0]);
+        self::assertSame(1, (int) $database->getConnection()->fetchOne('SELECT potentially_indexed FROM embedding_generations'));
+        self::assertSame($token, $database->getConnection()->fetchOne('SELECT token FROM embedding_generations'));
+        $storage->delete('unrelated', '01');
+        self::assertSame(1, (int) $database->getConnection()->fetchOne('SELECT potentially_indexed FROM embedding_generations'));
+    }
+
+    #[Test]
+    public function corrupt_history_refuses_without_rotating_token_or_replacing_vector(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::aiVector($database);
+        $storage = new DatabaseEmbeddingStorage($database);
+        $guard = new DatabaseEmbeddingExecutionGuard($database, EmbeddingIndexPolicy::fromArray([]));
+        $token = $guard->beginForCleanup('unrelated', '01');
+        $database->getConnection()->executeStatement('UPDATE embedding_generations SET potentially_indexed = 7');
+        try {
+            $guard->beginForCleanup('unrelated', '01');
+            self::fail('Corrupt authority cannot prove absence.');
+        } catch (\UnexpectedValueException $error) {
+            self::assertStringContainsString('AIV-EXECUTION-010', $error->getMessage());
+        }
+        self::assertSame($token, $database->getConnection()->fetchOne('SELECT token FROM embedding_generations'));
+        $this->expectExceptionMessage('AIV-EXECUTION-010');
+        $storage->store('unrelated', '01', [1, 0]);
+    }
+
+    #[Test]
     public function failed_cleanup_is_explicit_and_retains_the_initiating_failure(): void
     {
         $guard = $this->createStub(EmbeddingExecutionGuardInterface::class);

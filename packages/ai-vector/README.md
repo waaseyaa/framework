@@ -72,7 +72,13 @@ Maintained Symfony HttpClient under `waaseyaa/http-client` owns HTTP mechanics;
 no ext-curl requirement or embedding queue remains.
 
 Source mutations transactionally advance durable generations and invalidate
-vectors. Lifecycle indexing and refresh share guarded publication and fresh
+potentially indexed vectors. Policy-undeclared identities proven never indexed
+can remain writable during projection failure while their entity database and
+generation authority remain healthy. Declared, indexed or uncertain identities
+retain fail-closed invalidation and rollback. The monotonic history migration
+requires quiesced older writers and legacy-vector backfill; deletion never clears
+history, and excluded lifecycle/refresh cleanup never creates indexing history.
+Lifecycle indexing and refresh share guarded publication and fresh
 served reads. Custom storage needs a compatible qualified execution guard;
 custom HTTP-save providers need `EmbeddingSaveProviderInterface`.
 
@@ -83,7 +89,7 @@ Quiesce old workers and refresh when changing boot-time indexing policy. See
 `docs/specs/semantic-search-contract.md` and FW-AIV-EXECUTION-01 for topology,
 migration, custom-provider obligations and recovery details.
 
-Invalidation is transactional and fail-closed for every kernel. Production has
+Required invalidation is transactional and fail-closed for every kernel. Production has
 no delayed post-delete/invalidate-only subscription; only configured HTTP
 providers index after commit. Provider failure is best-effort after committed
 save, while source invalidation failure rolls back the source mutation. Monitor

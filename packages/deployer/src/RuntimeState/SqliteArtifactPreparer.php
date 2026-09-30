@@ -133,6 +133,7 @@ final readonly class SqliteArtifactPreparer
                 );
             }
 
+            $this->reconcileEmbeddingIndexHistory($candidate, $evidence);
             $this->assertAccountReferences($candidate, $definitions);
             $this->reconcileSchemaAuthority($candidate, $definitions, $artifactSchemaAuthority);
             $candidate->commit();
@@ -155,6 +156,60 @@ final readonly class SqliteArtifactPreparer
         ksort($evidence, SORT_STRING);
 
         return new SqliteArtifactReport(FrameworkRuntimeTableCatalogue::VERSION, $evidence);
+    }
+
+    /** @param array<string, TableInstallEvidence> $evidence */
+    private function reconcileEmbeddingIndexHistory(\PDO $candidate, array &$evidence): void
+    {
+        if (!$this->tableExists($candidate, 'embedding_generations')) {
+            return;
+        }
+        $columns = $candidate->query('PRAGMA table_info(embedding_generations)')->fetchAll();
+        if ($this->resolveColumnName($columns, 'potentially_indexed') === null) {
+            // Legacy installations have no never-indexed availability claim.
+            return;
+        }
+        foreach ($candidate->query('SELECT potentially_indexed FROM embedding_generations') as $row) {
+            if (!in_array($row['potentially_indexed'], [0, 1], true)) {
+                throw new \RuntimeException('Embedding index history contains an invalid potentially_indexed marker.');
+            }
+        }
+
+        if ($this->tableExists($candidate, 'embeddings')) {
+            $select = $this->prepareStatement(
+                $candidate,
+                'SELECT token FROM embedding_generations WHERE entity_type = ? AND entity_id = ?',
+            );
+            $promote = $this->prepareStatement(
+                $candidate,
+                'UPDATE embedding_generations SET potentially_indexed = 1 WHERE entity_type = ? AND entity_id = ? AND potentially_indexed = 0',
+            );
+            $insert = $this->prepareStatement(
+                $candidate,
+                'INSERT INTO embedding_generations (entity_type, entity_id, token, potentially_indexed) VALUES (?, ?, ?, 1)',
+            );
+            foreach ($candidate->query('SELECT entity_type, entity_id FROM embeddings') as $identity) {
+                $parameters = [$identity['entity_type'], $identity['entity_id']];
+                $select->execute($parameters);
+                if ($select->fetch() !== false) {
+                    // Preservation already proved the serving copy byte-exact.
+                    // Imported vectors promote history but never replace tokens.
+                    $promote->execute($parameters);
+                } else {
+                    $insert->execute([...$parameters, bin2hex(random_bytes(16))]);
+                }
+            }
+        }
+
+        $before = $evidence['embedding_generations'];
+        $after = $this->profile($candidate, 'embedding_generations');
+        $evidence['embedding_generations'] = new TableInstallEvidence(
+            $before->policy,
+            $before->beforeRows,
+            $before->beforeDigest,
+            $after['rows'],
+            $after['digest'],
+        );
     }
 
     /**
