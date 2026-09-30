@@ -53,6 +53,18 @@ Record the candidate identity, last verified activity, review handoff, landing, 
 5. Do not repeat a full review or full suite when the source, base, relevant contract, and test plan have not changed. A meaningful source or base delta requires refreshed evidence proportionate to its risk.
 6. Serialize heavy final qualification and merge; independent hosted checks may run in parallel. Record exact commit IDs, commands, counts, hosted run links or IDs, timestamps, and any skips or residual scope.
 
+On native Windows, do not run repository-wide Unit, Integration, and
+Architecture suites as a local qualification verdict unless the repository's
+current native-host contract explicitly makes that combination supported. Run
+the default preflight and focused affected suites locally, then require the
+exact-head hosted full-qualification owner for the complete verdict. If a
+multi-suite diagnostic is still useful, use `--jobs=1`, run no other local
+preflight or qualification against the same repository at the same time, and
+label the result diagnostic. Stop and clean up test-owned child processes when
+an unsupported run leaves them behind. Never convert symlink, file-lock,
+subprocess, or permission failures into candidate findings until they reproduce
+on the supported host or differ from the exact base.
+
 For Framework preflight, trust `reused exact identity` or `reused equivalent inputs` only when emitted by the governed runner; equivalent reuse retains the original tested candidate and is not a claim that the gate ran on the new head. Preserve its four states exactly: `passed`, `failed`, `hosted-required`, and `not-applicable`. A `hosted-only` entry is machine-readable ownership, and governed local preflight must never auto-launch it, even on Linux. A maintainer may explicitly run its command on a capable local host for diagnosis; record that result as diagnostic only, never hosted evidence or a substitute for its owning check. A hosted-required result names the check that still owns proof and is not a local pass. Continue supported local suites, retain the incomplete verdict, and send the exact candidate to the named hosted owner. Do not add `--no-reuse` for reassurance; use it only when fresh execution is an explicit acceptance criterion or when diagnosing the runner itself.
 
 Give reviewers the immutable diff, acceptance criteria, change record, and existing evidence. Do not make every reviewer rediscover the repository or rerun already-green checks. A clean review pass ends the review. After a repair, re-review the changed area and its affected boundaries; repeat the complete review only when the repair is cross-cutting or invalidates the original assessment. Run one final qualification on the exact landing candidate rather than one full qualification per reviewer.

@@ -91,6 +91,15 @@ final class MaintainerSkillsTest extends TestCase
         self::assertStringContainsString('pending', $delivery);
         self::assertStringContainsString('For implementation jobs, check the job ID, selected model, source head', $delivery);
         self::assertStringContainsString('never use it as a review-quality claim', $delivery);
+        self::assertStringContainsString('On native Windows, do not run repository-wide Unit, Integration, and', $delivery);
+        self::assertStringContainsString('the default preflight and focused affected suites locally', $delivery);
+        self::assertStringContainsString('exact-head hosted full-qualification owner for the complete verdict', $delivery);
+        self::assertStringContainsString('use `--jobs=1`', $delivery);
+        self::assertStringContainsString('run no other local', $delivery);
+        self::assertStringContainsString('preflight or qualification against the same repository at the same time', $delivery);
+        self::assertStringContainsString('label the result diagnostic', $delivery);
+        self::assertStringContainsString('until they reproduce', $delivery);
+        self::assertStringContainsString('or differ from the exact base', $delivery);
 
         $convergence = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-package-convergence/SKILL.md');
         self::assertStringContainsString('Every verifier, refutation reviewer, tie-break reviewer, and immutable-candidate', $convergence);
