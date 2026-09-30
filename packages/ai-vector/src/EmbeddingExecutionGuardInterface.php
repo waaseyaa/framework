@@ -17,6 +17,9 @@ interface EmbeddingExecutionGuardInterface
 
     public function begin(string $type, string $id): string;
 
+    /** Inspect/clean under the existing generation lock without superseding work; false means no generation. */
+    public function runWithCurrent(string $type, string $id, \Closure $operation): bool;
+
     /** Execute atomically with respect to begin/publication/invalidation; false means superseded. */
     public function runIfCurrent(string $type, string $id, string $token, \Closure $operation): bool;
 }

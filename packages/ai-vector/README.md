@@ -87,4 +87,5 @@ Invalidation is transactional and fail-closed for every kernel. Production has
 no delayed post-delete/invalidate-only subscription; only configured HTTP
 providers index after commit. Provider failure is best-effort after committed
 save, while source invalidation failure rolls back the source mutation. Monitor
-source errors and AIV-EXECUTION-007 indexing diagnostics separately.
+source errors and all indexing failures separately; AIV-EXECUTION-007
+additionally identifies unconfirmed cleanup, not every provider failure.

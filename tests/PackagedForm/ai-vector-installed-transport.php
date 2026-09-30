@@ -2,22 +2,9 @@
 
 declare(strict_types=1);
 
-// External acceptance harness. All production classes come from the installed
-// no-dev consumer; the peer supplies only synthetic loopback HTTP responses.
-require $argv[1] . '/vendor/autoload.php';
-
-use Symfony\Component\HttpClient\CurlHttpClient;
-use Symfony\Component\HttpClient\NativeHttpClient;
+// Development orchestration stays outside the installed no-dev process.
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
 use Symfony\Component\Process\Process;
-use Waaseyaa\AI\Vector\OllamaEmbeddingProvider;
-use Waaseyaa\HttpClient\SymfonyHttpClient;
-
-foreach ([OllamaEmbeddingProvider::class, SymfonyHttpClient::class] as $class) {
-    $origin = realpath(new ReflectionClass($class)->getFileName());
-    if (!is_string($origin) || !str_starts_with($origin, realpath($argv[1] . '/vendor') . DIRECTORY_SEPARATOR)) {
-        throw new RuntimeException('Production transport resolved outside the installed consumer.');
-    }
-}
 
 $profiles = ['default-provider', 'native'];
 if (extension_loaded('curl')) {
@@ -32,17 +19,10 @@ foreach ($profiles as $profile) {
             throw new RuntimeException('Installed transport peer did not become ready.');
         }
         $endpoint = 'http://127.0.0.1:' . $match[1] . '/embed';
-        if ($profile === 'default-provider') {
-            $vector = new OllamaEmbeddingProvider(endpoint: $endpoint, dimensions: 2)->embedForSave('synthetic installed content');
-            if ($vector !== [1.0, 0.0]) {
-                throw new RuntimeException('Installed provider returned an invalid vector.');
-            }
-        } else {
-            $client = $profile === 'native' ? new NativeHttpClient() : new CurlHttpClient();
-            $response = new SymfonyHttpClient(2, 1048576, $client)->post($endpoint, [], ['prompt' => 'synthetic installed content']);
-            if ($response->statusCode !== 200 || $response->body !== '{"embedding":[1,0]}') {
-                throw new RuntimeException('Installed Symfony transport response mismatch.');
-            }
+        $consumer = new Process([PHP_BINARY, __DIR__ . '/ai-vector-installed-client.php', $argv[1], $endpoint, $profile], timeout: 8);
+        $consumer->mustRun();
+        if ($consumer->getOutput() !== 'installed ai-vector transport OK (' . $profile . ")\n" || $consumer->getErrorOutput() !== '') {
+            throw new RuntimeException('Installed consumer transport proof failed.');
         }
         $peer->wait();
         if ($peer->getExitCode() !== 0 || $peer->getErrorOutput() !== '') {

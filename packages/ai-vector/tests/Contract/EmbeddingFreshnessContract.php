@@ -140,6 +140,39 @@ trait EmbeddingFreshnessContract
     }
 
     #[Test]
+    public function delayed_cleanup_during_recreated_source_indexing_does_not_cancel_publication(): void
+    {
+        foreach (['save', 'warm', 'warmBatch'] as $entry) {
+            $this->storage->delete('node', '01');
+            $guard = new DatabaseEmbeddingExecutionGuard($this->database);
+            $served = new FreshnessEntity(['id' => '01', 'title' => 'recreated', 'status' => 1, 'workflow_state' => 'published']);
+            $repository = $this->createStub(EntityRepositoryInterface::class);
+            $repository->method('find')->willReturn($served);
+            $query = $this->createStub(EntityQueryInterface::class);
+            $query->method('accessCheck')->willReturnSelf();
+            $query->method('execute')->willReturn(['01']);
+            $repository->method('getQuery')->willReturn($query);
+            $manager = $this->createStub(EntityTypeManagerInterface::class);
+            $manager->method('hasDefinition')->willReturn(true);
+            $manager->method('getRepository')->willReturn($repository);
+            $provider = $this->createMock(EmbeddingSaveProviderInterface::class);
+            $provider->expects(self::once())->method($entry === 'save' ? 'embedForSave' : 'embed')->willReturnCallback(function () use ($guard, $manager): array {
+                new EntityEmbeddingCleanupListener($this->storage, executionGuard: $guard, entityTypeManager: $manager)
+                    ->onPostDelete(new EntityEvent(new FreshnessEntity(['id' => '01', 'title' => 'obsolete deleted content'])));
+                return [0, 1];
+            });
+            $policy = EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => ['node' => ['fields' => ['title'], 'allow_external' => true]]]]);
+            if ($entry === 'save') {
+                new EntityEmbeddingListener(storage: $this->storage, embeddingProvider: $provider, entityTypeManager: $manager, indexPolicy: $policy, executionGuard: $guard)->onPostSave(new EntityEvent($served));
+            } else {
+                $report = new SemanticIndexWarmer($manager, $this->storage, $provider, indexPolicy: $policy, executionGuard: $guard)->$entry(['node']);
+                self::assertSame(1, $report['stored_total'], 'An obsolete cleanup must not supersede in-flight current indexing.');
+            }
+            self::assertSame([['id' => '01', 'score' => 1.0]], $this->storage->findSimilar([0, 1], 'node', 10));
+        }
+    }
+
+    #[Test]
     public function generation_tombstones_fence_old_tokens_and_failed_publication_rolls_back(): void
     {
         $guard = new DatabaseEmbeddingExecutionGuard($this->database);

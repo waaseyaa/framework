@@ -889,7 +889,8 @@ The longer operator/query budgets preserve legitimate workloads exceeding the
 save-time budget. Timeout, HTTP refusal and malformed response fail explicitly.
 Post-commit provider failures are logged; operator failures propagate. Source
 invalidation failures abort the source transaction. Operators monitor source
-mutation errors and `[AIV-EXECUTION-007]` post-commit diagnostics separately. Cleanup
+mutation errors and all post-commit indexing failures separately.
+`AIV-EXECUTION-007` additionally identifies unconfirmed guarded cleanup. Cleanup
 is conditional on the current token and is never reported successful if it fails.
 
 HTTP custom providers must implement `EmbeddingSaveProviderInterface` and honor

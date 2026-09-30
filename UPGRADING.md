@@ -405,8 +405,8 @@ fence does not version configuration across booted processes. See
 
 Production invalidation now runs exclusively through EntitySourceChangedEvent
 inside the source transaction. Its failure rolls back the mutation atomically;
-post-commit provider failure remains best-effort and is logged as
-AIV-EXECUTION-007. Remove post-delete and non-HTTP invalidate-only registrations.
+post-commit provider failure remains best-effort and is logged.
+AIV-EXECUTION-007 additionally identifies unconfirmed guarded cleanup. Remove post-delete and non-HTTP invalidate-only registrations.
 The retained invalidateOnly flag refuses AIV-EXECUTION-008 without mutation.
 Standalone EntityEmbeddingCleanupListener needs a fresh entity manager and checks
 absence under the generation lock; missing manager refuses without mutation.

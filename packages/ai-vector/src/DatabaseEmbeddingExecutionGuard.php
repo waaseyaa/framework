@@ -56,6 +56,31 @@ final class DatabaseEmbeddingExecutionGuard implements EmbeddingExecutionGuardIn
         return $token;
     }
 
+    public function runWithCurrent(string $type, string $id, \Closure $operation): bool
+    {
+        VectorMath::identity($type, $id);
+        if (!$this->database instanceof DBALDatabase) {
+            throw new \LogicException('[AIV-EXECUTION-003] Current-generation inspection requires the shared DBAL database.');
+        }
+        $transaction = $this->database->transaction();
+        try {
+            $matched = $this->database->getConnection()->executeStatement(
+                'UPDATE embedding_generations SET token = token WHERE entity_type = ? AND entity_id = ?',
+                [$type, $id],
+            );
+            if ($matched === 0) {
+                $transaction->commit();
+                return false;
+            }
+            $operation();
+            $transaction->commit();
+            return true;
+        } catch (\Throwable $error) {
+            $transaction->rollBack();
+            throw $error;
+        }
+    }
+
     public function runIfCurrent(string $type, string $id, string $token, \Closure $operation): bool
     {
         VectorMath::identity($type, $id);

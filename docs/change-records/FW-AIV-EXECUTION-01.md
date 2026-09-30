@@ -96,7 +96,7 @@ PostgreSQL storage, including independent-connection source/publication races.
 ## Reconciliation and limitations
 
 The application operator schedules a full semantic:refresh sweep at its declared
-freshness SLA, monitors source-mutation errors, AIV-EXECUTION-007 post-commit diagnostics,
+freshness SLA, monitors source-mutation errors and all post-commit indexing errors,
 command failures and eligible search
 coverage, and reruns reconciliation after provider/storage recovery. No retry
 worker or automatic repair loop is supplied. Source changes invalidate at commit;
@@ -128,3 +128,9 @@ review chat. Stop before merge. Do not close #3142/#3137, release, tag, deploy,
 start #3143 or private AIV-SEC-001 work. No whole-package assessment/convergence
 claim is made. Final review and qualification evidence remains pending here
 until recorded against the immutable PR head.
+
+Standalone cleanup uses `runWithCurrent` to lock the existing generation without
+advancing it, reads fresh served source and deletes only if absent. An obsolete
+delete callback therefore cannot cancel current in-flight indexing. Missing
+generation refuses with AIV-EXECUTION-009. Custom guards must implement the same
+non-superseding inspection semantics.

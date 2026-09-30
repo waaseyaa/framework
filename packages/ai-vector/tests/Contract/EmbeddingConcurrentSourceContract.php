@@ -76,6 +76,9 @@ trait EmbeddingConcurrentSourceContract
                 self::assertSame([], $this->storage->findSimilar([1, 0], 'concurrent_note', 10));
                 self::assertFalse($guard->runIfCurrent('concurrent_note', '01', $token, fn() => self::fail('Old publication escaped.')));
                 self::assertFalse($guard->runIfCurrent('concurrent_note', '01', $token, fn() => self::fail('Old cleanup escaped.')));
+                self::assertTrue($guard->runWithCurrent('concurrent_note', '01', function () use ($action): void {
+                    self::assertSame('BLOCKED', $this->sourcePeer($action), 'Inspection must join the same source commit fence without advancing generation.');
+                }));
             }
         } finally {
             $this->database->getConnection()->createSchemaManager()->dropTable('embedding_concurrency_source');

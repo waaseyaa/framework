@@ -36,4 +36,10 @@ final class InMemoryEmbeddingExecutionGuard implements EmbeddingExecutionGuardIn
 
         return true;
     }
+
+    public function runWithCurrent(string $type, string $id, \Closure $operation): bool
+    {
+        $operation();
+        return true;
+    }
 }

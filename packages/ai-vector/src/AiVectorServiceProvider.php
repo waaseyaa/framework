@@ -51,12 +51,11 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * no configured provider this binds only the storage, so a later provider's
  * embedding-provider binding is the first, and every consumer uses it.
  *
- * - Every kernel (CLI, imports, workers): `boot()` registers vector removal
- *   on delete and an `invalidateOnly` save listener, which removes any
- *   existing vector and never calls the embedding provider;
- *   `semantic:refresh` re-indexes.
- * - HTTP with a configured provider: `configureHttpKernel()` replaces the
- *   invalidating save listener with the embedding one.
+ * - Every kernel: `boot()` registers transactional source invalidation, using
+ *   the mutation's database and never calling a provider. Failure aborts source
+ *   and projection writes atomically; operator refresh restores coverage.
+ * - HTTP with a configured provider: `configureHttpKernel()` adds post-commit
+ *   indexing with current served reads and conditional publication/cleanup.
  *
  * @api
  */

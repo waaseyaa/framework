@@ -49,17 +49,18 @@ final class EntityEmbeddingCleanupListener
             if ($this->entityTypeManager === null) {
                 throw new \LogicException('[AIV-EXECUTION-005] Cleanup requires fresh served repository reads.');
             }
-            $token = $this->executionGuard->begin($entityType, (string) $entityId);
-            $this->executionGuard->runIfCurrent(
+            $tracked = $this->executionGuard->runWithCurrent(
                 $entityType,
                 (string) $entityId,
-                $token,
                 function () use ($entityType, $entityId): void {
                     if ($this->entityTypeManager->getRepository($entityType)->find((string) $entityId) === null) {
                         $this->storage->delete($entityType, (string) $entityId);
                     }
                 },
             );
+            if (!$tracked) {
+                throw new \LogicException('[AIV-EXECUTION-009] Cleanup requires an existing source generation.');
+            }
         } catch (\Throwable $exception) {
             $this->logger->error(sprintf(
                 'Embedding removal failed for %s:%s after delete: %s',

@@ -74,6 +74,20 @@ final class EmbeddingExecutionGuardTest extends TestCase
     }
 
     #[Test]
+    public function inspection_preserves_inflight_token_and_refuses_an_untracked_identity(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::aiVector($database);
+        $storage = new DatabaseEmbeddingStorage($database);
+        $guard = new DatabaseEmbeddingExecutionGuard($database);
+        self::assertFalse($guard->runWithCurrent('node', '01', static fn() => self::fail('Untracked cleanup executed.')));
+        $token = $guard->begin('node', '01');
+        self::assertTrue($guard->runWithCurrent('node', '01', fn() => $storage->delete('node', '01')));
+        self::assertTrue($guard->runIfCurrent('node', '01', $token, fn() => $storage->store('node', '01', [0, 1])));
+        self::assertSame([['id' => '01', 'score' => 1.0]], $storage->findSimilar([0, 1], 'node', 10));
+    }
+
+    #[Test]
     public function failed_cleanup_is_explicit_and_retains_the_initiating_failure(): void
     {
         $guard = $this->createStub(EmbeddingExecutionGuardInterface::class);
