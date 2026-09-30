@@ -401,6 +401,16 @@ assessment is claimed; #3143 and private AIV-SEC-001 remain separately sequenced
 
 ### Current execution scope and residual ownership
 
+Architecture review of candidate `1cadf228` found that notification deferral had
+also deferred transactional EntityBase post-save/post-delete hooks. The repair
+retains hooks inside source transactions and defers only notification events.
+Real database refusal tests cover hook writes, source/authority/projection
+rollback, batches and enclosing transactions. Hook semantics apply to every
+entity-storage host, even without ai-vector; this is compatibility repair, not a
+breaking migration. Activating ai-vector still makes excluded-type mutations
+depend on successful invalidation, with the documented failure impact reserved
+for maintainer acceptance.
+
 The strengthened #3142 acceptance includes inherited stale publication and stale
 cleanup for either execution model. Lifecycle and refresh share fresh served
 reads and generation-guarded publication; source changes advance/invalidate

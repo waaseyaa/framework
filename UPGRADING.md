@@ -411,3 +411,9 @@ The retained invalidateOnly flag refuses AIV-EXECUTION-008 without mutation.
 Standalone EntityEmbeddingCleanupListener needs a fresh entity manager and checks
 absence under the generation lock; missing manager refuses without mutation.
 Monitor source mutation errors separately from reconciliation/indexing failures.
+
+EntityBase `postSave()` and `postDelete()` remain transactional hooks. Related
+writes and thrown failures retain single, batch and enclosing-transaction rollback
+semantics; only notification events run after true commit. No hook migration is
+required. With ai-vector active, source invalidation remains fail-closed even for
+excluded types, so embedding-storage failure can block those saves as well.

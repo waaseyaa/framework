@@ -1429,27 +1429,33 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             if ($writeBase) {
                 $this->dispatchSourceChanged($writtenId !== '' ? $writtenId : $id);
             }
+
+            // Back-fill auto-assigned ids so POST_SAVE subscribers see the real pk.
+            if ($isNew && $id === '' && $writtenId !== '') {
+                $idKey = $this->entityType->getKeys()['id'] ?? 'id';
+                $entity->set($idKey, $writtenId);
+                if ($entity instanceof EntityBase) {
+                    $entity->_hydrateStructuralId(is_numeric($writtenId) ? (int) $writtenId : $writtenId);
+                }
+            }
+
+            if ($isNew && method_exists($entity, 'enforceIsNew')) {
+                $entity->enforceIsNew(false);
+            }
+
+            // Entity hooks retain their transactional contract. Only notification
+            // events are deferred, so hook writes and refusals join this mutation.
+            if ($entity instanceof EntityBase) {
+                $entity->postSave($isNew);
+            }
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
         }
 
-        // Back-fill auto-assigned ids so POST_SAVE subscribers see the real pk.
-        if ($isNew && $id === '' && $writtenId !== '') {
-            $idKey = $this->entityType->getKeys()['id'] ?? 'id';
-            $entity->set($idKey, $writtenId);
-            if ($entity instanceof EntityBase) {
-                $entity->_hydrateStructuralId(is_numeric($writtenId) ? (int) $writtenId : $writtenId);
-            }
-        }
-
-        if ($isNew && method_exists($entity, 'enforceIsNew')) {
-            $entity->enforceIsNew(false);
-        }
-
         $result = $isNew ? EntityConstants::SAVED_NEW : EntityConstants::SAVED_UPDATED;
 
-        $notify = function () use ($entity, $originalEntity, $unitOfWork, $createRevision, $resolvedContext, $isNew): void {
+        $notify = function () use ($entity, $originalEntity, $unitOfWork, $createRevision, $resolvedContext): void {
             $this->dispatchEvent(
                 $this->eventFactory->create($entity, $originalEntity),
                 EntityEvents::POST_SAVE->value,
@@ -1473,14 +1479,6 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 AfterSaveEvent::class,
                 $unitOfWork,
             );
-
-            if ($entity instanceof EntityBase) {
-                if ($unitOfWork !== null) {
-                    $unitOfWork->afterCommit(static fn() => $entity->postSave($isNew));
-                } else {
-                    $entity->postSave($isNew);
-                }
-            }
 
         };
         if ($completion !== null) {
@@ -1557,15 +1555,16 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $this->driver->remove($entityTypeId, $id);
             $this->dispatchSourceChanged($id);
 
+            if ($entity instanceof EntityBase) {
+                $entity->postDelete();
+            }
+
             if ($completion !== null) {
                 $this->dispatchAfterCommit(
                     $this->eventFactory->create($entity, $entity),
                     EntityEvents::POST_DELETE->value,
                     $completion,
                 );
-                if ($entity instanceof EntityBase) {
-                    $completion->afterCommit(static fn() => $entity->postDelete());
-                }
             }
         } catch (\Throwable $error) {
             $transaction?->rollBack();
@@ -1581,13 +1580,6 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             );
         }
 
-        if ($entity instanceof EntityBase) {
-            if ($unitOfWork !== null) {
-                $unitOfWork->afterCommit(static fn() => $entity->postDelete());
-            } elseif ($completion === null) {
-                $entity->postDelete();
-            }
-        }
     }
 
     /**

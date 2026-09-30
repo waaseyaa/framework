@@ -963,8 +963,8 @@ The `EntityRepository::save()` pipeline (used for all high-level persistence):
 4. Writes to storage driver via `$driver->write()`, which returns the effective id of the persisted row (the backend-assigned pk for empty-id inserts, the caller-supplied id otherwise)
 5. For new entities with an empty id, back-fills the assigned pk via `$entity->set($idKey, $writtenId)` so POST_SAVE listeners see the real id
 6. Calls `$entity->enforceIsNew(false)` for new entities
-7. Dispatches `EntityEvents::POST_SAVE` event
-8. Calls `$entity->postSave($isNew)` lifecycle hook (if entity extends `EntityBase`)
+7. Calls `$entity->postSave($isNew)` lifecycle hook inside the mutation transaction (if entity extends `EntityBase`)
+8. Buffers `EntityEvents::POST_SAVE`, revision and after-save notification events until the outermost managed commit; discards them on rollback
 9. Returns `EntityConstants::SAVED_NEW` (1) or `SAVED_UPDATED` (2)
 
 **Optimistic locking (#1647, mission optimistic-locking-01KTXCHY).** The save
@@ -1883,17 +1883,27 @@ public function postDelete(): void {}
 Called by `EntityRepository` (not `SqlEntityStorage`). Execution order within `save()`:
 
 ```
-preSave($isNew) → PRE_SAVE event → persist → POST_SAVE event → postSave($isNew)
+preSave($isNew) → PRE_SAVE event → persist → postSave($isNew)
+    → true commit → POST_SAVE / revision / after-save notifications
 ```
 
 Execution order within `delete()`:
 
 ```
 tombstone (mutation authority) → preDelete() → PRE_DELETE event (in-transaction guard)
-    → delete revisions → remove → POST_DELETE event (post-commit) → postDelete()
+    → delete revisions → remove → postDelete() → true commit → POST_DELETE notification
 ```
 
 Hooks are only called when the entity is an instance of `EntityBase`. They run inside the `UnitOfWork` transaction (single and batch alike), but they are IN-MEMORY calls: a rollback undoes the database work around them, not the hook invocation itself. `postDelete()` has therefore already fired for every entity processed before a mid-batch refusal.
+
+`postSave()` and `postDelete()` are transactional extension hooks, not deferred
+notification listeners. A throwing hook rolls back source rows, mutation
+authority, projection invalidation and related writes on the same connection.
+In a batch, that rollback includes earlier entities and their hook writes. In
+an enclosing managed transaction, successful hooks run before the repository
+returns, while notification events wait for the enclosing commit and disappear
+if it rolls back. Provider calls belong to those after-commit notifications;
+moving networking out of the transaction does not move the hooks (#3142).
 
 ## Configuration Entities
 

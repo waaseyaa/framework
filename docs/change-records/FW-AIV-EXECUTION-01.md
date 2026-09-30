@@ -34,6 +34,17 @@ explicit rather than claiming universal runtime enforcement.
 
 ## Freshness and shared execution
 
+EntityBase `postSave()` and `postDelete()` retain their transactional extension
+contract for every host, including hosts without ai-vector. Only lifecycle
+notification events are deferred until true commit. A throwing hook rolls back
+source, authority, vector invalidation and related hook writes; a batch refusal
+rolls back earlier database work without undoing in-memory hook invocations.
+Enclosing transactions retain ownership of notification release or discard.
+The architecture-review P2 at candidate `1cadf228` identified accidental hook
+deferral; the follow-up restores the existing contract rather than introducing
+a breaking migration. Real SQLite tests distinguish throwing save/delete hooks,
+batch rollback and enclosing commit/rollback from after-commit notifications.
+
 The inherited final-reread/publication race is in this slice's acceptance for
 either execution model. Atomic vector replacement and a post-commit generation
 advance alone do not prevent it, especially on PostgreSQL.
@@ -47,6 +58,10 @@ the generation lock. A concurrent source change cannot commit before advancing
 that same generation. Network calls occur outside entity and publication
 transactions. Source invalidation is fail-closed: any failure rolls back the
 source mutation atomically, unlike best-effort post-commit provider failure.
+This applies even to policy-excluded entity types: removing any old vector is
+part of source commit, so unavailable embedding storage can block otherwise
+unrelated saves when ai-vector is active. That optional-capability failure impact
+remains an explicit maintainer acceptance tradeoff, not a hook migration.
 Production post-delete and non-HTTP/invalidate-only callbacks are removed.
 Delayed callbacks cannot mint a newer generation and erase an already newer
 vector. HTTP post-commit indexing is wired only with a configured provider.
