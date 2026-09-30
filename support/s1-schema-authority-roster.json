@@ -4270,6 +4270,20 @@
             "occurrence": 79
         },
         {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 80
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 81
+        },
+        {
             "path": "packages/deployer/tests/Unit/SqliteSchemaSignatureTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",

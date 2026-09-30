@@ -208,8 +208,15 @@ php -r '
     $provider->register();
     if ($provider->getBindings() !== []) { fwrite(STDERR, "disabled ai-vector registered bindings\n"); exit(1); }
 ' "$vector_nodev"
+transport_tooling="$work/transport-tooling"
+mkdir -p "$transport_tooling"
+# This job intentionally has no root vendor tree. Keep test orchestration in
+# its own graph; the child still loads only the no-dev artifact consumer.
+"$composer_bin" require --working-dir="$transport_tooling" 'symfony/process:^8.0' \
+    --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install-transport-tooling.out" 2>&1 \
+    || { tail -80 "$work/install-transport-tooling.out" >&2; exit 1; }
 php "$root/tests/PackagedForm/ai-vector-installed-transport.php" "$vector_nodev" \
-    "$root/packages/ai-vector/tests/Support/embedding-http-peer.php"
+    "$root/packages/ai-vector/tests/Support/embedding-http-peer.php" "$transport_tooling"
 ( cd "$vector_nodev" && php vendor/bin/waaseyaa list --raw ) >"$work/vector-nodev.commands" 2>&1 \
     || { cat "$work/vector-nodev.commands" >&2; exit 1; }
 if grep -Eq '^semantic:(warm|refresh)' "$work/vector-nodev.commands"; then

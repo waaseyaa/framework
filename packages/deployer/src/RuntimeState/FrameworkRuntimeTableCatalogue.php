@@ -23,8 +23,9 @@ final class FrameworkRuntimeTableCatalogue
      * {@see SqliteArtifactPreparer} before a single row was copied.
      * Version 3 (#3127) adds the declared legacy-to-current user schema
      * transition and stable-uuid identity merge semantics.
+     * Version 4 (#3142) preserves serving embedding generation tombstones.
      */
-    public const int VERSION = 3;
+    public const int VERSION = 4;
 
     /** @return array<string, RuntimeTableDefinition> */
     public function definitions(): array
@@ -35,6 +36,10 @@ final class FrameworkRuntimeTableCatalogue
             new RuntimeTableDefinition('cache_render', RuntimeTablePolicy::Artifact),
             new RuntimeTableDefinition('cache_generation', RuntimeTablePolicy::Preserve),
             new RuntimeTableDefinition('embeddings', RuntimeTablePolicy::Artifact),
+            // Freshness tokens and deletion tombstones are serving-owned.
+            // An artifact token could re-authorize old in-flight publication;
+            // merging artifact-only tokens would inject build-time authority.
+            new RuntimeTableDefinition('embedding_generations', RuntimeTablePolicy::Preserve),
             new RuntimeTableDefinition('search_metadata', RuntimeTablePolicy::Artifact),
             new RuntimeTableDefinition('search_index', RuntimeTablePolicy::Artifact),
             new RuntimeTableDefinition('search_index_config', RuntimeTablePolicy::Artifact),

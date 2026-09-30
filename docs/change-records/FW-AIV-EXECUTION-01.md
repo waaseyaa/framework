@@ -134,3 +134,17 @@ advancing it, reads fresh served source and deletes only if absent. An obsolete
 delete callback therefore cannot cancel current in-flight indexing. Missing
 generation refuses with AIV-EXECUTION-009. Custom guards must implement the same
 non-superseding inspection semantics.
+
+Artifact installation classifies `embedding_generations` as serving-owned
+`Preserve` state in runtime catalogue version 4. The exact serving token and
+deletion-tombstone set replaces artifact generation rows, including omission of
+artifact-only identities. Real SQLite preparation tests exercise conflicting
+tokens, tombstones and artifact-only rows. Embeddings remain artifact-owned
+derived data under the existing rollout and reconciliation contract.
+
+The split-artifact harness installs Symfony Process in a disposable test-tooling
+graph because that job intentionally has no root development vendor tree. The
+production probe loads only the installed no-dev consumer autoloader and retains
+its origin refusal. Test tooling is neither a production dependency nor a source
+autoload fallback. S1 dependency-byte authority binds the updated Composer lock;
+the four reviewed database dependency byte digests remain unchanged.

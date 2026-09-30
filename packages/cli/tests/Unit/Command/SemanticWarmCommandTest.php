@@ -98,12 +98,13 @@ final class SemanticWarmCommandTest extends TestCase
         // C-22 WP3: read path now goes through the canonical repository.
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->expects(self::once())->method('findMany')->with([1])->willReturn([$entity]);
+        $repository->expects(self::never())->method('findMany');
+        $repository->expects(self::exactly(2))->method('find')->with('1')->willReturn($entity);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
         $manager->expects(self::never())->method('getStorage');
-        $manager->expects(self::exactly(2))->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects(self::atLeastOnce())->method('getRepository')->with('node')->willReturn($repository);
 
         $embeddingProvider = $this->createStub(EmbeddingProviderInterface::class);
         $embeddingProvider->method('embed')->willReturn([0.2, 0.4]);
@@ -115,6 +116,7 @@ final class SemanticWarmCommandTest extends TestCase
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $embeddingProvider,
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
             indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
                 'node' => ['fields' => ['title'], 'allow_external' => true],
             ]]]),

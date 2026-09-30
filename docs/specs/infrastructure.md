@@ -3168,7 +3168,7 @@ application artifact while preserving or merging the serving runtime tables
 according to that catalogue. Applications declare only their artifact-owned
 tables; unknown tables in either input fail closed.
 
-**Completeness is the load-bearing property (#2547, catalogue version 3).**
+**Completeness is the load-bearing property (#2547 and #3142, catalogue version 4).**
 Fail-closed rejection only helps if the catalogue actually covers what Framework
 migrations install. It did not: 22 Framework-owned tables were unclassified, so
 a serving database built on the same commit as the artifact was rejected before

@@ -109,30 +109,28 @@ final class SemanticRefreshCommandTest extends TestCase
         $storage->method('getQuery')->willReturn($query);
 
         // C-22 WP3: read path now goes through the canonical repository.
-        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('findMany')->willReturnCallback(
-            static fn(array $ids): array => array_values(array_filter([
-                1 => $entity1,
-                2 => $entity2,
-                3 => $entity3,
-            ], static fn($entity, $id): bool => in_array($id, $ids, true), ARRAY_FILTER_USE_BOTH)),
-        );
+        $repository->expects(self::exactly($batchCount === 1 ? 3 : 5))->method('find')->willReturnCallback(static fn(int|string $id): ?EntityInterface => [1 => $entity1, 2 => $entity2, 3 => $entity3][$id] ?? null);
+        $repository->expects(self::never())->method('findMany');
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->expects(self::exactly($batchCount))->method('hasDefinition')->with('node')->willReturn(true);
         $manager->expects(self::never())->method('getStorage');
-        $manager->expects(self::exactly($batchCount * 2))->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects(self::atLeastOnce())->method('getRepository')->with('node')->willReturn($repository);
 
         $provider = $this->createStub(EmbeddingProviderInterface::class);
         $provider->method('embed')->willReturn([0.1, 0.2]);
 
-        $embeddingStorage = $this->createStub(EmbeddingStorageInterface::class);
+        $embeddingStorage = $this->createMock(EmbeddingStorageInterface::class);
+        $embeddingStorage->expects(self::exactly($batchCount))->method('store');
+        $embeddingStorage->expects(self::once())->method('delete')->with('node', '2');
 
         return new SemanticIndexWarmer(
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $provider,
+            executionGuard: new \Waaseyaa\AI\Vector\Testing\InMemoryEmbeddingExecutionGuard(),
             indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
                 'node' => ['fields' => ['title'], 'allow_external' => true],
             ]]]),
@@ -159,3 +157,4 @@ final readonly class SemanticRefreshEntity implements EntityInterface
     public function toArray(): array { return $this->values; }
     public function language(): string { return 'en'; }
 }
+

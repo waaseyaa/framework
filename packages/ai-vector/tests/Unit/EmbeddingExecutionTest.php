@@ -35,13 +35,9 @@ final class EmbeddingExecutionTest extends TestCase
         $peer = new Process([PHP_BINARY, __DIR__ . '/../Support/embedding-http-peer.php', $mode, '{"embedding":[1,2]}'], timeout: 10);
         try {
             $peer->start();
-            $deadline = hrtime(true) + 3_000_000_000;
-            do {
-                if (preg_match('/^READY (\d+)\n/', $peer->getOutput(), $match) === 1) {
-                    break;
-                }
-                usleep(10_000);
-            } while (hrtime(true) < $deadline && $peer->isRunning());
+            $ready = $peer->waitUntil(static fn(string $type, string $output): bool => str_contains($output, 'READY '));
+            self::assertTrue($ready, $peer->getErrorOutput());
+            preg_match('/^READY (\d+)\n/', $peer->getOutput(), $match);
             self::assertNotEmpty($match[1] ?? null, $peer->getErrorOutput());
             $client = new \Waaseyaa\HttpClient\SymfonyHttpClient(2, 1048576, new \Symfony\Component\HttpClient\NativeHttpClient());
             $start = hrtime(true);
@@ -78,14 +74,9 @@ final class EmbeddingExecutionTest extends TestCase
         $peer = new Process([PHP_BINARY, __DIR__ . '/../Support/embedding-http-peer.php', $mode, $response], timeout: 10);
         try {
             $peer->start();
-            $deadline = hrtime(true) + 3_000_000_000;
-            do {
-                $output = $peer->getOutput();
-                if (preg_match('/^READY (\d+)\n/', $output, $match) === 1) {
-                    break;
-                }
-                usleep(10_000);
-            } while (hrtime(true) < $deadline && $peer->isRunning());
+            $ready = $peer->waitUntil(static fn(string $type, string $output): bool => str_contains($output, 'READY '));
+            self::assertTrue($ready, $peer->getErrorOutput());
+            preg_match('/^READY (\d+)\n/', $peer->getOutput(), $match);
             self::assertNotEmpty($match[1] ?? null, $peer->getErrorOutput());
             $endpoint = 'http://127.0.0.1:' . $match[1] . '/embed';
             $provider = $kind === 'ollama'

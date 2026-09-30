@@ -35,6 +35,14 @@ are explicitly catalogued as `artifact`, never inferred from a name prefix.
 Operational audit-retention rules are serving-owned `preserve` state; a content
 artifact cannot silently replace the host's authorization to prune evidence.
 
+Catalogue version 4 preserves `embedding_generations` as serving-owned freshness
+authority. The complete serving token and deletion-tombstone set replaces any
+artifact rows. Artifact tokens cannot overwrite current tokens or introduce
+artifact-only identities, which would permit an old in-flight embedding to
+publish again. These rows are mutable fences, so they use `preserve`, rather
+than append-only or identity-merge semantics. The rebuildable `embeddings`
+table keeps its existing `artifact` policy.
+
 ## Discovery
 
 The catalogue is framework code and is released with `waaseyaa/deployer`.

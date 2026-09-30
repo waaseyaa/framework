@@ -112,6 +112,14 @@ final class FrameworkRuntimeTableCatalogueTest extends TestCase
     }
 
     #[Test]
+    public function embedding_freshness_tombstones_are_serving_authority(): void
+    {
+        self::assertGreaterThanOrEqual(4, FrameworkRuntimeTableCatalogue::VERSION);
+        self::assertSame(RuntimeTablePolicy::Preserve,
+            new FrameworkRuntimeTableCatalogue()->definitions()['embedding_generations']->policy);
+    }
+
+    #[Test]
     public function definitions_are_unique_and_ordered_by_name(): void
     {
         $definitions = new FrameworkRuntimeTableCatalogue()->definitions();

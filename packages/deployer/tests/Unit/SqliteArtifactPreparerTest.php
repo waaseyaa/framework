@@ -32,6 +32,40 @@ final class SqliteArtifactPreparerTest extends TestCase
     }
 
     #[Test]
+    public function serving_embedding_tokens_and_deletion_tombstones_replace_artifact_authority_exactly(): void
+    {
+        $schema = [
+            'CREATE TABLE content (id INTEGER PRIMARY KEY, title TEXT NOT NULL)',
+            'CREATE TABLE embedding_generations (entity_type VARCHAR(128) NOT NULL, entity_id VARCHAR(255) NOT NULL, token VARCHAR(32) NOT NULL, PRIMARY KEY (entity_type, entity_id))',
+        ];
+        $current = $this->database('current.sqlite', $schema, [
+            "INSERT INTO content VALUES (1, 'old content')",
+            "INSERT INTO embedding_generations VALUES ('note', '01', 'current-publication-fence')",
+            "INSERT INTO embedding_generations VALUES ('note', 'deleted', 'deletion-tombstone')",
+        ]);
+        $artifact = $this->database('artifact.sqlite', $schema, [
+            "INSERT INTO content VALUES (1, 'new content')",
+            "INSERT INTO embedding_generations VALUES ('note', '01', 'old-inflight-token')",
+            "INSERT INTO embedding_generations VALUES ('note', 'artifact-only', 'build-authority')",
+        ]);
+        $candidate = $this->directory . '/candidate.sqlite';
+        $report = new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current, $artifact, $candidate, ['content']);
+        $pdo = $this->open($candidate);
+        self::assertSame([
+            ['note', '01', 'current-publication-fence'],
+            ['note', 'deleted', 'deletion-tombstone'],
+        ], $pdo->query('SELECT entity_type, entity_id, token FROM embedding_generations ORDER BY entity_type, entity_id')->fetchAll(\PDO::FETCH_NUM));
+        self::assertSame('new content', $pdo->query('SELECT title FROM content')->fetchColumn());
+        $evidence = $report->tables['embedding_generations'];
+        self::assertSame(RuntimeTablePolicy::Preserve, $evidence->policy);
+        self::assertSame(2, $evidence->afterRows);
+        self::assertSame($evidence->beforeDigest, $evidence->afterDigest);
+        self::assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM embedding_generations WHERE token = 'old-inflight-token' OR entity_id = 'artifact-only'")->fetchColumn());
+        $pdo = null;
+    }
+
+    #[Test]
     public function catalogue_assigns_security_state_and_evidence_to_framework_policies(): void
     {
         $definitions = new FrameworkRuntimeTableCatalogue()->definitions();

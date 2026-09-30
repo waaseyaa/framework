@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-// Development orchestration stays outside the installed no-dev process.
-require dirname(__DIR__, 2) . '/vendor/autoload.php';
+// Isolated test tooling stays outside the installed no-dev process.
+require $argv[3] . '/vendor/autoload.php';
 use Symfony\Component\Process\Process;
 
 $profiles = ['default-provider', 'native'];
