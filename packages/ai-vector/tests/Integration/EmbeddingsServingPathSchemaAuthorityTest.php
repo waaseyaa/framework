@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\AI\Vector\SearchController;
@@ -83,7 +84,14 @@ final class EmbeddingsServingPathSchemaAuthorityTest extends TestCase
         $storage = new DatabaseEmbeddingStorage($this->database);
         $provider = new FakeEmbeddingProvider(dimensions: 8);
 
-        $listener = new EntityEmbeddingListener(storage: $storage, embeddingProvider: $provider);
+        $listener = new EntityEmbeddingListener(
+            storage: $storage,
+            embeddingProvider: $provider,
+            indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
+                'note' => ['fields' => ['label'], 'allow_external' => false],
+                'node' => ['fields' => ['label'], 'allow_external' => false],
+            ]]]),
+        );
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(1, 'note', 'first note')));
         $listener->onPostSave(new EntityEvent(new ServingPathProbeEntity(2, 'note', 'second note')));
         // A node that isn't publicly served: the listener deletes its vector.

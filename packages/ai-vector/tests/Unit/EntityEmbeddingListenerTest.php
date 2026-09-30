@@ -7,6 +7,7 @@ namespace Waaseyaa\AI\Vector\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
@@ -41,7 +42,7 @@ final class EntityEmbeddingListenerTest extends TestCase
                     && ($message->payload['langcode'] ?? null) === 'en';
             }));
 
-        $listener = new EntityEmbeddingListener($queue);
+        $listener = new EntityEmbeddingListener(queue: $queue, indexPolicy: $this->nodePolicy());
         $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
             id: 42,
             entityTypeId: 'node',
@@ -55,7 +56,7 @@ final class EntityEmbeddingListenerTest extends TestCase
         $queue = $this->createMock(QueueInterface::class);
         $queue->expects($this->never())->method('dispatch');
 
-        $listener = new EntityEmbeddingListener($queue);
+        $listener = new EntityEmbeddingListener(queue: $queue, indexPolicy: $this->nodePolicy());
         $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
             id: null,
             entityTypeId: 'node',
@@ -69,7 +70,7 @@ final class EntityEmbeddingListenerTest extends TestCase
         $queue = $this->createMock(QueueInterface::class);
         $queue->expects($this->never())->method('dispatch');
 
-        $listener = new EntityEmbeddingListener($queue);
+        $listener = new EntityEmbeddingListener(queue: $queue, indexPolicy: $this->nodePolicy());
         $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
             id: 42,
             entityTypeId: 'node',
@@ -89,6 +90,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: null,
+            indexPolicy: $this->nodePolicy(),
         );
         $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
             id: 42,
@@ -115,6 +117,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
         );
         $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
             id: 42,
@@ -125,6 +128,27 @@ final class EntityEmbeddingListenerTest extends TestCase
                 'title' => 'Vector Title',
                 'body' => 'Vector Body',
             ],
+        )));
+    }
+
+    #[Test]
+    public function undeclared_user_like_entity_is_never_embedded_and_its_vector_is_removed(): void
+    {
+        $provider = $this->createMock(EmbeddingProviderInterface::class);
+        $provider->expects($this->never())->method('embed');
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects($this->never())->method('store');
+        $storage->expects($this->once())->method('delete')->with('user', '7');
+
+        $listener = new EntityEmbeddingListener(
+            storage: $storage,
+            embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
+        );
+        $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(
+            id: 7,
+            entityTypeId: 'user',
+            values: ['name' => 'Private person', 'email' => 'private@example.test'],
         )));
     }
 
@@ -164,6 +188,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
             entityTypeManager: $this->entityTypeManager($servedEntity),
         );
         $listener->onPostSave(new EntityEvent($draftTip));
@@ -195,6 +220,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
             entityTypeManager: $this->entityTypeManager($publishedEntity),
         );
         $listener->onPostSave(new EntityEvent($draftTip));
@@ -218,6 +244,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
             entityTypeManager: $this->entityTypeManager($promotedEntity),
         );
         $listener->onPostSave(new EntityEvent($promotedEntity));
@@ -241,6 +268,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
             entityTypeManager: $this->entityTypeManager($servedEntity),
         );
         $listener->onRevisionPointerMoved(new RevisionPointerMovedEvent(
@@ -276,6 +304,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             queue: null,
             storage: $storage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
             entityTypeManager: $this->entityTypeManager($servedEntity),
         );
         $listener->onRevisionReverted(new EntityEvent($eventEntity));
@@ -359,6 +388,25 @@ final class EntityEmbeddingListenerTest extends TestCase
         self::assertStringContainsString('read failed', $logger->errors[0]);
     }
 
+    #[Test]
+    public function a_missing_re_sourced_entity_removes_the_vector_without_embedding_or_throwing(): void
+    {
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects(self::once())->method('delete')->with('node', '42');
+        $storage->expects(self::never())->method('store');
+        $provider = $this->createMock(EmbeddingProviderInterface::class);
+        $provider->expects(self::never())->method('embed');
+
+        $listener = new EntityEmbeddingListener(
+            storage: $storage,
+            embeddingProvider: $provider,
+            entityTypeManager: $this->entityTypeManager(null),
+            indexPolicy: $this->nodePolicy(),
+        );
+
+        $listener->onPostSave(new EntityEvent(new TestEmbeddingEntity(id: 42, entityTypeId: 'node')));
+    }
+
     private function entityTypeManager(?EntityInterface $servedEntity): EntityTypeManagerInterface
     {
         return new class ($servedEntity) implements EntityTypeManagerInterface {
@@ -402,6 +450,20 @@ final class EntityEmbeddingListenerTest extends TestCase
                 };
             }
         };
+    }
+
+    private function nodePolicy(): EmbeddingIndexPolicy
+    {
+        return EmbeddingIndexPolicy::fromArray([
+            'ai' => [
+                'vector_index' => [
+                    'node' => [
+                        'fields' => ['label', 'title', 'body', 'description', 'name'],
+                        'allow_external' => true,
+                    ],
+                ],
+            ],
+        ]);
     }
 }
 

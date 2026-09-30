@@ -9,9 +9,12 @@ declare(strict_types=1);
 return [
     'entries' => [
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\DistanceMetric', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingIndexPolicy', 'disposition' => 'public', 'purpose' => 'Default-deny entity-type, field-projection, and provider-egress policy for embedding generation'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingInterface', 'disposition' => 'public', 'purpose' => 'Extends `EmbeddingProviderInterface` with batch embedding generation'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingProviderEgressInterface', 'disposition' => 'public', 'purpose' => 'Declares whether an embedding provider may transmit source text off-host'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingProviderInterface', 'disposition' => 'public', 'purpose' => 'Generates a vector embedding for a single text string'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\EmbeddingStorageInterface', 'disposition' => 'public', 'purpose' => 'Stores and similarity-searches raw float vectors by entity type and ID'],
+        ['fqcn' => 'Waaseyaa\\AI\\Vector\\InvalidEmbeddingIndexPolicyException', 'disposition' => 'public', 'purpose' => 'Stable refusal for malformed embedding index and egress configuration'],
         ['fqcn' => 'Waaseyaa\\AI\\Vector\\VectorStoreInterface', 'disposition' => 'public', 'purpose' => 'Stores and queries entity embeddings in a vector backend (pgvector, Qdrant, etc.)'],
     ],
 ];

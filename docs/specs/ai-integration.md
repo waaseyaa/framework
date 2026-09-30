@@ -56,6 +56,7 @@ do not. -->
 <!-- Spec reviewed 2026-08-04 - #2191: the legacy McpController discovery blend, search aliases, and stable-meta claims are explicitly retired; new remote search must use the canonical access-checked agent-tool lifecycle. -->
 
 <!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04 (governed secret custody): outbound MCP and the LLM/embedding providers moved from raw string credential reads to typed SecretReference custody through the frozen kernel SecretResolverRegistry — providers hold a SecretHandle and resolve a fresh version per outbound request inside a registered consumer (McpCredentialOperation, AnthropicCredentialOperation, OpenAiCompatibleCredentialOperation, OpenAiEmbeddingCredentialOperation); credential bytes never cross the operation boundary, and outcome objects (ProviderCredentialOutcome, McpCredentialOutcome) discard original exception text. Every MCP server row now declares auth_mode (none|secret-reference) and availability (required|optional): an optional server's startup/call failure records degraded McpIntegrationHealth and yields no tools; a REQUIRED server's failure throws McpReadinessException and blocks boot — this supersedes the 2026-07-13 "an unavailable server cannot abort kernel boot" claim for required servers. Remote JSON-RPC errors surface as the fixed McpRemoteErrorException signal; tool-call errors are the fixed envelopes mcp_credential_unavailable / mcp_server_unavailable / mcp_remote_error (no detail text). Custody mechanics: docs/specs/infrastructure.md; MCP tool-source contract and ai.providers/ai.mcp_servers schema v2: docs/specs/agent-executor.md; policy: docs/specs/security-defaults.md. -->
+<!-- Spec reviewed 2026-09-29 - FW-AIV-INDEXING-POLICY-01 (#3141): semantic indexing is default-deny through ai.vector_index. Each entity type declares fields and whether content may leave the host; unknown providers are treated as external. Lifecycle indexing and semantic refresh share EmbeddingIndexPolicy, and denied entities have existing vectors removed without a provider call. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F1 slice B: `AgentTool::toMcpDescriptor()` now always emits the spec-standard MCP `annotations.destructiveHint`, projected from the tool's declared `$destructive`. It is advisory display metadata for MCP clients; server-side enforcement (the write tier's human-approval gate, see docs/specs/mcp-endpoint.md §"Human-approval gate") reads `$destructive` itself and never the hint. On a gated endpoint the MCP layer additionally decorates destructive tools' tools/list descriptors with `_meta["ai.waaseyaa.mcp/approval"]="required"` — that decoration lives in `McpEndpoint`, not in AgentTool. Acceptance: AgentToolDescriptorTest. -->
 
@@ -801,7 +802,7 @@ Implementations connect to embedding providers. The `getDimensions()` method ret
 **File:** `packages/ai-vector/src/OpenAiEmbeddingProvider.php`
 
 ```php
-final class OpenAiEmbeddingProvider implements EmbeddingInterface
+final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
 {
     public function __construct(
         #[\SensitiveParameter]
@@ -818,7 +819,7 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface
 **File:** `packages/ai-vector/src/OllamaEmbeddingProvider.php`
 
 ```php
-final class OllamaEmbeddingProvider implements EmbeddingInterface
+final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
 {
     public function __construct(
         private readonly string $endpoint = 'http://127.0.0.1:11434/api/embeddings',
@@ -830,6 +831,12 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface
 ```
 
 Ollama's `$transport` keeps the `(string $url, array $headers, array $body): array` shape. OpenAI's `$transport` is credential-free — `(string $url, array $payload): array`, invoked before any credential is resolved; the separate `$authenticatedTransport` seam receives headers below credential injection. A string `$apiKey` is wrapped into a legacy static `SecretHandle`; requests resolve it inside the registered `OpenAiEmbeddingCredentialOperation` consumer (purpose `waaseyaa.ai.embedding.v1`). When the seams are null, real HTTP calls are made.
+
+`EmbeddingProviderEgressInterface::transmitsOffHost()` supplies the indexing
+policy's terminal-provider classification. OpenAI always reports external.
+Ollama reports local only for literal `localhost`, `127.0.0.1`, and `::1`
+endpoints. A provider that does not implement the interface is treated as
+external.
 
 `EmbeddingProviderFactory::fromConfig()` still returns `null` when `ai.embedding_provider` is unset or unknown (the warmer reports `skipped_no_provider`), but a configured `openai` provider is fail-closed: a raw `ai.openai_api_key` value, a missing kernel `SecretResolverRegistry`, or a missing/invalid typed `ai.openai_credential_reference` throws `ProviderCredentialConfigurationException` — there is no environment-variable fallback.
 
@@ -888,7 +895,9 @@ public function removeEntity(string $entityTypeId, int|string $entityId): void;
 
 `embedEntity()` uses `buildEntityText()`: **`$entity->label() . ' ' . json_encode(EntityValues::toJsonReadyMap($entity), JSON_THROW_ON_ERROR)`** — cast-aware keys with JSON-safe scalars (backed enums → backing value, `DateTimeInterface` → ISO-8601 ATOM, nested arrays normalized). Same layering rule as JSON:API attributes (`ResourceSerializer` delegates recursive normalization to **`EntityValues::normalizeValueForJson()`**).
 
-**`EntityEmbeddingListener`:** node publish checks use **`WorkflowVisibility::isEntityServedPublicForEntity()`**; embedding text uses **`EntityValues::toCastAwareMap()`** for `title` / `name` / `body` / `description`.
+**`EntityEmbeddingListener`:** delegates node visibility, declared field
+projection, and provider-egress decisions to the composed
+`EmbeddingIndexPolicy`.
 
 ### Lifecycle composition and entry-point contract (FW-AIV-COMP-01)
 
@@ -906,6 +915,34 @@ mean a native vector extension. `pgvector` and unknown values refuse provider
 registration with `[AIV-BACKEND-001]`. Sovereignty defaults advertise
 `database` for every profile until another backend has an implementation and a
 qualification run.
+
+### Embedding index and egress policy
+
+`ai.vector_index` is the only indexing allowlist. A missing policy or an
+undeclared entity type is not embedded. Each entry contains a non-empty
+`fields` list and an optional `allow_external` boolean, which defaults to
+`false`:
+
+```php
+'vector_index' => [
+    'node' => [
+        'fields' => ['label', 'title', 'body', 'description'],
+        'allow_external' => false,
+    ],
+],
+```
+
+`label` is a reserved projection name for `EntityInterface::label()`. Every
+other name is read through `EntityValues::toCastAwareMap()`. There is no
+implicit label, entity ID, or fallback source. An empty projection is denied.
+Nodes additionally retain the served-public `WorkflowVisibility` gate.
+
+`EmbeddingIndexPolicy` is composed once by `AiVectorServiceProvider` and is
+shared by the lifecycle listener and `SemanticIndexWarmer`. A denied entity is
+never passed to the provider and its existing vector is deleted. After a type
+is removed from policy, `semantic:refresh --type=<entity-type>` is the explicit
+reconciliation path for its stored vectors. Invalid policy shapes fail provider
+registration with `[AIV-POLICY-001]`.
 
 `AiVectorServiceProvider` is the only composition owner. Every consumer
 resolves `EmbeddingStorageInterface` and `EmbeddingProviderInterface` through
@@ -957,7 +994,9 @@ later listeners still run.
 - `ConsoleVectorInvalidationTest`: a console-kernel save of indexable content and a delete each remove the vector, with a provider configured;
 - `PostCommitVectorFailureTest`: through a real repository with a failing storage.
 
-**`SemanticIndexWarmer`:** node gating uses **`isEntityServedPublicForEntity()`** (not raw `toArray()`).
+**`SemanticIndexWarmer`:** uses the same composed `EmbeddingIndexPolicy` as
+the lifecycle listener, including node visibility, field projection, egress,
+and deletion of denied entities.
 
 ```mermaid
 flowchart LR
@@ -1080,14 +1119,13 @@ Contract:
 - stable report payload with:
   - requested entity types
   - processed/stored/removed/missing totals
-  - per-type status blocks (`ok` / `missing_entity_type`)
+  - per-type status blocks (`ok` / `missing_entity_type` / `skipped_no_provider`)
   - measured duration
 
 Operational behavior:
 
-- If no embedding provider is configured, warmer returns `status=skipped_no_provider` (no writes).
-- For `node`, only `published` content is indexed; non-public states are removed from the semantic index.
-- Non-node types remain indexable by default.
+- If no embedding provider is configured, declared types return `status=skipped_no_provider`; undeclared types can still be refreshed to delete vectors left by an earlier policy.
+- Only entity types declared by `ai.vector_index` are indexed. For `node`, only `published` content is indexed; non-public states are removed from the semantic index.
 - Candidate IDs are processed in deterministic chunks (`200` IDs per storage load) to stabilize memory and I/O under larger warming sets.
 
 ### Semantic Refresh Batch Contract
@@ -1102,7 +1140,7 @@ Contract:
   - requested entity types
   - `batch_size` and `batch_processed`
   - stored/removed/missing totals for the executed batch
-  - per-type status blocks (`ok` / `missing_entity_type`)
+  - per-type status blocks (`ok` / `missing_entity_type` / `skipped_no_provider`)
   - `next_cursor` (`{type_index, offset}`) when work remains, or `null` when complete
   - measured duration
 
@@ -1110,7 +1148,7 @@ Operational behavior:
 
 - Cursor input is optional and clamped to non-negative values.
 - Batch execution is deterministic over sorted entity IDs and entity-type order.
-- If no embedding provider is configured, status is `skipped_no_provider` and no writes occur.
+- If no embedding provider is configured, declared types are skipped; undeclared types remain eligible for deletion-only refresh so a removed policy entry can be purged after provider removal.
 
 ### CLI Warm Command
 

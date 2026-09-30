@@ -22,6 +22,7 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Policy\PublishedContentStatusReader;
 use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
@@ -149,6 +150,9 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             entityTypeManager: $this->entityTypeManager,
             embeddingStorage: $this->embeddingStorage,
             embeddingProvider: $provider,
+            indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
+                'node' => ['fields' => ['label', 'title', 'body', 'description'], 'allow_external' => false],
+            ]]]),
         );
 
         $warmStarted = hrtime(true);

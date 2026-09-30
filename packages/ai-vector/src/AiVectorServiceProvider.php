@@ -15,7 +15,6 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
-use Waaseyaa\Workflows\WorkflowVisibility;
 
 /**
  * Binds `waaseyaa/ai-vector`'s interfaces so the kernel container can
@@ -39,7 +38,8 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  * wires the tool's `\Closure` resolvers, and they now resolve real ai-vector
  * services off the kernel-services bus because both interfaces are bound
  * here). When it is NOT configured, `SemanticIndexWarmer` receives a null
- * provider and reports `skipped_no_provider`, the correct graceful degrade.
+ * provider. Declared types report `skipped_no_provider`; undeclared types can
+ * still be refreshed to purge vectors left by an earlier policy.
  *
  * It is also the only composition owner for the lifecycle listeners
  * (FW-AIV-COMP-01). The listeners and the warmer use the kernel services'
@@ -77,6 +77,12 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
         }
         $runtime->assertSupportedBackend();
         $this->enabled = true;
+        $indexPolicy = EmbeddingIndexPolicy::fromArray($this->config);
+
+        $this->singleton(
+            EmbeddingIndexPolicy::class,
+            fn(): EmbeddingIndexPolicy => $indexPolicy,
+        );
 
         $secretRegistry = $this->kernelServices?->get(SecretResolverRegistry::class);
         if ($secretRegistry instanceof SecretResolverRegistry) {
@@ -110,7 +116,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
                 $this->resolve(EntityTypeManagerInterface::class),
                 $this->composedStorage(),
                 $this->composedProvider(),
-                new WorkflowVisibility(),
+                indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
             ),
         );
         $this->singleton(
@@ -158,6 +164,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
         $this->lifecycleDispatcher = $dispatcher;
         $this->subscribeSaveListener(new EntityEmbeddingListener(
             storage: $storage,
+            indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
             logger: $logger,
             invalidateOnly: true,
         ));
@@ -182,6 +189,7 @@ final class AiVectorServiceProvider extends ServiceProvider implements Configure
         $this->subscribeSaveListener(new EntityEmbeddingListener(
             storage: $this->composedStorage(),
             embeddingProvider: $provider,
+            indexPolicy: $this->resolve(EmbeddingIndexPolicy::class),
             logger: $this->lifecycleLogger(),
             entityTypeManager: $this->resolveOptional(EntityTypeManagerInterface::class),
         ));

@@ -50,4 +50,13 @@ final class EmbeddingProvidersTest extends TestCase
         $this->assertSame([1.0, 2.0], $vector);
         $this->assertSame('embed me', $capturedPayload['input']);
     }
+
+    #[Test]
+    public function providers_report_their_real_egress_boundary(): void
+    {
+        self::assertFalse((new OllamaEmbeddingProvider())->transmitsOffHost());
+        self::assertFalse((new OllamaEmbeddingProvider(endpoint: 'http://[::1]:11434/api/embeddings'))->transmitsOffHost());
+        self::assertTrue((new OllamaEmbeddingProvider(endpoint: 'http://ollama.internal:11434/api/embeddings'))->transmitsOffHost());
+        self::assertTrue((new OpenAiEmbeddingProvider(apiKey: 'test-key'))->transmitsOffHost());
+    }
 }

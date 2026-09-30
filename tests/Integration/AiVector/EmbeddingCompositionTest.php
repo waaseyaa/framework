@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\AI\Vector\AiVectorServiceProvider;
 use Waaseyaa\AI\Vector\DatabaseEmbeddingStorage;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
@@ -200,12 +201,15 @@ final class EmbeddingCompositionTest extends TestCase
     private function assertEveryConsumerUses(AbstractKernel $kernel, EmbeddingStorageInterface $storage, EmbeddingProviderInterface $provider): void
     {
         $indexer = $this->onlyListener($kernel, EntityEvents::POST_SAVE->value, EntityEmbeddingListener::class);
+        $policy = $this->resolve($kernel, EmbeddingIndexPolicy::class);
         self::assertSame($storage, $this->property($indexer, 'storage'), 'indexing listener storage');
         self::assertSame($provider, $this->property($indexer, 'embeddingProvider'), 'indexing listener provider');
+        self::assertSame($policy, $this->property($indexer, 'indexPolicy'), 'indexing listener policy');
         self::assertSame($storage, $this->property($this->onlyListener($kernel, EntityEvents::POST_DELETE->value, EntityEmbeddingCleanupListener::class), 'storage'), 'cleanup listener storage');
         $warmer = $this->resolve($kernel, SemanticIndexWarmer::class);
         self::assertSame($storage, $this->property($warmer, 'embeddingStorage'), 'warmer storage');
         self::assertSame($provider, $this->property($warmer, 'embeddingProvider'), 'warmer provider');
+        self::assertSame($policy, $this->property($warmer, 'indexPolicy'), 'warmer policy');
         $search = (fn() => $this->semanticSearchServices())->call($kernel);
         self::assertIsArray($search);
         self::assertSame($storage, $search[0], 'search storage');
@@ -215,7 +219,13 @@ final class EmbeddingCompositionTest extends TestCase
     private function writeConfig(bool $withProvider): void
     {
         // A configured provider binds EmbeddingProviderInterface. Nothing here calls the endpoint.
-        $ai = ['vector_enabled' => true, 'vector_backend' => 'database'];
+        $ai = [
+            'vector_enabled' => true,
+            'vector_backend' => 'database',
+            'vector_index' => [
+                'node' => ['fields' => ['title'], 'allow_external' => false],
+            ],
+        ];
         if ($withProvider) {
             $ai += ['embedding_provider' => 'ollama', 'ollama_endpoint' => 'http://127.0.0.1:9/api/embeddings'];
         }

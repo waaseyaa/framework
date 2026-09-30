@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
@@ -74,6 +75,7 @@ final class SemanticIndexWarmerTest extends TestCase
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
         );
 
         $report = $warmer->warm(['node']);
@@ -101,6 +103,7 @@ final class SemanticIndexWarmerTest extends TestCase
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: null,
+            indexPolicy: $this->nodePolicy(),
         );
 
         $report = $warmer->warm(['node']);
@@ -159,6 +162,7 @@ final class SemanticIndexWarmerTest extends TestCase
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
         );
 
         $first = $warmer->warmBatch(['node'], 2, null);
@@ -169,6 +173,99 @@ final class SemanticIndexWarmerTest extends TestCase
         $second = $warmer->warmBatch(['node'], 2, $first['next_cursor']);
         $this->assertSame(1, $second['batch_processed']);
         $this->assertNull($second['next_cursor']);
+    }
+
+    #[Test]
+    public function refreshing_a_newly_excluded_type_removes_its_existing_vectors_without_embedding(): void
+    {
+        $query = new class implements EntityQueryInterface {
+            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
+            public function exists(string $field): static { return $this; }
+            public function notExists(string $field): static { return $this; }
+            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
+            public function range(int $offset, int $limit): static { return $this; }
+            public function count(): static { return $this; }
+            public function accessCheck(bool $check = true): static { return $this; }
+            public function setAccount(?AccountInterface $account): static { return $this; }
+            public function execute(): array { return [7]; }
+        };
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->willReturn([
+            new SemanticWarmerEntity(7, 'user', ['name' => 'Private person']),
+        ]);
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->expects(self::once())->method('hasDefinition')->with('user')->willReturn(true);
+        $manager->expects(self::exactly(2))->method('getRepository')->with('user')->willReturn($repository);
+
+        $provider = $this->createMock(EmbeddingProviderInterface::class);
+        $provider->expects(self::never())->method('embed');
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects(self::never())->method('store');
+        $storage->expects(self::once())->method('delete')->with('user', '7');
+
+        $report = (new SemanticIndexWarmer(
+            entityTypeManager: $manager,
+            embeddingStorage: $storage,
+            embeddingProvider: $provider,
+            indexPolicy: $this->nodePolicy(),
+        ))->warm(['user']);
+
+        self::assertSame(0, $report['stored_total']);
+        self::assertSame(1, $report['removed_total']);
+    }
+
+    #[Test]
+    public function refreshing_a_newly_excluded_type_purges_vectors_without_a_provider(): void
+    {
+        $query = new class implements EntityQueryInterface {
+            public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
+            public function exists(string $field): static { return $this; }
+            public function notExists(string $field): static { return $this; }
+            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
+            public function range(int $offset, int $limit): static { return $this; }
+            public function count(): static { return $this; }
+            public function accessCheck(bool $check = true): static { return $this; }
+            public function setAccount(?AccountInterface $account): static { return $this; }
+            public function execute(): array { return [7]; }
+        };
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->willReturn([
+            new SemanticWarmerEntity(7, 'user', ['name' => 'Private person']),
+        ]);
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->expects(self::once())->method('hasDefinition')->with('user')->willReturn(true);
+        $manager->expects(self::exactly(2))->method('getRepository')->with('user')->willReturn($repository);
+
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage->expects(self::never())->method('store');
+        $storage->expects(self::once())->method('delete')->with('user', '7');
+
+        $report = (new SemanticIndexWarmer(
+            entityTypeManager: $manager,
+            embeddingStorage: $storage,
+            embeddingProvider: null,
+            indexPolicy: $this->nodePolicy(),
+        ))->warm(['user']);
+
+        self::assertSame('ok', $report['status']);
+        self::assertSame(0, $report['stored_total']);
+        self::assertSame(1, $report['removed_total']);
+    }
+
+    private function nodePolicy(): EmbeddingIndexPolicy
+    {
+        return EmbeddingIndexPolicy::fromArray([
+            'ai' => [
+                'vector_index' => [
+                    'node' => [
+                        'fields' => ['label', 'title', 'body', 'description'],
+                        'allow_external' => true,
+                    ],
+                ],
+            ],
+        ]);
     }
 }
 

@@ -6,7 +6,6 @@ namespace Waaseyaa\AI\Vector;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -63,6 +62,7 @@ use Waaseyaa\Workflows\WorkflowVisibility;
 final class EntityEmbeddingListener
 {
     private readonly LoggerInterface $logger;
+    private readonly EmbeddingIndexPolicy $indexPolicy;
 
     public function __construct(
         private readonly ?QueueInterface $queue = null,
@@ -72,7 +72,9 @@ final class EntityEmbeddingListener
         ?LoggerInterface $logger = null,
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly bool $invalidateOnly = false,
+        ?EmbeddingIndexPolicy $indexPolicy = null,
     ) {
+        $this->indexPolicy = $indexPolicy ?? EmbeddingIndexPolicy::fromArray([], $this->workflowVisibility);
         $this->logger = $logger ?? new NullLogger();
     }
 
@@ -139,17 +141,22 @@ final class EntityEmbeddingListener
             return;
         }
 
-        if (!$this->isIndexable($entityType, $entity)) {
+        if (!$entity instanceof EntityInterface) {
             $this->removeVector($entityType, $entityIdString);
 
             return;
         }
 
-        \assert($entity instanceof EntityInterface);
+        $embeddingText = $this->indexPolicy->embeddingText($entity, $this->embeddingProvider);
+        if ($embeddingText === null) {
+            $this->removeVector($entityType, $entityIdString);
+
+            return;
+        }
 
         if ($this->storage !== null && $this->embeddingProvider !== null) {
             try {
-                $vector = $this->embeddingProvider->embed($this->buildEmbeddingText($entity));
+                $vector = $this->embeddingProvider->embed($embeddingText);
                 $this->storage->store($entityType, $entityIdString, $vector);
             } catch (\Throwable $exception) {
                 $this->logger->error(sprintf(
@@ -191,56 +198,6 @@ final class EntityEmbeddingListener
                 $exception->getMessage(),
             ));
         }
-    }
-
-    private function isIndexable(string $entityType, ?EntityInterface $entity): bool
-    {
-        if ($entity === null) {
-            // No served content exists (deleted concurrently, or a
-            // pointer-move event whose target row is gone) — not indexable.
-            return false;
-        }
-
-        if ($entityType !== 'node') {
-            return true;
-        }
-
-        return $this->workflowVisibility->isEntityServedPublicForEntity($entity);
-    }
-
-    private function buildEmbeddingText(EntityInterface $entity): string
-    {
-        $values = EntityValues::toCastAwareMap($entity);
-        $parts = [];
-
-        foreach (['title', 'name', 'body', 'description'] as $field) {
-            if (!\array_key_exists($field, $values)) {
-                continue;
-            }
-            $value = $values[$field];
-            if (\is_string($value) || \is_int($value) || \is_float($value)) {
-                $trimmed = trim((string) $value);
-                if ($trimmed !== '') {
-                    $parts[] = $trimmed;
-                }
-            }
-        }
-
-        $label = trim($entity->label());
-        if ($label !== '') {
-            array_unshift($parts, $label);
-        }
-
-        $parts = array_values(array_unique($parts));
-        if ($parts === []) {
-            return sprintf(
-                '%s %s',
-                $entity->getEntityTypeId(),
-                (string) ($entity->id() ?? ''),
-            );
-        }
-
-        return implode("\n\n", $parts);
     }
 
 }

@@ -161,9 +161,12 @@ return [
             'purpose' => 'waaseyaa.ai.embedding.v1',
         ],
         'openai_embedding_model' => getenv('WAASEYAA_OPENAI_EMBEDDING_MODEL') ?: 'text-embedding-3-small',
-        // Per-entity field selection used for embedding text extraction.
-        'embedding_fields' => [
-            'node' => ['title', 'body'],
+        // Default-deny indexing policy. Off-host providers require explicit permission.
+        'vector_index' => [
+            'node' => [
+                'fields' => ['label', 'title', 'body', 'description'],
+                'allow_external' => false,
+            ],
         ],
     ],
 ];

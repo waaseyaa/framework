@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
@@ -62,6 +63,9 @@ final class SemanticWarmCommandTest extends TestCase
             entityTypeManager: $this->createStub(EntityTypeManagerInterface::class),
             embeddingStorage: $this->createStub(EmbeddingStorageInterface::class),
             embeddingProvider: null,
+            indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
+                'node' => ['fields' => ['title'], 'allow_external' => false],
+            ]]]),
         );
 
         $tester = $this->makeTester($warmer);
@@ -111,6 +115,9 @@ final class SemanticWarmCommandTest extends TestCase
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $embeddingProvider,
+            indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
+                'node' => ['fields' => ['title'], 'allow_external' => true],
+            ]]]),
         );
 
         $tester = $this->makeTester($warmer);

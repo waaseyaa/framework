@@ -14,6 +14,7 @@ use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
+use Waaseyaa\AI\Vector\InvalidEmbeddingIndexPolicyException;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\AI\Vector\UnsupportedVectorBackendException;
 use Waaseyaa\Database\DBALDatabase;
@@ -90,6 +91,24 @@ final class AiVectorServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function malformed_index_policy_is_refused_before_composition(): void
+    {
+        $provider = new AiVectorServiceProvider();
+        $provider->setKernelContext('/tmp/test', [
+            'ai' => [
+                'vector_enabled' => true,
+                'vector_backend' => 'database',
+                'vector_index' => ['node' => ['fields' => 'title']],
+            ],
+        ], []);
+
+        $this->expectException(InvalidEmbeddingIndexPolicyException::class);
+        $this->expectExceptionMessage('[AIV-POLICY-001]');
+
+        $provider->register();
+    }
+
+    #[Test]
     public function resolvesEmbeddingStorageThroughKernelServicesDatabase(): void
     {
         $provider = $this->providerWithKernelServices([]);
@@ -112,7 +131,7 @@ final class AiVectorServiceProviderTest extends TestCase
     #[Test]
     public function warmerGracefullyDegradesWithNoConfiguredProvider(): void
     {
-        $provider = $this->providerWithKernelServices([]);
+        $provider = $this->providerWithKernelServices($this->nodeIndexConfig());
 
         $warmer = $provider->resolve(SemanticIndexWarmer::class);
         $report = $warmer->warm(['node']);
@@ -123,7 +142,7 @@ final class AiVectorServiceProviderTest extends TestCase
     #[Test]
     public function exposes_deferred_cli_callbacks_without_a_cli_dependency(): void
     {
-        $provider = $this->providerWithKernelServices([]);
+        $provider = $this->providerWithKernelServices($this->nodeIndexConfig());
         $warm = $provider->resolve('waaseyaa.ai-vector.semantic_warm');
         $refresh = $provider->resolve('waaseyaa.ai-vector.semantic_refresh');
 
@@ -363,6 +382,21 @@ final class AiVectorServiceProviderTest extends TestCase
         $config['ai'] = ['vector_enabled' => $enabled] + $ai;
 
         return $config;
+    }
+
+    /** @return array<string, mixed> */
+    private function nodeIndexConfig(): array
+    {
+        return [
+            'ai' => [
+                'vector_index' => [
+                    'node' => [
+                        'fields' => ['title'],
+                        'allow_external' => false,
+                    ],
+                ],
+            ],
+        ];
     }
 }
 

@@ -3,7 +3,7 @@
 - **Audit state:** in progress. It isn't assessed yet, for two reasons:
   1. search contract conformance remains open (there's no declared schema to check against);
   2. AIV-SEC-001 hasn't completed private triage.
-- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`). AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 are resolved by #3139/#3155 (`d58d526ab`) (FW-AIV-COMP-01). AIV-DIST-001 and AIV-BACKEND-001 are resolved by #3140 (FW-AIV-DIST-01): installation and activation are opt-in, unsupported backend names refuse clearly, and the portable backend is qualified on PostgreSQL.
+- **Remediation state:** in progress. Umbrella #3137 with bounded child issues #3138–#3143. AIV-PERSIST-001 and AIV-PERSIST-002 are resolved by #3138/#3147 (FW-AIV-PERSIST-01, landed as `4512c0d9a`). AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002 are resolved by #3139/#3155 (`d58d526ab`) (FW-AIV-COMP-01). AIV-DIST-001 and AIV-BACKEND-001 are resolved by #3140 (FW-AIV-DIST-01). AIV-DOMAIN-001 is resolved by the first #3141 candidate (FW-AIV-INDEXING-POLICY-01): indexing is default-deny, fields and off-host permission are explicit, and refresh removes excluded vectors.
 - **Base:** `bfba7f27d7a27a2228649bc75967fb1d261856c0`, audited 2026-09-23
 - **Dependency identity:** `composer.lock` SHA-256 `1c0df008addb5ec580015e2340937b676a72f867b2aa136203dff102dcfe7a48` at the base; PHP 8.5.5, native Windows 11
 - **Evidence freshness:** audited at `bfba7f27d7a27a2228649bc75967fb1d261856c0`. Two landed production changes are reconciled in the charter, roster and the affected findings:
@@ -11,6 +11,7 @@
   - FW-AIV-COMP-01 (#3139, landed as `d58d526ab` through #3155): `AiVectorServiceProvider` composes the lifecycle listeners in every kernel, every consumer uses the kernel services' first binding of the storage and provider, `HttpKernel` no longer builds its own, and post-commit vector failures are best-effort.
 
   - FW-AIV-DIST-01 (#3140): removed the package from Framework, CLI and full runtime requirements; added explicit activation and backend refusal; moved the fake provider to development autoload; qualified PostgreSQL.
+  - FW-AIV-INDEXING-POLICY-01 (#3141 candidate 1): added one default-deny policy for lifecycle and refresh indexing, explicit field projection and provider-egress decisions, and reconciliation of excluded vectors.
 
   Nothing else was re-audited. The findings' observed evidence describes the base.
 - **Owner issue:** program `waaseyaa/framework#3118`; remediation umbrella #3137
@@ -28,32 +29,35 @@
   - Since FW-AIV-DIST-01, Framework, CLI and full only use it when the application requires it directly. Installation alone is inert; `ai.vector_enabled` must be true.
 - **Dependencies:** requires entity, entity-storage, queue, api, access, workflows, foundation and (since FW-AIV-PERSIST-01) database-legacy, all used; there are no undeclared imports. Embedding providers are optional and chosen by config.
 - **Storage:** there is one implementation. At the base it was SQLite through raw PDO. Since FW-AIV-PERSIST-01 it is `DatabaseEmbeddingStorage` over `DatabaseInterface`, on the migration-owned `embeddings` table. FW-AIV-DIST-01 names that backend `database`, qualifies it on SQLite and PostgreSQL, and refuses all other selectors.
-- **Public surface:** see AIV-PUBLIC-001. `public-surface.php` declares five symbols, but nine classes carry `@api` without a declaration, and `SearchController` states a "stable" v1.0 wire contract that isn't declared anywhere.
+- **Public surface:** see AIV-PUBLIC-001. FW-AIV-INDEXING-POLICY-01 declares its three new policy and egress symbols, but the pre-existing `@api` mismatch, duplicate storage family, and undeclared "stable" search wire contract remain for #3141 candidate 2.
 - **Evidence it works:**
   - Source: at the base, 89 package unit tests and 12 related integration tests pass. With FW-AIV-PERSIST-01, 107 package tests pass, including the migration and serving-path schema-authority tests.
   - Distributed form: production dependency graphs exclude ai-vector by default; the installed-but-disabled provider is inert; exact-candidate hosted qualification owns the split and `--no-dev` proof.
 
 ## Roster
 
-All 21 PHP files under `src/`, the migration and `public-surface.php` (23 PHP files), plus the manifest and the README. The rows for `DatabaseEmbeddingStorage` and the migration reflect FW-AIV-PERSIST-01 and replace the base's `SqliteEmbeddingStorage` row.
+All 24 PHP files under `src/`, the migration and `public-surface.php` (26 PHP files), plus the manifest and the README. The rows for `DatabaseEmbeddingStorage` and the migration reflect FW-AIV-PERSIST-01 and replace the base's `SqliteEmbeddingStorage` row. The policy and egress rows reflect FW-AIV-INDEXING-POLICY-01.
 
 | File | Role | Classification | Evidence level | Notes |
 | --- | --- | --- | --- | --- |
-| `src/AiVectorServiceProvider.php` | Binds storage, provider and warmer; composes the lifecycle listeners | owned and coherent | reproduced | Since FW-AIV-DIST-01 it binds and boots only after explicit activation, and refuses unsupported backend selectors |
+| `src/AiVectorServiceProvider.php` | Binds storage, provider, indexing policy and warmer; composes the lifecycle listeners | owned and coherent | reproduced | Since FW-AIV-DIST-01 it binds and boots only after explicit activation; FW-AIV-INDEXING-POLICY-01 composes one policy instance for lifecycle and refresh |
 | `src/AiVectorRuntimeConfig.php` | Explicit activation and backend-selection contract | owned and coherent | reproduced | Defaults disabled; accepts only `database` when enabled |
 | `src/UnsupportedVectorBackendException.php` | Named refusal for unimplemented backend claims | owned and coherent | reproduced | Uses `[AIV-BACKEND-001]` |
 | `src/DatabaseEmbeddingStorage.php` | The only `EmbeddingStorageInterface` implementation, over `DatabaseInterface` | owned and coherent | reproduced | Replaced `SqliteEmbeddingStorage` (AIV-PERSIST-001, AIV-PERSIST-002) in FW-AIV-PERSIST-01; no DDL, no raw PDO |
 | `migrations/2026_09_24_000001_embeddings_schema.php` | Owns the `embeddings` table | owned and coherent | reproduced | Creates it, adopts a compatible table in place, refuses others with `[AIV-DB001]` (FW-AIV-PERSIST-01) |
 | `src/EmbeddingStorageInterface.php` | Storage contract used in production | owned and coherent | reviewed | Competes with `VectorStoreInterface` (AIV-PUBLIC-001) |
-| `src/EntityEmbeddingListener.php` | Re-index on save and revision moves (HTTP only at the base) | necessary but under-specified | reproduced | Synchronous remote call (AIV-EXEC-001); indexability rule (AIV-DOMAIN-001); delete branch not best-effort at the base (AIV-EXEC-002); invalidates outside HTTP since FW-AIV-COMP-01 |
+| `src/EmbeddingIndexPolicy.php` | Default-deny entity-type, field-projection and provider-egress policy | owned and coherent | reproduced | Shared by lifecycle and refresh since FW-AIV-INDEXING-POLICY-01 |
+| `src/EmbeddingProviderEgressInterface.php` | Provider off-host classification seam | owned and coherent | reproduced | Unknown providers are conservatively external |
+| `src/InvalidEmbeddingIndexPolicyException.php` | Named malformed-policy refusal | owned and coherent | reproduced | Uses `[AIV-POLICY-001]` |
+| `src/EntityEmbeddingListener.php` | Re-index on save and revision moves (HTTP only at the base) | necessary but under-specified | reproduced | Synchronous remote call remains AIV-EXEC-001; indexability and egress are explicit since FW-AIV-INDEXING-POLICY-01 |
 | `src/EntityEmbeddingCleanupListener.php` | Delete the vector on entity delete | owned and coherent | reproduced | Triggered the lazy DDL at the base (AIV-PERSIST-001); not best-effort at the base (AIV-EXEC-002); best-effort since FW-AIV-COMP-01 |
 | `src/SearchController.php` | Semantic and keyword search, graph rerank | necessary but under-specified | reproduced (synthetic) | AIV-SEC-001, AIV-HTTP-001 |
-| `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reviewed | The only indexing path outside HTTP; since FW-AIV-COMP-01, CLI saves invalidate and `semantic:refresh` re-indexes |
+| `src/SemanticIndexWarmer.php` | Batch index or reconcile, used by CLI | owned and coherent | reproduced | Shares the lifecycle policy and deletes vectors for requested excluded types |
 | `src/EmbeddingProviderFactory.php` | Builds the provider from config | owned and coherent | reviewed | Fails closed on bad OpenAI credential config; called in three places at the base (AIV-COMP-001), once, by the provider, since FW-AIV-COMP-01 |
 | `src/EmbeddingProviderInterface.php` | Single-text embedding contract | owned and coherent | reviewed | |
 | `src/EmbeddingInterface.php` | Adds batch and dimension methods | necessary but under-specified | reviewed | Only implemented, never required by a caller |
-| `src/OllamaEmbeddingProvider.php` | Ollama HTTP provider | owned and coherent | reviewed | `file_get_contents`, 15 s timeout (AIV-SYMFONY-001) |
-| `src/OpenAiEmbeddingProvider.php` | OpenAI HTTP provider | owned and coherent | reviewed | Credential through `SecretHandle`; 20 s timeout |
+| `src/OllamaEmbeddingProvider.php` | Ollama HTTP provider | owned and coherent | reproduced | Only literal loopback endpoints classify as on-host; `file_get_contents`, 15 s timeout (AIV-SYMFONY-001) |
+| `src/OpenAiEmbeddingProvider.php` | OpenAI HTTP provider | owned and coherent | reproduced | Always classifies as off-host; credential through `SecretHandle`; 20 s timeout |
 | `src/OpenAiEmbeddingCredentialOperation.php` | Secret-consumer operation | owned and coherent | reviewed | `@internal`, registered with the secret registry |
 | `src/ProviderCredentialConfigurationException.php` | Credential config refusal | owned and coherent | reviewed | |
 | `src/VectorStoreInterface.php` | Second storage contract | duplicated or drifting contract | reviewed | No production implementation (AIV-PUBLIC-001) |
@@ -80,7 +84,7 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 | `AIV-BACKEND-001` | `pgvector` is advertised by a sovereignty profile but never used | medium | confirmed | reproduced | resolved | #3140 (FW-AIV-DIST-01) | None; defaults advertise `database`, unsupported selectors refuse |
 | `AIV-SEC-001` | Search response metadata can disclose entities removed from the results | withheld | confirmed | reproduced (synthetic) | repair | private report | Private report, then fix |
 | `AIV-HTTP-001` | Every semantic search loads all relationship entities | medium | confirmed | reviewed | repair | #3143, sequenced with the private work | Bound or index the rerank query |
-| `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reviewed | repair or document | #3141 | Decide an explicit indexability policy |
+| `AIV-DOMAIN-001` | Every non-node entity type is indexed and sent to the provider | medium | confirmed | reproduced | resolved | #3141 candidate 1 (FW-AIV-INDEXING-POLICY-01) | None; explicit policy and cleanup evidence landed |
 | `AIV-EXEC-001` | Embedding runs synchronously on save; the queue message has no handler | medium | confirmed | reviewed | repair or remove | #3142 | Wire async indexing or remove the dead path |
 | `AIV-EXEC-002` | Storage failures on the delete paths fail an already-committed entity mutation | high | confirmed | reproduced | resolved | #3139/#3155 (`d58d526ab`) | None; best-effort, proven through a real repository |
 | `AIV-PUBLIC-001` | Two storage contracts and public declarations that don't match | low | confirmed | reviewed | document, deprecate or remove | #3141 | Choose the canonical contract |
@@ -199,11 +203,11 @@ Security-sensitive findings carry a safe summary only. Reproduction details are 
 - **Consequence and consumers:** with a remote provider configured, content such as user names can be sent to a third-party API. This is a data-sovereignty question as much as a search question.
 - **Severity and confidence:** medium; confirmed by review.
 - **Refutation:** considered "only nodes need publication checks". That explains the node branch, not indexing everything else.
-- **Disposition and owner:** repair or document; #3141, with a sovereignty review.
+- **Disposition and owner:** resolved by #3141 candidate 1 (FW-AIV-INDEXING-POLICY-01). `ai.vector_index` declares types, fields and off-host permission; missing declarations deny and delete.
 - **Dependencies:** none.
 - **Acceptance:** indexable types and fields are declared; undeclared types are never embedded; tests cover a user-like type.
-- **Residual risk:** existing stored vectors for newly excluded types need removal.
-- **Next action:** #3141 policy decision.
+- **Residual risk:** operators must run `semantic:refresh --type=<removed-type>` after removing a previously indexed type; the upgrade note and package README state this explicitly.
+- **Next action:** none for AIV-DOMAIN-001. #3141 remains open for AIV-PUBLIC-001.
 
 ### `AIV-EXEC-001`: synchronous embedding on save; the queue message has no handler
 
@@ -355,6 +359,8 @@ Everything in this record ran on native Windows 11 with PHP 8.5.5. Nothing here 
 | `php bin/check-package-layers` | same | same | same | declared dependency layers | pass |
 | Private probe for AIV-SEC-001 | same | same | same | synthetic unit reproduction | withheld; kept with the private report, which is in private triage |
 | `php tests/Fixtures/Audits/AiVector/embeddings-schema-drift-probe.php` | `d05f38e611265688f4daf240a28b78aa50f0c13d` (FW-AIV-PERSIST-01) | lock `a4277f3a…7c5f9be9` | local, native Windows, PHP 8.5.5 | the same cases plus a semantic search, after the repair | 5 cases, none creates the table or drifts; the next transition succeeds in each (the probe's expectations were updated in FW-AIV-PERSIST-01) |
+| `php vendor/bin/phpunit packages/ai-vector/tests/Unit --no-coverage` | candidate tree based on `576c81b802` (FW-AIV-INDEXING-POLICY-01) | lock `9fa4fef4…cf52dc` | local, native Windows, PHP 8.5.5 | policy parsing, field projection, provider egress, undeclared-type refusal, deletion-only refresh, lifecycle and composition | 119 tests, 408 assertions pass |
+| `php vendor/bin/phpunit packages/cli/tests/Unit/Command/SemanticWarmCommandTest.php packages/cli/tests/Unit/Command/SemanticRefreshCommandTest.php packages/ai-vector/tests/Integration tests/Integration/AiVector tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php --no-coverage` | same candidate tree | same | same | CLI, package integration, real composition identity and semantic baseline behavior under the policy | 31 tests, 249 assertions pass |
 
 ## Remediation split
 
@@ -363,7 +369,7 @@ The maintainer approved the split on 2026-09-23 with adjustments, replacing the 
 - **#3138, persistence and the FETDER unblock:** AIV-PERSIST-001 and AIV-PERSIST-002. Resolved by #3147 (`4512c0d9a`); closed.
 - **#3139, composition and lifecycle:** AIV-COMP-001, AIV-COMP-002 and AIV-EXEC-002. Resolved by #3155 (`d58d526ab`); closed.
 - **#3140, distribution and backend claims:** AIV-DIST-001 and AIV-BACKEND-001, plus server-database qualification. Depends on #3138 and #3139.
-- **#3141, public contract and indexing policy:** AIV-PUBLIC-001 and AIV-DOMAIN-001.
+- **#3141, public contract and indexing policy:** AIV-DOMAIN-001 is resolved by candidate 1 (FW-AIV-INDEXING-POLICY-01); candidate 2 retains AIV-PUBLIC-001.
 - **#3142, execution model:** AIV-EXEC-001. It also owns the review trigger for the deferred AIV-SYMFONY-001.
 - **#3143, public search cost:** AIV-HTTP-001, sequenced with the private work.
 - **AIV-SEC-001:** handled through the repository's private reporting route.

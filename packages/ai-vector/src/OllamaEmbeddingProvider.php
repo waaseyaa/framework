@@ -7,7 +7,7 @@ namespace Waaseyaa\AI\Vector;
 /**
  * @api
  */
-final class OllamaEmbeddingProvider implements EmbeddingInterface
+final class OllamaEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
 {
     /**
      * @param callable(string, array<string, string>, array<string, mixed>): array<string, mixed>|null $transport
@@ -48,6 +48,16 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface
     public function getDimensions(): int
     {
         return $this->dimensions;
+    }
+
+    public function transmitsOffHost(): bool
+    {
+        $host = parse_url($this->endpoint, PHP_URL_HOST);
+        if (!is_string($host)) {
+            return true;
+        }
+
+        return !in_array(strtolower(trim($host, '[]')), ['localhost', '127.0.0.1', '::1'], true);
     }
 
     /**

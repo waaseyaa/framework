@@ -14,13 +14,17 @@ final class SemanticIndexWarmer
     public const string CONTRACT_VERSION = 'v1.0';
     public const string CONTRACT_SURFACE = 'semantic_index_warm';
     private const int DEFAULT_CHUNK_SIZE = 200;
+    private readonly EmbeddingIndexPolicy $indexPolicy;
 
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EmbeddingStorageInterface $embeddingStorage,
         private readonly ?EmbeddingProviderInterface $embeddingProvider,
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
-    ) {}
+        ?EmbeddingIndexPolicy $indexPolicy = null,
+    ) {
+        $this->indexPolicy = $indexPolicy ?? EmbeddingIndexPolicy::fromArray([], $this->workflowVisibility);
+    }
 
     /**
      * @param list<string> $entityTypeIds
@@ -55,7 +59,7 @@ final class SemanticIndexWarmer
             'by_type' => [],
         ];
 
-        if ($this->embeddingProvider === null) {
+        if ($this->embeddingProvider === null && $this->allTypesRequireProvider($requestedEntityTypes)) {
             $report['status'] = 'skipped_no_provider';
             $report['duration_ms'] = $this->durationMs($startedAt);
             return $report;
@@ -65,9 +69,16 @@ final class SemanticIndexWarmer
             queue: null,
             storage: $this->embeddingStorage,
             embeddingProvider: $this->embeddingProvider,
+            indexPolicy: $this->indexPolicy,
         );
 
         foreach ($requestedEntityTypes as $entityTypeId) {
+            if ($this->embeddingProvider === null && $this->indexPolicy->isDeclared($entityTypeId)) {
+                $report['by_type'][$entityTypeId] = $this->skippedNoProviderTypeReport();
+                $report['status'] = 'completed_with_skips';
+                continue;
+            }
+
             if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
                 $report['by_type'][$entityTypeId] = [
                     'status' => 'missing_entity_type',
@@ -147,7 +158,7 @@ final class SemanticIndexWarmer
             'by_type' => [],
         ];
 
-        if ($this->embeddingProvider === null) {
+        if ($this->embeddingProvider === null && $this->allTypesRequireProvider($requestedEntityTypes)) {
             $report['status'] = 'skipped_no_provider';
             $report['duration_ms'] = $this->durationMs($startedAt);
             return $report;
@@ -157,6 +168,7 @@ final class SemanticIndexWarmer
             queue: null,
             storage: $this->embeddingStorage,
             embeddingProvider: $this->embeddingProvider,
+            indexPolicy: $this->indexPolicy,
         );
 
         $cursorTypeIndex = max(0, (int) ($cursor['type_index'] ?? 0));
@@ -165,6 +177,12 @@ final class SemanticIndexWarmer
         for ($typeIndex = $cursorTypeIndex; $typeIndex < count($requestedEntityTypes); $typeIndex++) {
             $entityTypeId = $requestedEntityTypes[$typeIndex];
             $offset = $typeIndex === $cursorTypeIndex ? $cursorOffset : 0;
+
+            if ($this->embeddingProvider === null && $this->indexPolicy->isDeclared($entityTypeId)) {
+                $report['status'] = 'completed_with_skips';
+                $report['by_type'][$entityTypeId] = $this->skippedNoProviderTypeReport();
+                continue;
+            }
 
             if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
                 $report['status'] = 'completed_with_skips';
@@ -219,15 +237,6 @@ final class SemanticIndexWarmer
         return $report;
     }
 
-    private function isIndexable(EntityInterface $entity): bool
-    {
-        if ($entity->getEntityTypeId() !== 'node') {
-            return true;
-        }
-
-        return $this->workflowVisibility->isEntityServedPublicForEntity($entity);
-    }
-
     /**
      * @return array{processed: int, stored: int, removed: int, missing: int}
      */
@@ -263,7 +272,7 @@ final class SemanticIndexWarmer
                 $listener->onPostSave(new EntityEvent($entity));
                 $processed++;
 
-                if ($this->isIndexable($entity)) {
+                if ($this->indexPolicy->embeddingText($entity, $this->embeddingProvider) !== null) {
                     $stored++;
                 } else {
                     $removed++;
@@ -319,6 +328,31 @@ final class SemanticIndexWarmer
         }
 
         return $normalized;
+    }
+
+    /** @param list<string> $entityTypeIds */
+    private function allTypesRequireProvider(array $entityTypeIds): bool
+    {
+        foreach ($entityTypeIds as $entityTypeId) {
+            if (!$this->indexPolicy->isDeclared($entityTypeId)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** @return array{status: string, candidates: int, processed: int, stored: int, removed: int, missing: int} */
+    private function skippedNoProviderTypeReport(): array
+    {
+        return [
+            'status' => 'skipped_no_provider',
+            'candidates' => 0,
+            'processed' => 0,
+            'stored' => 0,
+            'removed' => 0,
+            'missing' => 0,
+        ];
     }
 
     private function durationMs(int $startedAt): float

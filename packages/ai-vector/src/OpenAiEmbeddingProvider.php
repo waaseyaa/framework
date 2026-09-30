@@ -10,7 +10,7 @@ use Waaseyaa\Foundation\Security\SecretHandle;
 /**
  * @api
  */
-final class OpenAiEmbeddingProvider implements EmbeddingInterface
+final class OpenAiEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
 {
     public const string CREDENTIAL_PURPOSE = 'waaseyaa.ai.embedding.v1';
 
@@ -80,6 +80,11 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface
     public function getDimensions(): int
     {
         return $this->dimensions;
+    }
+
+    public function transmitsOffHost(): bool
+    {
+        return true;
     }
 
     /**

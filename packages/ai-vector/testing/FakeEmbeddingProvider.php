@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Vector\Testing;
 
 use Waaseyaa\AI\Vector\EmbeddingInterface;
+use Waaseyaa\AI\Vector\EmbeddingProviderEgressInterface;
 
 /**
  * Deterministic embedding provider for tests and local fixtures.
  *
  * @internal
  */
-final class FakeEmbeddingProvider implements EmbeddingInterface
+final class FakeEmbeddingProvider implements EmbeddingInterface, EmbeddingProviderEgressInterface
 {
     public function __construct(
         private readonly int $dimensions = 128,
@@ -30,6 +31,11 @@ final class FakeEmbeddingProvider implements EmbeddingInterface
     public function getDimensions(): int
     {
         return $this->dimensions;
+    }
+
+    public function transmitsOffHost(): bool
+    {
+        return false;
     }
 
     /** @return float[] */

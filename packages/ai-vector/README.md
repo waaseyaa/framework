@@ -12,8 +12,23 @@ config, after running its migration:
     'vector_enabled' => true,
     'vector_backend' => 'database',
     'embedding_provider' => 'ollama', // or openai
+    'vector_index' => [
+        'node' => [
+            'fields' => ['label', 'title', 'body', 'description'],
+            'allow_external' => false,
+        ],
+    ],
 ],
 ```
+
+Indexing is default-deny. Only declared entity types and fields are embedded.
+`label` must be named explicitly; no label, entity ID, or other fallback text
+is added. OpenAI and non-loopback Ollama endpoints may receive content only
+when that entity type sets `allow_external` to `true`. Providers that do not
+declare their egress behavior are treated as external. After removing a type
+from the policy, run `semantic:refresh --type=<entity-type>` to delete its
+existing vectors. That deletion-only refresh also works after the embedding
+provider has been removed.
 
 `database` is the only supported storage backend. It stores JSON vectors on
 the application's `DatabaseInterface` connection and performs cosine ranking

@@ -14,8 +14,25 @@ php vendor/bin/waaseyaa migrate
     'vector_enabled' => true,
     'vector_backend' => 'database',
     // Keep or add the existing embedding_provider configuration.
+    'vector_index' => [
+        'node' => [
+            'fields' => ['label', 'title', 'body', 'description'],
+            'allow_external' => false,
+        ],
+    ],
 ],
 ```
+
+`ai.vector_index` is required for content to be embedded. The old skeleton
+`ai.embedding_fields` placeholder was never consumed and is replaced by this
+enforced policy. Undeclared entity types are removed from the index when they
+are saved or explicitly refreshed. After removing a previously indexed type,
+run `semantic:refresh --type=<entity-type>` to remove its stored vectors. The
+deletion-only refresh works even when no embedding provider remains configured.
+
+`allow_external` defaults to `false`. Set it to `true` only for entity types
+whose declared fields may be sent to OpenAI, a non-loopback Ollama endpoint,
+or an embedding provider whose egress behavior is unknown.
 
 The skeleton also supports `WAASEYAA_AI_VECTOR_ENABLED=true` and
 `WAASEYAA_AI_VECTOR_BACKEND=database`.

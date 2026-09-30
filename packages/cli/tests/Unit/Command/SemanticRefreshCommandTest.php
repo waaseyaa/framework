@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\AI\Vector\EmbeddingIndexPolicy;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
@@ -132,6 +133,9 @@ final class SemanticRefreshCommandTest extends TestCase
             entityTypeManager: $manager,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: $provider,
+            indexPolicy: EmbeddingIndexPolicy::fromArray(['ai' => ['vector_index' => [
+                'node' => ['fields' => ['title'], 'allow_external' => true],
+            ]]]),
         );
     }
 }
