@@ -44,7 +44,7 @@ final class EmbeddingIndexPolicyTest extends TestCase
                 'title' => 'Public title',
                 'body' => 'Public body',
                 'email' => 'private@example.test',
-            ], label: 'Implicit label'),
+            ], label: 'Implicit label', deniedFields: ['email']),
             $this->provider(leavesHost: false),
         );
 
@@ -73,7 +73,10 @@ final class EmbeddingIndexPolicyTest extends TestCase
     public function an_unclassified_provider_is_treated_as_off_host(): void
     {
         $provider = new class implements EmbeddingProviderInterface {
-            public function embed(string $text): array { return [1.0]; }
+            public function embed(string $text): array
+            {
+                return [1.0];
+            }
         };
         $entity = new PolicyEntity('node', [
             'status' => 1,
@@ -107,29 +110,73 @@ final class EmbeddingIndexPolicyTest extends TestCase
     {
         return new readonly class ($leavesHost) implements EmbeddingProviderInterface, EmbeddingProviderEgressInterface {
             public function __construct(private bool $leavesHost) {}
-            public function embed(string $text): array { return [1.0]; }
-            public function transmitsOffHost(): bool { return $this->leavesHost; }
+            public function embed(string $text): array
+            {
+                return [1.0];
+            }
+            public function transmitsOffHost(): bool
+            {
+                return $this->leavesHost;
+            }
         };
     }
 }
 
 final readonly class PolicyEntity implements EntityInterface
 {
-    /** @param array<string, mixed> $values */
+    /**
+     * @param array<string, mixed> $values
+     * @param list<string> $deniedFields
+     */
     public function __construct(
         private string $entityTypeId,
         private array $values,
         private string $label = '',
+        private array $deniedFields = [],
     ) {}
 
-    public function id(): int|string|null { return 1; }
-    public function uuid(): string { return 'uuid'; }
-    public function label(): string { return $this->label; }
-    public function getEntityTypeId(): string { return $this->entityTypeId; }
-    public function bundle(): string { return 'default'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return $this->values[$name] ?? null; }
-    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
-    public function toArray(): array { return $this->values; }
-    public function language(): string { return 'en'; }
+    public function id(): int|string|null
+    {
+        return 1;
+    }
+    public function uuid(): string
+    {
+        return 'uuid';
+    }
+    public function label(): string
+    {
+        return $this->label;
+    }
+    public function getEntityTypeId(): string
+    {
+        return $this->entityTypeId;
+    }
+    public function bundle(): string
+    {
+        return 'default';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
+    public function get(string $name): mixed
+    {
+        if (in_array($name, $this->deniedFields, true)) {
+            throw new \LogicException(sprintf('Undeclared field "%s" was read.', $name));
+        }
+
+        return $this->values[$name] ?? null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        throw new \LogicException('Readonly');
+    }
+    public function toArray(): array
+    {
+        return $this->values;
+    }
+    public function language(): string
+    {
+        return 'en';
+    }
 }

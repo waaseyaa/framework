@@ -103,7 +103,11 @@ final readonly class EmbeddingIndexPolicy
             return null;
         }
 
-        $values = EntityValues::toCastAwareMap($entity);
+        $fieldNames = array_values(array_filter(
+            $rule['fields'],
+            static fn(string $field): bool => $field !== 'label',
+        ));
+        $values = EntityValues::toCastAwareMap($entity, $fieldNames);
         $parts = [];
         foreach ($rule['fields'] as $field) {
             $value = $field === 'label' ? $entity->label() : ($values[$field] ?? null);
