@@ -134,3 +134,12 @@ remains at the root integration boundary; focused Unit companions exercise
 failed indexing cleanup, truthful missing refresh counts, invalid router limits
 and sanitized dependency resolution. No new package dependency or baseline is
 introduced. Root owns these tests and regenerated construction/schema rosters.
+
+## Hosted static-analysis repair
+
+Exact-head full run `36682622692` on `f264a8eef13dbad1e6a72b46abd35409abea5414`
+passed PostgreSQL and verify-gates, then lint/dead-code reported seven unmatched
+pre-existing SearchController suppressions after canonical result validation
+replaced legacy shape coercion. Remove precisely those obsolete baseline entries;
+retain the unrelated graph arithmetic suppressions. No runtime/source behavior
+or new suppression changes. Revised immutable-head qualification remains required.
