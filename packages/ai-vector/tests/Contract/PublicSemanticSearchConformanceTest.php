@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Tests\Integration\Phase8;
+namespace Waaseyaa\AI\Vector\Tests\Contract;
 
 use Opis\JsonSchema\Validator;
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,8 +35,13 @@ use Waaseyaa\Foundation\Http\Router\SearchRouter;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 /** Real migrated storage and real public responses; repository fixtures are synthetic. */
-#[CoversNothing]
-final class VectorSearchIntegrationTest extends TestCase
+#[CoversClass(DatabaseEmbeddingStorage::class)]
+#[CoversClass(SearchController::class)]
+#[CoversClass(VectorSearchTool::class)]
+#[CoversClass(EntityEmbeddingListener::class)]
+#[CoversClass(SemanticIndexWarmer::class)]
+#[CoversClass(SearchRouter::class)]
+final class PublicSemanticSearchConformanceTest extends TestCase
 {
     private DatabaseEmbeddingStorage $storage;
     private EntityRepositoryInterface $repository;
@@ -118,7 +123,7 @@ final class VectorSearchIntegrationTest extends TestCase
 
     private function assertSchema(array $payload, string $relative): void
     {
-        $schema = json_decode(file_get_contents(dirname(__DIR__, 3) . '/' . $relative), false, 512, JSON_THROW_ON_ERROR);
+        $schema = json_decode(file_get_contents(dirname(__DIR__, 4) . '/' . $relative), false, 512, JSON_THROW_ON_ERROR);
         $result = new Validator()->validate(json_decode(json_encode($payload, JSON_THROW_ON_ERROR)), $schema);
         self::assertTrue($result->isValid(), json_encode($result->error()?->keyword(), JSON_THROW_ON_ERROR));
     }
@@ -220,11 +225,11 @@ final class VectorSearchIntegrationTest extends TestCase
     {
         $this->seed('1');
         $payload = $this->controller()->search('x', 'tool_test')->toArray();
-        $schema = json_decode(file_get_contents(dirname(__DIR__, 3) . '/packages/ai-vector/resources/semantic-search.schema.json'));
+        $schema = json_decode(file_get_contents(dirname(__DIR__, 4) . '/packages/ai-vector/resources/semantic-search.schema.json'));
         unset($payload['meta']['scores']);
         self::assertFalse(new Validator()->validate(json_decode(json_encode($payload)), $schema)->isValid());
         $payload = ['results' => [['entity_type' => 'tool_test', 'id' => '1', 'score' => 2, 'metadata' => new \stdClass(), 'vector' => [1]]]];
-        $schema = json_decode(file_get_contents(dirname(__DIR__, 3) . '/packages/ai-tools/resources/vector-search.schema.json'));
+        $schema = json_decode(file_get_contents(dirname(__DIR__, 4) . '/packages/ai-tools/resources/vector-search.schema.json'));
         self::assertFalse(new Validator()->validate(json_decode(json_encode($payload)), $schema)->isValid());
     }
 

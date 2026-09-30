@@ -29,6 +29,12 @@ abstract class EmbeddingStorageContract extends TestCase
         self::assertSame([['id' => '01', 'score' => 1.0]], $this->storage->findSimilar([1, 0], 'user', 10));
         $this->storage->store('node', '01', [0, 1]);
         self::assertSame(['01', '1'], array_column($this->storage->findSimilar([0, 1], 'node', 10), 'id'));
+        foreach (['item:en:01', '999999999999999999999999999999999999999999'] as $id) {
+            $this->storage->store('exact', $id, [1, 0]);
+            self::assertContains($id, array_column($this->storage->findSimilar([1, 0], 'exact', 10), 'id'));
+            $this->storage->delete('exact', $id);
+            self::assertNotContains($id, array_column($this->storage->findSimilar([1, 0], 'exact', 10), 'id'));
+        }
     }
 
     #[Test]
@@ -87,5 +93,27 @@ abstract class EmbeddingStorageContract extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->storage->findSimilar($invalid, 'node', 10);
+    }
+
+    #[Test]
+    public function invalid_identity_refuses_without_mutating_existing_vectors(): void
+    {
+        $this->storage->store('node', '1', [1, 0]);
+        foreach ([
+            fn() => $this->storage->store('', '1', [1, 0]),
+            fn() => $this->storage->store('node', '', [1, 0]),
+            fn() => $this->storage->delete(' ', '1'),
+            fn() => $this->storage->delete('node', ''),
+            fn() => $this->storage->findSimilar([1, 0], '', 10),
+        ] as $operation) {
+            $refused = false;
+            try {
+                $operation();
+            } catch (\InvalidArgumentException) {
+                $refused = true;
+            }
+            self::assertTrue($refused);
+            self::assertSame([['id' => '1', 'score' => 1.0]], $this->storage->findSimilar([1, 0], 'node', 10));
+        }
     }
 }

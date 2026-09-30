@@ -196,6 +196,27 @@
             "occurrence": 1
         },
         {
+            "path": "packages/ai-vector/tests/Contract/DatabaseEmbeddingStorageConformanceTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "1ab9dbec296973a8e5b48b02a9f1b35760bc1acb51c6d88cf54b93b16ae5c2ca",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/DatabaseEmbeddingStorageConformanceTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Contract/DatabaseEmbeddingStorageContract.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 1
+        },
+        {
             "path": "packages/ai-vector/tests/Integration/EmbeddingsSchemaMigrationTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -257,6 +278,20 @@
             "class": "test-only",
             "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
             "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 2
         },
         {
             "path": "packages/ai-vector/tests/Postgres/PostgresEmbeddingStorageQualification.php",

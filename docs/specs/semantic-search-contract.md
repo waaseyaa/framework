@@ -132,7 +132,11 @@ empty responses. Tool capability refusals remain the stock tool contract.
 ## Conformance evidence
 
 Shared storage tests use real migrations and storage on SQLite and PostgreSQL.
-Phase8 `VectorSearchIntegrationTest` exercises real storage through the
+Both drivers run failed-insert rollback, persisted-corruption refusal and
+same-instance migration recovery tests. Test-only triggers/constraints force
+the replacement INSERT to fail after DELETE; negative controls distinguish
+rollback from committed deletion and corruption refusal from an empty success.
+`PublicSemanticSearchConformanceTest` exercises real storage through the
 controller, router and MCP tool, checks nonempty/empty/optional/error responses
 against the shipped schemas, and seeds invalid-schema controls. Synthetic
 repository and account fixtures are labelled. Policy/composition and real

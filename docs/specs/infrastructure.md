@@ -9,7 +9,7 @@ services return 501; unexpected resolution or storage failures return a sanitize
 503. Provider embedding failure retains the declared keyword fallback. Exact
 identity, score ordering, optional graph metadata and JSON schemas are defined in
 [the semantic search contract](semantic-search-contract.md). Acceptance uses the
-real router and migrated SQLite storage in `VectorSearchIntegrationTest`.
+real router and migrated SQLite storage in `PublicSemanticSearchConformanceTest`.
 
 <!-- Spec reviewed 2026-09-08 - #3025: CacheConfiguration::getConfiguredBins()
 is the canonical, deterministically-ordered enumeration of every bin a

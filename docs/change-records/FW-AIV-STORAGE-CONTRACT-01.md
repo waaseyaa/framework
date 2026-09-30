@@ -49,7 +49,7 @@ rerank remains an explicitly described extension. Its cost and private security
 remediation remain separately owned by #3143.
 
 Root owns `packages/ai-vector`, affected ai-tools vector consumer/tests,
-Foundation search router/tests, CLI affected tests, Phase8 integration, the
+Foundation search router/tests, CLI affected tests, public search conformance, the
 field-read roster and stale PHPStan entry, specs, packaged bimaaji instructions,
 upgrade guide, changelog fragment, audit record and evidence. Other lanes are
 preserved. No donor vendor tree, autoload override or dependency symlink to
@@ -111,3 +111,27 @@ This is the default local verdict, not hosted full qualification. Candidate revi
 hosted qualification and landing remain pending; exact evidence will be linked
 on #3141 without changing qualified source bytes.
 No release, tag, deployment or issue closure is part of this candidate checkpoint.
+
+## Independent review repair
+
+Immutable candidate `9125bdb5b4dd12209e8a75143c6fb6bfda440eaa` received
+changes-requested for a bounded conformance gap, with no demonstrated runtime
+regression. The subagent required real replacement-INSERT failure after DELETE,
+persisted corruption, invalid identity, migration recovery on the same instance,
+and colon/large string IDs. Both drivers now inherit those tests. SQLite uses a
+test-only failure trigger; PostgreSQL uses a test-only CHECK constraint. Both are
+installed after the production migration, with governed schema roster updates.
+
+SQLite repair suite passes 17 tests, 65 assertions. Negative controls replacing
+rollback with commit and swallowing corrupt-vector refusal each fail their
+named test (exit 1); original production bytes were restored and checked against
+the immutable commit. No runtime repair was required. Initial review lane
+integrity passed. Repair review and final exact-head qualification remain pending.
+
+Committed-diff preflight exposed coverage-companion ownership for changed
+lifecycle/warmer/router branches. The real public wire/lifecycle suite now lives
+in the package Contract directory as `PublicSemanticSearchConformanceTest`,
+with coverage-bearing declarations for its six exercised production boundaries.
+Its real operations and assertions remain intact, with no synthetic coverage
+touches or duplicate mock-only replacement. Root owns this relocation and the
+regenerated construction/schema rosters.
