@@ -121,3 +121,12 @@ dev to runtime, refreshes CLI metadata and reconciles the existing deployer lock
 metadata with that package's already-tracked database-legacy development require.
 No deployer source or dependency version changed. The architecture scanner remains
 byte-identical to base. Generated surface maps are rebuilt from declarations.
+
+Full qualification of the first corrected head caught one remaining generated
+authority mismatch: both S1 installed-artifact assertions rejected the old root
+lock hash after Finder became a runtime dependency. Canonical
+`check-s1-sqlite-artifact --write-dependency-authority` updates only
+`composer_lock_sha256`; the four recorded dependency versions, references and
+byte hashes are unchanged. No contract, gate or baseline is weakened. The failed
+local receipt and hosted run 36910287837 are retained; the authority correction
+requires a newly reviewed immutable head and fresh qualification.
