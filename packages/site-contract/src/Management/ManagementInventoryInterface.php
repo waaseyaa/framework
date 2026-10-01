@@ -13,7 +13,6 @@ namespace Waaseyaa\SiteContract\Management;
  */
 interface ManagementInventoryInterface
 {
-    /** Exact ProjectSourceDiscovery identity of the code exercised by this inventory. */
     /** Complete management input identity, not the architecture-scanning digest. */
     public function sourceDigest(): string;
 

@@ -61,16 +61,18 @@ final class ManagementConformance
                 return $findings;
             }
             $registered = [];
-            foreach ($inventory->operations() as $operation) {
-                if (!$operation instanceof ManagementOperation || isset($registered[$operation->id])) {
+            foreach ($inventory->operations() as $row) {
+                $operation = $this->validateOperation($row);
+                if (isset($registered[$operation->id])) {
                     throw new \InvalidArgumentException('Invalid inventory.');
                 }
                 $normalized = new ManagementManifestParser()->operation($operation->toArray());
                 $registered[$normalized->id] = $normalized;
             }
             $results = [];
-            foreach ($inventory->verificationResults() as $result) {
-                if (!$result instanceof ManagementVerificationResult || isset($results[$result->operationId][$result->verificationId])) {
+            foreach ($inventory->verificationResults() as $row) {
+                $result = $this->validateResult($row);
+                if (isset($results[$result->operationId][$result->verificationId])) {
                     throw new \InvalidArgumentException('Invalid verification inventory.');
                 }
                 $results[$result->operationId][$result->verificationId] = $result;
@@ -134,6 +136,25 @@ final class ManagementConformance
         }
 
         return $findings;
+    }
+
+    // Product adapters are a runtime boundary; PHPDoc does not validate their rows.
+    private function validateOperation(mixed $row): ManagementOperation
+    {
+        if (!$row instanceof ManagementOperation) {
+            throw new \InvalidArgumentException('Invalid inventory.');
+        }
+
+        return $row;
+    }
+
+    private function validateResult(mixed $row): ManagementVerificationResult
+    {
+        if (!$row instanceof ManagementVerificationResult) {
+            throw new \InvalidArgumentException('Invalid verification inventory.');
+        }
+
+        return $row;
     }
 
     private function finding(string $code, ManagementManifest $manifest, string $subject, string $message): SiteDoctorFinding

@@ -30,8 +30,9 @@ Focused PHPUnit: parser refusals, unsupported states, object-preserving canonica
 identity; conformance against absent/stale/mismatched runtime inventory, inactive
 capability, failed/stale acceptance, and two bounded product-shaped journeys.
 Direct CLI doctor integration tests and unchanged site-manifest parser tests.
-Independent immutable-candidate review after implementation. No production test,
-grant issuance, release, push or deployment.
+Independent immutable-candidate review precedes exact-head local and hosted
+qualification. Publication uses the canonical release workflow only after its
+gates pass. No product production test, grant issuance or deployment is authorized.
 
 ## Custody and current correction
 
@@ -102,7 +103,15 @@ Corrected-candidate counts, immutable independent review and exact-head local/
 hosted qualification are recorded in the final delivery receipt; none are claimed
 in advance here. No end-to-end product check is claimed by Framework tests.
 
-The corrected focused source run passed 404 tests / 1486 assertions. Standard
+The initial corrected focused source run passed 404 tests / 1486 assertions.
+After the static-analysis boundary repair, the Unit `Management` filter passed
+57 tests / 134 assertions; the broader Unit `SiteContract|Management` filter
+passed 411 tests / 1502 assertions. PHPStan and the fail-on-new dead-code gate
+passed. Runtime adapter-row validation remains explicit and malformed-row
+regression acceptance refuses; no static-analysis rule or baseline was relaxed.
+Independent review approved the first corrected immutable head without blocking
+findings; its subsequent boundary/comment repair requires exact-head review
+rebinding and full qualification before publication. Standard
 preflight exposed two v2 integration defects: its fragment filename/shape was not
 accepted by the release compiler, and its maintained YAML exception import lacked
 a narrow boundary entry. The fragment now uses #3118's scoped numeric name; the

@@ -86,6 +86,13 @@ final class ManagementConformanceTest extends TestCase
         self::assertSame(['SITE037_MANAGEMENT_INVENTORY_UNAVAILABLE'], $this->codes(F::inventory([$op], $results)));
     }
 
+    public function testInvalidRuntimeRowsFailClosed(): void
+    {
+        $op = new ManagementManifestParser()->operation(F::operation());
+        self::assertSame(['SITE037_MANAGEMENT_INVENTORY_UNAVAILABLE'], $this->codes(F::inventory([new \stdClass()], [])));
+        self::assertSame(['SITE037_MANAGEMENT_INVENTORY_UNAVAILABLE'], $this->codes(F::inventory([$op], [new \stdClass()])));
+    }
+
     public function testOldResultsCannotSurviveSourceOrSiteRebinding(): void
     {
         $op = new ManagementManifestParser()->operation(F::operation());
