@@ -51,6 +51,25 @@ Every initialized application owns these files:
 version and content digest that produced it. User-owned extension regions are
 explicit; regeneration refuses an unrecognized edit instead of overwriting it.
 
+## Optional management conformance
+
+FW-AGENT-MANAGEMENT-01 adds an independently authored optional
+`.waaseyaa/management.json` companion; it does not alter site.yaml or generated
+artifact ownership. Layer 0 owns its closed structure and conformance vocabulary.
+Product adapters own actual registration and executed checks. No companion keeps
+legacy doctor behavior; a companion without live inventory is unverified.
+
+Management receipts bind operation, site and complete management input digests.
+The architecture scanner's filtered source digest is deliberately insufficient
+for that purpose. CLI ManagementInputDiscovery includes all regular input-tree
+files and directories, dependency bytes, locks and modes, excluding only Git
+metadata. Outputs live outside the stable input tree. Symlinks, special entries
+and unreadable inputs refuse. Report `management_input_sha256` is separate from
+`source_sha256` and companion-byte `management_sha256`.
+The full structure, identity algorithm, diagnostic codes and evidence limits are
+in [agent-management.md](agent-management.md). This companion does not authorize
+execution, sign receipts, attest deployment or fork blueprint/generation policy.
+
 ## Capability manifest
 
 The manifest has a strict versioned schema. Unknown keys, duplicate capability

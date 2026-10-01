@@ -8,6 +8,8 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\CLI\\Site\\Management\\ManagementInputDiscovery', 'disposition' => 'public', 'purpose' => 'Complete sealed management input identity, independent of architecture scan selection', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\CLI\\Site\\Management\\ToolRegistryManagementInventory', 'disposition' => 'public', 'purpose' => 'Read-only projection of effective registered MCP tools into per-site management conformance', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
         ['fqcn' => 'Waaseyaa\\CLI\\AdminBuild\\AdminBuildPlatform', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\CLI\\AdminBuild\\AdminBuildProcessResult', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\CLI\\AdminBuild\\AdminBuildProcessRunnerInterface', 'disposition' => 'internal'],

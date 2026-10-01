@@ -8,6 +8,13 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementManifest', 'disposition' => 'public', 'purpose' => 'Versioned per-site supported, planned and unsupported management declaration', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementManifestParser', 'disposition' => 'public', 'purpose' => 'Closed management companion and operation descriptor parser', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementManifestSchema', 'disposition' => 'public', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementOperation', 'disposition' => 'public', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementInventoryInterface', 'disposition' => 'public', 'purpose' => 'Product projection of actual registered adapters and current executed verification', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementVerificationResult', 'disposition' => 'public', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Management\\ManagementConformance', 'disposition' => 'public', 'purpose' => 'Non-executing declaration versus adapter evidence comparison using site doctor findings', 'ref' => 'FW-AGENT-MANAGEMENT-01'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintAppliedEvidence', 'disposition' => 'public', 'purpose' => 'Closed generated-metadata evidence that a digest-bound approved application blueprint was applied', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintCheckKind', 'disposition' => 'public', 'ref' => '#2785'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintConditionKind', 'disposition' => 'public'],

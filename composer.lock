@@ -1602,6 +1602,74 @@
             "time": "2026-01-05T13:30:16+00:00"
         },
         {
+            "name": "symfony/finder",
+            "version": "v8.0.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/finder.git",
+                "reference": "8da41214757b87d97f181e3d14a4179286151007"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/finder/zipball/8da41214757b87d97f181e3d14a4179286151007",
+                "reference": "8da41214757b87d97f181e3d14a4179286151007",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4"
+            },
+            "require-dev": {
+                "symfony/filesystem": "^7.4|^8.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\Finder\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Fabien Potencier",
+                    "email": "fabien@symfony.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Finds files and directories via an intuitive fluent interface",
+            "homepage": "https://symfony.com",
+            "support": {
+                "source": "https://github.com/symfony/finder/tree/v8.0.8"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-03-30T15:14:47+00:00"
+        },
+        {
             "name": "symfony/html-sanitizer",
             "version": "v8.1.1",
             "source": {
@@ -4002,11 +4070,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "a241b7356d0b646d2500b277d3fbbfe7986ba97f"
+                "reference": "9bddd8c55aa4785d435668e79ee79e01aaeb79c2"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/console": "^8.0",
+                "symfony/finder": "^8.0",
                 "waaseyaa/access": "^0.1.0-alpha.302",
                 "waaseyaa/admin-surface": "^0.1.0-alpha.302",
                 "waaseyaa/audit": "^0.1.0-alpha.302",
@@ -4272,7 +4341,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/deployer",
-                "reference": "202c1e5d0647f887f16afec8bd0f7a12076c27de"
+                "reference": "f26aba7669688075aecf3e326d05ca3e59288641"
             },
             "require": {
                 "deployer/deployer": "^7.0",
@@ -4280,6 +4349,7 @@
                 "php": ">=8.5"
             },
             "require-dev": {
+                "waaseyaa/database-legacy": "^0.1.0-alpha.302",
                 "waaseyaa/foundation": "^0.1.0-alpha.302"
             },
             "type": "library",
@@ -12129,74 +12199,6 @@
                 }
             ],
             "time": "2026-04-18T13:51:42+00:00"
-        },
-        {
-            "name": "symfony/finder",
-            "version": "v8.0.8",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/symfony/finder.git",
-                "reference": "8da41214757b87d97f181e3d14a4179286151007"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/symfony/finder/zipball/8da41214757b87d97f181e3d14a4179286151007",
-                "reference": "8da41214757b87d97f181e3d14a4179286151007",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.4"
-            },
-            "require-dev": {
-                "symfony/filesystem": "^7.4|^8.0"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Symfony\\Component\\Finder\\": ""
-                },
-                "exclude-from-classmap": [
-                    "/Tests/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Fabien Potencier",
-                    "email": "fabien@symfony.com"
-                },
-                {
-                    "name": "Symfony Community",
-                    "homepage": "https://symfony.com/contributors"
-                }
-            ],
-            "description": "Finds files and directories via an intuitive fluent interface",
-            "homepage": "https://symfony.com",
-            "support": {
-                "source": "https://github.com/symfony/finder/tree/v8.0.8"
-            },
-            "funding": [
-                {
-                    "url": "https://symfony.com/sponsor",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://github.com/fabpot",
-                    "type": "github"
-                },
-                {
-                    "url": "https://github.com/nicolas-grekas",
-                    "type": "github"
-                },
-                {
-                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
-                    "type": "tidelift"
-                }
-            ],
-            "time": "2026-03-30T15:14:47+00:00"
         },
         {
             "name": "symfony/options-resolver",

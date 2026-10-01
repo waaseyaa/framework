@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Site;
 
 use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompilerFactory;
+use Waaseyaa\CLI\Site\Management\ManagementInputDiscovery;
 use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
 use Waaseyaa\SiteContract\Blueprint\BlueprintLifecycle;
 use Waaseyaa\SiteContract\Blueprint\BlueprintLifecycleResolver;
@@ -14,12 +15,18 @@ use Waaseyaa\SiteContract\Doctor\DoctorSuppressionSet;
 use Waaseyaa\SiteContract\Doctor\FindingSeverity;
 use Waaseyaa\SiteContract\Doctor\SiteDoctorFinding;
 use Waaseyaa\SiteContract\Doctor\SiteDoctorReport;
+use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
+use Waaseyaa\SiteContract\Management\ManagementConformance;
+use Waaseyaa\SiteContract\Management\ManagementInventoryInterface;
+use Waaseyaa\SiteContract\Management\ManagementManifestParser;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /** @api */
 final class SiteDoctorService
 {
+    public function __construct(private readonly ?ManagementInventoryInterface $managementInventory = null) {}
+
     public function inspect(string $projectRoot, ?\DateTimeImmutable $today = null): SiteDoctorReport
     {
         return $this->inspectProject($projectRoot, $today);
@@ -51,10 +58,70 @@ final class SiteDoctorService
             $suppressed = $application->suppressed;
         }
 
+        // Management evidence is not an authored suppression or registration snapshot.
+        // Append after ordinary suppressions so an unproved management contract cannot
+        // acquire a conformance pass through a site-doctor suppression document.
+        $managementPath = $root . '/.waaseyaa/management.json';
+        $managementDigest = null;
+        $managementInputDigest = null;
+        if (file_exists($managementPath) || is_link($managementPath)) {
+            try {
+                $resolved = realpath($managementPath);
+                $expected = str_replace('\\', '/', $managementPath);
+                $actual = $resolved === false ? '' : str_replace('\\', '/', $resolved);
+                $samePath = DIRECTORY_SEPARATOR === '\\' ? strcasecmp($actual, $expected) === 0 : $actual === $expected;
+                if (!$samePath || is_link($managementPath) || !is_file($managementPath)
+                    || filesize($managementPath) > 1048576) {
+                    throw new \InvalidArgumentException('Unsafe management contract.');
+                }
+                $bytes = $this->readRequired($managementPath, '.waaseyaa/management.json');
+                $managementDigest = hash('sha256', $bytes);
+                $management = new ManagementManifestParser()->parse($bytes);
+                try {
+                    $managementInputDigest = new ManagementInputDiscovery()->digest($root);
+                    $findings = [...$findings, ...new ManagementConformance()->inspect(
+                        $management,
+                        $manifest,
+                        $managementInputDigest,
+                        $this->managementInventory,
+                    )];
+                } catch (\Throwable) {
+                    $findings[] = $this->finding(
+                        'SITE037_MANAGEMENT_INVENTORY_UNAVAILABLE',
+                        '.waaseyaa/management.json',
+                        1,
+                        'Management input identity could not be established from a complete regular tree.',
+                        'Use a stable regular input tree and keep receipts outside it.',
+                        $managementDigest,
+                    );
+                }
+            } catch (SiteManifestValidationException $exception) {
+                foreach ($exception->violations as $violation) {
+                    $findings[] = $this->finding(
+                        $violation->code,
+                        '.waaseyaa/management.json',
+                        1,
+                        $violation->message . ' Path: ' . $violation->path,
+                        'Correct the management declaration; no operation was executed.',
+                        $managementDigest ?? 'unreadable',
+                    );
+                }
+            } catch (\Throwable) {
+                $findings[] = $this->finding(
+                    'SITE030_INVALID_MANAGEMENT',
+                    '.waaseyaa/management.json',
+                    1,
+                    'Management contract is unsafe, unreadable or invalid.',
+                    'Restore a regular local waaseyaa.management v1 contract; no operation was executed.',
+                    $managementDigest ?? 'unreadable',
+                );
+            }
+        }
+
         $lockDigest = is_file($root . '/composer.lock') ? hash_file('sha256', $root . '/composer.lock') : false;
         $metadataDigest = is_file($root . '/.waaseyaa/generated.json') ? hash_file('sha256', $root . '/.waaseyaa/generated.json') : false;
 
-        return SiteDoctorReport::generation(
+        $report = SiteDoctorReport::generation(
             $manifest->digest,
             $snapshot->digest,
             $findings,
@@ -62,6 +129,8 @@ final class SiteDoctorService
             is_string($lockDigest) ? $lockDigest : str_repeat('0', 64),
             is_string($metadataDigest) ? $metadataDigest : str_repeat('0', 64),
         );
+
+        return $managementDigest === null ? $report : $report->withManagementDigest($managementDigest, $managementInputDigest);
     }
 
     /** @return list<SiteDoctorFinding> */

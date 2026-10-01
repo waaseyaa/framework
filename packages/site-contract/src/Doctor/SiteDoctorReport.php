@@ -22,6 +22,8 @@ final readonly class SiteDoctorReport
         public array $suppressed,
         public bool $passed,
         public string $summary,
+        public ?string $managementDigest = null,
+        public ?string $managementInputDigest = null,
     ) {}
 
     /**
@@ -103,22 +105,45 @@ final readonly class SiteDoctorReport
         return $this->passed ? 0 : 1;
     }
 
-    /** @return array{schema:string,version:int,mode:string,manifest_sha256:string,source_sha256:string,composer_lock_sha256:string,generated_metadata_sha256:string,passed:bool,summary:string,findings:list<array{id:string,severity:string,path:string,line:int,message:string,remediation:string,evidence_sha256:string}>,suppressed:list<array{id:string,severity:string,path:string,line:int,message:string,remediation:string,evidence_sha256:string}>} */
+    /** Bind the optional companion bytes without changing legacy report output. */
+    public function withManagementDigest(string $digest, ?string $inputDigest = null): self
+    {
+        if (preg_match('/^[a-f0-9]{64}$/D', $digest) !== 1
+            || ($inputDigest !== null && preg_match('/^[a-f0-9]{64}$/D', $inputDigest) !== 1)) {
+            throw new \InvalidArgumentException('Management reports require an exact SHA-256 identity.');
+        }
+
+        return new self(
+            $this->manifestDigest,
+            $this->sourceDigest,
+            $this->composerLockDigest,
+            $this->generatedMetadataDigest,
+            $this->findings,
+            $this->suppressed,
+            $this->passed,
+            $this->summary,
+            $digest,
+            $inputDigest,
+        );
+    }
+
+    /** @return array{schema:string,version:int,mode:string,manifest_sha256:string,source_sha256:string,composer_lock_sha256:string,generated_metadata_sha256:string,management_sha256?:string,management_input_sha256?:string,passed:bool,summary:string,findings:list<array{id:string,severity:string,path:string,line:int,message:string,remediation:string,evidence_sha256:string}>,suppressed:list<array{id:string,severity:string,path:string,line:int,message:string,remediation:string,evidence_sha256:string}>} */
     public function toArray(): array
     {
-        return [
-            'schema' => 'waaseyaa.site-doctor',
-            'version' => 1,
-            'mode' => 'strict',
-            'manifest_sha256' => $this->manifestDigest,
-            'source_sha256' => $this->sourceDigest,
-            'composer_lock_sha256' => $this->composerLockDigest,
-            'generated_metadata_sha256' => $this->generatedMetadataDigest,
-            'passed' => $this->passed,
-            'summary' => $this->summary,
-            'findings' => array_map(static fn(SiteDoctorFinding $finding): array => $finding->toArray(), $this->findings),
-            'suppressed' => array_map(static fn(SiteDoctorFinding $finding): array => $finding->toArray(), $this->suppressed),
-        ];
+        return ($this->managementInputDigest === null ? [] : ['management_input_sha256' => $this->managementInputDigest])
+            + ($this->managementDigest === null ? [] : ['management_sha256' => $this->managementDigest]) + [
+                'schema' => 'waaseyaa.site-doctor',
+                'version' => 1,
+                'mode' => 'strict',
+                'manifest_sha256' => $this->manifestDigest,
+                'source_sha256' => $this->sourceDigest,
+                'composer_lock_sha256' => $this->composerLockDigest,
+                'generated_metadata_sha256' => $this->generatedMetadataDigest,
+                'passed' => $this->passed,
+                'summary' => $this->summary,
+                'findings' => array_map(static fn(SiteDoctorFinding $finding): array => $finding->toArray(), $this->findings),
+                'suppressed' => array_map(static fn(SiteDoctorFinding $finding): array => $finding->toArray(), $this->suppressed),
+            ];
     }
 
     public function canonicalJson(): string

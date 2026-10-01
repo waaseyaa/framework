@@ -287,6 +287,13 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Generation\ObservedTargetState` | enum | public | Closed absent/file/other record of what evaluation observed at one target path |
 | `Generation\SiteRecipeProviderRegistrationInterface` | interface | public | A first-party recipe's fixed Composer provider registration, consumed by SiteArtifactRenderer::compile() to enter the root artifact plan |
 | `Generation\SiteRecipeRendererInterface` | interface | public | — |
+| `Management\ManagementConformance` | final class | public | Non-executing declaration versus adapter evidence comparison using site doctor findings |
+| `Management\ManagementInventoryInterface` | interface | public | Product projection of actual registered adapters and current executed verification |
+| `Management\ManagementManifest` | final readonly class | public | Versioned per-site supported, planned and unsupported management declaration |
+| `Management\ManagementManifestParser` | final class | public | Closed management companion and operation descriptor parser |
+| `Management\ManagementManifestSchema` | final class | public | — |
+| `Management\ManagementOperation` | final readonly class | public | — |
+| `Management\ManagementVerificationResult` | final readonly class | public | — |
 | `ManifestShapeReader` | trait | internal | — |
 | `Version\ManifestVersionDisposition` | enum | public | Closed current, migration-required, and unsupported-future schema-version decision |
 
@@ -1090,6 +1097,8 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Site\Blueprint\Emitter\ProviderRegistrationEmitter` | final class | public | Emits the generated application blueprint service provider and its Composer registration |
 | `Site\Blueprint\Emitter\RelationshipEmitter` | final class | public | Emits the deterministic blueprint relationship registry for a later consumer; not loaded by the generated provider today |
 | `Site\Blueprint\Emitter\WorkflowDefinitionEmitter` | final class | public | Emits one Workflow-hydration-shaped WorkflowDefinition class per blueprint workflow plus the aggregate workflows.assignments sync entry |
+| `Site\Management\ManagementInputDiscovery` | final class | public | Complete sealed management input identity, independent of architecture scan selection |
+| `Site\Management\ToolRegistryManagementInventory` | final readonly class | public | Read-only projection of effective registered MCP tools into per-site management conformance |
 | `Site\SiteHostPlatform` | enum | internal | — |
 | `Site\SitePathContainment` | final class | internal | — |
 | `Site\SitePreset` | enum | internal | — |

@@ -96,6 +96,23 @@ The CLI package sits at **Layer 6 - Interfaces**. Lower layers expose services, 
 
 Command classes extend `Symfony\Component\Console\Command\Command` and declare their input contract with `InputArgument` and `InputOption`.
 
+## Management verification composition
+
+The optional management companion leaves `site:doctor` boot-free and read-only.
+The ordinary handler supplies no runtime inventory and therefore refuses a
+management conformance pass for an adopted companion. Product-owned verification
+composes `SiteDoctorService($inventory)` explicitly; it does not load an authored
+inventory file or start a new registry, dispatcher or authorization mechanism.
+
+`Site\Management\ManagementInputDiscovery` uses the direct maintained Symfony
+Finder dependency to bind complete regular-tree inputs independently of the
+architecture scanner. Every inventory and executed result carries that complete
+identity. Report `management_input_sha256` is separate from architecture
+`source_sha256`. Outputs are external to the stable tree, and unsupported links,
+special entries and unreadable inputs fail closed. The optional MCP adapter
+requires an installed `waaseyaa/ai-tools` effective registry; no unrelated command
+requires it. See [agent-management.md](agent-management.md) for the full contract.
+
 ## Command Discovery
 
 Commands are discovered during Foundation console boot from service providers declared in `extra.waaseyaa.providers`.
