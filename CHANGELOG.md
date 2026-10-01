@@ -7,6 +7,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.303] - 2026-10-01
+
+### Added
+
+- **Added a paired installed-consumer CLI check on Linux and Windows (#2678):** the Linux reference consumer (`site-reference-consumer`) and `ci/skeleton-create-project-windows` both build a fresh project from the candidate being tested. After `site:init` and `install:init` complete, each lane now runs `php vendor/bin/waaseyaa list --raw` in that project, as the same PowerShell step with the same literal rendering and exit capture. The command must exit 0 and list `list`, `db:init`, `site:init`, `site:doctor` and `install:init`. `bin/native-host-evidence consumer-collect` publishes one validated record per lane. Each record binds the originating checked-out candidate and the installed `waaseyaa/*` cohort, identified by file content because Composer path references do not identify code. It also records the lifecycle artifacts, the CLI argv, exit code and catalogue, the boot environment, and the runner, shell and runtime identity. The Linux harness creates its project from a scratch commit of the skeleton. The record carries that commit as the project source, separate from the candidate revision, and proves its tree is the candidate's `skeleton/` tree. The new `ci/native-host-consumer-cli` gate accepts exactly one passing record per lane from the same run, with one subject and an equivalent cohort. `merge/platform-runtime-acceptance` now requires this gate, which makes `site-reference-consumer` merge-blocking. Both lanes pin Composer to 2.10. The nine required check names, the frozen rollback baseline and `ci/skeleton-create-project`'s published-release proof are unchanged.
+
+- **Added native Windows regression coverage for the Docker and release helpers (#2678):** `bin/check-skeleton-docker-secret-exclusion` keeps its real Docker proof on Linux, but its host-neutral decisions now live in the dependency-free `bin/lib/skeleton-docker-secret-exclusion.php`: the Dockerfile context-escape parse, the build-context inventory, the raw and gzip sentinel scans, the generated-secret reader, the Docker probe classification, the exit code and message each classification forces, and the positive-control and subject failures. Those decisions' tests, a run of the gate's own pass and fail report with its Docker inspection stubbed, and the tests of the release cut's PHP helpers (`bin/sync-internal-versions`, `bin/changelog-fragments`, `bin/check-changelog-shape`) and of `bin/resolve-split-main-targets` now run on native Windows and Linux in the `native-host-contract` matrix. New tests run the version sweep's entrypoint from a scratch root whose path contains a space, and the changelog compiler's `validate` and `render` modes and argument errors through its entrypoint. When its library is missing, unreadable, unparsable or incomplete, the gate now exits 2 in every mode, `--self-test` and `--allow-missing-docker` included, so a broken helper can never pass or skip. No step, job, required context or `merge/*` name is added.
+
+- **Added a static portable null-device guard on Linux and Windows (#2678):** `php bin/check-portable-null-device` scans every governed production PHP file (all repository PHP except tests and their support code, benchmarks, docs, kitty-specs and vendor) for string literals that spell `/dev/null`. A hard-coded `proc_open()` descriptor such as `['file', '/dev/null', 'r']` always fails, because it cannot open on native Windows; PHP's `['null']` descriptor is the accepted form. Every other literal must be classified in `tools/portable-null-device-classifications.json` by file, enclosing symbol and literal, with its exact count, as platform-derived, a semantic diff marker or a POSIX-only shell fragment. The three purposes are mutually exclusive shapes of the literal and its statement, so a classification can only claim the purpose its shape has. Unclassified literals fail, and so do stale, duplicated, malformed, unsorted and overly broad classifications. Diagnostics name the file, line, symbol and literal, and give the manifest change an unclassified literal needs: one entry for every occurrence of the literal in its symbol, or a raised count. The guard is a new step of both existing `native-host-contract` leaves and of the default pre-push preflight, and its tests join the contract's Architecture selection; no job, required context or `merge/*` name is added. The audit found three hard-coded descriptors, two in `bin/qualify-candidate` and one in `bin/dev-runtime`; they now use `['null']`.
+
+- **Added per-site management contracts (FW-AGENT-MANAGEMENT-01, #3118):**
+  an optional closed `waaseyaa.management` v1 companion describes supported,
+  planned and unsupported operations. Read-only conformance compares actual
+  bindings, scopes, schemas and current executed evidence without granting access
+  or executing operations. Adopted companions fail closed without live inventory.
+
+  Management receipts bind a complete regular-tree input identity independent of
+  architecture scanning. Language, test, script, lockfile, dependency and mode
+  changes invalidate prior evidence; unestablished input identities refuse.
+
+### Changed
+
+- Document Framework's reusable builder boundaries, OSS Studio's distribution
+  role, and separately branded commercial consumers. Preserve the existing shared
+  page-editor and application-blueprint contracts; implementation and downstream
+  acceptance remain separate.
+
+- Framework preflight now records host capability and four-state gate results, and reuses successful gates only when their exact candidate, dependency, toolchain, selector, and gate identities still match. Hosted-required work remains explicit and cannot be mistaken for a local pass.
+
+- Framework qualification now inventories split-artifact acceptance and all seeded corruption controls as Linux-hosted evidence without launching the multi-minute consumer locally. Supported local suites continue with an explicit incomplete verdict until the exact-SHA hosted owner passes.
+
+- Framework preflight now reuses successful gate evidence across candidates only when the gate's complete selected bytes and execution identity still match, while preserving the original tested candidate in its report. The hosted-qualification checkpoint dispatches the full graph only for a clean commit at the exact remote branch tip. Dispatch acceptance is never reported as a hosted pass.
+
+- Require package-convergence audits to trace production adapter chains to
+  their terminal implementations and prove that fake, no-op, lossy, or
+  failure-swallowing delegates cannot satisfy the package contract (#3118).
+
+- Review requirements in the Waaseyaa maintainer skills now use AI-agnostic
+  subagent roles. An integration owner cannot substitute self-review or require
+  a particular model or vendor for independent review evidence.
+
+- Clarify native-Windows delivery evidence: run default preflight and focused
+  suites locally, serialize any multi-suite diagnostic, and require exact-head
+  hosted full qualification for the complete verdict.
+
+- Framework governance and canonical maintainer skills now default to maintained Symfony components for suitable generic infrastructure, require evidenced exceptions for custom implementations, and route existing duplication into bounded remediation.
+
+- Make `waaseyaa/ai-vector` explicitly opt-in: Framework, CLI, and full no
+  longer install it at runtime, installed-but-disabled packages register no
+  side effects, semantic CLI commands require explicit activation, unsupported
+  backend claims fail clearly, and test-only embedding helpers no longer ship
+  in production autoload (#3140).
+
+- Make semantic indexing default-deny with explicit entity types, projected
+  fields, and off-host provider permission, while refresh removes vectors for
+  types excluded by policy (#3141).
+
+- Share freshness-safe generation fencing between lifecycle indexing and refresh,
+  with transactional source invalidation and guarded failure cleanup. Use maintained
+  Symfony HTTP infrastructure with separate save (2s), Ollama CLI/query (15s) and
+  OpenAI CLI/query (20s) network budgets; document operator reconciliation (#3142).
+  Make source invalidation fail-closed within the entity transaction and remove
+  delayed unconditional delete/invalidate-only subscriptions. Post-commit provider
+  failures remain best-effort; standalone cleanup verifies fresh absence (#3142).
+  Preserve transactional entity post-save/post-delete hooks while deferring only
+  notification events; hook failures retain single, batch and enclosing rollback
+  behavior (#3142).
+
+- Ordinary Framework main pushes now run a bounded feedback profile, while pull requests, explicit qualification runs, and release candidates retain the complete CI graph. Release cutting requires the named full-qualification decision on the exact candidate.
+
+- Clarify hosted diagnostics and exact-SHA landing, and add a focused remediation entry to the package-convergence skill.
+
+- Policy-undeclared entities proven never indexed can remain writable during embedding-projection failure while durable source authority stays healthy; indexed or uncertain identities retain transactional freshness and rollback. Apply the indexing-history migration with older writers quiesced before activation.
+
+### Removed
+
+- Remove the temporary hosted Claude review workflow and its repository
+  credential requirement. Independent exact-candidate review remains available
+  through local maintainer tooling, without requiring a pull request. Update
+  `actions/download-artifact` to v8.0.1 for the Admin distribution
+  workflow. It downloads by artifact name, so the v5 artifact-ID path change
+  does not affect this workflow.
+
+- Public surface removal: `Waaseyaa\AI\Vector\DistanceMetric`
+
+- Remove the duplicate embedding DTO/storage family; canonical storage uses
+  exact string identity, atomic replacement, finite cosine scores and explicit
+  backend failures. Align MCP, HTTP and refresh with the runtime contract;
+  publish semantic-search schemas and shared SQLite/PostgreSQL conformance
+  tests. See UPGRADING.md for migration (#3141).
+
+- Public surface removal: `Waaseyaa\AI\Vector\VectorStoreInterface`
+
+- Remove the unsupported embedding listener queue argument, orphaned
+  `ai_vector.embed_entity` dispatch and ai-vector queue dependency. Custom storage
+  must bind a compatible execution guard; custom save providers must declare the
+  bounded-save capability. Apply the generation migration before activation (#3142).
+
+### Fixed
+
+- **Fixed (#3104):** `DatabaseInterface::query()` now infers DBAL scalar
+  parameter types from positional and named PHP values. Integer expression
+  guards on SQLite no longer compare numeric expressions against text-bound
+  parameters and admit writes beyond their limit.
+
+- **Fixed (#3104):** Preserved the historical unparameterized raw-query
+  result annotation while adding scalar input type inference, avoiding new
+  downstream static-analysis failures in existing query consumers.
+
+- **Fixed (#3146):** the search package no longer creates its FTS5 projection
+  at runtime on the authoritative database. The first indexed save or delete
+  used to create `search_index`, `search_metadata` and three indexes, which
+  made the next coordinated schema transition refuse with `[S1-DB109]`.
+  - A `waaseyaa/search` package migration now owns the projection. It adopts
+    an existing compatible projection in place with its rows, rebuilds a
+    retired Porter-tokenized index with its rows, and refuses any other shape
+    with `[SEARCH-DB001]`.
+  - Serving paths never create schema. Without the migration, writes log a
+    warning and do nothing, and `search:reindex` refuses with
+    `[SEARCH-DB002]`. A dedicated `search.database` file is provisioned only by
+    `search:reindex`, atomically; one that names the application database file
+    is treated as the application database.
+  - Databases that already drifted have a documented, verified re-adoption
+    procedure in `docs/specs/search.md`.
 ## [0.1.0-alpha.302] - 2026-09-25
 
 ### Added
