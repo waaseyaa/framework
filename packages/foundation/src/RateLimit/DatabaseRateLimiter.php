@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\RateLimit;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
@@ -48,36 +50,45 @@ final class DatabaseRateLimiter implements RateLimiterInterface
         $this->ensureTable();
         $now = ($this->clock ?? static fn(): int => time())();
 
-        $row = $this->fetchRow($key);
+        // Retry only a lost compare-and-set or a raced first insertion. Lock
+        // failures (including non-waitable snapshot upgrades) propagate unchanged.
+        for ($attempt = 0; $attempt < 32; ++$attempt) {
+            $row = $this->fetchRow($key);
+            if ($row === null) {
+                try {
+                    $this->database->insert(self::TABLE)
+                        ->values(['key' => $key, 'count' => 1, 'window_start' => $now])
+                        ->execute();
+                } catch (UniqueConstraintViolationException $collision) {
+                    // PostgreSQL aborts a transaction after a constraint error;
+                    // never pretend a caller-owned transaction can be replayed.
+                    if (!$this->database instanceof DBALDatabase
+                        || $this->database->getConnection()->isTransactionActive()
+                    ) {
+                        throw $collision;
+                    }
+                    continue;
+                }
+                return ['allowed' => true, 'remaining' => $maxAttempts - 1, 'retryAfter' => null];
+            }
 
-        // First attempt for this key, or a window that has fully expired: open a
-        // fresh window with count = 1.
-        if ($row === null) {
-            $this->openWindow($key, $now, insert: true);
-
-            return ['allowed' => true, 'remaining' => $maxAttempts - 1, 'retryAfter' => null];
+            $windowEnd = (int) $row['window_start'] + $windowSeconds;
+            $expired = $now >= $windowEnd;
+            $count = $expired ? 1 : (int) $row['count'] + 1;
+            $changed = $this->database->update(self::TABLE)
+                ->fields(['count' => $count, 'window_start' => $expired ? $now : (int) $row['window_start']])
+                ->condition('key', $key)
+                ->condition('count', $row['count'])
+                ->condition('window_start', $row['window_start'])
+                ->execute();
+            if ($changed === 0) {
+                continue;
+            }
+            return !$expired && $count > $maxAttempts
+                ? ['allowed' => false, 'remaining' => 0, 'retryAfter' => $windowEnd - $now]
+                : ['allowed' => true, 'remaining' => $maxAttempts - $count, 'retryAfter' => null];
         }
-
-        $windowEnd = (int) $row['window_start'] + $windowSeconds;
-
-        if ($now >= $windowEnd) {
-            $this->openWindow($key, $now, insert: false);
-
-            return ['allowed' => true, 'remaining' => $maxAttempts - 1, 'retryAfter' => null];
-        }
-
-        // Window still active — increment.
-        $count = (int) $row['count'] + 1;
-        $this->database->update(self::TABLE)
-            ->fields(['count' => $count])
-            ->condition('key', $key)
-            ->execute();
-
-        if ($count > $maxAttempts) {
-            return ['allowed' => false, 'remaining' => 0, 'retryAfter' => $windowEnd - $now];
-        }
-
-        return ['allowed' => true, 'remaining' => $maxAttempts - $count, 'retryAfter' => null];
+        throw new \RuntimeException('Rate-limit window remained contended after 32 accounting attempts.');
     }
 
     /**
@@ -90,22 +101,6 @@ final class DatabaseRateLimiter implements RateLimiterInterface
         }
 
         return null;
-    }
-
-    private function openWindow(string $key, int $now, bool $insert): void
-    {
-        if ($insert) {
-            $this->database->insert(self::TABLE)
-                ->values(['key' => $key, 'count' => 1, 'window_start' => $now])
-                ->execute();
-
-            return;
-        }
-
-        $this->database->update(self::TABLE)
-            ->fields(['count' => 1, 'window_start' => $now])
-            ->condition('key', $key)
-            ->execute();
     }
 
     private function ensureTable(): void

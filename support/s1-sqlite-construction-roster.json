@@ -4380,6 +4380,27 @@
             "occurrence": 1
         },
         {
+            "path": "packages/foundation/tests/Integration/RateLimit/DatabaseRateLimiterConcurrencyTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Integration/RateLimit/DatabaseRateLimiterConcurrencyTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Integration/RateLimit/DatabaseRateLimiterConcurrencyTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 1
+        },
+        {
             "path": "packages/foundation/tests/Unit/Diagnostic/HealthCheckerBundleSubtableDriftTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -7562,6 +7583,13 @@
             "pattern": "dbal_wrapper_constructor",
             "class": "test",
             "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Fixtures/Audits/Foundation/FW-SQLITE-CONTENTION-01-http-window.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 1
         },
         {
