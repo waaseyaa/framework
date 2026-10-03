@@ -63,9 +63,12 @@ use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Routing\Metadata\FoundationRouteDefinitions;
+use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionEpoch;
 use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException;
 use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
 use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
+use Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot;
 use Waaseyaa\Foundation\Routing\Metadata\ValidatedRouteParticipation;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
@@ -138,6 +141,7 @@ abstract class AbstractKernel
     private ?RouteContributionContext $routeInputs = null;
     private array $routeContributionContexts = [];
     private ?RouteCompositionException $routeInputFailure = null;
+    private ?RouteCompositionEpoch $routeComposition = null;
     private bool $restrictedDiscoveryOnly = false;
 
     /**
@@ -203,7 +207,7 @@ abstract class AbstractKernel
         if ($this->booted) {
             return;
         }
-        $this->routeBootProfile ??= $this->restrictedDiscoveryOnly ? 'restricted' : 'runtime';
+        $this->routeBootProfile ??= $this->restrictedDiscoveryOnly ? 'restricted' : 'http';
         try {
             $this->performBoot();
         } catch (\Throwable $error) {
@@ -324,6 +328,17 @@ abstract class AbstractKernel
                 $projector = new RouteInputProjector();
                 $this->routeInputs = $projector->project($this->entityTypeManager, $exposure, ['api' => $apiPresent]);
                 $this->routeContributionContexts = $projector->contexts($this->routeInputs, $this->routeParticipation);
+                $contributors = [];
+                foreach ($this->providers as $provider) {
+                    $contributors[$provider::class] = $provider;
+                }
+                $epoch = new RouteCompositionEpoch($this->routeParticipation, $this->routeBootProfile);
+                $epoch->ready($contributors, $this->routeContributionContexts, FoundationRouteDefinitions::builtins(), FoundationRouteDefinitions::terminal(), [
+                    'configuration' => $this->routeInputs->configuration,
+                    'capabilities' => $this->routeInputs->capabilities,
+                    'entities' => $this->routeInputs->entities,
+                ]);
+                $this->routeComposition = $epoch;
             } catch (\Throwable $error) {
                 $this->routeInputFailure = $error instanceof RouteCompositionException
                     ? $error
@@ -1230,7 +1245,20 @@ abstract class AbstractKernel
      */
     public function bootForCli(): void
     {
+        $this->routeBootProfile ??= 'cli';
         $this->boot();
+    }
+
+    /** @internal Complete kernel-owned declarations; no legacy hooks or execution lookups. */
+    public function getRouteSnapshot(): RouteSnapshot
+    {
+        // Check custody even after publication: late input mutation cannot revive authority.
+        $this->getRouteInputs();
+        $snapshot = ($this->routeComposition ?? throw new RouteCompositionException('unavailable', 'Kernel route sources are not admitted.'))->snapshot();
+        // A contributor may catch a refused input mutation during collection.
+        // Recheck before any completed value can escape to the caller.
+        $this->getRouteInputs();
+        return $snapshot;
     }
 
     /** @internal Bootstrap-admitted provider inventory; this is not a completed route snapshot. */

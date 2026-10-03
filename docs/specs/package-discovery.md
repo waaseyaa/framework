@@ -779,8 +779,8 @@ accessible only after complete runtime boot. Inspection never recompiles a stale
 record. A restricted or previously failed kernel cannot become runtime route
 authority, including after an ordinary boot retry; create a new runtime kernel.
 The token is participation evidence, not a completed route snapshot. Finalized
-input projection is implemented; complete kernel route-source composition and
-consumer adoption remain pending.
+input projection and complete kernel route-source admission are implemented;
+consumer adoption remains pending.
 See [route-metadata.md](route-metadata.md) and the execution ledger.
 
 ## Route input handoff during provider boot
@@ -788,5 +788,7 @@ See [route-metadata.md](route-metadata.md) and the execution ledger.
 The kernel supplies one `RouteExposureInputs` instance through the provider registry's optional trailing argument. `ProviderRegistryKernelServices` returns that exact instance for its class identifier. Bare registry callers may omit it. The API provider publishes the effective map from its existing exposure policy during ordinary boot. After all providers and finalizers complete, the kernel freezes the publication against the finalized entity roster; missing, duplicate or stale publication refuses canonical route inputs. An admitted roster without the API provider produces an all-false exposure map.
 
 Route participation compilation admits the known neutral metadata protocol classes and projector during bootstrap source validation. Projection and subsequent inspection do not discover or autoload classes. This handoff neither invokes route contributors nor changes legacy route registration. Package presence alone does not establish active API participation.
+
+The admitted protocol roster includes `FoundationRouteDefinitions`, whose source digest participates in compiler identity. After input freezing the kernel admits this complete builtin/terminal authority and the exact registered provider/context roster to its lazy composition epoch. Bootstrap does not invoke contributors. Legacy classifications refuse complete snapshot inspection without any hook call; declarative providers are collected once only when the snapshot is requested.
 
 Explicit handler service admission enumerates existing kernel/provider binding keys without resolving them. Numeric-string service IDs remain supported: PHP stores these as integer array keys, so the provider interface documents `array-key` and the execution adapter restores string IDs. Kernel keys precede provider keys; the first provider wins duplicates. Provider factories preserve their declared lifetime and a selected failure never falls through to another provider. The existing generic container's compatibility lookup is separate from this explicit execution path.

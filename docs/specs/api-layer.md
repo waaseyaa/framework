@@ -2187,3 +2187,7 @@ Routing requires Symfony ExpressionLanguage to support installed condition route
 ## Canonical handler resolution boundary
 
 Routing's `RouteHandlerResolver` verifies the matched route name and exact metadata handler ID before execution lookup. Builtins retain their existing dispatch sentinel. Other targets require an explicitly registered service and a real public method; a missing binding cannot autowire a class, and `__call` cannot supply a missing or inaccessible method. Resolution returns a closure without invocation. Factory failures report route, handler and reason without retaining the original exception. The current Request belongs to the execution facade rather than the immutable snapshot. HTTP middleware, authorization, parameter conversion and invocation integration remain pending; this API alone does not qualify installed graph export.
+
+## Shared static declaration authority
+
+Foundation now admits the complete static route sources and finalized provider contexts to its kernel-owned snapshot epoch. Legacy HTTP registration consumes that same neutral static authority through `RouteMetadataCompiler::compileRoute`, then restores the existing builtin sentinels and defaults/options shape. Provider hooks, terminal fallback ordering and priority sorting remain compatible. The retained original-registrar fixture verifies every field and insertion order. The HTTP matcher/dispatcher still uses legacy registration; canonical provider bridging and actual Request matching remain pending.

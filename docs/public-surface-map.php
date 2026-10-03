@@ -506,6 +506,7 @@ return [
     'Waaseyaa\Foundation\Migration\SchemaAuthorityManifest' => 'public',
     'Waaseyaa\Foundation\Migration\VerifyResult' => 'public',
     'Waaseyaa\Foundation\RateLimit\RateLimiterInterface' => 'public',
+    'Waaseyaa\Foundation\Routing\Metadata\FoundationRouteDefinitions' => 'internal',
     'Waaseyaa\Foundation\Routing\Metadata\HandlerReference' => 'public',
     'Waaseyaa\Foundation\Routing\Metadata\RouteCompositionEpoch' => 'public',
     'Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException' => 'public',

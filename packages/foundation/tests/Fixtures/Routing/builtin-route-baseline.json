@@ -1,0 +1,281 @@
+{
+    "api.openapi": {
+        "path": "/api/openapi.json",
+        "defaults": {
+            "_controller": "openapi"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_authenticated": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.entity_types": {
+        "path": "/api/entity-types",
+        "defaults": {
+            "_controller": "entity_types"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_role": "admin"
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.entity_types.disable": {
+        "path": "/api/entity-types/{entity_type}/disable",
+        "defaults": {
+            "_controller": "entity_type.disable"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_role": "admin"
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "POST"
+        ],
+        "condition": ""
+    },
+    "api.entity_types.enable": {
+        "path": "/api/entity-types/{entity_type}/enable",
+        "defaults": {
+            "_controller": "entity_type.enable"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_role": "admin"
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "POST"
+        ],
+        "condition": ""
+    },
+    "api.broadcast": {
+        "path": "/api/broadcast",
+        "defaults": {
+            "_controller": "broadcast"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_authenticated": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.media.upload": {
+        "path": "/api/media/upload",
+        "defaults": {
+            "_controller": "media.upload"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_authenticated": true,
+            "_permission": "access media"
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET",
+            "POST"
+        ],
+        "condition": ""
+    },
+    "media.download": {
+        "path": "/media/{id}/download",
+        "defaults": {
+            "_controller": "media.download"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "media.view": {
+        "path": "/media/{id}/view",
+        "defaults": {
+            "_controller": "media.view"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "attachment.download": {
+        "path": "/attachment/{id}/download",
+        "defaults": {
+            "_controller": "attachment.download"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.search": {
+        "path": "/api/search",
+        "defaults": {
+            "_controller": "search.semantic"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.discovery.hub": {
+        "path": "/api/discovery/hub/{entity_type}/{id}",
+        "defaults": {
+            "_controller": "discovery.topic_hub"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.discovery.cluster": {
+        "path": "/api/discovery/cluster/{entity_type}/{id}",
+        "defaults": {
+            "_controller": "discovery.cluster"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.discovery.timeline": {
+        "path": "/api/discovery/timeline/{entity_type}/{id}",
+        "defaults": {
+            "_controller": "discovery.timeline"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "api.discovery.endpoint": {
+        "path": "/api/discovery/endpoint/{entity_type}/{id}",
+        "defaults": {
+            "_controller": "discovery.endpoint"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "public.home": {
+        "path": "/",
+        "defaults": {
+            "_controller": "render.page",
+            "path": "/"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true,
+            "_render": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    },
+    "public.page": {
+        "path": "/{path}",
+        "defaults": {
+            "_controller": "render.page"
+        },
+        "requirements": {
+            "path": "(?!api(?:/|$)).+"
+        },
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true,
+            "_render": true
+        },
+        "host": "",
+        "schemes": [],
+        "methods": [
+            "GET"
+        ],
+        "condition": ""
+    }
+}

@@ -16,6 +16,19 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 #[CoversClass(BuiltinRouteRegistrar::class)]
 final class BuiltinRouteRegistrarTest extends TestCase
 {
+    public function testLegacyProjectionPreservesExactBaseDeclarations(): void
+    {
+        $router = new WaaseyaaRouter();
+        new BuiltinRouteRegistrar(new EntityTypeManager(new EventDispatcher()))->register($router);
+        $actual = [];
+        foreach ($router->getRouteCollection()->all() as $name => $route) {
+            $actual[$name] = ['path' => $route->getPath(), 'defaults' => $route->getDefaults(), 'requirements' => $route->getRequirements(), 'options' => $route->getOptions(), 'host' => $route->getHost(), 'schemes' => $route->getSchemes(), 'methods' => $route->getMethods(), 'condition' => $route->getCondition()];
+        }
+        $expected = json_decode(file_get_contents(dirname(__DIR__, 2) . '/Fixtures/Routing/builtin-route-baseline.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(array_keys($expected), array_keys($actual));
+        self::assertSame($expected, $actual);
+    }
+
     #[Test]
     public function registers_core_api_routes(): void
     {

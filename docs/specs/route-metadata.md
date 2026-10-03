@@ -254,8 +254,24 @@ identity, validates duplicate names across all admitted sources, and sorts by
 descending priority with stable collection ties. Legacy participation refuses
 the entire snapshot even when static routes are available. Empty static lists
 are valid standalone inputs; they are not proof that a kernel projected all its
-routes. Kernel entity/exposure projection and whole-source admission, Routing
-compilation, HTTP compatibility and canonical consumers remain pending.
+routes. Kernel entity/exposure projection, whole-source admission and Routing
+compilation are implemented. HTTP compatibility and canonical consumer adoption
+remain pending.
+
+`FoundationRouteDefinitions` is the sole neutral authority for the fourteen
+builtin and two terminal declarations. `BuiltinRouteRegistrar` projects those
+same values through Routing's `compileRoute` adapter, restoring the existing
+allowlisted builtin controller sentinels and original defaults/options shape.
+The retained original-registrar fixture qualifies every static field and order.
+Provider hooks remain the explicit legacy HTTP path in this slice.
+
+After finalizers and input freezing, the kernel admits the exact provider/context
+roster plus both complete static sources to one lazy epoch. Boot invokes no
+contributors. `getRouteSnapshot()` checks participation and input custody on
+every call, including after collection and after publication, and returns the shared immutable
+snapshot only after whole-source validation. CLI and HTTP entry points establish
+their profile before boot; restricted and failed instances cannot revive route
+authority. Shared declaration inputs enter identity even for a no-op-only cohort.
 
 ## Lifecycle, identity, and failure
 

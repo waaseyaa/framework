@@ -24,6 +24,185 @@ use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 #[CoversClass(PackageManifestCompiler::class)]
 final class KernelRouteParticipationTest extends TestCase
 {
+    public function testKernelSnapshotIsCompleteSharedAndLazy(): void
+    {
+        KernelSnapshotFixtureProvider::$calls = 0;
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [KernelRouteFixtureProvider::class, KernelSnapshotFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        try {
+            $kernel->getRouteSnapshot();
+            self::fail('Early snapshot access must refuse.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('unavailable', $error->reason);
+        }
+        $kernel->bootForCli();
+        self::assertSame(0, KernelSnapshotFixtureProvider::$calls);
+        $kernel->poisonDefinitionReads();
+        $snapshot = $kernel->getRouteSnapshot();
+        self::assertCount(18, $snapshot->routes);
+        $names = array_column($snapshot->routes, 'name');
+        self::assertSame('fixture.first', $names[0]);
+        self::assertSame(['public.home', 'public.page'], array_slice($names, -2));
+        self::assertSame('fixture.catchall', $names[count($names) - 3]);
+        self::assertSame('fixture.catchall', new \Waaseyaa\Routing\WaaseyaaRouter(snapshot: $snapshot)->match('/any-page')['_route']);
+        self::assertSame($snapshot, $kernel->getRouteSnapshot());
+        self::assertSame(1, KernelSnapshotFixtureProvider::$calls);
+        $projection = $snapshot->toArray();
+        $projection['routes'][0]['defaults']['changed'] = true;
+        self::assertArrayNotHasKey('changed', $kernel->getRouteSnapshot()->routes[0]->defaults);
+    }
+
+    public function testNoopCohortStillIncludesEveryStaticSourceAndSharedInputs(): void
+    {
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->bootForCli();
+        $snapshot = $kernel->getRouteSnapshot();
+        self::assertCount(16, $snapshot->routes);
+        self::assertSame('foundation.builtin', $snapshot->routes[0]->sourceId);
+        self::assertSame('foundation.terminal', $snapshot->routes[15]->sourceId);
+        self::assertSame($kernel->getRouteInputs()->entities, $snapshot->inputs['declarations']['entities']);
+    }
+
+    public function testLegacyCohortRefusesBeforeAnyContributorOrHookRuns(): void
+    {
+        KernelSnapshotFixtureProvider::$calls = 0;
+        KernelLegacySnapshotFixtureProvider::$calls = 0;
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [KernelSnapshotFixtureProvider::class, KernelLegacySnapshotFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->bootForCli();
+        foreach ([1, 2] as $attempt) {
+            try {
+                $kernel->getRouteSnapshot();
+                self::fail('Legacy cohort cannot publish even its static routes.');
+            } catch (RouteCompositionException $error) {
+                self::assertSame('legacy-contributor', $error->reason);
+            }
+        }
+        self::assertSame(0, KernelSnapshotFixtureProvider::$calls);
+        self::assertSame(0, KernelLegacySnapshotFixtureProvider::$calls);
+    }
+
+    public function testLateInputsRefuseEvenAnAlreadyPublishedSnapshot(): void
+    {
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->captureExposureSlot = true;
+        $kernel->bootForCli();
+        $kernel->getRouteSnapshot();
+        try {
+            $kernel->exposureSlot->publish(['test' => true]);
+        } catch (RouteCompositionException) {
+        }
+        $this->expectException(RouteCompositionException::class);
+        $kernel->getRouteSnapshot();
+    }
+
+    public function testCaughtInputPoisoningDuringContributionNeverPublishes(): void
+    {
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [KernelPoisoningSnapshotFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->captureExposureSlot = true;
+        $kernel->bootForCli();
+        KernelPoisoningSnapshotFixtureProvider::$slot = $kernel->exposureSlot;
+        KernelPoisoningSnapshotFixtureProvider::$calls = 0;
+        try {
+            foreach ([1, 2] as $attempt) {
+                try {
+                    $kernel->getRouteSnapshot();
+                    self::fail('No snapshot may escape poisoned contribution inputs.');
+                } catch (RouteCompositionException $error) {
+                    self::assertSame('inputs-unavailable', $error->reason);
+                }
+            }
+            self::assertSame(1, KernelPoisoningSnapshotFixtureProvider::$calls);
+        } finally {
+            KernelPoisoningSnapshotFixtureProvider::$slot = null;
+        }
+    }
+
+    public function testContributionFailureDuplicateAndCaughtRecursionAreTerminal(): void
+    {
+        foreach (['throw', 'builtin-duplicate', 'terminal-duplicate', 'recursive'] as $mode) {
+            ProcessFieldReadRuntime::reset();
+            KernelFailingSnapshotFixtureProvider::$mode = $mode;
+            KernelFailingSnapshotFixtureProvider::$calls = 0;
+            file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [KernelFailingSnapshotFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+            $kernel = new RouteParticipationKernelFixture($this->root);
+            KernelFailingSnapshotFixtureProvider::$kernel = $kernel;
+            $kernel->bootForCli();
+            $first = null;
+            foreach ([1, 2] as $attempt) {
+                try {
+                    $kernel->getRouteSnapshot();
+                    self::fail('A failed kernel epoch cannot publish a partial snapshot.');
+                } catch (RouteCompositionException $error) {
+                    self::assertSame($mode === 'recursive' ? 'collecting' : 'contribution-failed', $error->reason);
+                    self::assertStringNotContainsString('private contributor value', (string) $error);
+                    $first ??= $error;
+                    self::assertSame($first, $error);
+                }
+            }
+            self::assertSame(1, KernelFailingSnapshotFixtureProvider::$calls);
+        }
+        KernelFailingSnapshotFixtureProvider::$kernel = null;
+    }
+
+    public function testSnapshotCannotReviveRestrictedFailedOrMissingInventory(): void
+    {
+        $restricted = new RouteParticipationKernelFixture($this->root);
+        $restricted->bootForSchemaSync();
+        $restricted->bootForCli();
+        try {
+            $restricted->getRouteSnapshot();
+            self::fail('Restricted snapshot must refuse.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('unsupported-profile', $error->reason);
+        }
+        ProcessFieldReadRuntime::reset();
+        $failed = new RouteParticipationKernelFixture($this->root);
+        $failed->failFinalization = true;
+        try {
+            $failed->bootForCli();
+        } catch (\RuntimeException) {
+        }
+        $failed->failFinalization = false;
+        $failed->bootForCli();
+        try {
+            $failed->getRouteSnapshot();
+            self::fail('Ordinary boot retry cannot revive snapshot authority.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('boot-failed', $error->reason);
+        }
+        ProcessFieldReadRuntime::reset();
+        $missing = new RouteParticipationKernelFixture($this->root);
+        $missing->suppliedManifest = new PackageManifest(providers: [KernelRouteFixtureProvider::class]);
+        $missing->bootForCli();
+        $this->expectException(RouteCompositionException::class);
+        $missing->getRouteSnapshot();
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function testFreshProcessSnapshotNeedsNoSourceReadsOrAutoload(): void
+    {
+        $providerClass = 'KernelSnapshotSource' . bin2hex(random_bytes(8));
+        $source = $this->root . '/provider.php';
+        file_put_contents($source, '<?php class ' . $providerClass . ' extends \\Waaseyaa\\Foundation\\ServiceProvider\\ServiceProvider { public function register(): void {} }');
+        require $source;
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [$providerClass]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->poisonProjectionAutoload = true;
+        try {
+            $kernel->bootForCli();
+            unlink($source);
+            $kernel->poisonDefinitionReads();
+            $snapshot = $kernel->getRouteSnapshot();
+        } finally {
+            $kernel->removeProjectionAutoloadTrap();
+        }
+        self::assertCount(16, $snapshot->routes);
+        self::assertSame([], $kernel->projectionAutoloads);
+    }
+
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
     #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
     public function testFreshProcessProjectionDoesNotAutoload(): void
@@ -325,6 +504,68 @@ final class KernelRouteParticipationTest extends TestCase
 final class KernelRouteFixtureProvider extends ServiceProvider
 {
     public function register(): void {}
+}
+
+final class KernelSnapshotFixtureProvider extends ServiceProvider implements ContributesRouteMetadataInterface
+{
+    public static int $calls = 0;
+    public function register(): void {}
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        self::$calls++;
+        yield new \Waaseyaa\Foundation\Routing\Metadata\RouteDefinition('fixture.first', '/fixture', \Waaseyaa\Foundation\Routing\Metadata\HandlerReference::fromString('service:fixture::handle'), priority: 10, sourceId: $context->sourceId);
+        yield new \Waaseyaa\Foundation\Routing\Metadata\RouteDefinition('fixture.catchall', '/{alias}', \Waaseyaa\Foundation\Routing\Metadata\HandlerReference::fromString('builtin:render.page'), methods: ['GET'], sourceId: $context->sourceId, ordinal: 1);
+    }
+}
+
+final class KernelLegacySnapshotFixtureProvider extends ServiceProvider
+{
+    public static int $calls = 0;
+    public function register(): void {}
+    public function routes(\Waaseyaa\Routing\WaaseyaaRouter $router, \Waaseyaa\Entity\EntityTypeManager $manager): void
+    {
+        self::$calls++;
+        throw new \LogicException('Legacy route hooks cannot supply canonical metadata.');
+    }
+}
+
+final class KernelFailingSnapshotFixtureProvider extends ServiceProvider implements ContributesRouteMetadataInterface
+{
+    public static string $mode = '';
+    public static int $calls = 0;
+    public static ?AbstractKernel $kernel = null;
+    public function register(): void {}
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        self::$calls++;
+        if (self::$mode === 'throw') {
+            throw new \RuntimeException('private contributor value');
+        }
+        if (self::$mode === 'recursive') {
+            try {
+                self::$kernel->getRouteSnapshot();
+            } catch (RouteCompositionException) {
+            }
+        }
+        $name = self::$mode === 'builtin-duplicate' ? 'api.openapi' : 'public.page';
+        yield new \Waaseyaa\Foundation\Routing\Metadata\RouteDefinition($name, '/fixture', \Waaseyaa\Foundation\Routing\Metadata\HandlerReference::fromString('service:fixture::handle'), sourceId: $context->sourceId);
+    }
+}
+
+final class KernelPoisoningSnapshotFixtureProvider extends ServiceProvider implements ContributesRouteMetadataInterface
+{
+    public static ?RouteExposureInputs $slot = null;
+    public static int $calls = 0;
+    public function register(): void {}
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        self::$calls++;
+        try {
+            self::$slot->publish(['test' => true]);
+        } catch (RouteCompositionException) {
+        }
+        yield new \Waaseyaa\Foundation\Routing\Metadata\RouteDefinition('fixture.poison', '/fixture', \Waaseyaa\Foundation\Routing\Metadata\HandlerReference::fromString('builtin:render.page'), sourceId: $context->sourceId);
+    }
 }
 
 final class KernelLateEntityRouteFixtureProvider extends ServiceProvider implements FinalizesProviderBootInterface

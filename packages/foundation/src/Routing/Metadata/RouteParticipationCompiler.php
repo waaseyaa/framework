@@ -47,7 +47,7 @@ final class RouteParticipationCompiler
             ];
         }
         $code = [];
-        foreach (['RouteParticipationCompiler', 'ValidatedRouteParticipation', 'RouteCompositionEpoch', 'RouteCompositionException', 'RouteDefinition', 'RouteContributionContext', 'RouteExposureInputs', 'HandlerReference', 'RouteSnapshot', 'ScalarRouteMetadata'] as $symbol) {
+        foreach (['RouteParticipationCompiler', 'ValidatedRouteParticipation', 'RouteCompositionEpoch', 'RouteCompositionException', 'RouteDefinition', 'RouteContributionContext', 'RouteExposureInputs', 'HandlerReference', 'RouteSnapshot', 'ScalarRouteMetadata', 'FoundationRouteDefinitions'] as $symbol) {
             // Admit neutral protocol types at bootstrap, before pure projection begins.
             new \ReflectionClass(__NAMESPACE__ . '\\' . $symbol);
             $code[$symbol] = $this->digest(__DIR__ . '/' . $symbol . '.php');

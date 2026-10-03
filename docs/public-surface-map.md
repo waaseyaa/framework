@@ -108,6 +108,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Migration\SchemaAuthorityManifest` | final readonly class | public | — |
 | `Migration\VerifyResult` | enum | public | — |
 | `RateLimit\RateLimiterInterface` | interface | public | Checks and records attempt counts for rate limiting |
+| `Routing\Metadata\FoundationRouteDefinitions` | final class | internal | — |
 | `Routing\Metadata\HandlerReference` | final readonly class | public | — |
 | `Routing\Metadata\RouteCompositionEpoch` | final class | public | — |
 | `Routing\Metadata\RouteCompositionException` | final class | public | — |

@@ -3363,8 +3363,9 @@ Kernel bootstrap now admits participation against the manifest's raw records and
 the actual registered provider roster. It preserves restricted-profile custody
 and refuses route authority permanently after a failed boot, while retaining
 existing ordinary boot retry behavior. Access before boot completes refuses.
-This token does not claim a completed route graph. Kernel whole-source admission,
-HTTP matching, CLI and Bimaaji adoption remain pending.
+This token does not claim a completed route graph. Kernel whole-source admission
+is available through `getRouteSnapshot()`; HTTP matching, CLI and Bimaaji adoption
+remain pending.
 Existing route registration remains active until the staged adoption
 described in [route-metadata.md](route-metadata.md) is implemented and qualified.
 
@@ -3372,4 +3373,8 @@ described in [route-metadata.md](route-metadata.md) is implemented and qualified
 
 `KernelHandlerContainer::explicitServices(Request)` admits only existing registered kernel/provider keys to a request-local `ExplicitHandlerServices` facade. Symfony service-contracts supplies locator mechanics, metadata-only `has` and circular factory protection. Kernel bindings keep their declared shared cache; provider singleton/factory resolution bypasses the legacy container's provider-result cache. Kernel keys take precedence, then the first provider declaration; failure of that selection propagates without another provider attempt. Numeric-string IDs retain their existing behavior, with provider binding maps correctly documenting PHP's integer key coercion.
 
-The facade carries the actual Request, and explicitly supplied factories may own request-local state. This does not add a provider request-scope declaration. The existing generic CLI container continues its compatibility lookup; canonical handler lookup does not delegate to its autowiring or fallback path. Complete kernel route-source admission and the HTTP bridge remain pending.
+The facade carries the actual Request, and explicitly supplied factories may own request-local state. This does not add a provider request-scope declaration. The existing generic CLI container continues its compatibility lookup; canonical handler lookup does not delegate to its autowiring or fallback path. The HTTP bridge remains pending.
+
+## Kernel route source admission
+
+Successful runtime boot admits the neutral builtin/terminal authority and exact finalized provider contexts to one `RouteCompositionEpoch`. Contribution is lazy and never part of boot. `getRouteSnapshot()` checks input custody before collection and again before returning a completed value; a caught input mutation during contribution cannot escape on the first request. Reuse also rechecks custody, so late exposure failure refuses a previously completed snapshot. Legacy providers refuse the entire cohort without executing hooks. Duplicate, failed or recursive contribution is terminal. CLI entry points establish the CLI profile; ordinary HTTP boot establishes HTTP. Restricted and failed kernel custody is retained. The immutable source authority is preloaded and hashed during existing bootstrap validation, so later inspection reads no source or entity definitions and performs no autoload.
