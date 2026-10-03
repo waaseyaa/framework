@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Routing;
 
+use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
+use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
+use Waaseyaa\Foundation\Routing\Metadata\RouteDefinition;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
 use Waaseyaa\Oidc\Consent\ConsentScreenController;
 use Waaseyaa\Oidc\Revoke\RevocationController;
@@ -27,88 +30,51 @@ final readonly class OidcHttpRoutes
         private ?ConsentScreenController $consentScreenController = null,
     ) {}
 
+    /** @return iterable<RouteDefinition> Finalized binding presence, never controller health. */
+    public static function routeDefinitions(RouteContributionContext $context, int $ordinal = 0): iterable
+    {
+        foreach ([
+            ['oidc.discovery', '/.well-known/openid-configuration', 'Waaseyaa\\Oidc\\Discovery\\DiscoveryController', ['GET'], false],
+            ['oidc.jwks', '/.well-known/jwks.json', 'Waaseyaa\\Oidc\\Jwks\\JwksController', ['GET'], false],
+            ['oidc.authorize', '/oidc/authorize', 'Waaseyaa\\Oidc\\Authorize\\AuthorizeController', ['GET'], false],
+            ['oidc.token', '/oidc/token', 'Waaseyaa\\Oidc\\Token\\TokenController', ['POST'], true],
+            ['oidc.revoke', '/oidc/revoke', 'Waaseyaa\\Oidc\\Revoke\\RevocationController', ['POST'], true],
+            ['oidc.userinfo', '/oidc/userinfo', 'Waaseyaa\\Oidc\\Userinfo\\UserinfoController', ['GET', 'POST'], true],
+            ['oidc.consent', '/oidc/consent', 'Waaseyaa\\Oidc\\Consent\\ConsentScreenController', ['GET', 'POST'], false],
+        ] as [$name, $path, $controller, $methods, $csrfExempt]) {
+            if (($context->capabilities['service:' . $controller] ?? false) !== true) {
+                continue;
+            }
+            $options = ['_public' => true];
+            if ($csrfExempt) {
+                $options['_csrf'] = false;
+            }
+            yield new RouteDefinition($name, $path, HandlerReference::fromString('class:' . $controller . '::__invoke'), methods: $methods, options: $options, sourceId: $context->sourceId, ordinal: $ordinal++);
+        }
+    }
+
     public function registerRoutes(WaaseyaaRouter $router): void
     {
-        // Discovery + JWKS — new namespaced controllers (WP04)
-        $router->addRoute(
-            'oidc.discovery',
-            RouteBuilder::create('/.well-known/openid-configuration')
-                ->controller('Waaseyaa\\Oidc\\Discovery\\DiscoveryController::__invoke')
-                ->methods('GET')
-                ->allowAll()
-                ->build(),
-        );
-
-        $router->addRoute(
-            'oidc.jwks',
-            RouteBuilder::create('/.well-known/jwks.json')
-                ->controller('Waaseyaa\\Oidc\\Jwks\\JwksController::__invoke')
-                ->methods('GET')
-                ->allowAll()
-                ->build(),
-        );
-
-        // Authorization code endpoint (WP01)
-        if ($this->authorizeController !== null) {
-            $router->addRoute(
-                'oidc.authorize',
-                RouteBuilder::create('/oidc/authorize')
-                    ->controller($this->authorizeController)
-                    ->methods('GET')
-                    ->allowAll()
-                    ->build(),
-            );
+        $controllers = [
+            'Waaseyaa\\Oidc\\Discovery\\DiscoveryController' => 'Waaseyaa\\Oidc\\Discovery\\DiscoveryController::__invoke',
+            'Waaseyaa\\Oidc\\Jwks\\JwksController' => 'Waaseyaa\\Oidc\\Jwks\\JwksController::__invoke',
+            'Waaseyaa\\Oidc\\Authorize\\AuthorizeController' => $this->authorizeController,
+            'Waaseyaa\\Oidc\\Token\\TokenController' => $this->tokenController,
+            'Waaseyaa\\Oidc\\Revoke\\RevocationController' => $this->revocationController,
+            'Waaseyaa\\Oidc\\Userinfo\\UserinfoController' => $this->userinfoController,
+            'Waaseyaa\\Oidc\\Consent\\ConsentScreenController' => $this->consentScreenController,
+        ];
+        $capabilities = [];
+        foreach ($controllers as $id => $controller) {
+            $capabilities['service:' . $id] = $controller !== null;
         }
-
-        // Token endpoint (WP01 + WP02)
-        if ($this->tokenController !== null) {
-            $router->addRoute(
-                'oidc.token',
-                RouteBuilder::create('/oidc/token')
-                    ->controller($this->tokenController)
-                    ->methods('POST')
-                    ->allowAll()
-                    ->csrfExempt()
-                    ->build(),
-            );
-        }
-
-        // Revocation endpoint (WP02)
-        if ($this->revocationController !== null) {
-            $router->addRoute(
-                'oidc.revoke',
-                RouteBuilder::create('/oidc/revoke')
-                    ->controller($this->revocationController)
-                    ->methods('POST')
-                    ->allowAll()
-                    ->csrfExempt()
-                    ->build(),
-            );
-        }
-
-        // Userinfo endpoint (WP03)
-        if ($this->userinfoController !== null) {
-            $router->addRoute(
-                'oidc.userinfo',
-                RouteBuilder::create('/oidc/userinfo')
-                    ->controller($this->userinfoController)
-                    ->methods('GET', 'POST')
-                    ->allowAll()
-                    ->csrfExempt()
-                    ->build(),
-            );
-        }
-
-        // Consent screen (WP05)
-        if ($this->consentScreenController !== null) {
-            $router->addRoute(
-                'oidc.consent',
-                RouteBuilder::create('/oidc/consent')
-                    ->controller($this->consentScreenController)
-                    ->methods('GET', 'POST')
-                    ->allowAll()
-                    ->build(),
-            );
+        foreach (self::routeDefinitions(new RouteContributionContext(self::class, 0, capabilities: $capabilities)) as $definition) {
+            $route = new RouteMetadataCompiler()->compileRoute($definition);
+            $options = $route->getOptions();
+            unset($options['_waaseyaa_priority']);
+            $route->setOptions($options);
+            $route->setDefault('_controller', $controllers[$definition->handler->target]);
+            $router->addRoute($definition->name, $route);
         }
     }
 }

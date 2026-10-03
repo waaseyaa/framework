@@ -3390,3 +3390,7 @@ routing without fallback. Stable metadata handler IDs reach middleware unchanged
 and resolve only in terminal dispatch through explicit bindings. Matching uses
 the actual request and the language-stripped path. See
 [route-metadata.md](route-metadata.md) for compatibility and qualification limits.
+
+## Auth/OIDC metadata adoption
+
+ROUTE-METADATA-01 updates the historical eager AuthOidcRouteServiceProvider example above: admitted HTTP now selects declarative routes and constructs only the matched auth controller through an explicit nonshared factory. Optional OIDC routes use frozen explicit binding-key presence. Foundation projects provider getBindings() keys after boot without invoking factories; this adds service:<id> booleans to route contexts and sealed input identity. There is no service discovery or health probe during inspection. Bare legacy compatibility hooks remain distinct from canonical admission.

@@ -326,7 +326,13 @@ abstract class AbstractKernel
                 $apiPresent = in_array('Waaseyaa\\Api\\ApiServiceProvider', array_column($this->routeParticipation->records, 'provider'), true);
                 $exposure = $this->routeExposureInputsForProviders()->freeze(array_keys($this->entityTypeManager->getDefinitions()), $apiPresent);
                 $projector = new RouteInputProjector();
-                $this->routeInputs = $projector->project($this->entityTypeManager, $exposure, ['api' => $apiPresent]);
+                $capabilities = ['api' => $apiPresent];
+                foreach ($this->providers as $provider) {
+                    foreach (array_keys($provider->getBindings()) as $abstract) {
+                        $capabilities['service:' . $abstract] = true;
+                    }
+                }
+                $this->routeInputs = $projector->project($this->entityTypeManager, $exposure, $capabilities);
                 $this->routeContributionContexts = $projector->contexts($this->routeInputs, $this->routeParticipation);
                 $contributors = [];
                 foreach ($this->providers as $provider) {

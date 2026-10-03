@@ -1,0 +1,295 @@
+{
+  "base": "a67383f805d690d009973e96cd6465708cba6526",
+  "routes": [
+    {
+      "name": "api.auth.register",
+      "path": "/api/auth/register",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.forgot_password",
+      "path": "/api/auth/forgot-password",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.reset_password",
+      "path": "/api/auth/reset-password",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.verify_email",
+      "path": "/api/auth/verify-email",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.resend_verification",
+      "path": "/api/auth/resend-verification",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.login",
+      "path": "/api/auth/login",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.logout",
+      "path": "/api/auth/logout",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.user.me",
+      "path": "/api/user/me",
+      "methods": [
+        "GET"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 10,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.2fa.setup",
+      "path": "/api/auth/2fa/setup",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.2fa.enable",
+      "path": "/api/auth/2fa/enable",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.2fa.verify",
+      "path": "/api/auth/2fa/verify",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "api.auth.2fa.disable",
+      "path": "/api/auth/2fa/disable",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.discovery",
+      "path": "/.well-known/openid-configuration",
+      "methods": [
+        "GET"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.jwks",
+      "path": "/.well-known/jwks.json",
+      "methods": [
+        "GET"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.authorize",
+      "path": "/oidc/authorize",
+      "methods": [
+        "GET"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.token",
+      "path": "/oidc/token",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true,
+        "_csrf": false
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.revoke",
+      "path": "/oidc/revoke",
+      "methods": [
+        "POST"
+      ],
+      "options": {
+        "_public": true,
+        "_csrf": false
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.userinfo",
+      "path": "/oidc/userinfo",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "options": {
+        "_public": true,
+        "_csrf": false
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    },
+    {
+      "name": "oidc.consent",
+      "path": "/oidc/consent",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "options": {
+        "_public": true
+      },
+      "priority": 0,
+      "host": "",
+      "schemes": [],
+      "requirements": [],
+      "condition": ""
+    }
+  ]
+}

@@ -24,6 +24,16 @@ use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 #[CoversClass(PackageManifestCompiler::class)]
 final class KernelRouteParticipationTest extends TestCase
 {
+    public function testFrozenBindingPresenceNeverConstructsServices(): void
+    {
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [KernelRouteFixtureProvider::class, KernelBindingPresenceFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->bootForCli();
+        self::assertTrue($kernel->getRouteInputs()->capabilities['service:fixture.poison'] ?? false);
+        self::assertArrayNotHasKey('service:fixture.absent', $kernel->getRouteInputs()->capabilities);
+        self::assertSame($kernel->getRouteSnapshot(), $kernel->getRouteSnapshot());
+    }
+
     public function testKernelSnapshotIsCompleteSharedAndLazy(): void
     {
         KernelSnapshotFixtureProvider::$calls = 0;
@@ -243,7 +253,12 @@ final class KernelRouteParticipationTest extends TestCase
         file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Api\ApiServiceProvider::class]]]], JSON_THROW_ON_ERROR));
         $kernel = new RouteParticipationKernelFixture($this->root);
         $kernel->bootForCli();
-        self::assertSame(['api' => true], $kernel->getRouteInputs()->capabilities);
+        self::assertSame([
+            'api' => true,
+            'service:Waaseyaa\\Api\\EntityTypeApiExposurePolicy' => true,
+            'service:Waaseyaa\\Api\\InternalFieldVisibilityPolicy' => true,
+            'service:Waaseyaa\\Api\\Audit\\AuditQueryReadModelInterface' => true,
+        ], $kernel->getRouteInputs()->capabilities);
         self::assertFalse($kernel->getRouteInputs()->entities[0]['api_exposed']);
         self::assertSame('legacy', $kernel->getRouteParticipation()->records[0]['kind']);
     }
@@ -584,6 +599,14 @@ final class KernelPureRouteInputFixtureProvider extends ServiceProvider implemen
     public function routeDefinitions(RouteContributionContext $context): iterable
     {
         throw new \LogicException('Input finalization must not invoke route contributors.');
+    }
+}
+
+final class KernelBindingPresenceFixtureProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->bind('fixture.poison', static fn(): object => throw new \LogicException('Presence must never resolve a binding.'));
     }
 }
 

@@ -450,3 +450,7 @@ from the legacy-only cohort without changing GET/public/priority declarations.
 API, Admin Surface, Routing auth/OIDC and the FETDER application provider remain
 required migrations. No installed or Bimaaji acceptance follows from this source
 checkpoint alone.
+
+## Auth/OIDC metadata adoption
+
+RM-06 auth/OIDC adoption: Foundation freezes service:<binding-id> presence from explicit provider binding keys after successful runtime boot. These booleans are declarations, not health checks. Routing declares twelve auth handlers and individually includes the seven OIDC endpoints only for present explicit bindings. Inspection never resolves controllers or autoloads OIDC. Selected unhealthy handlers fail closed instead of disappearing. Auth factories are nonshared and preserve existing constructor dependencies; bare legacy helpers project the same route definitions. API, Admin Surface and FETDER remain required migrations, with CLI/Bimaaji and installed/Linux qualification open.

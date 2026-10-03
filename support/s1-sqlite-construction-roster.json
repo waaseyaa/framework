@@ -6606,6 +6606,13 @@
             "occurrence": 16
         },
         {
+            "path": "packages/routing/tests/Unit/AuthOidcKernelRouteMetadataTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "e32a4e7ee654c1d56bba1c51b9d27f49786c124cb358f5a31afc49214cd19b50",
+            "occurrence": 1
+        },
+        {
             "path": "packages/scheduler/tests/Unit/Fence/DatabaseFenceGuardTest.php",
             "pattern": "dbal_factory",
             "class": "test",

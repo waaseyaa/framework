@@ -31,6 +31,18 @@
         {
             "type": "path",
             "url": "../oidc"
+        },
+        {
+            "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
+            "url": "../api"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
         }
     ],
     "require": {
@@ -50,7 +62,10 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/oidc": "^0.1.0-alpha.303"
+        "waaseyaa/oidc": "^0.1.0-alpha.303",
+        "waaseyaa/audit": "^0.1.0-alpha.303",
+        "waaseyaa/api": "^0.1.0-alpha.303",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.303"
     },
     "autoload": {
         "psr-4": {

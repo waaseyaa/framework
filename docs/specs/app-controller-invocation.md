@@ -122,3 +122,7 @@ See `Waaseyaa\Routing\RouteFingerprint`.
 ## Extension
 
 `Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver`: optional plugins run **after** built-in resolution fails to produce a value for a parameter (see interface docblocks).
+
+## Auth/OIDC metadata adoption
+
+Auth/OIDC metadata handlers now follow the same explicit terminal resolver path. Stable class handler IDs remain scalar through matching and middleware, then resolve to the real public __invoke method. Auth factories preserve composed extensions, canonical eligibility, atomic limiters, password upgrades and internal readers. OIDC uses its existing owner bindings and lifetimes. Optional presence admits declarations, not successful execution; selected failures return the existing handler-unavailable refusal. No generic reflective invocation policy is changed.

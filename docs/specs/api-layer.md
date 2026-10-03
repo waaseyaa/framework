@@ -2205,3 +2205,7 @@ after factory resolution and domain-router construction before dispatch. Builtin
 sentinels and legacy hooks keep their compatibility behavior. `routing.mode`
 defaults only when keys are absent; present null or unknown values refuse routing.
 See [route-metadata.md](route-metadata.md) for the staged adoption boundaries.
+
+## Auth/OIDC metadata adoption
+
+ROUTE-METADATA-01 auth/OIDC adapter adoption: AuthOidcRouteServiceProvider contributes pure declarations and explicit nonshared auth controller bindings. /api/user/me retains priority10; paths, methods, public flags and OIDC CSRF exemptions are unchanged. Finalized service-binding presence controls optional OIDC endpoint inclusion individually, without probing controller construction. Presence is not health: selected failures refuse execution. OidcHttpRoutes derives both metadata and its object-based compatibility projection from one route table. Auth/OIDC domain policies and extension ownership remain unchanged. Installed parity is pending.
