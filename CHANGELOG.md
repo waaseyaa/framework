@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.304] - 2026-10-03
+
+### Fixed
+
+- Batch DBAL runtime schema validation into one catalog inspection and one canonical column read per table, while preserving fresh checks and production schema refusals.
+
+- Acquire audit writer ownership before validating privileged-read finalization receipts, preventing concurrent SQLite snapshot upgrades while preserving atomic fail-closed validation.
+
+- Repair SQLite remediation qualification fixtures and refresh the dependency authority for the current Composer lock.
+
+- Preserve concurrent HTTP rate-limit accounting and handle raced window creation without hiding SQLite lock failures.
 ## [0.1.0-alpha.303] - 2026-10-01
 
 ### Added
