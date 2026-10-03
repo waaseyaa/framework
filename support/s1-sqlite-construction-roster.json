@@ -1272,6 +1272,34 @@
             "occurrence": 12
         },
         {
+            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 13
+        },
+        {
+            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 14
+        },
+        {
+            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 15
+        },
+        {
+            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 16
+        },
+        {
             "path": "packages/audit/tests/Unit/AuditReadModelDefinitionRegistryTest.php",
             "pattern": "dbal_factory",
             "class": "test",

@@ -38,6 +38,7 @@
         }
     ],
     "require": {
+        "doctrine/dbal": "^4.0",
         "php": ">=8.5",
         "symfony/uid": "^7.0",
         "waaseyaa/access": "^0.1.0-alpha.303",

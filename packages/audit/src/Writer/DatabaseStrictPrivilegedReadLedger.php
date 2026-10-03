@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Writer;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Audit\Contract\BatchStrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Contract\PrivilegedReadDescriptor;
 use Waaseyaa\Audit\Contract\PrivilegedReadOutcome;
@@ -74,17 +75,26 @@ final readonly class DatabaseStrictPrivilegedReadLedger implements BatchStrictPr
             $seen[$receipt->id] = true;
         }
         $this->durableTransaction('privileged-read-finalize', 'Strict privileged-read outcome batch could not be made durable.', function () use ($receipts, $outcome): void {
+            // Acquire the writer before establishing a receipt-read snapshot.
+            // These pending appends are committed only after the entire batch
+            // proves a durable reservation followed by this sole finalization.
+            foreach ($receipts as $receipt) {
+                try {
+                    $this->append($receipt, 'finalized', $outcome->value, null);
+                } catch (UniqueConstraintViolationException $collision) {
+                    // Do not read after a constraint error: PostgreSQL may have
+                    // aborted the transaction. The owning boundary rolls back.
+                    throw new \LogicException('Only durable, unfinished privileged-read reservations may be finalized.', previous: $collision);
+                }
+            }
             foreach ($receipts as $receipt) {
                 $events = iterator_to_array($this->database->query(
                     'SELECT event_type FROM privileged_read_ledger WHERE receipt_id = :receipt ORDER BY id',
                     ['receipt' => $receipt->id],
                 ));
-                if (count($events) !== 1 || ($events[0]['event_type'] ?? null) !== 'reserved') {
+                if (array_column($events, 'event_type') !== ['reserved', 'finalized']) {
                     throw new \LogicException('Only durable, unfinished privileged-read reservations may be finalized.');
                 }
-            }
-            foreach ($receipts as $receipt) {
-                $this->append($receipt, 'finalized', $outcome->value, null);
             }
         });
     }

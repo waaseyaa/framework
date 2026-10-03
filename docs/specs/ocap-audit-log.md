@@ -53,7 +53,14 @@ identities are allocated before the attempt loop and remain stable across a
 retry. Logic/contract failures are never retried or wrapped; non-contention
 storage failures and any failure whose rollback cannot be proven surface as
 `PrivilegedReadLedgerException` immediately. This preserves fail-closed audit
-authority without treating an ambiguous commit as safe to replay.
+authority without treating an ambiguous commit as safe to replay. Finalization
+appends all pending terminal events before reading receipt history, acquiring
+writer ownership before a new deferred SQLite snapshot can form (#3183). Every
+receipt must then have exactly the ordered reserved/finalized pair; invalid
+receipts roll back the whole batch. A typed unique-event collision retains the
+existing LogicException without querying an aborted transaction. Nested caller
+work is preserved. Existing caller transactions or retained cursor snapshots
+can still refuse; this ordering never restarts or discards caller-owned state.
 
 **Package:** `waaseyaa/audit` (L1 — Core Data)
 **Mission:** `ocap-audit-log-substrate-01KSEFTF`
