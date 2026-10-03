@@ -43,61 +43,63 @@ final class ProfileLogger extends AbstractLogger
     }
 }
 
-final class ProfileKernel extends AbstractKernel
+function profileKernel(string $projectRoot): AbstractKernel
 {
-    public ProfileLogger $sqlLog;
-    public array $phases = [];
-    private float $phaseStarted;
-    private int $phaseCount;
+    return new class ($projectRoot) extends AbstractKernel {
+        public ProfileLogger $sqlLog;
+        public array $phases = [];
+        private float $phaseStarted;
+        private int $phaseCount;
 
-    public function bootProbe(): void
-    {
-        $this->boot();
-    }
+        public function bootProbe(): void
+        {
+            $this->boot();
+        }
 
-    protected function bootDatabase(): void
-    {
-        parent::bootDatabase();
-        $source = $this->database->getConnection();
-        $this->sqlLog = new ProfileLogger();
-        $this->database = new DBALDatabase(new Connection(
-            $source->getParams(),
-            new Middleware($this->sqlLog)->wrap($source->getDriver()),
-            $source->getConfiguration(),
-        ));
-        $source->close();
-    }
+        protected function bootDatabase(): void
+        {
+            parent::bootDatabase();
+            $source = $this->database->getConnection();
+            $this->sqlLog = new ProfileLogger();
+            $this->database = new DBALDatabase(new Connection(
+                $source->getParams(),
+                new Middleware($this->sqlLog)->wrap($source->getDriver()),
+                $source->getConfiguration(),
+            ));
+            $source->close();
+        }
 
-    protected function validateContentTypes(): void
-    {
-        parent::validateContentTypes();
-        $this->phaseStarted = hrtime(true);
-        $this->phaseCount = count($this->sqlLog->sql);
-    }
+        protected function validateContentTypes(): void
+        {
+            parent::validateContentTypes();
+            $this->phaseStarted = hrtime(true);
+            $this->phaseCount = count($this->sqlLog->sql);
+        }
 
-    protected function bootProviders(): void
-    {
-        $this->finishPhase('production_guards_and_composition');
-        parent::bootProviders();
-    }
+        protected function bootProviders(): void
+        {
+            $this->finishPhase('production_guards_and_composition');
+            parent::bootProviders();
+        }
 
-    protected function validateQueryDefinitions(): void
-    {
-        $this->phaseStarted = hrtime(true);
-        $this->phaseCount = count($this->sqlLog->sql);
-        parent::validateQueryDefinitions();
-        $this->finishPhase('query_validation');
-    }
+        protected function validateQueryDefinitions(): void
+        {
+            $this->phaseStarted = hrtime(true);
+            $this->phaseCount = count($this->sqlLog->sql);
+            parent::validateQueryDefinitions();
+            $this->finishPhase('query_validation');
+        }
 
-    private function finishPhase(string $name): void
-    {
-        $statements = array_slice($this->sqlLog->sql, $this->phaseCount);
-        $this->phases[$name] = [
-            'ms' => round((hrtime(true) - $this->phaseStarted) / 1e6, 3),
-            'queries' => count($statements),
-            'writes' => count(array_filter($statements, static fn(string $sql): bool => preg_match('/^(INSERT|UPDATE|DELETE)/i', $sql) === 1)),
-        ];
-    }
+        private function finishPhase(string $name): void
+        {
+            $statements = array_slice($this->sqlLog->sql, $this->phaseCount);
+            $this->phases[$name] = [
+                'ms' => round((hrtime(true) - $this->phaseStarted) / 1e6, 3),
+                'queries' => count($statements),
+                'writes' => count(array_filter($statements, static fn(string $sql): bool => preg_match('/^(INSERT|UPDATE|DELETE)/i', $sql) === 1)),
+            ];
+        }
+    };
 }
 
 putenv('APP_DEBUG=0');
@@ -106,7 +108,7 @@ putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('S', 32)));
 putenv('WAASEYAA_DB=' . $projectRoot . '/storage/waaseyaa.sqlite');
 putenv('APP_ENV=' . ($operation === 'prepare' ? 'local' : 'production'));
 
-function scanPreflight(ProfileKernel $kernel, string $projectRoot): array
+function scanPreflight(AbstractKernel $kernel, string $projectRoot): array
 {
     $definition = new InputDefinition([new InputOption('format', mode: InputOption::VALUE_OPTIONAL, default: 'json'), new InputOption('write-artifact', mode: InputOption::VALUE_NONE)]);
     $handler = new FieldAccessPreflightHandler(new DatabaseFieldAccessInventoryScanner($kernel->getDatabase(), $kernel->getEntityTypeManager()), $kernel->getEntityTypeManager(), projectRoot: $projectRoot);
@@ -171,7 +173,7 @@ if ($operation === 'prepare') {
     file_put_contents($projectRoot . '/VERSION', '0.1.0-alpha.303');
     file_put_contents($projectRoot . '/config/waaseyaa.php', "<?php return ['database' => " . var_export($projectRoot . '/storage/waaseyaa.sqlite', true) . ", 'environment' => getenv('APP_ENV'), 'debug' => false];");
     file_put_contents($projectRoot . '/config/entity-types.php', '<?php return [];');
-    $kernel = new ProfileKernel($projectRoot);
+    $kernel = profileKernel($projectRoot);
     $kernel->bootForSchemaSync();
     $existing = count($kernel->getEntityTypeManager()->getDefinitions());
     if ($existing > 31) {
@@ -185,7 +187,7 @@ if ($operation === 'prepare') {
     }
     file_put_contents($projectRoot . '/config/entity-types.php', '<?php ' . implode("\n", $declarations) . ' return [' . implode(',', $definitions) . '];');
     $kernel->getDatabase()->getConnection()->close();
-    $kernel = new ProfileKernel($projectRoot);
+    $kernel = profileKernel($projectRoot);
     $kernel->bootForSchemaSync();
     $loader = $kernel->getMigrationLoader();
     $kernel->getMigrator()->run($loader->loadAll(), $loader->loadAllV2());
@@ -203,7 +205,7 @@ if ($operation === 'prepare') {
         throw new RuntimeException('install:init failed: ' . $installOutput);
     }
 
-    $kernel = new ProfileKernel($projectRoot);
+    $kernel = profileKernel($projectRoot);
     $kernel->bootForFieldAccessPreflight();
     $result = scanPreflight($kernel, $projectRoot);
     if (!($result['ready'] ?? false)) {
@@ -213,7 +215,7 @@ if ($operation === 'prepare') {
         }
         file_put_contents($projectRoot . '/.waaseyaa/field-access-classification.json', json_encode(['fields' => $fields], JSON_THROW_ON_ERROR));
         $kernel->getDatabase()->getConnection()->close();
-        $kernel = new ProfileKernel($projectRoot);
+        $kernel = profileKernel($projectRoot);
         $kernel->bootForFieldAccessPreflight();
         $result = scanPreflight($kernel, $projectRoot);
     }
@@ -225,7 +227,7 @@ if ($operation === 'prepare') {
 } else {
     if ($operation !== 'boot') {
         putenv('APP_ENV=local');
-        $controlKernel = new ProfileKernel($projectRoot);
+        $controlKernel = profileKernel($projectRoot);
         $controlKernel->bootForFieldAccessPreflight();
         $ids = array_filter(array_keys($controlKernel->getEntityTypeManager()->getDefinitions()), static fn(string $id): bool => str_starts_with($id, 'fixture_'));
         $table = reset($ids);
@@ -243,7 +245,7 @@ if ($operation === 'prepare') {
         }
         $connection->close();
         if ($operation !== 'drift') {
-            $controlKernel = new ProfileKernel($projectRoot);
+            $controlKernel = profileKernel($projectRoot);
             $controlKernel->bootForFieldAccessPreflight();
             $result = scanPreflight($controlKernel, $projectRoot);
             if (!($result['ready'] ?? false)) {
@@ -258,7 +260,7 @@ if ($operation === 'prepare') {
     $beforeLedger = (int) $control->getConnection()->fetchOne('SELECT COUNT(*) FROM privileged_read_ledger');
     $control->getConnection()->close();
     $artifactBefore = hash_file('sha256', $projectRoot . '/.waaseyaa/field-access-preflight.json');
-    $kernel = new ProfileKernel($projectRoot);
+    $kernel = profileKernel($projectRoot);
     $start = hrtime(true);
     try {
         $kernel->bootProbe();

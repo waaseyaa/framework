@@ -158,6 +158,10 @@ final class ProjectHooksDirectoryTest extends TestCase
         }
         file_put_contents($checkout . '/.gitattributes', "* text eol=lf\n");
         $this->git($checkout, ['init', '--quiet']);
+        // This fixture compares every byte, including .git/. Prevent Git's
+        // asynchronous maintenance from changing them after the baseline.
+        $this->git($checkout, ['config', 'maintenance.auto', 'false']);
+        $this->git($checkout, ['config', 'gc.auto', '0']);
         $this->git($checkout, ['add', '-A']);
         $this->git($checkout, ['commit', '--quiet', '--no-verify', '-m', 'fixture']);
 
