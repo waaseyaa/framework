@@ -27,7 +27,8 @@ use Waaseyaa\User\AnonymousUser;
  * Serves the public, crawler-facing SEO/agent artifacts on stable URLs:
  * `/robots.txt`, `/sitemap.xml`, and `/llms.txt`.
  *
- * Route wiring lives in {@see \Waaseyaa\SSR\SsrServiceProvider::routes()} (L6),
+ * Route declarations and explicit execution binding live in
+ * {@see \Waaseyaa\SSR\SsrServiceProvider} (L6),
  * not in the L3 `seo` package, which owns only the generators and the discovery
  * contracts — `seo` must not depend on routing (L4). Enumeration is a public
  * inventory scoped to what an ANONYMOUS caller may view: the generators are

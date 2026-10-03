@@ -6,6 +6,10 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
             "url": "../api"
         },
         {
@@ -99,6 +103,7 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
+        "waaseyaa/audit": "^0.1.0-alpha.303",
         "waaseyaa/entity-storage": "^0.1.0-alpha.303",
         "waaseyaa/node": "^0.1.0-alpha.303",
         "waaseyaa/taxonomy": "^0.1.0-alpha.303"

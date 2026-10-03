@@ -441,3 +441,12 @@ request, including headers and any attached session; a minimal path adapter
 preserves the language-stripped matching path. Session initialization continues
 in the existing post-match middleware. Provider migrations, installed parity and
 CLI/Bimaaji adoption remain pending.
+
+
+RM-06 SSR source adoption: the required SSR provider now declares its three
+crawler routes and explicitly registers nonshared SEO controller construction.
+Its legacy hook is a projection of those same definitions. This removes SSR
+from the legacy-only cohort without changing GET/public/priority declarations.
+API, Admin Surface, Routing auth/OIDC and the FETDER application provider remain
+required migrations. No installed or Bimaaji acceptance follows from this source
+checkpoint alone.

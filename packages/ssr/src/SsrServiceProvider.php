@@ -21,13 +21,20 @@ use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
+use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
+use Waaseyaa\Foundation\Routing\Metadata\RouteDefinition;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
-use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\RouteMetadataCompiler;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Seo\Discovery\CrawlEligibilityPolicyInterface;
 use Waaseyaa\Seo\Discovery\DiscoveryFailurePolicy;
+use Waaseyaa\Seo\Discovery\PublicUrlPolicyInterface;
+use Waaseyaa\Seo\Discovery\SitemapContributorInterface;
 use Waaseyaa\SSR\Flash\Flash;
 use Waaseyaa\SSR\Flash\FlashMessageService;
 use Waaseyaa\SSR\Http\CanonicalPublicOrigin;
@@ -37,7 +44,7 @@ use Waaseyaa\SSR\Http\SeoPublicController;
 use Waaseyaa\SSR\Twig\FlashTwigExtension;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
 
-final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttpKernelInterface, HasHttpDomainRoutersInterface, HasRenderCacheListenersInterface, LanguagePathStripperInterface
+final class SsrServiceProvider extends ServiceProvider implements ContributesRouteMetadataInterface, ConfiguresHttpKernelInterface, HasHttpDomainRoutersInterface, HasRenderCacheListenersInterface, LanguagePathStripperInterface
 {
     private static ?Environment $twigEnvironment = null;
     private static ?FieldFormatterRegistry $formatterRegistry = null;
@@ -50,6 +57,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
 
     public function register(): void
     {
+        $this->bind(SeoPublicController::class, fn(): SeoPublicController => $this->createSeoPublicController());
         $canonicalOrigin = CanonicalPublicOrigin::tryFromTrustedConfig($this->config);
         if ($canonicalOrigin !== null) {
             $this->singleton(
@@ -120,43 +128,60 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
         }
     }
 
-    /**
-     * Register the public, crawler-facing agent/SEO routes. Priority 10 keeps
-     * them ahead of the SSR `/{path}` render fallback (BuiltinRouteRegistrar).
-     */
+    /** Pure crawler route declarations, shared with the compatibility projection. */
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        foreach ([
+            ['seo.robots_txt', '/robots.txt', 'robotsTxt'],
+            ['seo.sitemap_xml', '/sitemap.xml', 'sitemapXml'],
+            ['seo.llms_txt', '/llms.txt', 'llmsTxt'],
+        ] as $ordinal => [$name, $path, $method]) {
+            yield new RouteDefinition(
+                $name,
+                $path,
+                HandlerReference::fromString('class:' . SeoPublicController::class . '::' . $method),
+                methods: ['GET'],
+                options: ['_public' => true],
+                priority: 10,
+                sourceId: $context->sourceId,
+                ordinal: $ordinal,
+            );
+        }
+    }
+
+    /** Compatibility only: admitted HTTP selects metadata and never invokes this hook. */
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
     {
-        $controller = SeoPublicController::class;
+        $compiler = new RouteMetadataCompiler();
+        foreach ($this->routeDefinitions(new RouteContributionContext(self::class, 0)) as $definition) {
+            $route = $compiler->compileRoute($definition);
+            $route->setDefault('_controller', $definition->handler->target . '::' . $definition->handler->method);
+            $router->addRoute($definition->name, $route);
+        }
+    }
 
-        $router->addRoute(
-            'seo.robots_txt',
-            RouteBuilder::create('/robots.txt')
-                ->controller($controller . '::robotsTxt')
-                ->methods('GET')
-                ->allowAll()
-                ->priority(10)
-                ->build(),
-        );
-
-        $router->addRoute(
-            'seo.sitemap_xml',
-            RouteBuilder::create('/sitemap.xml')
-                ->controller($controller . '::sitemapXml')
-                ->methods('GET')
-                ->allowAll()
-                ->priority(10)
-                ->build(),
-        );
-
-        $router->addRoute(
-            'seo.llms_txt',
-            RouteBuilder::create('/llms.txt')
-                ->controller($controller . '::llmsTxt')
-                ->methods('GET')
-                ->allowAll()
-                ->priority(10)
-                ->build(),
-        );
+    private function createSeoPublicController(): SeoPublicController
+    {
+        $manager = $this->resolve(EntityTypeManager::class);
+        $failurePolicy = $this->resolve(DiscoveryFailurePolicy::class);
+        $scope = $this->kernelServices?->get(AccountFieldReadScopeInterface::class);
+        $principalFactory = $this->kernelServices?->get(AccountPrincipalFactoryInterface::class);
+        $origin = array_key_exists(CanonicalPublicOrigin::class, $this->getBindings())
+            ? $this->resolve(CanonicalPublicOrigin::class)
+            : $this->kernelServices?->get(CanonicalPublicOrigin::class);
+        $urlPolicy = $this->kernelServices?->get(PublicUrlPolicyInterface::class);
+        $crawlEligibility = $this->kernelServices?->get(CrawlEligibilityPolicyInterface::class);
+        $contributor = $this->kernelServices?->get(SitemapContributorInterface::class);
+        if (!$manager instanceof EntityTypeManager || !$failurePolicy instanceof DiscoveryFailurePolicy
+            || ($scope !== null && !$scope instanceof AccountFieldReadScopeInterface)
+            || ($principalFactory !== null && !$principalFactory instanceof AccountPrincipalFactoryInterface)
+            || ($origin !== null && !$origin instanceof CanonicalPublicOrigin)
+            || ($urlPolicy !== null && !$urlPolicy instanceof PublicUrlPolicyInterface)
+            || ($crawlEligibility !== null && !$crawlEligibility instanceof CrawlEligibilityPolicyInterface)
+            || ($contributor !== null && !$contributor instanceof SitemapContributorInterface)) {
+            throw new \LogicException('Invalid SEO execution dependency.');
+        }
+        return new SeoPublicController($manager, $scope, $principalFactory, $origin, $urlPolicy, $crawlEligibility, $contributor, $failurePolicy);
     }
 
     public function registerRenderCacheListeners(EventDispatcherInterface $dispatcher, ?CacheBackendInterface $renderCacheBackend): void

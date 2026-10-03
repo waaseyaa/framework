@@ -1,0 +1,56 @@
+{
+    "seo.robots_txt": {
+        "path": "/robots.txt",
+        "defaults": {
+            "_controller": "Waaseyaa\\SSR\\Http\\SeoPublicController::robotsTxt"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true,
+            "_waaseyaa_priority": 10
+        },
+        "methods": [
+            "GET"
+        ],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+    },
+    "seo.sitemap_xml": {
+        "path": "/sitemap.xml",
+        "defaults": {
+            "_controller": "Waaseyaa\\SSR\\Http\\SeoPublicController::sitemapXml"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true,
+            "_waaseyaa_priority": 10
+        },
+        "methods": [
+            "GET"
+        ],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+    },
+    "seo.llms_txt": {
+        "path": "/llms.txt",
+        "defaults": {
+            "_controller": "Waaseyaa\\SSR\\Http\\SeoPublicController::llmsTxt"
+        },
+        "requirements": [],
+        "options": {
+            "compiler_class": "Symfony\\Component\\Routing\\RouteCompiler",
+            "_public": true,
+            "_waaseyaa_priority": 10
+        },
+        "methods": [
+            "GET"
+        ],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+    }
+}

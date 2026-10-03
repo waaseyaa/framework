@@ -18,6 +18,20 @@ may extend the thin Waaseyaa\Routing\Controller base. Named redirects use the
 same WaaseyaaRouter instance that matched the request. Direct targets are
 local absolute paths validated by Waaseyaa\Access\RedirectValidator. -->
 
+## SEO metadata migration
+
+The three framework SEO endpoints now use admitted immutable class-handler IDs
+and a nonshared explicit `SeoPublicController` binding. Canonical HTTP resolves
+these through the matched-handler resolver after middleware, without the generic
+reflective constructor path. The factory supplies the existing trusted-origin,
+anonymous field-scope/principal and discovery-policy dependencies; absence is
+nullable and selected dependency faults propagate. The crawler actions still
+accept no request-derived arguments. Bare legacy route callers receive the old
+`Class::method` values projected from the same definitions; their app-controller
+path can use the new explicit binding. Generic application argument resolution
+and strict-mode behavior remain governed below. Installed cohort qualification
+is pending.
+
 ## Scope
 
 SSR app controllers are invoked through `Waaseyaa\SSR\SsrPageHandler::dispatchAppController` after a Symfony `Route` match. This spec defines **typed method arguments** only: the legacy four-argument `($params, $query, $account, $httpRequest)` contract is removed.

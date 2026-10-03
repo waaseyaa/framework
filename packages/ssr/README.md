@@ -31,3 +31,16 @@ accepts `HttpKernel`'s upcast entity (or repository-loads a raw id for direct
 callers), then requires the request gate to allow `view`. Missing, denied, and
 unresolvable entities all produce the same 404. Custom method-service parameters
 resolve through `HttpServiceResolverInterface::resolve()`.
+
+## Crawler route metadata
+
+`SsrServiceProvider` contributes immutable definitions for `/robots.txt`,
+`/sitemap.xml` and `/llms.txt`: public GET, priority10, stable registered class
+handlers. Collection does not resolve services or query content. A nonshared
+`SeoPublicController` factory resolves the existing discovery dependencies only
+at execution; absent optional policies remain nullable, while a selected bound
+failure propagates. Trusted origin and anonymous inventory rules remain in the
+controller. The old `routes()` hook projects the same definitions for bare
+compatibility callers; admitted HTTP uses metadata only. Canonical installed
+adoption requires the matching Foundation/Routing sibling cohort; current local
+source proof does not establish that release qualification.

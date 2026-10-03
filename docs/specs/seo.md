@@ -70,3 +70,16 @@ Per-type options support optional `changefreq`, `priority` (numeric string or fl
 - **2026-08-22** — `Waaseyaa\Seo\Discovery` application extension contracts (#2501).
 
 <!-- Spec reviewed 2026-05-17 - dead-code baseline reduction (#1493 / PR TBD): @api PHPDoc sweep on extension-point classes + WaaseyaaEntrypointProvider extended to recognize EntityBase/ContentEntityBase subclasses and their traits. No behavioural change. -->
+
+## SSR metadata adoption
+
+SSR's three public crawler endpoints now publish immutable route definitions
+with registered `class:Waaseyaa\SSR\Http\SeoPublicController::method` IDs.
+GET methods, public declarations, priority10 and insertion order are retained.
+One nonshared explicit controller factory replaces reflective construction for
+admitted HTTP. Collection executes no factory or discovery query. The factory
+preserves anonymous field scope/principal, trusted origin, URL/crawl/contributor
+policies and failure policy; missing optional bindings are nullable, while bound
+dependency errors propagate through selected-handler refusal. The compatibility
+hook derives its historical class strings from the same definitions. Installed
+cohort floors and FETDER/CLI/Bimaaji parity remain later qualification work.
