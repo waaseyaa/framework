@@ -1233,6 +1233,24 @@ interface SchemaInterface
 
 `DBALSchema` uses Doctrine DBAL's schema introspection and DDL generation. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
 
+`DBALSchema::fieldNames(string $table): array` reads canonical column names
+through `TableColumnNames`, without modifying the schema. The caller
+checks table availability first. `SchemaRequirement::assertAvailable()` uses
+one table-existence inspection and, for non-empty DBAL requirements, one column
+inspection for all required fields (#3182). Ordinary adapters read live data.
+`DBALDatabase::inspectSchema(Closure $inspection): mixed` groups a read-only
+validation operation: adapters share one catalog enumeration and canonical
+columns per table until the callback completes or throws. Nested operations
+restore the enclosing adapter; escaped adapters revert to live reads on exit.
+The factory uses this scope for registered entity runtime guards and ends it
+before provider boot. Each new operation re-reads the live schema. All schema
+adapter mutators refuse within the scope; the callback contract also forbids
+raw SQL schema mutation. Constraint inspection and the activation fingerprint
+retain their existing independent live reads.
+Non-DBAL `SchemaInterface` implementations retain their per-field checks.
+Missing tables or fields and failed inspection retain the `[S1-DB106]` refusal;
+this optimization never authorizes DDL or changes constraint validation.
+
 `addPrimaryKey()` uses Doctrine's portable schema comparator and generated
 ALTER statements on capable platforms. SQLite cannot add a primary key to an
 existing table, so that platform retains a clear `\RuntimeException` requiring
