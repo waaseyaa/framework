@@ -5010,7 +5010,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "a407c723381e2eae56097470dc7e92273f4bffa9"
+                "reference": "f8124fe6f054383d732268f9b456418fd453b064"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -5022,6 +5022,7 @@
                 "symfony/http-foundation": "^7.0",
                 "symfony/polyfill-intl-normalizer": "^1.30",
                 "symfony/polyfill-mbstring": "^1.30",
+                "symfony/service-contracts": "^3.0",
                 "symfony/uid": "^7.0",
                 "waaseyaa/cache": "^0.1.0-alpha.303",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.303",

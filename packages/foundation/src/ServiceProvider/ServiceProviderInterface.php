@@ -70,7 +70,9 @@ interface ServiceProviderInterface
     /**
      * Local bindings registered by this provider, keyed by abstract.
      *
-     * @return array<string, array{concrete: string|callable, shared: bool}>
+     * PHP coerces numeric-string service IDs to integer array keys.
+     *
+     * @return array<array-key, array{concrete: string|callable, shared: bool}>
      */
     public function getBindings(): array;
 

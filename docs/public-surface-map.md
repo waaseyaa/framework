@@ -159,6 +159,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `ServiceProvider\Capability\RequiresCapabilitiesInterface` | interface | public | — |
 | `ServiceProvider\Capability\RequiresOptionalPackagesInterface` | interface | public | — |
 | `ServiceProvider\CircularServiceResolutionException` | final class | public | Reports an ordered circular dependency path from service-provider or kernel-handler resolution |
+| `ServiceProvider\ExplicitHandlerServices` | final class | public | — |
 | `ServiceProvider\KernelServicesInterface` | interface | public | — |
 | `ServiceProvider\ServiceProvider` | abstract class | public | Base class for service providers with DI binding and resolution helpers |
 | `ServiceProvider\ServiceProviderInterface` | interface | public | Contract for packages to register and boot their services |
@@ -955,7 +956,9 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
 | `Controller` | abstract class | public | — |
+| `Exception\HandlerResolutionException` | final class | public | — |
 | `Language\LanguageNegotiatorInterface` | interface | public | Detects the active language from a request via path prefix, domain, or header |
+| `RouteHandlerResolver` | final class | public | — |
 | `RouteMetadataCompiler` | final class | public | — |
 
 ## Layer 5: AI

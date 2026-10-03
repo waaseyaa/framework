@@ -8,6 +8,8 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Routing\\RouteHandlerResolver', 'disposition' => 'public', 'ref' => '#3125'],
+        ['fqcn' => 'Waaseyaa\\Routing\\Exception\\HandlerResolutionException', 'disposition' => 'public', 'ref' => '#3125'],
         ['fqcn' => 'Waaseyaa\\Routing\\RouteMetadataCompiler', 'disposition' => 'public', 'ref' => '#3125'],
         ['fqcn' => 'Waaseyaa\\Routing\\Controller', 'disposition' => 'public', 'ref' => '#2291'],
         ['fqcn' => 'Waaseyaa\\Routing\\Language\\LanguageNegotiatorInterface', 'disposition' => 'public', 'purpose' => 'Detects the active language from a request via path prefix, domain, or header'],

@@ -6,7 +6,9 @@ namespace Waaseyaa\Foundation\Kernel;
 
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
+use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Foundation\ServiceProvider\CircularServiceResolutionException;
+use Waaseyaa\Foundation\ServiceProvider\ExplicitHandlerServices;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -46,7 +48,7 @@ final class KernelHandlerContainer implements ContainerInterface
 
     /**
      * @param list<ServiceProvider>                                               $providers
-     * @param array<string, \Closure(ContainerInterface): object> $kernelBindings
+     * @param array<array-key, \Closure(ContainerInterface): object> $kernelBindings PHP coerces numeric-string IDs to integer keys.
      */
     public function __construct(
         private readonly array $providers,
@@ -54,6 +56,12 @@ final class KernelHandlerContainer implements ContainerInterface
     ) {}
 
     public function get(string $id): object
+    {
+        return $this->resolveGuarded($id, fn(): object => $this->resolveUncached($id));
+    }
+
+    /** @param \Closure(): object $resolve */
+    private function resolveGuarded(string $id, \Closure $resolve): object
     {
         if (isset($this->cache[$id])) {
             return $this->cache[$id];
@@ -74,10 +82,39 @@ final class KernelHandlerContainer implements ContainerInterface
 
         $this->resolving[$resolutionKey] = $id;
         try {
-            return $this->resolveUncached($id);
+            return $resolve();
         } finally {
             unset($this->resolving[$resolutionKey]);
         }
+    }
+
+    /** Explicit request-local view. Never delegates missing handlers to get()/has(). @internal */
+    public function explicitServices(Request $request): ExplicitHandlerServices
+    {
+        $factories = [];
+        foreach ($this->kernelBindings as $id => $factory) {
+            $id = (string) $id;
+            $factories[$id] = fn(ExplicitHandlerServices $services): object => $this->resolveGuarded($id, function () use ($id, $factory, $services): object {
+                return $this->cache[$id] = $factory($services);
+            });
+        }
+        foreach ($this->providers as $provider) {
+            foreach ($provider->getBindings() as $id => $binding) {
+                $id = (string) $id;
+                if (array_key_exists($id, $factories)) {
+                    continue;
+                }
+                $factories[$id] = static function () use ($provider, $id): object {
+                    if (!array_key_exists($id, $provider->getBindings())) {
+                        throw self::notFound('Explicit handler binding changed after admission.', null);
+                    }
+                    // The selected declaration owns caching and construction errors.
+                    // Provider factories never enter the legacy container cache.
+                    return $provider->resolve($id);
+                };
+            }
+        }
+        return new ExplicitHandlerServices($request, $factories);
     }
 
     private function resolveUncached(string $id): object

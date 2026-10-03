@@ -17,7 +17,7 @@ abstract class ServiceProvider implements ServiceProviderInterface
     /** @var array<string, class-string> */
     protected array $manifestFormatters = [];
 
-    /** @var array<string, array{concrete: string|callable, shared: bool}> */
+    /** @var array<array-key, array{concrete: string|callable, shared: bool}> */
     private array $bindings = [];
 
     /** @var array<string, object> */
@@ -261,7 +261,7 @@ abstract class ServiceProvider implements ServiceProviderInterface
         ];
     }
 
-    /** @return array<string, array{concrete: string|callable, shared: bool}> */
+    /** @return array<array-key, array{concrete: string|callable, shared: bool}> PHP coerces numeric-string IDs to integer keys. */
     public function getBindings(): array
     {
         return $this->bindings;

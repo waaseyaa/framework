@@ -127,6 +127,7 @@
         "symfony/http-foundation": "^7.0",
         "symfony/polyfill-intl-normalizer": "^1.30",
         "symfony/polyfill-mbstring": "^1.30",
+        "symfony/service-contracts": "^3.0",
         "symfony/uid": "^7.0",
         "waaseyaa/cache": "^0.1.0-alpha.303",
         "waaseyaa/database-legacy": "^0.1.0-alpha.303",

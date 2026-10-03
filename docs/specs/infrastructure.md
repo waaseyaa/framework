@@ -3367,3 +3367,9 @@ This token does not claim a completed route graph. Kernel whole-source admission
 HTTP matching, CLI and Bimaaji adoption remain pending.
 Existing route registration remains active until the staged adoption
 described in [route-metadata.md](route-metadata.md) is implemented and qualified.
+
+## Explicit execution service admission
+
+`KernelHandlerContainer::explicitServices(Request)` admits only existing registered kernel/provider keys to a request-local `ExplicitHandlerServices` facade. Symfony service-contracts supplies locator mechanics, metadata-only `has` and circular factory protection. Kernel bindings keep their declared shared cache; provider singleton/factory resolution bypasses the legacy container's provider-result cache. Kernel keys take precedence, then the first provider declaration; failure of that selection propagates without another provider attempt. Numeric-string IDs retain their existing behavior, with provider binding maps correctly documenting PHP's integer key coercion.
+
+The facade carries the actual Request, and explicitly supplied factories may own request-local state. This does not add a provider request-scope declaration. The existing generic CLI container continues its compatibility lookup; canonical handler lookup does not delegate to its autowiring or fallback path. Complete kernel route-source admission and the HTTP bridge remain pending.

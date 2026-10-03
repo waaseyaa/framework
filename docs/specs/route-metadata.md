@@ -398,3 +398,9 @@ external application compatibility.
 ### Implemented Routing compiler boundary
 
 `Waaseyaa\Routing\RouteMetadataCompiler` and the optional snapshot argument of `WaaseyaaRouter` now provide the request-local Symfony adapter. It publishes stable handler IDs in `_controller`, performs no execution lookup and parses supported conditions without evaluation. Unsupported condition syntax/functions and application route compiler classes refuse rather than activating PHP during compilation. Symfony owns collection priority, matching and generation. This adapter does not itself complete kernel source admission, register execution bindings, migrate providers or repair the installed Bimaaji path.
+
+### Explicit handler execution boundary
+
+`RouteHandlerResolver` consumes a completed snapshot and request-local `ExplicitHandlerServices`. Before lookup it verifies the matched `_route` and exact stable `_controller` ID. Builtins return their declared sentinel without lookup. Class and service targets require an explicit registered binding; public real methods are checked after lookup, and resolution returns a closure without invoking it. Unknown/mismatched matches refuse without constructing services. Factory failures expose only route, handler and reason, with no original exception chain.
+
+The Foundation facade uses Symfony service-contracts' locator trait for metadata-only `has`, exact factory selection and circular detection. Kernel bindings preserve their shared cache; provider singleton and factory lifetimes remain provider-owned, including after legacy container cache warming. The first admitted binding wins, and its failure cannot select another provider. The facade carries the actual current Request, while snapshots retain no request or service objects. This does not introduce provider request-scope declarations or complete HTTP composition, middleware, access or invocation integration.
