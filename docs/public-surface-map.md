@@ -108,6 +108,15 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Migration\SchemaAuthorityManifest` | final readonly class | public | — |
 | `Migration\VerifyResult` | enum | public | — |
 | `RateLimit\RateLimiterInterface` | interface | public | Checks and records attempt counts for rate limiting |
+| `Routing\Metadata\HandlerReference` | final readonly class | public | — |
+| `Routing\Metadata\RouteCompositionEpoch` | final class | public | — |
+| `Routing\Metadata\RouteCompositionException` | final class | public | — |
+| `Routing\Metadata\RouteContributionContext` | final readonly class | public | — |
+| `Routing\Metadata\RouteDefinition` | final readonly class | public | — |
+| `Routing\Metadata\RouteParticipationCompiler` | final class | internal | — |
+| `Routing\Metadata\RouteSnapshot` | final readonly class | public | — |
+| `Routing\Metadata\ScalarRouteMetadata` | final class | internal | — |
+| `Routing\Metadata\ValidatedRouteParticipation` | final readonly class | public | — |
 | `Runtime\RuntimeEpochInterface` | interface | public | — |
 | `Schema\Compiler\CompiledStep` | interface | public | — |
 | `Schema\Compiler\Sqlite\SqliteDiagnosticCode` | enum | public | — |
@@ -133,6 +142,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `ServiceProvider\Capability\AcceptsContentModelProvidersInterface` | interface | public | — |
 | `ServiceProvider\Capability\AcceptsMigrationProvidersInterface` | interface | public | — |
 | `ServiceProvider\Capability\ConfiguresHttpKernelInterface` | interface | public | — |
+| `ServiceProvider\Capability\ContributesRouteMetadataInterface` | interface | public | — |
 | `ServiceProvider\Capability\FinalizesProviderBootInterface` | interface | public | — |
 | `ServiceProvider\Capability\HasGraphqlMutationOverridesInterface` | interface | public | — |
 | `ServiceProvider\Capability\HasHttpDomainRoutersInterface` | interface | public | — |

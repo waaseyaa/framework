@@ -8,6 +8,16 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\HandlerReference', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteCompositionEpoch', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteCompositionException', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteContributionContext', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteDefinition', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteParticipationCompiler', 'disposition' => 'internal', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteSnapshot', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\ScalarRouteMetadata', 'disposition' => 'internal', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\ValidatedRouteParticipation', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ContributesRouteMetadataInterface', 'disposition' => 'public', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Asset\\AssetManagerInterface', 'disposition' => 'public', 'purpose' => 'Resolves source asset paths to versioned/hashed production URLs via build manifests'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Audit\\Approval\\ApprovalStatus', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Audit\\Approval\\OperationApprovalStoreInterface', 'disposition' => 'public', 'ref' => '#2177'],

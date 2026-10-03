@@ -3316,3 +3316,22 @@ entity transactions held. Production has no delayed post-delete or non-HTTP
 invalidation callbacks. Post-commit provider failure remains best-effort, logged
 with AIV-EXECUTION-007; the application operator monitors source errors separately
 and owns scheduled refresh reconciliation. See semantic-search-contract.md.
+
+## Route metadata foundation (ROUTE-METADATA-01)
+
+Foundation supplies immutable route declarations, handler references, finalized
+contribution inputs and snapshots under `Routing/Metadata`, plus a standalone
+composition epoch. The epoch consumes a bootstrap-validated participation token,
+refuses actual legacy contributors without calling their hooks, and publishes
+only after the whole contribution succeeds. Recursive or failed collection is
+terminal. A new epoch is required to retry.
+
+Metadata accepts only finite UTF-8 scalar data and arrays. Untyped two-string
+class/method syntax is reserved and rejected without autoloading; closed typed
+lists such as HTTP schemes have their own validation. Identity tags list/map
+shape and integer/string keys before Foundation canonical map sorting, and
+preserves finite float types. Snapshot projections retain the original data.
+
+This foundation is not yet integrated into kernel boot, HTTP matching, CLI or
+Bimaaji. Existing route registration remains active until the staged adoption
+described in [route-metadata.md](route-metadata.md) is implemented and qualified.

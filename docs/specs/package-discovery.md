@@ -750,3 +750,21 @@ that live list without re-instantiating providers. Package-specific registries
 must define collision semantics explicitly; the auth extension registry uses
 exclusive named slots and refuses a second owner with both provider classes in
 the diagnostic.
+
+## Route participation bootstrap contract (ROUTE-METADATA-01)
+
+`ContributesRouteMetadataInterface` is a separate Foundation capability; it does
+not add a required method to `ServiceProviderInterface`. Its pure declaration
+path takes precedence over a retained legacy `routes()` override.
+
+The standalone route participation compiler classifies inherited base no-op,
+pure capability and actual legacy overrides. Bootstrap admission compares the
+ordered roster, effective method owner, transitive parent/trait/interface source
+digests, trait aliases and compiler/contract identity. Records contain symbolic
+names and content hashes, never absolute source locations. Missing, malformed
+or stale records refuse admission. Reflection and source reads belong only to
+bootstrap; a metadata consumer cannot refresh the token.
+
+Manifest persistence and kernel composition of this token remain pending.
+Current `PackageManifest` caches are not route-readiness proof. See
+[route-metadata.md](route-metadata.md) and the ROUTE-METADATA-01 execution ledger.
