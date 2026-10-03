@@ -167,6 +167,21 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(QueueAdminApiRouter::class, function (): QueueAdminApiRouter {
+            $failedJobs = $this->resolve(FailedJobRepositoryInterface::class);
+            $queue = $this->resolve(QueueInterface::class);
+            if (!$failedJobs instanceof FailedJobRepositoryInterface || !$queue instanceof QueueInterface) {
+                throw new \RuntimeException('The required queue execution bindings are invalid.');
+            }
+            // Retain the existing failed-only fallback for optional transport.
+            $transport = $this->resolveOptional(TransportInterface::class);
+            return new QueueAdminApiRouter(new QueueController(
+                $failedJobs,
+                $queue,
+                $transport instanceof TransportInterface ? $transport : null,
+            ));
+        });
+
         $this->singleton(EntityTypeApiExposurePolicy::class, function (): EntityTypeApiExposurePolicy {
             $manager = $this->resolve(EntityTypeManager::class);
             \assert($manager instanceof EntityTypeManager);

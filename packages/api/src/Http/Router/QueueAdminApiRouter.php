@@ -46,19 +46,37 @@ final class QueueAdminApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $controllerRef, 2);
 
         return match ($action) {
-            'index' => new JsonResponse(
-                $this->controller->index($request),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'retry' => $this->controller->retry(self::routeId($request)),
-            'discard' => $this->controller->discard(self::routeId($request)),
+            'index' => $this->index($request),
+            'retry' => $this->retry($request),
+            'discard' => $this->discard($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown queue action: %s', $action),
             ),
         };
+    }
+
+    /** Explicit HTTP terminals share the legacy request/response adaptation. */
+    public function index(Request $request): Response
+    {
+        return new JsonResponse(
+            $this->controller->index($request),
+            200,
+            ['Content-Type' => 'application/vnd.api+json'],
+        );
+    }
+
+    public function retry(Request $request, mixed $id = null): Response
+    {
+        // Callable dispatch forwards named route parameters; the matched
+        // request retains the legacy authority for scalar ID normalization.
+        return $this->controller->retry(self::routeId($request));
+    }
+
+    public function discard(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->discard(self::routeId($request));
     }
 
     private static function routeId(Request $request): string
