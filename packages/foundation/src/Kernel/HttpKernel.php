@@ -47,18 +47,19 @@ use Waaseyaa\Foundation\Middleware\MaintenanceModeMiddleware;
 use Waaseyaa\Foundation\Middleware\RateLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\RateLimit\DatabaseRateLimiter;
+use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface;
+use Waaseyaa\Routing\Exception\HandlerResolutionException;
 use Waaseyaa\Routing\Exception\RouteMethodNotAllowedException;
 use Waaseyaa\Routing\Exception\RouteNotFoundException;
 use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
 use Waaseyaa\Routing\Redirector;
 use Waaseyaa\Routing\RouteBuilder;
-use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
@@ -89,6 +90,8 @@ final class HttpKernel extends AbstractKernel
     private ?CacheBackendInterface $discoveryCache = null;
     private ?CacheBackendInterface $mcpReadCache = null;
     private ?DiscoveryApiHandler $discoveryHandler = null;
+    private ?HttpRouteComposer $httpRoutes = null;
+    private ?RouteCompositionException $httpRouteFailure = null;
 
 
     public function handle(): HttpResponse
@@ -513,7 +516,21 @@ final class HttpKernel extends AbstractKernel
             ]);
         }
 
-        $dispatcher = $this->buildRouterChain();
+        try {
+            $controller = $this->httpRouteComposer()->resolveMatched($httpRequest);
+            // A selected factory can catch a refused mutation during resolution.
+            $this->getRouteInputs();
+            if ($controller !== null) {
+                $httpRequest->attributes->set('_controller', $controller);
+            }
+            $dispatcher = $this->buildRouterChain();
+            // Domain-router contributions also execute arbitrary provider PHP.
+            $this->getRouteInputs();
+        } catch (HandlerResolutionException|RouteCompositionException $error) {
+            $this->logger->error($error->getMessage());
+
+            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A route handler is unavailable.']]]);
+        }
 
         return $dispatcher->dispatch($httpRequest);
     }
@@ -524,15 +541,16 @@ final class HttpKernel extends AbstractKernel
      *
      * @return HttpRequest|HttpResponse HttpRequest on success, HttpResponse on routing error.
      */
-    private function matchRoute(string $path, string $method): HttpRequest|HttpResponse
+    private function matchRoute(string $path, string $method, ?HttpRequest $httpRequest = null): HttpRequest|HttpResponse
     {
-        $context = new RequestContext('', $method);
-        $router = new WaaseyaaRouter($context);
-        $routeRegistrar = new BuiltinRouteRegistrar($this->entityTypeManager, $this->providers);
-        $routeRegistrar->register($router);
-
         try {
-            $params = $router->match($path);
+            $httpRequest ??= HttpRequest::createFromGlobals();
+            $composer = $this->httpRouteComposer();
+            $router = $composer->router($httpRequest);
+            // Even a contributor that catches a refused input mutation cannot
+            // publish a first HTTP collection or revive a cached one.
+            $this->getRouteInputs();
+            $params = $router->matchRequest($httpRequest, $path);
             $routeName = $params['_route'] ?? '';
             $matchedRoute = $router->getRouteCollection()->get($routeName);
             if ($matchedRoute !== null) {
@@ -550,7 +568,6 @@ final class HttpKernel extends AbstractKernel
             return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
         }
 
-        $httpRequest = HttpRequest::createFromGlobals();
         foreach ($params as $key => $value) {
             $httpRequest->attributes->set(
                 $key,
@@ -569,8 +586,43 @@ final class HttpKernel extends AbstractKernel
             );
         }
         $httpRequest->attributes->set(Redirector::REQUEST_ATTRIBUTE, new Redirector($router));
+        $httpRequest->attributes->set('_waaseyaa_route_mode', $composer->mode());
 
         return $httpRequest;
+    }
+
+    private function httpRouteComposer(): HttpRouteComposer
+    {
+        if ($this->httpRouteFailure !== null) {
+            throw $this->httpRouteFailure;
+        }
+        try {
+            $this->getRouteInputs();
+            if ($this->httpRoutes !== null) {
+                return $this->httpRoutes;
+            }
+            $routing = array_key_exists('routing', $this->config) ? $this->config['routing'] : [];
+            $mode = is_array($routing) ? (array_key_exists('mode', $routing) ? $routing['mode'] : 'legacy') : null;
+            if (!is_string($mode) || !in_array($mode, ['legacy', 'canonical'], true)) {
+                throw new RouteCompositionException('unsupported-mode', 'HTTP route mode must be legacy or canonical.');
+            }
+            $participation = $this->getRouteParticipation();
+            $legacy = array_filter($participation->records, static fn(array $record): bool => $record['kind'] === 'legacy');
+            if ($mode === 'canonical' && $legacy !== []) {
+                throw new RouteCompositionException('legacy-contributor', 'Canonical HTTP cannot admit legacy route contributors.');
+            }
+            $snapshot = $legacy === [] ? $this->getRouteSnapshot() : null;
+            $services = $this->buildHandlerContainer();
+            if (!$services instanceof KernelHandlerContainer) {
+                throw new RouteCompositionException('handler-unavailable', 'Explicit HTTP handler container is unavailable.');
+            }
+            $composer = new HttpRouteComposer($this->entityTypeManager, $this->providers, $participation, $this->getRouteContributionContexts(), $services, $snapshot, $mode);
+            $this->getRouteInputs();
+            return $this->httpRoutes = $composer;
+        } catch (\Throwable $error) {
+            $this->httpRouteFailure = $error instanceof RouteCompositionException ? $error : new RouteCompositionException('http-composition-failed', 'HTTP route admission failed; a new kernel is required.');
+            throw $this->httpRouteFailure;
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Routing;
 
 use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
+use Waaseyaa\Foundation\Routing\Metadata\RouteDefinition;
 use Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot;
 use Waaseyaa\Foundation\ServiceProvider\ExplicitHandlerServices;
 use Waaseyaa\Routing\Exception\HandlerResolutionException;
@@ -15,9 +16,9 @@ final class RouteHandlerResolver
     /** @var array<string, HandlerReference> */
     private array $handlers = [];
 
-    public function __construct(RouteSnapshot $snapshot, private readonly ExplicitHandlerServices $services)
+    public function __construct(RouteSnapshot|RouteDefinition $snapshot, private readonly ExplicitHandlerServices $services)
     {
-        foreach ($snapshot->routes as $definition) {
+        foreach ($snapshot instanceof RouteDefinition ? [$snapshot] : $snapshot->routes as $definition) {
             $this->handlers[$definition->name] = $definition->handler;
         }
     }

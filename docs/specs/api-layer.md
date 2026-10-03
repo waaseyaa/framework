@@ -2191,3 +2191,17 @@ Routing's `RouteHandlerResolver` verifies the matched route name and exact metad
 ## Shared static declaration authority
 
 Foundation now admits the complete static route sources and finalized provider contexts to its kernel-owned snapshot epoch. Legacy HTTP registration consumes that same neutral static authority through `RouteMetadataCompiler::compileRoute`, then restores the existing builtin sentinels and defaults/options shape. Provider hooks, terminal fallback ordering and priority sorting remain compatible. The retained original-registrar fixture verifies every field and insertion order. The HTTP matcher/dispatcher still uses legacy registration; canonical provider bridging and actual Request matching remain pending.
+
+## Admitted HTTP route execution
+
+HTTP now consumes route metadata through a kernel-local execution projection.
+`WaaseyaaRouter::matchRequest()` supplies the actual Symfony request to maintained
+matching and condition evaluation; an optional path override preserves language
+stripping without replacing the request. `fromCollection()` returns an isolated
+execution collection. `RouteHandlerResolver` accepts either a complete snapshot
+or one admitted matched definition, so mixed HTTP never invents a partial
+snapshot. Explicit handlers resolve only after middleware, and custody is checked
+after factory resolution and domain-router construction before dispatch. Builtin
+sentinels and legacy hooks keep their compatibility behavior. `routing.mode`
+defaults only when keys are absent; present null or unknown values refuse routing.
+See [route-metadata.md](route-metadata.md) for the staged adoption boundaries.

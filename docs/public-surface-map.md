@@ -90,6 +90,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Ingestion\TraceIdGeneratorInterface` | interface | public | — |
 | `Kernel\AbstractKernel` | abstract class | internal | — |
 | `Kernel\Bootstrap\PolicyDependencyResolverInterface` | interface | public | — |
+| `Kernel\HttpRouteComposer` | final class | internal | — |
 | `Log\Formatter\FormatterInterface` | interface | public | Formats a log record into its final string or array representation |
 | `Log\Handler\HandlerInterface` | interface | public | Log handler that receives and writes formatted log records |
 | `Log\LogLevel` | enum | public | — |
@@ -959,6 +960,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Controller` | abstract class | public | — |
 | `Exception\HandlerResolutionException` | final class | public | — |
 | `Language\LanguageNegotiatorInterface` | interface | public | Detects the active language from a request via path prefix, domain, or header |
+| `RequestPathMatcher` | final class | internal | — |
 | `RouteHandlerResolver` | final class | public | — |
 | `RouteMetadataCompiler` | final class | public | — |
 

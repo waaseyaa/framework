@@ -25,10 +25,10 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Community\CommunityMiddleware;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Http\CorsHandler;
+use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
-use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Middleware\BodySizeLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\RateLimitMiddleware;
@@ -101,7 +101,7 @@ final class HttpKernelTest extends TestCase
         );
         file_put_contents(
             $this->projectRoot . '/config/entity-types.php',
-            "<?php return [];",
+            '<?php return [];',
         );
         $this->writeInstalledPackageProviders([
             'waaseyaa/foundation' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
@@ -443,23 +443,10 @@ final class HttpKernelTest extends TestCase
         $entityTypeManager = $this->createMock(EntityTypeManager::class);
         $entityTypeManager->expects(self::once())->method('getRepository')->with('test')->willReturn($repository);
 
-        $provider = new class extends ServiceProvider {
-            public function register(): void {}
-
-            public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
-            {
-                $router->addRoute('test.entity', RouteBuilder::create('/test/{id}')
-                    ->controller(static fn(): array => [])
-                    ->entityParameter('id', 'test')
-                    ->methods('GET')
-                    ->allowAll()
-                    ->build());
-            }
-        };
-
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedHttpFixtureProvider::class]]);
         $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
         new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager')->setValue($kernel, $entityTypeManager);
-        new \ReflectionProperty(AbstractKernel::class, 'providers')->setValue($kernel, [$provider]);
 
         $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/test/42', 'GET');
 
@@ -470,30 +457,9 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function matched_request_carries_a_redirector_for_the_complete_route_table(): void
     {
-        $provider = new class extends ServiceProvider {
-            public function register(): void {}
-
-            public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
-            {
-                $router->addRoute('test.source', RouteBuilder::create('/source')
-                    ->controller(static fn(): array => [])
-                    ->methods('GET')
-                    ->allowAll()
-                    ->build());
-                $router->addRoute('todo.show', RouteBuilder::create('/todos/{todo}')
-                    ->controller(static fn(): array => [])
-                    ->methods('GET')
-                    ->allowAll()
-                    ->build());
-            }
-        };
-
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedHttpFixtureProvider::class]]);
         $kernel = new HttpKernel($this->projectRoot);
-        new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager')->setValue(
-            $kernel,
-            new EntityTypeManager(new EventDispatcher()),
-        );
-        new \ReflectionProperty(AbstractKernel::class, 'providers')->setValue($kernel, [$provider]);
+        $kernel->bootForCli();
 
         $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/source', 'GET');
 
@@ -605,30 +571,11 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function a_route_declared_refusal_transport_reaches_the_middleware_pipeline(): void
     {
-        $provider = new class extends ServiceProvider {
-            public function register(): void {}
-
-            public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
-            {
-                $router->addRoute('test.jsonrpc', RouteBuilder::create('/rpc')
-                    ->controller(static fn(): array => [])
-                    ->methods('POST')
-                    ->allowAll()
-                    ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
-                        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
-                    ])
-                    ->build());
-            }
-        };
-
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedHttpFixtureProvider::class]]);
         $kernel = new HttpKernel($this->projectRoot);
-        new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager')->setValue(
-            $kernel,
-            new EntityTypeManager(new EventDispatcher()),
-        );
-        new \ReflectionProperty(AbstractKernel::class, 'providers')->setValue($kernel, [$provider]);
+        $kernel->bootForCli();
 
-        $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/rpc', 'POST');
+        $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/rpc', 'POST', Request::create('/rpc', 'POST'));
         self::assertInstanceOf(Request::class, $request);
         $request->headers->set('Content-Length', '4096');
 
@@ -726,6 +673,115 @@ final class HttpKernelTest extends TestCase
 
         self::assertFalse($enabled->invoke($kernel, 'rate_limit'));
         self::assertFalse($enabled->invoke($kernel, 'body_size_limit'));
+    }
+
+    #[Test]
+    public function admitted_http_metadata_reuses_inspection_and_defers_handler_execution(): void
+    {
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedMetadataHttpProvider::class]]);
+        $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
+        $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+        $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedMetadataHttpProvider))[0];
+        $snapshot = $kernel->getRouteSnapshot();
+        $request = Request::create('/en/metadata');
+        $request->headers->set('X-Proof', 'actual');
+        $matched = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/metadata', 'GET', $request);
+        self::assertSame($request, $matched);
+        self::assertSame('legacy', $request->attributes->get('_waaseyaa_route_mode'));
+        self::assertSame('service:http.proof::handle', $request->attributes->get('_controller'));
+        self::assertSame(1, $provider->contributions);
+        self::assertSame(0, $provider->factories);
+        self::assertSame($snapshot, $kernel->getRouteSnapshot());
+
+        $database = $kernel->getDatabase();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_account', new AnonymousUser());
+        $response = new \ReflectionMethod(HttpKernel::class, 'dispatchMatchedRequest')->invoke($kernel, $request, new \Waaseyaa\Api\Controller\BroadcastStorage($database));
+        self::assertSame('actual', $response->getContent());
+        self::assertSame(1, $provider->factories);
+        self::assertSame(1, $provider->contributions);
+    }
+
+    #[Test]
+    public function canonical_http_refuses_legacy_without_invoking_hooks(): void
+    {
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedHttpFixtureProvider::class]]);
+        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing', 'routing' => ['mode' => 'canonical']];");
+        $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
+        $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+        $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedHttpFixtureProvider))[0];
+        foreach ([1, 2] as $attempt) {
+            $response = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/source', 'GET', Request::create('/source'));
+            self::assertInstanceOf(Response::class, $response);
+            self::assertSame(500, $response->getStatusCode());
+        }
+        self::assertSame(0, $provider->calls);
+    }
+
+    #[Test]
+    public function mixed_http_caught_input_mutation_refuses_first_and_cached_access(): void
+    {
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedMetadataHttpProvider::class, AdmittedHttpFixtureProvider::class]]);
+        $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
+        $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+        $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedMetadataHttpProvider))[0];
+        $provider->poisonInputs = true;
+        foreach ([1, 2] as $attempt) {
+            $request = Request::create('/en/metadata');
+            $request->headers->set('X-Proof', 'actual');
+            $response = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/metadata', 'GET', $request);
+            self::assertInstanceOf(Response::class, $response);
+            self::assertSame(500, $response->getStatusCode());
+        }
+        self::assertSame(1, $provider->contributions);
+        self::assertSame(0, $provider->factories);
+    }
+
+    #[Test]
+    public function explicit_null_http_modes_refuse_without_contributor_calls(): void
+    {
+        foreach (["['routing' => null]", "['routing' => ['mode' => null]]"] as $invalid) {
+            file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing'] + " . $invalid . ';');
+            $this->writeInstalledPackageProviders(['test/http' => [AdmittedHttpFixtureProvider::class]]);
+            $kernel = new HttpKernel($this->projectRoot);
+            $kernel->bootForCli();
+            $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+            $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedHttpFixtureProvider))[0];
+            foreach ([1, 2] as $attempt) {
+                $response = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/source', 'GET', Request::create('/source'));
+                self::assertInstanceOf(Response::class, $response);
+                self::assertSame(500, $response->getStatusCode());
+            }
+            self::assertSame(0, $provider->calls);
+        }
+    }
+
+    #[Test]
+    public function caught_factory_input_failure_never_invokes_the_selected_handler(): void
+    {
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedMetadataHttpProvider::class]]);
+        $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
+        $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+        $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedMetadataHttpProvider))[0];
+        $provider->poisonFactoryInputs = true;
+        $request = Request::create('/en/metadata');
+        $request->headers->set('X-Proof', 'actual');
+        self::assertSame($request, new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/metadata', 'GET', $request));
+        $database = $kernel->getDatabase();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_account', new AnonymousUser());
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($database);
+        foreach ([1, 2] as $attempt) {
+            $response = new \ReflectionMethod(HttpKernel::class, 'dispatchMatchedRequest')->invoke($kernel, $request, $storage);
+            self::assertSame(500, $response->getStatusCode());
+        }
+        self::assertSame(1, $provider->factories);
+        self::assertSame(0, $provider->executions);
+        self::assertSame(1, $provider->contributions);
     }
 
     /**
@@ -1354,4 +1410,73 @@ final class TestNonTagCacheBackend implements CacheBackendInterface
     public function invalidateMultiple(array $cids): void {}
     public function invalidateAll(): void {}
     public function removeBin(): void {}
+}
+
+/** Real bootstrap-admitted legacy fixture for existing matching callers. */
+final class AdmittedHttpFixtureProvider extends ServiceProvider
+{
+    public int $calls = 0;
+    public function register(): void {}
+
+    public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
+    {
+        $this->calls++;
+        $router->addRoute('test.entity', RouteBuilder::create('/test/{id}')->controller(static fn(): array => [])->entityParameter('id', 'test')->methods('GET')->allowAll()->build());
+        $router->addRoute('test.source', RouteBuilder::create('/source')->controller(static fn(): array => [])->methods('GET')->allowAll()->build());
+        $router->addRoute('todo.show', RouteBuilder::create('/todos/{todo}')->controller(static fn(): array => [])->methods('GET')->allowAll()->build());
+        $router->addRoute('test.jsonrpc', RouteBuilder::create('/rpc')->controller(static fn(): array => [])->methods('POST')->allowAll()->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043])->build());
+    }
+}
+
+final class AdmittedMetadataHttpProvider extends ServiceProvider implements \Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface
+{
+    public bool $poisonInputs = false;
+    public bool $poisonFactoryInputs = false;
+    public int $executions = 0;
+    public int $contributions = 0;
+    public int $factories = 0;
+    public function register(): void
+    {
+        $this->bind('http.proof', function (): object {
+            $this->factories++;
+            if ($this->poisonFactoryInputs) {
+                $slot = $this->kernelServices->get(\Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs::class);
+                try {
+                    $slot->publish(['test' => false]);
+                } catch (\Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException) {
+                }
+            }
+            return new AdmittedMetadataHttpHandler($this);
+        });
+    }
+    public function routeDefinitions(\Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext $context): iterable
+    {
+        $this->contributions++;
+        if ($this->poisonInputs) {
+            $slot = $this->kernelServices->get(\Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs::class);
+            try {
+                $slot->publish(['test' => false]);
+            } catch (\Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException) {
+            }
+        }
+        yield new \Waaseyaa\Foundation\Routing\Metadata\RouteDefinition(
+            'http.proof',
+            '/metadata',
+            \Waaseyaa\Foundation\Routing\Metadata\HandlerReference::fromString('service:http.proof::handle'),
+            methods: ['GET'],
+            condition: "request.headers.get('X-Proof') == 'actual' and request.getPathInfo() == '/en/metadata'",
+            options: ['_public' => true],
+            sourceId: $context->sourceId,
+        );
+    }
+}
+
+final class AdmittedMetadataHttpHandler
+{
+    public function __construct(private readonly AdmittedMetadataHttpProvider $owner) {}
+    public function handle(Request $request): Response
+    {
+        $this->owner->executions++;
+        return new Response($request->headers->get('X-Proof'));
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Routing;
 
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Exception\MethodNotAllowedException as SymfonyMethodNotAllowedException;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException as SymfonyResourceNotFoundException;
 use Symfony\Component\Routing\Generator\UrlGenerator;
@@ -35,6 +36,28 @@ final class WaaseyaaRouter
         $this->context = $context ?? new RequestContext();
         $this->matcher = null;
         $this->generator = null;
+    }
+
+    /** Request-local projection of an execution-compatible collection, never a snapshot claim. */
+    public static function fromCollection(RouteCollection $routes, ?RequestContext $context = null): self
+    {
+        $router = new self($context);
+        $router->routes = clone $routes;
+        return $router;
+    }
+
+    /** @return array<string, mixed> Actual request conditions; optional language-stripped matching path. */
+    public function matchRequest(Request $request, ?string $pathinfo = null): array
+    {
+        $this->context->fromRequest($request);
+        $matcher = new RequestPathMatcher($this->routes, $this->context, $pathinfo);
+        try {
+            return $matcher->matchRequest($request);
+        } catch (SymfonyResourceNotFoundException $error) {
+            throw new RouteNotFoundException($pathinfo ?? $request->getPathInfo(), $error);
+        } catch (SymfonyMethodNotAllowedException $error) {
+            throw new RouteMethodNotAllowedException($error->getAllowedMethods(), $error->getMessage(), $error->getCode(), $error);
+        }
     }
 
     /**

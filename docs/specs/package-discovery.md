@@ -792,3 +792,11 @@ Route participation compilation admits the known neutral metadata protocol class
 The admitted protocol roster includes `FoundationRouteDefinitions`, whose source digest participates in compiler identity. After input freezing the kernel admits this complete builtin/terminal authority and the exact registered provider/context roster to its lazy composition epoch. Bootstrap does not invoke contributors. Legacy classifications refuse complete snapshot inspection without any hook call; declarative providers are collected once only when the snapshot is requested.
 
 Explicit handler service admission enumerates existing kernel/provider binding keys without resolving them. Numeric-string service IDs remain supported: PHP stores these as integer array keys, so the provider interface documents `array-key` and the execution adapter restores string IDs. Kernel keys precede provider keys; the first provider wins duplicates. Provider factories preserve their declared lifetime and a selected failure never falls through to another provider. The existing generic container's compatibility lookup is separate from this explicit execution path.
+
+
+HTTP consumes the admitted participation token through a kernel-local execution
+projection. Fully declarative cohorts reuse the kernel snapshot; mixed cohorts
+use one path per provider and continue to refuse canonical inspection. HTTP
+binding admission checks explicit registered keys without constructing handlers;
+terminal dispatch owns resolution. No manifest refresh or legacy fallback is
+used for unknown or poisoned admission. See [route-metadata.md](route-metadata.md).

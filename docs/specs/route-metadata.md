@@ -420,3 +420,24 @@ external application compatibility.
 `RouteHandlerResolver` consumes a completed snapshot and request-local `ExplicitHandlerServices`. Before lookup it verifies the matched `_route` and exact stable `_controller` ID. Builtins return their declared sentinel without lookup. Class and service targets require an explicit registered binding; public real methods are checked after lookup, and resolution returns a closure without invoking it. Unknown/mismatched matches refuse without constructing services. Factory failures expose only route, handler and reason, with no original exception chain.
 
 The Foundation facade uses Symfony service-contracts' locator trait for metadata-only `has`, exact factory selection and circular detection. Kernel bindings preserve their shared cache; provider singleton and factory lifetimes remain provider-owned, including after legacy container cache warming. The first admitted binding wins, and its failure cannot select another provider. The facade carries the actual current Request, while snapshots retain no request or service objects. This does not introduce provider request-scope declarations or complete HTTP composition, middleware, access or invocation integration.
+
+## HTTP bridge adoption
+
+HTTP now uses one kernel-local execution projection. Configure `routing.mode`
+as `legacy` (the default) or `canonical`; unknown values refuse routing. A
+canonical cohort reuses `getRouteSnapshot()` without recollection. Mixed legacy
+HTTP collects declarative providers and calls legacy hooks once, retaining the
+existing builtin sentinels and terminal ordering. Canonical inspection still
+refuses the entire mixed cohort before contribution. No partial snapshot is
+created. `_waaseyaa_route_mode` records the selected mode on matched requests.
+
+Explicit binding keys are admitted without constructing handlers. Declarative
+service/class IDs remain stable through middleware, then terminal dispatch
+resolves the selected real public method using the actual request. Legacy
+controller values retain their compatibility semantics. Composition failure or
+caught recursion is terminal. Kernel custody is checked after collection and
+before reuse or execution. Maintained Symfony matching receives the original
+request, including headers and any attached session; a minimal path adapter
+preserves the language-stripped matching path. Session initialization continues
+in the existing post-match middleware. Provider migrations, installed parity and
+CLI/Bimaaji adoption remain pending.

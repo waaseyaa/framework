@@ -3378,3 +3378,15 @@ The facade carries the actual Request, and explicitly supplied factories may own
 ## Kernel route source admission
 
 Successful runtime boot admits the neutral builtin/terminal authority and exact finalized provider contexts to one `RouteCompositionEpoch`. Contribution is lazy and never part of boot. `getRouteSnapshot()` checks input custody before collection and again before returning a completed value; a caught input mutation during contribution cannot escape on the first request. Reuse also rechecks custody, so late exposure failure refuses a previously completed snapshot. Legacy providers refuse the entire cohort without executing hooks. Duplicate, failed or recursive contribution is terminal. CLI entry points establish the CLI profile; ordinary HTTP boot establishes HTTP. Restricted and failed kernel custody is retained. The immutable source authority is preloaded and hashed during existing bootstrap validation, so later inspection reads no source or entity definitions and performs no autoload.
+
+## HTTP route execution projection
+
+`HttpKernel` now admits a kernel-local `HttpRouteComposer` from validated route
+participation and frozen inputs. Fully declarative HTTP reuses the complete
+kernel snapshot; mixed legacy HTTP compiles metadata and invokes actual legacy
+hooks once. Explicit `routing.mode` defaults to `legacy`; `canonical` refuses
+legacy contributors before execution. Unknown modes and poisoned inputs refuse
+routing without fallback. Stable metadata handler IDs reach middleware unchanged
+and resolve only in terminal dispatch through explicit bindings. Matching uses
+the actual request and the language-stripped path. See
+[route-metadata.md](route-metadata.md) for compatibility and qualification limits.

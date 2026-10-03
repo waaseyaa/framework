@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Foundation\\Kernel\\HttpRouteComposer', 'disposition' => 'internal', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\FoundationRouteDefinitions', 'disposition' => 'internal', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\ExplicitHandlerServices', 'disposition' => 'public', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\HandlerReference', 'disposition' => 'public', 'ref' => '#3123'],
