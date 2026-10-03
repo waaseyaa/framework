@@ -265,3 +265,59 @@ only entity IDs, required bundle/path metadata and effective exposure decisions,
 plus explicitly selected non-secret inputs and manifest capability facts.
 Real built-in/terminal adoption must replace the registrar's authority through
 the planned Routing adapter, not retain two independently maintained route lists.
+
+## Memory-only input projector checkpoint, 3 October 2026
+
+Continued from local commit `eb2c6e97488ca682945ed43f05be5625df4d9463`.
+Owned scope is the internal Kernel `RouteInputProjector`, its compiler identity binding, its focused test,
+the route/infrastructure specifications, implementation plan, ledger and fragment.
+The adapter reads the in-memory definition roster once, checks supplied finalized
+exposure-map keys and booleans, and copies only ID, bundle entity-type ID and
+effective exposure. It returns an immutable shared context and derives pure
+provider contexts in admitted order. Shared inputs remain available for all-noop
+cohorts. No configuration is selected, and API policy is neither copied nor
+recomputed. Kernel finalization and the provenance of supplied exposure/capability
+facts remain caller responsibilities; no canonical kernel admission is claimed.
+
+The test uses `EntityTypeApiExposurePolicy` to supply the effective narrowed map.
+Initial missing-projector/method controls were red; an incorrect test constructor
+argument was corrected before accepting positive evidence. Focused projector,
+values, epoch and kernel participation checks now pass 75 tests, 188 assertions; scoped PHPStan is clean
+after removing a redundant key type check and preserving integer provider order.
+Poison manager/definition expectations verify zero storage, repository, field
+resolution and execution-metadata reads. A measured projection with a poison
+autoloader records zero loads. A throwing contributor fixture is never invoked.
+Partial, stale, non-boolean and ID-mismatched exposure maps refuse safely; errors
+carry no previous exception or private diagnostic. Referenced exposure and
+capability inputs detach. Bundle metadata requires an identifier; unselected
+configuration refuses instead of silently disappearing. Bootstrap compiler
+identity includes the projector source without reading it during projection.
+Independent review and final gates are pending.
+
+Remaining integration: obtain the existing boot-finalized exposure map without
+inspection-time service resolution, bind it to successful entity/exposure
+finalization, and admit the complete kernel source set. Do not recompute a second
+API policy after provider boot to fill this seam. RM-03 remains in progress;
+HTTP/CLI/Bimaaji, installed qualification, publication and deployment remain open.
+
+Independent review found a P2 roster-comparison defect: PHP's regular key sort
+compared distinct valid numeric-like IDs numerically, so identical key sets in
+different insertion orders could refuse. The `01`/`1e0` reverse-order discriminator
+failed with unavailable inputs before repair. Both key arrays now use
+`SORT_STRING`; the matching roster succeeds and existing stale/partial controls
+still refuse. A nonzero shared-context source-order refusal is also explicit.
+Focused checks after repair pass 77 tests, 191 assertions, with clean scoped
+PHPStan. The first default preflight passed 43 gates with no failures, but its
+source candidate precedes this repair and is not final-candidate qualification.
+Independent reviewer `review_rm02` approved the repaired eight-file candidate,
+closing P2. All snapshot and checkout hashes were verified unchanged before
+final evidence bookkeeping. Final default preflight passed: 42 gates executed,
+one equivalent-input reuse, zero failures, three not applicable, 123.1 seconds.
+The reuse belongs to the original dirty candidate at base
+`eb2c6e97488ca682945ed43f05be5625df4d9463`; it is not a fresh check on the repair.
+Source/tests and the dependency lock remain the approved bytes. Only this
+ledger's review/evidence prose changes after qualification; normal commit hooks
+validate that bookkeeping delta. Evidence is in `projector-preflight-final.json`
+and `projector-repaired-review/manifest.json` under the session evidence directory.
+This remains a local source checkpoint. Exact-head hosted qualification and real
+kernel/consumer/installed acceptance remain open.

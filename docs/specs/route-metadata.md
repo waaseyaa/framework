@@ -85,6 +85,17 @@ registration or exposure declarations have not finalized successfully, route
 composition is unavailable rather than partial. Moving a prohibited operation
 into a pre-epoch projection step does not satisfy this contract.
 
+The internal Kernel `RouteInputProjector` now copies the definition roster once,
+checks supplied finalized exposure-map keys against it, and selects only entity
+ID, bundle entity-type ID and effective `api_exposed` decisions. It accepts
+finalized scalar capability facts and produces an immutable `foundation.inputs`
+context even when the cohort has no declarative providers. Provider contexts
+retain canonical participation order. No application configuration is selected
+in this slice. Exposure policy is not recomputed; the supplied map must come
+from the existing finalized policy. Map provenance, capability provenance and
+boot finalization remain the kernel integration caller's contract, not guarantees
+established by this standalone projector. Real kernel admission remains pending.
+
 PHP cannot sandbox an arbitrary contributor. The supported contract is enforced
 by the restricted context, value validation, code review, and poison acceptance
 fixtures. A contributor that performs hidden global I/O violates the contract.

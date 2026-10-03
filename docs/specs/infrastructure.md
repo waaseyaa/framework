@@ -3334,6 +3334,15 @@ and the full source roster bind snapshot identity, including when no provider
 declares routes. Empty static lists are valid standalone inputs and do not prove
 that a kernel admitted its complete source set.
 
+The internal Kernel `RouteInputProjector` provides the memory-only entity-input
+adapter. It takes already finalized exposure decisions and capability facts,
+validates exact exposure/definition roster agreement, and copies only IDs,
+bundle metadata and exposure booleans into immutable shared/provider contexts.
+It does not discover capabilities, resolve services or recompute API policy.
+Shared inputs survive cohorts with no declarative providers. No configuration
+is selected yet. Kernel boot finalization and supplied-map provenance are still
+pending integration responsibilities.
+
 Metadata accepts only finite UTF-8 scalar data and arrays. Untyped two-string
 class/method syntax is reserved and rejected without autoloading; closed typed
 lists such as HTTP schemes have their own validation. Identity tags list/map

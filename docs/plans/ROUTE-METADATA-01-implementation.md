@@ -179,6 +179,18 @@ and finalized entity/exposure projection remain required before consumer wiring.
 This is Waaseyaa cohort/lifecycle policy; Symfony remains the route compiler and
 matcher, with no parallel matching or execution mechanism added.
 
+I1 projection checkpoint: the Kernel-owned `RouteInputProjector` receives an
+already finalized scalar exposure map and installed/configured capability facts.
+It reads `EntityTypeManagerInterface::getDefinitions()` once and only the ID and
+bundle metadata getters, then builds immutable declarative-provider contexts.
+Exposure-map keys must exactly match the roster; stale, partial or malformed
+maps refuse rather than recomputing API policy or resolving its singleton. No
+configuration is selected in this slice: effective exposure decisions already
+encode the API allowlist result. Later provider migrations must explicitly name
+any additional non-secret configuration they need before adding it. Existing
+`EntityTypeApiExposurePolicy` remains the exposure authority. Supplying its
+boot-finalized map through kernel integration remains a separate boundary.
+
 Owner: `waaseyaa/routing`. Expected files include new metadata compiler and
 handler resolver classes, `WaaseyaaRouter.php`, `RouteBuilder.php` compatibility
 adapters where required, `AuthOidcRouteServiceProvider.php`,
