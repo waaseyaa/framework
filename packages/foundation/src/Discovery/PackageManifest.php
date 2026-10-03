@@ -86,6 +86,8 @@ final class PackageManifest
          * @var array<string, array{schema-provider: string, version: int, readable_versions: list<int>}>
          */
         public readonly array $configContracts = [],
+        /** @var array<string, mixed> Untrusted route participation, admitted only at bootstrap. */
+        public readonly array $routeParticipation = [],
     ) {}
 
     /**
@@ -121,6 +123,13 @@ final class PackageManifest
             }
         }
 
+        // Route-specific invalidity must not enter the generic cache recovery
+        // path, which would regenerate valid evidence and erase the refusal.
+        $routeParticipation = $data['route_participation'] ?? [];
+        if (!is_array($routeParticipation)) {
+            $routeParticipation = ['unavailable' => 'malformed-shape'];
+        }
+
         return new self(
             providers: $data['providers'],
             migrations: $data['migrations'],
@@ -136,6 +145,7 @@ final class PackageManifest
             agentDefinitions: $data['agent_definitions'] ?? [],
             scheduleEntries: $data['schedule_entries'] ?? [],
             configContracts: $data['config_contracts'] ?? [],
+            routeParticipation: $routeParticipation,
         );
     }
 
@@ -161,6 +171,7 @@ final class PackageManifest
             'agent_definitions' => $this->agentDefinitions,
             'schedule_entries' => $this->scheduleEntries,
             'config_contracts' => $this->configContracts,
+            'route_participation' => $this->routeParticipation,
         ];
     }
 }

@@ -765,6 +765,19 @@ names and content hashes, never absolute source locations. Missing, malformed
 or stale records refuse admission. Reflection and source reads belong only to
 bootstrap; a metadata consumer cannot refresh the token.
 
-Manifest persistence and kernel composition of this token remain pending.
-Current `PackageManifest` caches are not route-readiness proof. See
-[route-metadata.md](route-metadata.md) and the ROUTE-METADATA-01 execution ledger.
+`PackageManifest` persists the raw inventory under `route_participation`.
+Older caches omit that optional field and remain readable, with an unavailable
+route inventory. Source compilation may record an unavailable inventory when
+ordinary discovery encounters a missing or unclassifiable provider; existing
+HTTP compatibility and missing-provider diagnostics remain in effect.
+Malformed route-only cache shape is normalized to an unavailable marker; it
+does not trigger generic corrupt-cache recovery or overwrite cached evidence.
+
+Kernel bootstrap admits the raw inventory before provider registration, then
+compares its ordered roster to the providers actually registered. The token is
+accessible only after complete runtime boot. Inspection never recompiles a stale
+record. A restricted or previously failed kernel cannot become runtime route
+authority, including after an ordinary boot retry; create a new runtime kernel.
+The token is participation evidence, not a completed route snapshot. Finalized
+input projection, whole-source composition and consumer adoption remain pending.
+See [route-metadata.md](route-metadata.md) and the execution ledger.

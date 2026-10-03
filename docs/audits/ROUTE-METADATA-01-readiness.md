@@ -90,7 +90,7 @@ implementation. RM-03 through RM-05 will use the same owners and staged review.
 |---|---|---|
 | RM-01 | done for readiness scope | Independent readiness review accepted its documented limits; final installed cohort recheck belongs to consumer acceptance. |
 | RM-02 | done for source contract scope | Independent review, focused tests, scoped static analysis and default local gates passed. Installed/hosted consumer proof belongs to later tickets. |
-| RM-03 | in progress | Standalone bootstrap token and epoch implemented; manifest persistence, kernel admission and kernel lifecycle evidence remain open. |
+| RM-03 | in progress | Manifest persistence and kernel admission implemented; finalized route input projection and whole-source epoch composition remain open. |
 | RM-04 through RM-05 | planned | Symfony compilation, deferred declared-handler admission, built-ins/terminal sources and HTTP compatibility bridge. |
 | RM-06 through RM-14 | planned | Dependent consumer migration and distribution/release evidence. |
 
@@ -151,11 +151,65 @@ Foundation declaration. No issue was closed and no release version was changed.
 
 ## Next ready slice
 
-Complete RM-03 by persisting route participation with the package manifest,
-validating it at kernel bootstrap and admitting a completed boot-profile epoch.
-Keep existing missing-provider diagnostics compatible while refusing canonical
-metadata for an unavailable roster. Old caches must not imply route readiness.
-Do not copy the entire application configuration into declaration contexts;
-only finalized, explicitly non-secret route inputs are eligible. Extend tests
-through real kernel boot, stale manifest custody, failed boot and restricted
-profile access before beginning the Routing/HTTP bridge.
+Complete RM-03 with finalized entity/exposure and explicitly non-secret input
+projection, then whole-source epoch readiness. Participation is now persisted and
+admitted at bootstrap; it cannot imply a completed graph. Do not copy the entire
+application configuration into declaration contexts. Continue through the
+Routing/HTTP bridge only after these source and lifetime contracts are stable.
+
+## Kernel participation checkpoint
+
+Continued from local commit `589d0359d9b8f6684cb68b542f30d537fa8ac05a`.
+The manifest now serializes raw route participation, preserving it across cache
+loads and root-provider re-merges. Bootstrap validates the token before provider
+registration and compares its ordered roster to the providers actually admitted.
+Only complete runtime boot exposes it. Missing/stale inventories, partial active
+rosters, restricted-profile reuse and previously failed boot refuse route
+authority. Ordinary kernel retry behavior remains compatible; a retry cannot
+revive its failed route authority. A fresh kernel can admit the repaired boot.
+
+The accessor returns participation evidence, not a completed route snapshot.
+No Bimaaji bus binding or legacy route hook invocation was added. Source hashing
+remains at compile/bootstrap; a test removes the provider source after boot and
+proves repeated accessor calls retain the admitted token without refresh.
+Compiler identity also binds manifest/kernel/bootstrap source, so a changed
+bootstrap implementation cannot admit an inventory from different code.
+
+Focused manifest/cache/kernel-route and standalone epoch checks pass:
+131 tests, 345 assertions. Scoped PHPStan over the changed manifest and kernel
+files reported no errors. Kernel tests cover early access during finalization,
+stale and legacy cache records, profile custody, failed boot and ordinary retry,
+fresh-kernel recovery, registered-roster mismatch and no inspection source reads.
+
+The first combined run including AbstractKernelTest had a Windows SQLite WAL
+file-lock teardown error in its existing production-preflight test (31 tests,
+92 assertions, one error). That error also reproduced with AbstractKernel source
+from `589d0359d`, loaded through a separate bootstrap against current candidate
+dependencies (one test, two assertions, one error). This is a scoped prior-Kernel
+comparison, not a pristine prior-revision full qualification. Supported-host
+qualification still owns this test; no test or database-cleanup workaround was
+introduced. Supported-host full qualification remains open.
+
+Independent review found a P2 cache-custody defect: a scalar participation field
+entered generic corrupt-cache recovery and was silently replaced with fresh
+valid inventory. A failing real-cache test reproduced the replacement. Route-only
+shape errors now normalize to an unavailable marker without changing the cache
+file. The discriminator boots through scalar, missing-field and malformed nested
+inventory controls with the valid fingerprint retained; all refuse admission and
+preserve cache bytes. Focused checks now pass 132 tests, 351 assertions.
+Independent reviewer `review_rm02` approved the repair and its affected boundaries
+against the immutable nine-file candidate. The checked custody snapshot digest
+is `804a8fd22337ca0b2c79df88735f58502905399464cda4b5a248c1ef93e2628c`.
+
+Final default preflight passed: 43 gates executed, zero reused, zero failures,
+three not applicable, 133.7 seconds. Tested base HEAD
+`589d0359d9b8f6684cb68b542f30d537fa8ac05a`, index tree
+`ae0235abf08e3a14dd351afd84f0afd549038f76`, dirty-worktree SHA256
+`7bdcd9b5abb673ed01533bb9892bceecf3b8bc241c7fb021e1019f06b2f5f2b5`.
+The final focused rerun after formatting again passed 132 tests, 351 assertions.
+Only this ledger's evidence prose changed after those checks; source, tests,
+dependency lock and gate configuration remain unchanged. Normal commit hooks
+validate the bookkeeping delta. Evidence is retained beside the earlier source
+checkpoint under `rm03-kernel-preflight.json` and the immutable repaired review
+manifest. This is a local source checkpoint, not hosted, installed or deployed
+qualification. Whole-source composition and consumer adoption remain pending.

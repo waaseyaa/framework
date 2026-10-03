@@ -8,6 +8,7 @@ use Waaseyaa\Foundation\Attribute\AsEntityType;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Routing\Metadata\RouteParticipationCompiler;
 
 final class PackageManifestCompiler
 {
@@ -284,6 +285,16 @@ final class PackageManifestCompiler
             array_keys($policies),
         );
 
+        // Bootstrap may discover/hash source; metadata consumers never do.
+        // Ordinary HTTP keeps its existing missing-provider compatibility.
+        // An unavailable inventory cannot become canonical route authority.
+        try {
+            $routeParticipation = new RouteParticipationCompiler()->compile($providers);
+        } catch (\Throwable) {
+            $routeParticipation = [];
+            $this->logger->warning('Route participation could not be compiled; canonical route metadata is unavailable.');
+        }
+
         return new PackageManifest(
             providers: $providers,
             migrations: $migrations,
@@ -299,6 +310,7 @@ final class PackageManifestCompiler
             agentTools: $agentTools,
             agentDefinitions: $agentDefinitions,
             scheduleEntries: $scheduleEntries,
+            routeParticipation: $routeParticipation,
         );
     }
 
@@ -1131,6 +1143,7 @@ final class PackageManifestCompiler
             agentTools: $manifest->agentTools,
             agentDefinitions: $manifest->agentDefinitions,
             scheduleEntries: $manifest->scheduleEntries,
+            routeParticipation: $manifest->routeParticipation,
         );
     }
 

@@ -3332,6 +3332,11 @@ lists such as HTTP schemes have their own validation. Identity tags list/map
 shape and integer/string keys before Foundation canonical map sorting, and
 preserves finite float types. Snapshot projections retain the original data.
 
-This foundation is not yet integrated into kernel boot, HTTP matching, CLI or
-Bimaaji. Existing route registration remains active until the staged adoption
+Kernel bootstrap now admits participation against the manifest's raw records and
+the actual registered provider roster. It preserves restricted-profile custody
+and refuses route authority permanently after a failed boot, while retaining
+existing ordinary boot retry behavior. Access before boot completes refuses.
+This token does not claim a completed route graph. Finalized input projection,
+whole-source composition, HTTP matching, CLI and Bimaaji adoption remain pending.
+Existing route registration remains active until the staged adoption
 described in [route-metadata.md](route-metadata.md) is implemented and qualified.

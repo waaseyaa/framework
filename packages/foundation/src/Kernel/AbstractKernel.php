@@ -63,6 +63,8 @@ use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException;
+use Waaseyaa\Foundation\Routing\Metadata\ValidatedRouteParticipation;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
@@ -126,6 +128,10 @@ abstract class AbstractKernel
 
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
+    private ?string $routeBootProfile = null;
+    private bool $routeBootFailed = false;
+    private ?ValidatedRouteParticipation $routeParticipation = null;
+    private ?RouteCompositionException $routeParticipationFailure = null;
     private bool $restrictedDiscoveryOnly = false;
 
     /**
@@ -191,6 +197,22 @@ abstract class AbstractKernel
         if ($this->booted) {
             return;
         }
+        $this->routeBootProfile ??= $this->restrictedDiscoveryOnly ? 'restricted' : 'runtime';
+        try {
+            $this->performBoot();
+        } catch (\Throwable $error) {
+            // Preserve existing ordinary boot retry behavior, but never admit
+            // route authority from an epoch that has failed once.
+            $this->routeBootFailed = true;
+            throw $error;
+        }
+    }
+
+    private function performBoot(): void
+    {
+        if ($this->booted) {
+            return;
+        }
 
         EnvLoader::load($this->projectRoot . '/.env');
 
@@ -242,6 +264,11 @@ abstract class AbstractKernel
         // inventory seeds the boot-scoped field-type registry that the field
         // registry admits against and the schema handlers project through.
         $this->compileManifest();
+        try {
+            $this->routeParticipation = ValidatedRouteParticipation::atBootstrap($this->manifest->providers, $this->manifest->routeParticipation);
+        } catch (RouteCompositionException $error) {
+            $this->routeParticipationFailure = $error;
+        }
         $this->bootEntityTypeManager();
         $this->bootMigrations();
         $this->discoverAndRegisterProviders();
@@ -277,6 +304,11 @@ abstract class AbstractKernel
             $this->finalizeBoot();
         }
 
+        if ($this->routeParticipation !== null
+            && array_column($this->routeParticipation->records, 'provider') !== array_map(static fn(ServiceProvider $provider): string => $provider::class, $this->providers)) {
+            $this->routeParticipation = null;
+            $this->routeParticipationFailure = new RouteCompositionException('inventory-unavailable', 'Registered providers do not match route participation.');
+        }
         $this->booted = true;
     }
 
@@ -1177,6 +1209,24 @@ abstract class AbstractKernel
     public function bootForCli(): void
     {
         $this->boot();
+    }
+
+    /** @internal Bootstrap-admitted provider inventory; this is not a completed route snapshot. */
+    public function getRouteParticipation(): ValidatedRouteParticipation
+    {
+        if ($this->routeBootFailed) {
+            throw new RouteCompositionException('boot-failed', 'Route authority requires a new kernel after failed boot.');
+        }
+        if ($this->routeBootProfile === 'restricted') {
+            throw new RouteCompositionException('unsupported-profile', 'Restricted kernels cannot publish runtime route authority.');
+        }
+        if (!$this->booted) {
+            throw new RouteCompositionException('unavailable', 'Route participation is unavailable before runtime boot completes.');
+        }
+        if ($this->routeParticipationFailure !== null) {
+            throw $this->routeParticipationFailure;
+        }
+        return $this->routeParticipation ?? throw new RouteCompositionException('inventory-unavailable', 'Route participation is unavailable.');
     }
 
     /**

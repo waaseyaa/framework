@@ -52,6 +52,9 @@ final class RouteParticipationCompiler
         }
         $code['CanonicalJson'] = $this->digest(__DIR__ . '/../../Schema/Diff/CanonicalJson.php');
         $code['ContributesRouteMetadataInterface'] = $this->digest(__DIR__ . '/../../ServiceProvider/Capability/ContributesRouteMetadataInterface.php');
+        foreach (['Discovery/PackageManifest', 'Discovery/PackageManifestCompiler', 'Kernel/Bootstrap/ManifestBootstrapper', 'Kernel/AbstractKernel'] as $bootstrap) {
+            $code[$bootstrap] = $this->digest(__DIR__ . '/../../' . $bootstrap . '.php');
+        }
         return ['schema' => 1, 'compiler_identity' => hash('sha256', json_encode($code, JSON_THROW_ON_ERROR)), 'records' => $records];
     }
 
