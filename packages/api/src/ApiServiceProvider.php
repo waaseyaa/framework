@@ -87,6 +87,8 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     private ?bool $contentSearchAvailable = null;
 
+    private ?bool $mcpAvailable = null;
+
     /** @var list<ProvidesApiCatalogEntriesInterface> */
     private array $apiCatalogEntryProviders = [];
 
@@ -220,6 +222,10 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             $routeInputs->publish($policy->effectiveMap());
         }
         $this->resolve(InternalFieldVisibilityPolicy::class);
+        // Finalize optional install facts at boot, even when both catalogs are
+        // disabled. Later route reads must not discover a different install.
+        $this->contentSearchAvailable();
+        $this->mcpInstalled();
         $this->apiCatalog = $this->buildApiCatalog();
         $this->aiCatalog = $this->buildAiCatalog();
     }
@@ -386,7 +392,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             ),
         );
 
-        if (self::mcpInstalled()) {
+        if ($this->mcpInstalled()) {
             $mcpRegistry = $this->resolveOptional(ToolRegistryReadModelInterface::class);
             $mcpConfig = $this->resolveOptional(ServerConfigReadModelInterface::class);
             $routers[] = new McpAdminApiRouter(new McpAdminController(
@@ -653,7 +659,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ->build(),
         );
 
-        if (self::mcpInstalled()) {
+        if ($this->mcpInstalled()) {
             // M5C WP01: MCP endpoint admin — read-only tool registry + server config.
             // All three endpoints gated by `_role: admin`; controller does NOT
             // re-check role (NFR-001 / DIR-004). Refs C-L6-01, DIR-004.
@@ -952,9 +958,9 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         }
     }
 
-    private static function mcpInstalled(): bool
+    private function mcpInstalled(): bool
     {
-        return class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
+        return $this->mcpAvailable ??= class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
     }
 
     /**

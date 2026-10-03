@@ -459,3 +459,5 @@ RM-06 auth/OIDC adoption: Foundation freezes service:<binding-id> presence from 
 ## JSON:API metadata producer
 
 API producer preparation: JsonApiRouteProvider::routeDefinitions consumes only copied entity/exposure inputs and emits immutable structural declarations. Its bare-manager constructor and registration methods remain compatibility projections of that same table. The two-entry structural cache stores RouteDefinition values, not live Symfony routes or callable handlers. Nonexposed routes carry a named stateless diagnostic handler identity. This helper is not a provider capability: ApiServiceProvider remains legacy until configured availability and existing domain-router parameter/response adaptation receive complete metadata execution wiring.
+
+API optional-install preparation: normal boot freezes existing content-search and MCP availability checks, including absence. Route projection reuses these scalar install facts. No new metadata capability or execution adapter is admitted by this slice; workflow binding and terminal adaptation remain pending.

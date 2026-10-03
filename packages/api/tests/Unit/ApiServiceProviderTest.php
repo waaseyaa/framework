@@ -19,6 +19,80 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 #[CoversClass(ApiServiceProvider::class)]
 final class ApiServiceProviderTest extends TestCase
 {
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function testOptionalInstallGatesAreFrozenAtBootEvenWhenPackagesAppearLater(): void
+    {
+        $missing = ['Waaseyaa\\Mcp\\McpServiceProvider', 'Waaseyaa\\Search\\SearchProviderInterface'];
+        foreach ($missing as $class) {
+            self::assertFalse(class_exists($class, false) || interface_exists($class, false));
+        }
+        $manager = new EntityTypeManager(new EventDispatcher());
+        $provider = new ApiServiceProvider();
+        $provider->setKernelContext('/tmp/test-project', [
+            'api' => ['content_search' => ['enabled' => true]],
+            'api_catalog' => ['enabled' => false], 'ai_catalog' => ['enabled' => false],
+        ], []);
+        $provider->setKernelServices(new class ($manager) implements KernelServicesInterface {
+            public function __construct(private EntityTypeManager $manager) {}
+            public function get(string $abstract): ?object
+            {
+                return $abstract === EntityTypeManager::class ? $this->manager : null;
+            }
+        });
+        $provider->register();
+        $autoloaders = spl_autoload_functions();
+        foreach ($autoloaders as $autoload) {
+            spl_autoload_unregister($autoload);
+        }
+        $probes = [];
+        $installation = static function (string $class) use ($missing, $autoloaders, &$probes): void {
+            if (in_array($class, $missing, true)) {
+                $probes[] = $class;
+                return;
+            }
+            foreach ($autoloaders as $autoload) {
+                $autoload($class);
+            }
+        };
+        spl_autoload_register($installation);
+        try {
+            $provider->boot();
+        } finally {
+            spl_autoload_unregister($installation);
+            foreach ($autoloaders as $autoload) {
+                spl_autoload_register($autoload);
+            }
+        }
+        self::assertEqualsCanonicalizing($missing, $probes);
+
+        $lateProbes = [];
+        $poison = static function (string $class) use ($missing, &$lateProbes): void {
+            if (in_array($class, $missing, true)) {
+                $lateProbes[] = $class;
+                throw new \LogicException('Late optional-package probe.');
+            }
+        };
+        spl_autoload_register($poison, true, true);
+        try {
+            for ($read = 0; $read < 2; $read++) {
+                $router = new WaaseyaaRouter();
+                $provider->routes($router, $manager);
+                self::assertNull($router->getRouteCollection()->get('api.content_search'));
+                self::assertNull($router->getRouteCollection()->get('api.mcp.admin.tools.index'));
+            }
+        } finally {
+            spl_autoload_unregister($poison);
+        }
+        self::assertSame([], $lateProbes);
+        self::assertTrue(class_exists($missing[0]));
+        self::assertTrue(interface_exists($missing[1]));
+        $router = new WaaseyaaRouter();
+        $provider->routes($router, $manager);
+        self::assertNull($router->getRouteCollection()->get('api.content_search'));
+        self::assertNull($router->getRouteCollection()->get('api.mcp.admin.tools.index'));
+    }
+
     public function testBootPublishesTheExistingNarrowedExposurePolicy(): void
     {
         $manager = new class (new EventDispatcher()) extends EntityTypeManager {
