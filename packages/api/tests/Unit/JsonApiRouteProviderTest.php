@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Tests\Unit;
 
-use Waaseyaa\Api\JsonApiRouteProvider;
-use Waaseyaa\Api\EntityTypeApiExposurePolicy;
-use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Api\Tests\Fixtures\UserNameContentTestEntity;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Routing\Exception\RouteNotFoundException;
-use Waaseyaa\Routing\WaaseyaaRouter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
+use Waaseyaa\Api\JsonApiRouteProvider;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Api\Tests\Fixtures\UserNameContentTestEntity;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
+use Waaseyaa\Routing\Exception\RouteNotFoundException;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(JsonApiRouteProvider::class)]
 final class JsonApiRouteProviderTest extends TestCase
@@ -32,6 +32,17 @@ final class JsonApiRouteProviderTest extends TestCase
         $this->router = new WaaseyaaRouter();
     }
 
+    public function testNumericLookingIdsShareCanonicalCompatibilityOrderingAndCache(): void
+    {
+        $first = new WaaseyaaRouter();
+        $second = new WaaseyaaRouter();
+        new JsonApiRouteProvider($this->managerWith(['1e0' => true, '01' => true]))->registerRoutes($first);
+        new JsonApiRouteProvider($this->managerWith(['01' => true, '1e0' => true]))->registerRoutes($second);
+        self::assertSame(array_keys($first->getRouteCollection()->all()), array_keys($second->getRouteCollection()->all()));
+        self::assertCount(1, $this->structuralRouteCache());
+        self::assertSame('api.01.index', array_keys($first->getRouteCollection()->all())[1]);
+    }
+
     #[Test]
     public function equivalent_manager_shapes_reuse_templates_but_receive_fresh_routes_and_collections(): void
     {
@@ -43,12 +54,13 @@ final class JsonApiRouteProviderTest extends TestCase
         new JsonApiRouteProvider($firstManager)->registerRoutes($firstRouter);
         $firstCache = $this->structuralRouteCache();
         self::assertCount(1, $firstCache);
-        $firstTemplate = array_values($firstCache)[0][0]['route'];
+        $firstTemplate = array_values($firstCache)[0][0];
+        self::assertInstanceOf(\Waaseyaa\Foundation\Routing\Metadata\RouteDefinition::class, $firstTemplate);
         new JsonApiRouteProvider($secondManager)->registerRoutes($secondRouter);
 
         $secondCache = $this->structuralRouteCache();
         self::assertCount(1, $secondCache);
-        self::assertSame($firstTemplate, array_values($secondCache)[0][0]['route']);
+        self::assertSame($firstTemplate, array_values($secondCache)[0][0]);
         $firstInternalCollection = $this->routerCollection($firstRouter);
         $secondInternalCollection = $this->routerCollection($secondRouter);
         self::assertNotSame($firstInternalCollection, $secondInternalCollection);
@@ -124,7 +136,15 @@ final class JsonApiRouteProviderTest extends TestCase
         self::assertNotNull($route);
         $controller = $route->getDefault('_controller');
         self::assertInstanceOf(\Closure::class, $controller);
-        self::assertSame([], (new \ReflectionFunction($controller))->getStaticVariables());
+        self::assertSame([], new \ReflectionFunction($controller)->getStaticVariables());
+        self::assertInstanceOf(\Waaseyaa\Api\Controller\NotExposedController::class, new \ReflectionFunction($controller)->getClosureThis());
+        foreach ($this->structuralRouteCache() as $templates) {
+            foreach ($templates as $template) {
+                self::assertInstanceOf(\Waaseyaa\Foundation\Routing\Metadata\RouteDefinition::class, $template);
+                self::assertIsString($template->handler->id);
+                json_encode($template->toArray(), JSON_THROW_ON_ERROR);
+            }
+        }
     }
 
     #[Test]
@@ -171,10 +191,22 @@ final class JsonApiRouteProviderTest extends TestCase
 
         $anonymous = Request::create('/api/tag', 'GET');
         $anonymous->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
-            public function id(): int|string { return 0; }
-            public function hasPermission(string $permission): bool { return false; }
-            public function getRoles(): array { return []; }
-            public function isAuthenticated(): bool { return false; }
+            public function id(): int|string
+            {
+                return 0;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+            public function getRoles(): array
+            {
+                return [];
+            }
+            public function isAuthenticated(): bool
+            {
+                return false;
+            }
         });
         $anonymousResult = $controller($anonymous);
         self::assertSame([
@@ -191,10 +223,22 @@ final class JsonApiRouteProviderTest extends TestCase
 
         $authenticated = clone $anonymous;
         $authenticated->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
-            public function id(): int|string { return 1; }
-            public function hasPermission(string $permission): bool { return false; }
-            public function getRoles(): array { return ['authenticated']; }
-            public function isAuthenticated(): bool { return true; }
+            public function id(): int|string
+            {
+                return 1;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+            public function getRoles(): array
+            {
+                return ['authenticated'];
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
         });
         $authenticatedResult = $controller($authenticated);
         self::assertSame($anonymousResult, $authenticatedResult);
@@ -278,10 +322,22 @@ final class JsonApiRouteProviderTest extends TestCase
 
             $request = Request::create('/api/' . $entityTypeId);
             $request->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
-                public function id(): int|string { return 1; }
-                public function hasPermission(string $permission): bool { return false; }
-                public function getRoles(): array { return ['authenticated']; }
-                public function isAuthenticated(): bool { return true; }
+                public function id(): int|string
+                {
+                    return 1;
+                }
+                public function hasPermission(string $permission): bool
+                {
+                    return false;
+                }
+                public function getRoles(): array
+                {
+                    return ['authenticated'];
+                }
+                public function isAuthenticated(): bool
+                {
+                    return true;
+                }
             });
             $response = ($diagnostic->getDefault('_controller'))($request);
             self::assertSame(404, $response['statusCode']);
@@ -612,7 +668,7 @@ final class JsonApiRouteProviderTest extends TestCase
         $this->setProviderStatic('structuralRouteCache', []);
     }
 
-    /** @return array<string, list<array{name: string, route: \Symfony\Component\Routing\Route}>> */
+    /** @return array<string, list<\Waaseyaa\Foundation\Routing\Metadata\RouteDefinition>> */
     private function structuralRouteCache(): array
     {
         $cache = $this->providerStatic('structuralRouteCache');
@@ -628,17 +684,17 @@ final class JsonApiRouteProviderTest extends TestCase
 
     private function setProviderStatic(string $name, mixed $value): void
     {
-        (new \ReflectionProperty(JsonApiRouteProvider::class, $name))->setValue(null, $value);
+        new \ReflectionProperty(JsonApiRouteProvider::class, $name)->setValue(null, $value);
     }
 
     private function providerStatic(string $name): mixed
     {
-        return (new \ReflectionProperty(JsonApiRouteProvider::class, $name))->getValue();
+        return new \ReflectionProperty(JsonApiRouteProvider::class, $name)->getValue();
     }
 
     private function routerCollection(WaaseyaaRouter $router): \Symfony\Component\Routing\RouteCollection
     {
-        $collection = (new \ReflectionProperty(WaaseyaaRouter::class, 'routes'))->getValue($router);
+        $collection = new \ReflectionProperty(WaaseyaaRouter::class, 'routes')->getValue($router);
         self::assertInstanceOf(\Symfony\Component\Routing\RouteCollection::class, $collection);
 
         return $collection;

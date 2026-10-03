@@ -454,3 +454,8 @@ checkpoint alone.
 ## Auth/OIDC metadata adoption
 
 RM-06 auth/OIDC adoption: Foundation freezes service:<binding-id> presence from explicit provider binding keys after successful runtime boot. These booleans are declarations, not health checks. Routing declares twelve auth handlers and individually includes the seven OIDC endpoints only for present explicit bindings. Inspection never resolves controllers or autoloads OIDC. Selected unhealthy handlers fail closed instead of disappearing. Auth factories are nonshared and preserve existing constructor dependencies; bare legacy helpers project the same route definitions. API, Admin Surface and FETDER remain required migrations, with CLI/Bimaaji and installed/Linux qualification open.
+
+
+## JSON:API metadata producer
+
+API producer preparation: JsonApiRouteProvider::routeDefinitions consumes only copied entity/exposure inputs and emits immutable structural declarations. Its bare-manager constructor and registration methods remain compatibility projections of that same table. The two-entry structural cache stores RouteDefinition values, not live Symfony routes or callable handlers. Nonexposed routes carry a named stateless diagnostic handler identity. This helper is not a provider capability: ApiServiceProvider remains legacy until configured availability and existing domain-router parameter/response adaptation receive complete metadata execution wiring.

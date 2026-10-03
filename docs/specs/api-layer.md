@@ -2209,3 +2209,10 @@ See [route-metadata.md](route-metadata.md) for the staged adoption boundaries.
 ## Auth/OIDC metadata adoption
 
 ROUTE-METADATA-01 auth/OIDC adapter adoption: AuthOidcRouteServiceProvider contributes pure declarations and explicit nonshared auth controller bindings. /api/user/me retains priority10; paths, methods, public flags and OIDC CSRF exemptions are unchanged. Finalized service-binding presence controls optional OIDC endpoint inclusion individually, without probing controller construction. Presence is not health: selected failures refuse execution. OidcHttpRoutes derives both metadata and its object-based compatibility projection from one route table. Auth/OIDC domain policies and extension ownership remain unchanged. Installed parity is pending.
+
+
+## JSON:API metadata producer
+
+JsonApiRouteProvider now owns one pure declaration table for discovery, exposed CRUD, field-save, translations and workflow paths. Its compatibility constructor still evaluates EntityTypeApiExposurePolicy from the supplied manager; metadata generation takes finalized copied inputs instead. The bounded cache retains immutable definitions, and every registration compiles fresh Symfony routes. Hidden entities retain identical account-independent 404 envelopes via NotExposedController. ApiServiceProvider capability adoption, workflow/search/catalog/MCP gates and explicit terminal adapter wiring remain open. Do not execute class references directly where existing domain routers adapt parameters or responses.
+
+Entity IDs use a total string order in metadata generation and compatibility cache keys. Numeric-looking IDs such as 01 and 1e0 retain distinct deterministic positions; this repairs the former input-dependent numeric comparison tie without changing route fields.

@@ -55,3 +55,8 @@ Optional bounds live under `api.content_search.rate_limit`:
 Accepted query keys are `q`, `page`, `page_size`, `topic`, `content_type`,
 `source`, `min_quality`, `sort`, `order`, and `facets`. Unknown or malformed
 input is refused before rate limiting or provider execution.
+
+
+## JSON:API metadata producer
+
+JsonApiRouteProvider::routeDefinitions generates immutable route declarations from finalized copied entity/exposure inputs. Legacy registration remains supported and projects fresh Symfony routes from a bounded immutable cache. Hidden entities retain opaque 404 behavior. ApiServiceProvider is still a legacy contributor pending complete availability and terminal adapter migration; this source preparation does not qualify installed Bimaaji.

@@ -1,0 +1,303 @@
+{
+    "base_commit": "885182c915b138a4d8e43da14eedf53ce203bba1",
+    "base": [
+        {
+            "name": "api.discovery",
+            "path": "/api",
+            "handler": "class:Waaseyaa\\Api\\ApiDiscoveryController::discover",
+            "methods": [
+                "GET"
+            ],
+            "defaults": [],
+            "options": {
+                "_public": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.index",
+            "path": "/api/article",
+            "handler": "class:Waaseyaa\\Api\\JsonApiController::index",
+            "methods": [
+                "GET"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_public": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.show",
+            "path": "/api/article/{id}",
+            "handler": "class:Waaseyaa\\Api\\JsonApiController::show",
+            "methods": [
+                "GET"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_public": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.store",
+            "path": "/api/article",
+            "handler": "class:Waaseyaa\\Api\\JsonApiController::store",
+            "methods": [
+                "POST"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true,
+                "_json_api": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.update",
+            "path": "/api/article/{id}",
+            "handler": "class:Waaseyaa\\Api\\JsonApiController::update",
+            "methods": [
+                "PATCH"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true,
+                "_json_api": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.destroy",
+            "path": "/api/article/{id}",
+            "handler": "class:Waaseyaa\\Api\\JsonApiController::destroy",
+            "methods": [
+                "DELETE"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.field_autosave",
+            "path": "/api/article/{id}/field/{key}",
+            "handler": "class:Waaseyaa\\Api\\Controller\\FieldAutoSaveController::update",
+            "methods": [
+                "PUT"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.translations.index",
+            "path": "/api/article/{id}/translations",
+            "handler": "class:Waaseyaa\\Api\\Controller\\TranslationController::index",
+            "methods": [
+                "GET"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.translations.show",
+            "path": "/api/article/{id}/translations/{langcode}",
+            "handler": "class:Waaseyaa\\Api\\Controller\\TranslationController::show",
+            "methods": [
+                "GET"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.translations.store",
+            "path": "/api/article/{id}/translations/{langcode}",
+            "handler": "class:Waaseyaa\\Api\\Controller\\TranslationController::store",
+            "methods": [
+                "POST"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true,
+                "_json_api": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.translations.update",
+            "path": "/api/article/{id}/translations/{langcode}",
+            "handler": "class:Waaseyaa\\Api\\Controller\\TranslationController::update",
+            "methods": [
+                "PATCH"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true,
+                "_json_api": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.translations.destroy",
+            "path": "/api/article/{id}/translations/{langcode}",
+            "handler": "class:Waaseyaa\\Api\\Controller\\TranslationController::destroy",
+            "methods": [
+                "DELETE"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.hidden.not_exposed",
+            "path": "/api/hidden",
+            "handler": "class:Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+            "methods": [
+                "GET",
+                "POST",
+                "PATCH",
+                "DELETE",
+                "PUT"
+            ],
+            "defaults": [],
+            "options": {
+                "_public": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.hidden.not_exposed_path",
+            "path": "/api/hidden/{path}",
+            "handler": "class:Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+            "methods": [
+                "GET",
+                "POST",
+                "PATCH",
+                "DELETE",
+                "PUT"
+            ],
+            "defaults": [],
+            "options": {
+                "_public": true
+            },
+            "requirements": {
+                "path": ".+"
+            },
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        }
+    ],
+    "workflow": [
+        {
+            "name": "api.article.workflow_transitions",
+            "path": "/api/article/{id}/workflow/transitions",
+            "handler": "class:Waaseyaa\\Api\\Controller\\WorkflowTransitionController::transitions",
+            "methods": [
+                "GET"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        },
+        {
+            "name": "api.article.workflow_transition",
+            "path": "/api/article/{id}/workflow/transition",
+            "handler": "class:Waaseyaa\\Api\\Controller\\WorkflowTransitionController::transition",
+            "methods": [
+                "POST"
+            ],
+            "defaults": {
+                "_entity_type": "article"
+            },
+            "options": {
+                "_authenticated": true
+            },
+            "requirements": [],
+            "host": "",
+            "schemes": [],
+            "condition": ""
+        }
+    ]
+}

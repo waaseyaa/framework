@@ -302,3 +302,8 @@ The following matrix enumerates every entity, query, and mutation exposed by `pa
 | Translations | `TranslationController` | not exposed | JSON:API only | — |
 
 <!-- Spec reviewed 2026-05-25 - api-surface-consolidation-jsonapi-primary-01KSEFTV - WP01 - JSON:API primary declaration + parity matrix -->
+
+
+## JSON:API metadata producer
+
+JSON:API structural declarations can now be generated from RouteContributionContext entity/exposure inputs without a manager or service lookup. Existing CRUD, field-save, translation and workflow methods, route defaults/options and ordering are preserved. Compatibility registration compiles fresh routes from immutable cached definitions. Nonexposed entities retain opaque 404 responses for every previously supported method and nested path, independent of account. This generator API does not supply controller construction or bypass domain-router access, serialization and mutation preconditions.
