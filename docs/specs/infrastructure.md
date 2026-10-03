@@ -3326,6 +3326,14 @@ refuses actual legacy contributors without calling their hooks, and publishes
 only after the whole contribution succeeds. Recursive or failed collection is
 terminal. A new epoch is required to retry.
 
+Readiness also admits copied built-in and terminal metadata lists with reserved
+source IDs and contiguous ordinals. Collection preserves built-in, provider and
+terminal order, then sorts by descending priority with stable ties. Duplicate
+names across any source refuse publication. Selected non-secret shared inputs
+and the full source roster bind snapshot identity, including when no provider
+declares routes. Empty static lists are valid standalone inputs and do not prove
+that a kernel admitted its complete source set.
+
 Metadata accepts only finite UTF-8 scalar data and arrays. Untyped two-string
 class/method syntax is reserved and rejected without autoloading; closed typed
 lists such as HTTP schemes have their own validation. Identity tags list/map
@@ -3337,6 +3345,6 @@ the actual registered provider roster. It preserves restricted-profile custody
 and refuses route authority permanently after a failed boot, while retaining
 existing ordinary boot retry behavior. Access before boot completes refuses.
 This token does not claim a completed route graph. Finalized input projection,
-whole-source composition, HTTP matching, CLI and Bimaaji adoption remain pending.
+kernel whole-source admission, HTTP matching, CLI and Bimaaji adoption remain pending.
 Existing route registration remains active until the staged adoption
 described in [route-metadata.md](route-metadata.md) is implemented and qualified.

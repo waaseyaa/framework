@@ -167,6 +167,18 @@ Focused discriminators:
 
 ### I2: Routing compiler and request-aware execution resolver
 
+I1 composer checkpoint: `RouteCompositionEpoch::ready()` admits copied built-in
+and terminal declaration lists, plus explicitly selected non-secret shared
+declaration inputs. Their reserved source IDs are `foundation.builtin` and
+`foundation.terminal`, with contiguous ordinals within each list. Collection is
+built-ins, canonical provider order, then terminal routes. Duplicate names across
+any source fail atomically; priority sorting is descending with stable collection
+ties. Empty lists remain legitimate for standalone fixtures and do not establish
+that a kernel's actual built-ins were projected. Kernel whole-source admission
+and finalized entity/exposure projection remain required before consumer wiring.
+This is Waaseyaa cohort/lifecycle policy; Symfony remains the route compiler and
+matcher, with no parallel matching or execution mechanism added.
+
 Owner: `waaseyaa/routing`. Expected files include new metadata compiler and
 handler resolver classes, `WaaseyaaRouter.php`, `RouteBuilder.php` compatibility
 adapters where required, `AuthOidcRouteServiceProvider.php`,

@@ -13,6 +13,11 @@ final class RouteCompositionEpoch
     private bool $ready = false;
     private array $contributors = [];
     private array $contexts = [];
+    /** @var list<RouteDefinition> */
+    private array $builtins = [];
+    /** @var list<RouteDefinition> */
+    private array $terminal = [];
+    private array $declarationInputs = [];
     private ?RouteSnapshot $snapshot = null;
     private ?RouteCompositionException $failure = null;
 
@@ -23,7 +28,14 @@ final class RouteCompositionEpoch
         return $this->state;
     }
 
-    public function ready(array $contributors, array $contexts): void
+    /**
+     * Freeze one finalized source set. Kernel completeness remains the caller's contract.
+     *
+     * @param array<array-key, mixed> $builtins Validated into the built-in declaration list.
+     * @param array<array-key, mixed> $terminal Validated into the terminal declaration list.
+     * @param array<array-key, mixed> $declarationInputs Explicitly selected non-secret inputs, never full application config.
+     */
+    public function ready(array $contributors, array $contexts, array $builtins = [], array $terminal = [], array $declarationInputs = []): void
     {
         if (!in_array($this->profile, ['cli', 'http'], true)) {
             throw new RouteCompositionException('unsupported-profile', 'This boot profile cannot compose runtime routes.');
@@ -47,8 +59,18 @@ final class RouteCompositionEpoch
             $admittedContributors[$id] = $provider;
             $admittedContexts[$id] = $context;
         }
+        $admittedBuiltins = $this->staticSource($builtins, 'foundation.builtin');
+        $admittedTerminal = $this->staticSource($terminal, 'foundation.terminal');
+        try {
+            $admittedInputs = ScalarRouteMetadata::copy($declarationInputs);
+        } catch (\Throwable) {
+            throw new RouteCompositionException('unavailable', 'Finalized route declaration inputs must be scalar metadata.');
+        }
         $this->contributors = $admittedContributors;
         $this->contexts = $admittedContexts;
+        $this->builtins = $admittedBuiltins;
+        $this->terminal = $admittedTerminal;
+        $this->declarationInputs = $admittedInputs;
         $this->ready = true;
     }
 
@@ -73,7 +95,7 @@ final class RouteCompositionEpoch
         }
         $this->state = 'collecting';
         try {
-            $routes = [];
+            $routes = $this->builtins;
             $inputs = [];
             foreach ($this->participation->records as $record) {
                 if ($record['kind'] !== 'declarative') {
@@ -90,8 +112,17 @@ final class RouteCompositionEpoch
                     $routes[] = $route;
                 }
             }
+            array_push($routes, ...$this->terminal);
             $this->requireCollecting();
-            $snapshot = new RouteSnapshot($routes, ['participation' => $this->participation->records, 'compiler' => $this->participation->compilerIdentity, 'contexts' => $inputs]);
+            // PHP's stable sort preserves collection order for equal priorities.
+            usort($routes, static fn(RouteDefinition $left, RouteDefinition $right): int => $right->priority <=> $left->priority);
+            $snapshot = new RouteSnapshot($routes, [
+                'participation' => $this->participation->records,
+                'compiler' => $this->participation->compilerIdentity,
+                'sources' => ['foundation.builtin', ...array_column($this->participation->records, 'provider'), 'foundation.terminal'],
+                'declarations' => $this->declarationInputs,
+                'contexts' => $inputs,
+            ]);
         } catch (\Throwable) {
             $this->fail($this->failure ?? new RouteCompositionException('contribution-failed', 'Route contribution failed; create a new boot epoch to retry.'));
         }
@@ -99,6 +130,9 @@ final class RouteCompositionEpoch
         $this->state = 'complete';
         $this->contributors = [];
         $this->contexts = [];
+        $this->builtins = [];
+        $this->terminal = [];
+        $this->declarationInputs = [];
         return $snapshot;
     }
 
@@ -108,7 +142,26 @@ final class RouteCompositionEpoch
         $this->failure = $failure;
         $this->contributors = [];
         $this->contexts = [];
+        $this->builtins = [];
+        $this->terminal = [];
+        $this->declarationInputs = [];
         throw $failure;
+    }
+
+    /** @return list<RouteDefinition> */
+    private function staticSource(array $routes, string $source): array
+    {
+        if (!array_is_list($routes)) {
+            throw new RouteCompositionException('unavailable', 'Static route declarations must be ordered lists.');
+        }
+        $admitted = [];
+        foreach ($routes as $ordinal => $route) {
+            if (!$route instanceof RouteDefinition || $route->sourceId !== $source || $route->ordinal !== $ordinal) {
+                throw new RouteCompositionException('unavailable', 'Static route declarations do not match their source.');
+            }
+            $admitted[] = $route;
+        }
+        return $admitted;
     }
 
     /** Recheck lifecycle after contributor execution, which can reenter the epoch. */

@@ -21,6 +21,101 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 #[CoversNothing]
 final class RouteCompositionEpochTest extends TestCase
 {
+    public function testWholeSourceCollectionHasStablePriorityAndDetachedInputs(): void
+    {
+        $builtin = new RouteDefinition('builtin', '/builtin', HandlerReference::fromString('builtin:render.page'), sourceId: 'foundation.builtin');
+        $terminal = new RouteDefinition('terminal', '/{path}', HandlerReference::fromString('builtin:render.page'), sourceId: 'foundation.terminal');
+        $high = new RouteDefinition('high', '/high', HandlerReference::fromString('builtin:render.page'), priority: 10, sourceId: 'foundation.terminal', ordinal: 1);
+        $inputs = ['api' => ['exposed' => true]];
+        $before = [$builtin];
+        $after = [$terminal, $high];
+        $inventory = $this->inventory([PureRouteProvider::class]);
+        $epoch = new RouteCompositionEpoch($inventory, 'cli');
+        $epoch->ready([PureRouteProvider::class => new PureRouteProvider()], [PureRouteProvider::class => new RouteContributionContext(PureRouteProvider::class, 0)], $before, $after, $inputs);
+        $before[0] = $terminal;
+        $after = [];
+        $inputs['api']['exposed'] = false;
+        $snapshot = $epoch->snapshot();
+        self::assertSame(['high', 'builtin', 'report', 'terminal'], array_column($snapshot->routes, 'name'));
+        self::assertSame(['api' => ['exposed' => true]], $snapshot->inputs['declarations']);
+        self::assertSame(['foundation.builtin', PureRouteProvider::class, 'foundation.terminal'], $snapshot->inputs['sources']);
+        self::assertSame($snapshot, $epoch->snapshot());
+        $http = new RouteCompositionEpoch($inventory, 'http');
+        $http->ready([PureRouteProvider::class => new PureRouteProvider()], [PureRouteProvider::class => new RouteContributionContext(PureRouteProvider::class, 0)], [$builtin], [$terminal, $high], ['api' => ['exposed' => true]]);
+        self::assertSame($snapshot->identity, $http->snapshot()->identity);
+    }
+
+    public function testCrossSourceDuplicatePoisonsWholeSnapshot(): void
+    {
+        $provider = new PureRouteProvider();
+        $epoch = new RouteCompositionEpoch($this->inventory([PureRouteProvider::class]), 'cli');
+        $epoch->ready([PureRouteProvider::class => $provider], [PureRouteProvider::class => new RouteContributionContext(PureRouteProvider::class, 0)], [new RouteDefinition('report', '/builtin', HandlerReference::fromString('builtin:render.page'), sourceId: 'foundation.builtin')]);
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            try {
+                $epoch->snapshot();
+                self::fail('Duplicate source names must refuse the entire snapshot.');
+            } catch (RouteCompositionException $exception) {
+                self::assertSame('contribution-failed', $exception->reason);
+            }
+        }
+        self::assertSame('failed', $epoch->state());
+        self::assertSame(1, $provider->calls);
+    }
+
+    public function testSharedInputsBindIdentityEvenWithoutDeclarativeProviders(): void
+    {
+        $inventory = $this->inventory([NoRoutesProvider::class]);
+        $left = new RouteCompositionEpoch($inventory, 'cli');
+        $right = new RouteCompositionEpoch($inventory, 'cli');
+        $left->ready([], [], [], [], ['exposed' => true]);
+        $right->ready([], [], [], [], ['exposed' => false]);
+        self::assertNotSame($left->snapshot()->identity, $right->snapshot()->identity);
+    }
+
+    public function testStaticCohortsRejectWrongSourceOrdinalAndMapShapeBeforeReadiness(): void
+    {
+        foreach (['source', 'ordinal', 'shape'] as $case) {
+            $epoch = new RouteCompositionEpoch($this->inventory([]), 'cli');
+            $route = new RouteDefinition('builtin', '/builtin', HandlerReference::fromString('builtin:render.page'), sourceId: $case === 'source' ? 'other' : 'foundation.builtin', ordinal: $case === 'ordinal' ? 1 : 0);
+            try {
+                $epoch->ready([], [], $case === 'shape' ? ['named' => $route] : [$route]);
+                self::fail('Invalid static source must refuse readiness.');
+            } catch (RouteCompositionException $exception) {
+                self::assertSame('unavailable', $exception->reason);
+            }
+            self::assertSame('unavailable', $epoch->state());
+        }
+    }
+
+    public function testLegacyCohortCannotPublishStaticSourcesAsACompleteGraph(): void
+    {
+        $epoch = new RouteCompositionEpoch($this->inventory([LegacyRouteProvider::class]), 'cli');
+        $epoch->ready([], [], [new RouteDefinition('builtin', '/', HandlerReference::fromString('builtin:render.page'), sourceId: 'foundation.builtin')]);
+        $this->expectException(RouteCompositionException::class);
+        $this->expectExceptionMessage('Legacy route contributor');
+        try {
+            $epoch->snapshot();
+        } finally {
+            self::assertSame('failed', $epoch->state());
+            self::assertSame(0, LegacyRouteProvider::$legacyCalls);
+        }
+    }
+
+    public function testInvalidSharedInputsDoNotAdmitPartialReadinessOrLeakDetails(): void
+    {
+        $epoch = new RouteCompositionEpoch($this->inventory([]), 'cli');
+        try {
+            $epoch->ready([], [], [], [], ['private-detail' => new \stdClass()]);
+            self::fail('Execution state cannot become declaration inputs.');
+        } catch (RouteCompositionException $exception) {
+            self::assertSame('unavailable', $exception->reason);
+            self::assertStringNotContainsString('private-detail', $exception->getMessage());
+        }
+        self::assertSame('unavailable', $epoch->state());
+        $epoch->ready([], [], [], [], ['enabled' => true]);
+        self::assertSame(['enabled' => true], $epoch->snapshot()->inputs['declarations']);
+    }
+
     private function inventory(array $roster): ValidatedRouteParticipation
     {
         return ValidatedRouteParticipation::atBootstrap($roster, new RouteParticipationCompiler()->compile($roster));

@@ -219,6 +219,17 @@ explicit higher priority wins independent of registration timing. Duplicate
 path patterns with distinct names remain legal and are resolved by this order.
 There is no last-writer override.
 
+Foundation's standalone epoch now admits immutable built-in and terminal lists
+at readiness, using reserved source IDs `foundation.builtin` and
+`foundation.terminal` with contiguous declaration ordinals. It freezes selected
+shared declaration inputs, includes the complete ordered provider roster in
+identity, validates duplicate names across all admitted sources, and sorts by
+descending priority with stable collection ties. Legacy participation refuses
+the entire snapshot even when static routes are available. Empty static lists
+are valid standalone inputs; they are not proof that a kernel projected all its
+routes. Kernel entity/exposure projection and whole-source admission, Routing
+compilation, HTTP compatibility and canonical consumers remain pending.
+
 ## Lifecycle, identity, and failure
 
 A composition epoch begins after provider discovery and route-declaration

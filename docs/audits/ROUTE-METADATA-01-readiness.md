@@ -212,4 +212,56 @@ dependency lock and gate configuration remain unchanged. Normal commit hooks
 validate the bookkeeping delta. Evidence is retained beside the earlier source
 checkpoint under `rm03-kernel-preflight.json` and the immutable repaired review
 manifest. This is a local source checkpoint, not hosted, installed or deployed
-qualification. Whole-source composition and consumer adoption remain pending.
+qualification. Kernel whole-source composition and consumer adoption remain pending.
+
+## Whole-source composer checkpoint, 3 October 2026
+
+Continued from local commit `70ce34edf1d10c29e225e070ce795850f90ec9ec`.
+Owned scope is the standalone Foundation epoch, its focused tests, the route
+metadata contract and implementation plan, this ledger and the slice fragment.
+The epoch now admits immutable built-in and terminal declarations around the
+ordered provider cohort, freezes selected shared scalar declaration inputs,
+includes all source IDs in identity and sorts by descending priority with stable
+collection ties. Cross-source duplicates poison publication. An actual legacy
+provider refuses the entire graph even if static declarations are available.
+No provider hooks, controllers, service lookup or source discovery were added.
+
+Four regression controls failed before implementation: missing static sources,
+cross-source duplicate acceptance, shared inputs omitted from identity and
+invalid static source admission. The values/epoch suite now passes 57 tests,
+131 assertions. Scoped PHPStan reports no errors. The existing API exposure
+policy remains the authority; it was inspected, not copied or changed.
+
+This is source-set admission, not production kernel whole-source proof. Empty
+static lists remain valid standalone fixtures. Finalized kernel entity/exposure
+projection, real built-ins/terminal declarations, Routing compilation, HTTP
+compatibility and canonical consumers are still pending. RM-03 remains in
+progress. Independent reviewer `review_rm02` approved the immutable six-file
+composer candidate, then the infrastructure-spec follow-up. All seven reviewed
+file hashes were verified unchanged before final evidence bookkeeping.
+
+The first default preflight had one failure: infrastructure spec drift. That
+spec now records standalone source admission and its pending kernel boundary.
+The final default preflight passed: 41 executed gates, two equivalent-input
+reuses, zero failures, three not applicable, 120.2 seconds. Reused evidence binds
+the original dirty candidate at base `70ce34edf1d10c29e225e070ce795850f90ec9ec`,
+worktree digest `25395c75d8bd4e3356c036706df96ad0065b169eeb40e85fbddcff11d8756282`;
+it does not claim those two checks executed again on the documentation delta.
+Source and tests remain the approved bytes, with unchanged lock SHA256
+`c879487007897c66be2f8eb6b412a40da14319c42ca664e8802843563b22ef03`.
+Evidence and immutable review manifests are under
+`C:/Users/jones/Documents/Codex/2026-10-03/bimaaji-route-wiring`, including
+`composer-preflight-final.json`. Only this ledger's evidence prose changes after
+final checks; normal hooks validate that bookkeeping delta. Hosted and installed
+qualification remain open, with no publication or deployment.
+
+The next projection slice must reuse `EntityTypeApiExposurePolicy`, whose
+existing boot-scoped policy is computed after entity registration. Its
+`fromConfig()` reads only the in-memory definition roster and declaration
+metadata; `effectiveMap()` returns scalar decisions. Do not recreate its
+allowlist logic in Foundation or resolve its service during route collection.
+`EntityTypeManager::getDefinitions()` is the memory-only roster getter. Copy
+only entity IDs, required bundle/path metadata and effective exposure decisions,
+plus explicitly selected non-secret inputs and manifest capability facts.
+Real built-in/terminal adoption must replace the registrar's authority through
+the planned Routing adapter, not retain two independently maintained route lists.
