@@ -11,6 +11,7 @@ use Symfony\Component\Routing\Matcher\UrlMatcher;
 use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
+use Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot;
 use Waaseyaa\Routing\Exception\RouteMethodNotAllowedException;
 use Waaseyaa\Routing\Exception\RouteNotFoundException;
 
@@ -28,9 +29,9 @@ final class WaaseyaaRouter
     private ?UrlGenerator $generator;
     private RequestContext $context;
 
-    public function __construct(?RequestContext $context = null)
+    public function __construct(?RequestContext $context = null, ?RouteSnapshot $snapshot = null)
     {
-        $this->routes = new RouteCollection();
+        $this->routes = $snapshot === null ? new RouteCollection() : new RouteMetadataCompiler()->compile($snapshot);
         $this->context = $context ?? new RequestContext();
         $this->matcher = null;
         $this->generator = null;

@@ -403,7 +403,7 @@ function vendor_freshness_static_class_data(string $staticPath, string $class): 
 {
     if (class_exists($class, false)) {
         try {
-            $declaredAt = (new \ReflectionClass($class))->getFileName();
+            $declaredAt = new \ReflectionClass($class)->getFileName();
             $vars = get_class_vars($class);
         } catch (\Throwable $exception) {
             return ['declared_at' => null, 'vars' => [], 'problem' => vendor_freshness_stale('the generated runtime autoloader is corrupt', sprintf('%s could not be inspected: %s', $class, $exception->getMessage()), 'composer dump-autoload')];
@@ -413,23 +413,36 @@ function vendor_freshness_static_class_data(string $staticPath, string $class): 
     }
 
     $probe = <<<'PHP'
-try {
-    $path = $argv[1] ?? '';
-    $class = $argv[2] ?? '';
-    require $path;
-    if (!class_exists($class, false)) {
-        throw new RuntimeException(sprintf('%s did not declare %s.', $path, $class));
-    }
-    $declaredAt = (new ReflectionClass($class))->getFileName();
-    echo json_encode([
-        'declared_at' => is_string($declaredAt) ? $declaredAt : null,
-        'vars' => get_class_vars($class),
-    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-} catch (Throwable $exception) {
-    fwrite(STDERR, $exception::class . ': ' . $exception->getMessage());
-    exit(1);
-}
-PHP;
+        try {
+            $path = $argv[1] ?? '';
+            $class = $argv[2] ?? '';
+            require $path;
+            if (!class_exists($class, false)) {
+                throw new RuntimeException(sprintf('%s did not declare %s.', $path, $class));
+            }
+            $declaredAt = (new ReflectionClass($class))->getFileName();
+            $vars = get_class_vars($class);
+            if (is_array($vars['classMap'] ?? null)) {
+                $encoded = [];
+                foreach ($vars['classMap'] as $name => $file) {
+                    if (!is_string($name)) {
+                        throw new RuntimeException('Invalid static class-map key.');
+                    }
+                    // PHP class names may contain arbitrary high bytes (Symfony Cache).
+                    $encoded[] = ['name' => base64_encode($name), 'file' => $file];
+                }
+                $vars['classMap'] = $encoded;
+            }
+            echo json_encode([
+                'declared_at' => is_string($declaredAt) ? $declaredAt : null,
+                'classmap_encoding' => 'base64-name-pairs',
+                'vars' => $vars,
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        } catch (Throwable $exception) {
+            fwrite(STDERR, $exception::class . ': ' . $exception->getMessage());
+            exit(1);
+        }
+        PHP;
     $descriptorSpec = [
         0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'],
         1 => ['pipe', 'w'],
@@ -467,8 +480,20 @@ PHP;
     } catch (\JsonException $exception) {
         return ['declared_at' => null, 'vars' => [], 'problem' => vendor_freshness_stale('the generated runtime autoloader is corrupt', sprintf('%s returned invalid inspection data: %s', $staticPath, $exception->getMessage()), 'composer dump-autoload')];
     }
-    if (!is_array($decoded) || !array_key_exists('declared_at', $decoded) || !is_array($decoded['vars'] ?? null)) {
+    if (!is_array($decoded) || !array_key_exists('declared_at', $decoded) || !is_array($decoded['vars'] ?? null) || ($decoded['classmap_encoding'] ?? null) !== 'base64-name-pairs') {
         return ['declared_at' => null, 'vars' => [], 'problem' => vendor_freshness_stale('the generated runtime autoloader is corrupt', sprintf('%s returned incomplete inspection data.', $staticPath), 'composer dump-autoload')];
+    }
+
+    if (is_array($decoded['vars']['classMap'] ?? null)) {
+        $classmap = [];
+        foreach ($decoded['vars']['classMap'] as $entry) {
+            $name = is_array($entry) && is_string($entry['name'] ?? null) && array_key_exists('file', $entry) ? base64_decode($entry['name'], true) : false;
+            if ($name === false) {
+                return ['declared_at' => null, 'vars' => [], 'problem' => vendor_freshness_stale('the generated runtime autoloader is corrupt', 'Invalid static class-map transport.', 'composer dump-autoload')];
+            }
+            $classmap[$name] = $entry['file'];
+        }
+        $decoded['vars']['classMap'] = $classmap;
     }
 
     return [

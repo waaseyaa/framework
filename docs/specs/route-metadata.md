@@ -394,3 +394,7 @@ an interface that has not yet been implemented.
 These checks qualify route production and consumption. They do not establish
 all domain-router dispatch, every effective authorization policy, or arbitrary
 external application compatibility.
+
+### Implemented Routing compiler boundary
+
+`Waaseyaa\Routing\RouteMetadataCompiler` and the optional snapshot argument of `WaaseyaaRouter` now provide the request-local Symfony adapter. It publishes stable handler IDs in `_controller`, performs no execution lookup and parses supported conditions without evaluation. Unsupported condition syntax/functions and application route compiler classes refuse rather than activating PHP during compilation. Symfony owns collection priority, matching and generation. This adapter does not itself complete kernel source admission, register execution bindings, migrate providers or repair the installed Bimaaji path.

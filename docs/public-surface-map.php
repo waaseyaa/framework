@@ -717,6 +717,7 @@ return [
     'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
     'Waaseyaa\Routing\Controller' => 'public',
     'Waaseyaa\Routing\Language\LanguageNegotiatorInterface' => 'public',
+    'Waaseyaa\Routing\RouteMetadataCompiler' => 'public',
     'Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver' => 'public',
     'Waaseyaa\SSR\Http\AppController\AppParameterKind' => 'public',
     'Waaseyaa\SSR\PageComposition\EntityPageComposerInterface' => 'public',

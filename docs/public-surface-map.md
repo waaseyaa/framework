@@ -956,6 +956,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 |---------|------|-------------|---------|
 | `Controller` | abstract class | public | — |
 | `Language\LanguageNegotiatorInterface` | interface | public | Detects the active language from a request via path prefix, domain, or header |
+| `RouteMetadataCompiler` | final class | public | — |
 
 ## Layer 5: AI
 

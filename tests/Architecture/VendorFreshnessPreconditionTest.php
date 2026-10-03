@@ -51,6 +51,21 @@ final class VendorFreshnessPreconditionTest extends TestCase
     // ── the shared precondition itself ───────────────────────────────────────
 
     #[Test]
+    public function isolated_static_map_preserves_binary_php_class_names(): void
+    {
+        $directory = sys_get_temp_dir() . '/waaseyaa-binary-classmap-' . bin2hex(random_bytes(8));
+        $this->fixtures[] = $directory;
+        new Filesystem()->mkdir($directory);
+        $path = $directory . '/autoload_static.php';
+        $class = 'BinaryStaticMap' . bin2hex(random_bytes(8));
+        file_put_contents($path, sprintf('<?php class %s { public static $classMap = ["\\xA9" => __FILE__, "\\xD3M4" => __FILE__]; }', $class));
+        $result = \vendor_freshness_static_class_data($path, $class);
+        self::assertNull($result['problem']);
+        self::assertSame(["\xA9" => realpath($path), "\xD3M4" => realpath($path)], $result['vars']['classMap']);
+        self::assertFalse(class_exists($class, false), 'The caller must remain isolated.');
+    }
+
+    #[Test]
     public function the_precondition_exit_code_is_distinct_from_defect_and_infrastructure_codes(): void
     {
         self::assertTrue(defined('VENDOR_FRESHNESS_EXIT_CODE'));
