@@ -151,11 +151,11 @@ Foundation declaration. No issue was closed and no release version was changed.
 
 ## Next ready slice
 
-Complete RM-03 with finalized entity/exposure and explicitly non-secret input
-projection, then whole-source epoch readiness. Participation is now persisted and
-admitted at bootstrap; it cannot imply a completed graph. Do not copy the entire
-application configuration into declaration contexts. Continue through the
-Routing/HTTP bridge only after these source and lifetime contracts are stable.
+Finalize whole-source kernel readiness and the Routing/HTTP bridge. Participation,
+memory-only projection and the boot exposure handoff are now implemented, while
+a completed kernel graph remains unproven. Do not copy the entire application
+configuration into declaration contexts. Continue only from the reviewed source
+and lifetime contracts; real built-in/provider/terminal admission remains required.
 
 ## Kernel participation checkpoint
 
@@ -321,3 +321,48 @@ validate that bookkeeping delta. Evidence is in `projector-preflight-final.json`
 and `projector-repaired-review/manifest.json` under the session evidence directory.
 This remains a local source checkpoint. Exact-head hosted qualification and real
 kernel/consumer/installed acceptance remain open.
+
+## Kernel input handoff checkpoint, 3 October 2026
+
+Continued from local commit `d2274f91a7da40cccabc935f25fc15c8bc7e35c2`.
+The scoped API prerequisite and narrow handoff design were independently reviewed
+before runtime edits; see `ROUTE-METADATA-01-api-inputs.md`. Foundation owns the
+kernel-local publication slot and its existing resolver bridge. API owns capture
+from the exact policy it already resolves during ordinary boot. No second policy,
+container, general bus or execution resolver was introduced.
+
+After finalizers and actual-provider roster validation, the kernel freezes the
+slot against entity IDs and creates shared/provider contexts once. The final API
+provider's exact admitted FQCN is the presence fact. Missing/stale participation
+refuses before fallback; admitted absence yields false exposure for all IDs.
+API-present without publication, malformed/duplicate maps and finalizer roster
+changes refuse canonical inputs. Late publication poisons cached getters while
+earlier immutable data remains unchanged. Input access retains early, restricted
+and failed-boot custody. Ordinary legacy boot/retry and bare API construction
+remain compatible. Protocol and resolver source now bind compiler identity.
+
+The state and four kernel/API entrypoint controls first failed on the missing
+handoff. Focused policy/routes, publication, kernel, provider/bootstrap,
+projector and immutable metadata checks now pass 149 tests, 435 assertions.
+Scoped PHPStan over six changed production files is clean. The real API boot
+test observes one policy definition-roster read; no policy is recomputed for
+publication. Definition-read poison after boot proves input getters never refresh.
+New public-slot surface is declared in Foundation and aggregates are generated.
+Independent immutable source review and final default preflight are pending.
+
+RM-03 remains in progress until complete kernel built-in/provider/terminal source
+admission is established. The input-supply seam is now implemented. Routing
+compilation/handler resolution, HTTP bridge, required provider migrations and
+Bimaaji/CLI/installed acceptance remain pending. No release or deployment changed.
+
+### Fresh-process purity and preflight repair
+
+The first default preflight found two governance failures: the new memory SQLite test construction required the canonical construction roster update, and the provider registry handoff required a package-discovery specification update. Both are repaired with the canonical writer and substantive lifecycle documentation.
+
+A separate-process kernel test then exposed `ScalarRouteMetadata` autoloading after provider finalization. Bootstrap participation compilation now admits known neutral protocol classes and the projector before projection begins. No constructors or contributor methods run during that admission. The autoload trap test passed after the repair. Focused evidence is 150 tests and 437 assertions; final preflight and bounded independent repair review remain pending.
+
+### Reviewed local source checkpoint
+
+Independent reviewer `review_rm02` approved the original immutable 20-file source candidate and the bounded 22-file repair snapshot. All snapshot and checkout hashes were verified before final bookkeeping. Repair review requested correction of the older package-discovery residual sentence, now updated to leave complete kernel source composition and consumer adoption pending. The fresh-process discriminator and 150-test focused suite pass; six production files pass scoped PHPStan.
+
+Default preflight after repairs passed: 42 gates executed, one equivalent-input reuse, zero failures, zero hosted-required in the default selection, three not applicable, 127.4 seconds. Evidence: `boot-handoff-final-preflight.json` and `boot-handoff-repair-review/manifest.json` in the session evidence directory. A final default pass validates this documentation correction before the local commit. Exact-head hosted, consumer and installed qualification remain open, and the live Bimaaji failure remains unresolved.

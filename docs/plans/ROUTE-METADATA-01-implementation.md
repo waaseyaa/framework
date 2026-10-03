@@ -191,6 +191,15 @@ any additional non-secret configuration they need before adding it. Existing
 `EntityTypeApiExposurePolicy` remains the exposure authority. Supplying its
 boot-finalized map through kernel integration remains a separate boundary.
 
+The reviewed input-handoff seam now captures that map through a kernel-local
+`RouteExposureInputs` publication slot on the existing service resolver. Ordinary
+API boot publishes the already-resolved policy's map. Kernel finalization freezes
+the slot once, checks the complete entity roster and admitted API presence, and
+constructs shared/provider contexts. Late writes poison canonical getters without
+mutating returned values; early, restricted and failed-boot custody applies.
+This closes input supply only, not complete route-source composition. See the
+scoped API prerequisite record `docs/audits/ROUTE-METADATA-01-api-inputs.md`.
+
 Owner: `waaseyaa/routing`. Expected files include new metadata compiler and
 handler resolver classes, `WaaseyaaRouter.php`, `RouteBuilder.php` compatibility
 adapters where required, `AuthOidcRouteServiceProvider.php`,

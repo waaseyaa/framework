@@ -64,6 +64,8 @@ use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException;
+use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
+use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\Routing\Metadata\ValidatedRouteParticipation;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
@@ -132,6 +134,10 @@ abstract class AbstractKernel
     private bool $routeBootFailed = false;
     private ?ValidatedRouteParticipation $routeParticipation = null;
     private ?RouteCompositionException $routeParticipationFailure = null;
+    private ?RouteExposureInputs $routeExposureInputs = null;
+    private ?RouteContributionContext $routeInputs = null;
+    private array $routeContributionContexts = [];
+    private ?RouteCompositionException $routeInputFailure = null;
     private bool $restrictedDiscoveryOnly = false;
 
     /**
@@ -308,6 +314,21 @@ abstract class AbstractKernel
             && array_column($this->routeParticipation->records, 'provider') !== array_map(static fn(ServiceProvider $provider): string => $provider::class, $this->providers)) {
             $this->routeParticipation = null;
             $this->routeParticipationFailure = new RouteCompositionException('inventory-unavailable', 'Registered providers do not match route participation.');
+        }
+        if (!$this->restrictedDiscoveryOnly && !$this->routeBootFailed && $this->routeParticipation !== null) {
+            try {
+                // Presence is admitted bootstrap evidence. The supported API provider
+                // is final; there is no subclass or runtime class-discovery path.
+                $apiPresent = in_array('Waaseyaa\\Api\\ApiServiceProvider', array_column($this->routeParticipation->records, 'provider'), true);
+                $exposure = $this->routeExposureInputsForProviders()->freeze(array_keys($this->entityTypeManager->getDefinitions()), $apiPresent);
+                $projector = new RouteInputProjector();
+                $this->routeInputs = $projector->project($this->entityTypeManager, $exposure, ['api' => $apiPresent]);
+                $this->routeContributionContexts = $projector->contexts($this->routeInputs, $this->routeParticipation);
+            } catch (\Throwable $error) {
+                $this->routeInputFailure = $error instanceof RouteCompositionException
+                    ? $error
+                    : new RouteCompositionException('inputs-unavailable', 'Finalized route inputs are unavailable.');
+            }
         }
         $this->booted = true;
     }
@@ -552,6 +573,7 @@ abstract class AbstractKernel
             // authority-dependent capabilities before install:init can create
             // genesis. Ordinary boot keeps validateCapabilities true.
             validateCapabilities: !$this->restrictedDiscoveryOnly,
+            routeExposureInputs: $this->routeExposureInputsForProviders(),
         );
     }
 
@@ -1227,6 +1249,29 @@ abstract class AbstractKernel
             throw $this->routeParticipationFailure;
         }
         return $this->routeParticipation ?? throw new RouteCompositionException('inventory-unavailable', 'Route participation is unavailable.');
+    }
+
+    /** @internal Frozen inputs only; this does not imply a complete route graph. */
+    public function getRouteInputs(): RouteContributionContext
+    {
+        $this->getRouteParticipation();
+        if ($this->routeInputFailure !== null) {
+            throw $this->routeInputFailure;
+        }
+        $this->routeExposureInputsForProviders()->assertReady();
+        return $this->routeInputs ?? throw new RouteCompositionException('inputs-unavailable', 'Finalized route inputs are unavailable.');
+    }
+
+    /** @internal Provider contexts are frozen once at successful runtime bootstrap. */
+    public function getRouteContributionContexts(): array
+    {
+        $this->getRouteInputs();
+        return $this->routeContributionContexts;
+    }
+
+    protected function routeExposureInputsForProviders(): RouteExposureInputs
+    {
+        return $this->routeExposureInputs ??= new RouteExposureInputs();
     }
 
     /**

@@ -2,6 +2,20 @@
 <!-- Spec reviewed 2026-09-02 - #2786 contract edge: GraphQL multi-value FormattedText resolvers distinguish list-shaped values from an associative single TextValue map, wrapping the latter as one item while recursively sanitizing both shapes. -->
 # API Layer
 
+## Route exposure input handoff (ROUTE-METADATA-01)
+
+Ordinary `ApiServiceProvider::boot()` publishes the scalar effective map from the
+shared `EntityTypeApiExposurePolicy` it already resolves into the kernel-owned
+`RouteExposureInputs` slot, when that slot is supplied. Bare provider construction
+retains existing behavior. The slot is exposed through the existing kernel
+resolver, not a second container. Publication does not change API exposure or
+register routes. Invalid/duplicate publication makes canonical input admission
+unavailable; legacy API routing still uses the existing policy. Kernel finalization
+freezes the map against its entity roster before immutable route contexts are
+admitted. Projection and inspection never resolve the policy or recompute it.
+This handoff requires a compatible Foundation/API cohort containing the slot.
+Full API route-metadata migration and installed qualification remain pending.
+
 <!-- Spec reviewed 2026-09-06 - #2766: authorize (`AuthorizeController`),
 token (`TokenController`, both the `authorization_code` and `refresh_token`
 grants), and revoke (`RevocationController`) all resolve `client_id` through

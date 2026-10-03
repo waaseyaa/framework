@@ -47,12 +47,15 @@ final class RouteParticipationCompiler
             ];
         }
         $code = [];
-        foreach (['RouteParticipationCompiler', 'ValidatedRouteParticipation', 'RouteCompositionEpoch', 'RouteCompositionException', 'RouteDefinition', 'RouteContributionContext', 'HandlerReference', 'RouteSnapshot', 'ScalarRouteMetadata'] as $symbol) {
+        foreach (['RouteParticipationCompiler', 'ValidatedRouteParticipation', 'RouteCompositionEpoch', 'RouteCompositionException', 'RouteDefinition', 'RouteContributionContext', 'RouteExposureInputs', 'HandlerReference', 'RouteSnapshot', 'ScalarRouteMetadata'] as $symbol) {
+            // Admit neutral protocol types at bootstrap, before pure projection begins.
+            new \ReflectionClass(__NAMESPACE__ . '\\' . $symbol);
             $code[$symbol] = $this->digest(__DIR__ . '/' . $symbol . '.php');
         }
+        new \ReflectionClass(\Waaseyaa\Foundation\Kernel\RouteInputProjector::class);
         $code['CanonicalJson'] = $this->digest(__DIR__ . '/../../Schema/Diff/CanonicalJson.php');
         $code['ContributesRouteMetadataInterface'] = $this->digest(__DIR__ . '/../../ServiceProvider/Capability/ContributesRouteMetadataInterface.php');
-        foreach (['Discovery/PackageManifest', 'Discovery/PackageManifestCompiler', 'Kernel/Bootstrap/ManifestBootstrapper', 'Kernel/AbstractKernel', 'Kernel/RouteInputProjector'] as $bootstrap) {
+        foreach (['Discovery/PackageManifest', 'Discovery/PackageManifestCompiler', 'Kernel/Bootstrap/ManifestBootstrapper', 'Kernel/Bootstrap/ProviderRegistry', 'Kernel/Bootstrap/ProviderRegistryKernelServices', 'Kernel/AbstractKernel', 'Kernel/RouteInputProjector'] as $bootstrap) {
             $code[$bootstrap] = $this->digest(__DIR__ . '/../../' . $bootstrap . '.php');
         }
         return ['schema' => 1, 'compiler_identity' => hash('sha256', json_encode($code, JSON_THROW_ON_ERROR)), 'records' => $records];

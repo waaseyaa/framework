@@ -56,6 +56,7 @@ use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -213,7 +214,11 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
     {
         // Resolve after every provider/app entity registration has completed so
         // strict allowlist validation fails during kernel boot, before routing.
-        $this->resolve(EntityTypeApiExposurePolicy::class);
+        $policy = $this->resolve(EntityTypeApiExposurePolicy::class);
+        $routeInputs = $this->resolveOptional(RouteExposureInputs::class);
+        if ($policy instanceof EntityTypeApiExposurePolicy && $routeInputs instanceof RouteExposureInputs) {
+            $routeInputs->publish($policy->effectiveMap());
+        }
         $this->resolve(InternalFieldVisibilityPolicy::class);
         $this->apiCatalog = $this->buildApiCatalog();
         $this->aiCatalog = $this->buildAiCatalog();

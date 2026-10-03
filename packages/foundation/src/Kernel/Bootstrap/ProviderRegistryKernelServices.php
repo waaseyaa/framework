@@ -26,6 +26,7 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
@@ -116,6 +117,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
          * @var (\Closure(): HealthCheckerInterface)|null
          */
         ?\Closure $healthCheckerAccessor = null,
+        private readonly ?RouteExposureInputs $routeExposureInputs = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -124,6 +126,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     public function get(string $abstract): ?object
     {
+        if ($abstract === RouteExposureInputs::class) {
+            return $this->routeExposureInputs;
+        }
         if ($abstract === HealthCheckerInterface::class) {
             return $this->healthCheckerAccessor !== null
                 ? ($this->healthCheckerAccessor)()

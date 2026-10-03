@@ -15,6 +15,7 @@ use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRegistry;
@@ -79,6 +80,7 @@ final class ProviderRegistry
          * without resolving authority-dependent capability publication.
          */
         bool $validateCapabilities = true,
+        ?RouteExposureInputs $routeExposureInputs = null,
     ): array {
         $this->providers = [];
 
@@ -97,6 +99,7 @@ final class ProviderRegistry
             communityContext: $communityContext,
             secretResolverRegistry: $secretResolverRegistry,
             healthCheckerAccessor: $healthCheckerAccessor,
+            routeExposureInputs: $routeExposureInputs,
         );
 
         foreach ($manifest->providers as $providerClass) {

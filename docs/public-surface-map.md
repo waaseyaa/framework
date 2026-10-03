@@ -113,6 +113,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Routing\Metadata\RouteCompositionException` | final class | public | — |
 | `Routing\Metadata\RouteContributionContext` | final readonly class | public | — |
 | `Routing\Metadata\RouteDefinition` | final readonly class | public | — |
+| `Routing\Metadata\RouteExposureInputs` | final class | public | — |
 | `Routing\Metadata\RouteParticipationCompiler` | final class | internal | — |
 | `Routing\Metadata\RouteSnapshot` | final readonly class | public | — |
 | `Routing\Metadata\ScalarRouteMetadata` | final class | internal | — |

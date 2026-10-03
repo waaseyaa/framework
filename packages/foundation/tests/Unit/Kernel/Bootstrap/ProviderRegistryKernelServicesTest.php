@@ -30,6 +30,7 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -48,6 +49,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         ?CommunityContextInterface $communityContext = null,
         ?SecretResolverRegistry $secretResolverRegistry = null,
         ?\Closure $healthCheckerAccessor = null,
+        ?RouteExposureInputs $routeExposureInputs = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -63,7 +65,16 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             communityContext: $communityContext,
             secretResolverRegistry: $secretResolverRegistry,
             healthCheckerAccessor: $healthCheckerAccessor,
+            routeExposureInputs: $routeExposureInputs,
         );
+    }
+
+    public function testExposurePublicationSlotIsTheKernelInstanceOrAbsent(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:');
+        $inputs = new RouteExposureInputs();
+        self::assertSame($inputs, $this->services($database, routeExposureInputs: $inputs)->get(RouteExposureInputs::class));
+        self::assertNull($this->services($database)->get(RouteExposureInputs::class));
     }
 
     /**

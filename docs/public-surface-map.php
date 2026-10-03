@@ -511,6 +511,7 @@ return [
     'Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException' => 'public',
     'Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext' => 'public',
     'Waaseyaa\Foundation\Routing\Metadata\RouteDefinition' => 'public',
+    'Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs' => 'public',
     'Waaseyaa\Foundation\Routing\Metadata\RouteParticipationCompiler' => 'internal',
     'Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot' => 'public',
     'Waaseyaa\Foundation\Routing\Metadata\ScalarRouteMetadata' => 'internal',

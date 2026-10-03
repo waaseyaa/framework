@@ -12,6 +12,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteCompositionEpoch', 'disposition' => 'public', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteCompositionException', 'disposition' => 'public', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteContributionContext', 'disposition' => 'public', 'ref' => '#3123'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteExposureInputs', 'disposition' => 'public', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteDefinition', 'disposition' => 'public', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteParticipationCompiler', 'disposition' => 'internal', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\RouteSnapshot', 'disposition' => 'public', 'ref' => '#3123'],

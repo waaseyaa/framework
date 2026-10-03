@@ -3340,8 +3340,18 @@ validates exact exposure/definition roster agreement, and copies only IDs,
 bundle metadata and exposure booleans into immutable shared/provider contexts.
 It does not discover capabilities, resolve services or recompute API policy.
 Shared inputs survive cohorts with no declarative providers. No configuration
-is selected yet. Kernel boot finalization and supplied-map provenance are still
-pending integration responsibilities.
+is selected yet. The standalone adapter does not attest boot timing or provenance;
+kernel input admission below owns those responsibilities.
+
+Kernel input admission now captures the existing API policy's scalar map during
+ordinary API boot through `RouteExposureInputs` on the existing resolver. It
+freezes once after finalizers against the entity roster and admitted API provider
+presence, then constructs shared/provider contexts. No policy resolution or
+definition refresh occurs in getters. Missing, invalid, duplicate, stale and late
+publication refuse canonical access. Late writes poison cached access without
+mutating earlier immutable values. Admitted API absence yields false exposure;
+missing participation never means absence. Ordinary legacy boot and bare API
+provider construction remain compatible. Boot/profile custody applies to inputs.
 
 Metadata accepts only finite UTF-8 scalar data and arrays. Untyped two-string
 class/method syntax is reserved and rejected without autoloading; closed typed
@@ -3353,7 +3363,7 @@ Kernel bootstrap now admits participation against the manifest's raw records and
 the actual registered provider roster. It preserves restricted-profile custody
 and refuses route authority permanently after a failed boot, while retaining
 existing ordinary boot retry behavior. Access before boot completes refuses.
-This token does not claim a completed route graph. Finalized input projection,
-kernel whole-source admission, HTTP matching, CLI and Bimaaji adoption remain pending.
+This token does not claim a completed route graph. Kernel whole-source admission,
+HTTP matching, CLI and Bimaaji adoption remain pending.
 Existing route registration remains active until the staged adoption
 described in [route-metadata.md](route-metadata.md) is implemented and qualified.

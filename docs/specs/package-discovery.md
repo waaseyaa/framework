@@ -779,5 +779,12 @@ accessible only after complete runtime boot. Inspection never recompiles a stale
 record. A restricted or previously failed kernel cannot become runtime route
 authority, including after an ordinary boot retry; create a new runtime kernel.
 The token is participation evidence, not a completed route snapshot. Finalized
-input projection, whole-source composition and consumer adoption remain pending.
+input projection is implemented; complete kernel route-source composition and
+consumer adoption remain pending.
 See [route-metadata.md](route-metadata.md) and the execution ledger.
+
+## Route input handoff during provider boot
+
+The kernel supplies one `RouteExposureInputs` instance through the provider registry's optional trailing argument. `ProviderRegistryKernelServices` returns that exact instance for its class identifier. Bare registry callers may omit it. The API provider publishes the effective map from its existing exposure policy during ordinary boot. After all providers and finalizers complete, the kernel freezes the publication against the finalized entity roster; missing, duplicate or stale publication refuses canonical route inputs. An admitted roster without the API provider produces an all-false exposure map.
+
+Route participation compilation admits the known neutral metadata protocol classes and projector during bootstrap source validation. Projection and subsequent inspection do not discover or autoload classes. This handoff neither invokes route contributors nor changes legacy route registration. Package presence alone does not establish active API participation.

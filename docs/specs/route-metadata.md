@@ -94,7 +94,23 @@ retain canonical participation order. No application configuration is selected
 in this slice. Exposure policy is not recomputed; the supplied map must come
 from the existing finalized policy. Map provenance, capability provenance and
 boot finalization remain the kernel integration caller's contract, not guarantees
-established by this standalone projector. Real kernel admission remains pending.
+established by this standalone projector. Kernel input admission below owns them.
+
+Kernel input admission now supplies that boundary. Its boot-local
+`RouteExposureInputs` slot is passed through the existing kernel-services
+resolver. Ordinary API boot publishes `effectiveMap()` from the exact shared
+policy it already resolves. No second policy is computed. After finalizers and
+actual-provider roster validation, the kernel freezes the publication against
+registered entity IDs and creates immutable shared/provider contexts once.
+The final API provider's exact bootstrap-admitted FQCN determines API presence;
+no provider reflection or autoload occurs during projection. An admitted API
+absence produces false exposure for the complete roster. Missing/stale
+participation cannot use that fallback. API presence without publication, stale
+rosters, malformed or duplicate publication refuse canonical inputs while
+ordinary legacy boot remains compatible. Late publication poisons subsequent
+canonical getters even after caching, leaving previously returned values
+unchanged. Restricted, early and failed-boot custody also applies to inputs.
+Full kernel route-source composition and consumer adoption remain pending.
 
 PHP cannot sandbox an arbitrary contributor. The supported contract is enforced
 by the restricted context, value validation, code review, and poison acceptance

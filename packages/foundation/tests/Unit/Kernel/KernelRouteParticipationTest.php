@@ -11,7 +11,11 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException;
+use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
+use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\Routing\Metadata\RouteParticipationCompiler;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
@@ -20,6 +24,128 @@ use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 #[CoversClass(PackageManifestCompiler::class)]
 final class KernelRouteParticipationTest extends TestCase
 {
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function testFreshProcessProjectionDoesNotAutoload(): void
+    {
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->poisonProjectionAutoload = true;
+        try {
+            $kernel->bootForCli();
+        } finally {
+            $kernel->removeProjectionAutoloadTrap();
+        }
+        self::assertSame([], $kernel->projectionAutoloads);
+        self::assertSame(['api' => false], $kernel->getRouteInputs()->capabilities);
+    }
+
+    public function testRuntimeBootFreezesAbsentApiInputsAndNeverRefreshesOnInspection(): void
+    {
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        try {
+            $kernel->getRouteInputs();
+            self::fail('Early input access must refuse.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('unavailable', $error->reason);
+        }
+        $kernel->bootForCli();
+        $first = $kernel->getRouteInputs();
+        self::assertSame([['id' => 'test', 'bundle_entity_type' => null, 'api_exposed' => false]], $first->entities);
+        self::assertSame(['api' => false], $first->capabilities);
+        $kernel->poisonDefinitionReads();
+        self::assertSame($first, $kernel->getRouteInputs());
+        self::assertSame([], $kernel->getRouteContributionContexts());
+    }
+
+    public function testRealApiProviderPublishesItsNarrowedMapDuringBoot(): void
+    {
+        file_put_contents($this->root . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing', 'api' => ['entity_type_allowlist' => []], 'api_catalog' => ['enabled' => false], 'ai_catalog' => ['enabled' => false]];");
+        file_put_contents($this->root . '/config/entity-types.php', "<?php return [new \\Waaseyaa\\Entity\\EntityType(id: 'post', label: 'Post', class: \\stdClass::class, api: true)];");
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Api\ApiServiceProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->bootForCli();
+        self::assertSame(['api' => true], $kernel->getRouteInputs()->capabilities);
+        self::assertFalse($kernel->getRouteInputs()->entities[0]['api_exposed']);
+        self::assertSame('legacy', $kernel->getRouteParticipation()->records[0]['kind']);
+    }
+
+    public function testLatePublicationPoisonsCachedKernelInputs(): void
+    {
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->captureExposureSlot = true;
+        $kernel->bootForCli();
+        $frozen = $kernel->getRouteInputs();
+        try {
+            $kernel->exposureSlot->publish(['test' => true]);
+            self::fail('Late input publication must refuse.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('inputs-unavailable', $error->reason);
+        }
+        self::assertFalse($frozen->entities[0]['api_exposed']);
+        $this->expectException(RouteCompositionException::class);
+        $kernel->getRouteInputs();
+    }
+
+    public function testFinalizerRosterChangeRefusesWithoutRecomputingExposure(): void
+    {
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Api\ApiServiceProvider::class, KernelLateEntityRouteFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->bootForCli();
+        self::assertCount(2, $kernel->getRouteParticipation()->records);
+        $this->expectException(RouteCompositionException::class);
+        $kernel->getRouteInputs();
+    }
+
+    public function testDeclaredApiWithoutPublicationCannotUseTheAbsentFallback(): void
+    {
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Api\ApiServiceProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->skipProviderBoot = true;
+        $kernel->bootForCli();
+        self::assertSame('legacy', $kernel->getRouteParticipation()->records[0]['kind']);
+        $this->expectException(RouteCompositionException::class);
+        $kernel->getRouteInputs();
+    }
+
+    public function testPureContextsAreFrozenWithoutInvokingContributors(): void
+    {
+        file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [KernelPureRouteInputFixtureProvider::class]]]], JSON_THROW_ON_ERROR));
+        $kernel = new RouteParticipationKernelFixture($this->root);
+        $kernel->bootForCli();
+        $contexts = $kernel->getRouteContributionContexts();
+        self::assertSame([KernelPureRouteInputFixtureProvider::class], array_keys($contexts));
+        self::assertSame(0, $contexts[KernelPureRouteInputFixtureProvider::class]->sourceOrder);
+        $kernel->poisonDefinitionReads();
+        self::assertSame($contexts, $kernel->getRouteContributionContexts());
+    }
+
+    public function testInputAccessRetainsRestrictedAndFailedBootCustody(): void
+    {
+        $restricted = new RouteParticipationKernelFixture($this->root);
+        $restricted->bootForSchemaSync();
+        try {
+            $restricted->getRouteInputs();
+            self::fail('Restricted input access must refuse.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('unsupported-profile', $error->reason);
+        }
+        ProcessFieldReadRuntime::reset();
+        $failed = new RouteParticipationKernelFixture($this->root);
+        $failed->failFinalization = true;
+        try {
+            $failed->bootForCli();
+        } catch (\RuntimeException) {
+        }
+        $failed->failFinalization = false;
+        $failed->bootForCli();
+        try {
+            $failed->getRouteInputs();
+            self::fail('A generic boot retry cannot revive route inputs.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('boot-failed', $error->reason);
+        }
+    }
+
     private string $root;
 
     protected function setUp(): void
@@ -201,6 +327,25 @@ final class KernelRouteFixtureProvider extends ServiceProvider
     public function register(): void {}
 }
 
+final class KernelLateEntityRouteFixtureProvider extends ServiceProvider implements FinalizesProviderBootInterface
+{
+    public function register(): void {}
+    public function finalizeProviderBoot(): void
+    {
+        $manager = $this->resolve(\Waaseyaa\Entity\EntityTypeManager::class);
+        $manager->registerEntityType(new \Waaseyaa\Entity\EntityType(id: 'late', label: 'Late', class: \stdClass::class));
+    }
+}
+
+final class KernelPureRouteInputFixtureProvider extends ServiceProvider implements ContributesRouteMetadataInterface
+{
+    public function register(): void {}
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        throw new \LogicException('Input finalization must not invoke route contributors.');
+    }
+}
+
 final class RouteParticipationKernelFixture extends AbstractKernel
 {
     public ?PackageManifest $suppliedManifest = null;
@@ -208,6 +353,36 @@ final class RouteParticipationKernelFixture extends AbstractKernel
     public bool $omitProviders = false;
     public bool $loadCachedManifest = false;
     public ?string $duringFinalization = null;
+    public bool $captureExposureSlot = false;
+    public ?RouteExposureInputs $exposureSlot = null;
+    public bool $skipProviderBoot = false;
+    public bool $poisonProjectionAutoload = false;
+    public array $projectionAutoloads = [];
+    private ?\Closure $projectionAutoloadTrap = null;
+
+    public function removeProjectionAutoloadTrap(): void
+    {
+        if ($this->projectionAutoloadTrap !== null) {
+            spl_autoload_unregister($this->projectionAutoloadTrap);
+        }
+    }
+
+    protected function bootProviders(): void
+    {
+        if (!$this->skipProviderBoot) {
+            parent::bootProviders();
+        }
+    }
+
+    public function poisonDefinitionReads(): void
+    {
+        $this->entityTypeManager = new class (new \Symfony\Component\EventDispatcher\EventDispatcher()) extends \Waaseyaa\Entity\EntityTypeManager {
+            public function getDefinitions(): array
+            {
+                throw new \LogicException('Inspection must never refresh definitions.');
+            }
+        };
+    }
 
     protected function compileManifest(): void
     {
@@ -222,6 +397,9 @@ final class RouteParticipationKernelFixture extends AbstractKernel
 
     protected function finalizeBoot(): void
     {
+        if ($this->captureExposureSlot) {
+            $this->exposureSlot = $this->routeExposureInputsForProviders();
+        }
         try {
             $this->getRouteParticipation();
         } catch (RouteCompositionException $error) {
@@ -232,6 +410,13 @@ final class RouteParticipationKernelFixture extends AbstractKernel
         }
         if ($this->omitProviders) {
             $this->providers = [];
+        }
+        if ($this->poisonProjectionAutoload) {
+            $this->projectionAutoloadTrap = function (string $class): void {
+                $this->projectionAutoloads[] = $class;
+                throw new \LogicException('Projection must not autoload.');
+            };
+            spl_autoload_register($this->projectionAutoloadTrap, true, true);
         }
     }
 }
