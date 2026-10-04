@@ -19,8 +19,8 @@ use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
  * Gated by `_role: admin` at the route level (NFR-001). The controller does
  * NOT re-check role.
  *
- * Mirrors `WorkflowGuardsApiRouter` shape: controller-router-resolveOptional
- * layout so the router is wired only when the read model is available.
+ * The legacy and explicit terminals share response adaptation. Explicit
+ * construction refuses unhealthy declared bindings; an absent model is nullable.
  */
 final class AuditApiRouter implements DomainRouterInterface
 {
@@ -45,7 +45,7 @@ final class AuditApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $controllerRef, 2);
 
         return match ($action) {
-            'index' => $this->respondIndex($request),
+            'index' => $this->index($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
@@ -54,7 +54,7 @@ final class AuditApiRouter implements DomainRouterInterface
         };
     }
 
-    private function respondIndex(Request $request): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $payload = $this->controller->index($request);
 

@@ -431,6 +431,8 @@ The bounded consumer repair is ready for review only when:
 - root records focused, installed, generated, split, preflight, and hosted
   evidence required by the actual final diff.
 
+Audit terminal preparation follows the admin/catalog checkpoint: extract the existing index response adapter, defer nonshared read-model resolution, preserve absent-model behavior, and refuse declared adapter failures. This qualifies one more API terminal under RM-06, without completing API metadata admission or installed graph-export acceptance.
+
 Foundation's remaining package-wide findings, the ten packages' full
 convergence work, #2859 lifecycle work beyond this snapshot contract, #3013
 full dispatcher parity, #3004 effective access, #3117 broader CLI convergence,

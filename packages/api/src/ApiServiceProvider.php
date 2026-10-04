@@ -167,6 +167,13 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(AuditApiRouter::class, function (): AuditApiRouter {
+            $model = $this->kernelServices?->get(AuditQueryReadModelInterface::class);
+            if ($model !== null && !$model instanceof AuditQueryReadModelInterface) {
+                throw new \RuntimeException('The audit execution binding is invalid.');
+            }
+            return new AuditApiRouter(new AuditQueryController($model));
+        });
         $this->bind(ApiCatalogRouter::class, function (): ApiCatalogRouter {
             if ($this->apiCatalog === null) {
                 throw new \RuntimeException('The boot-finalized API catalog is unavailable.');

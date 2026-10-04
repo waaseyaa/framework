@@ -139,6 +139,8 @@ specific guarantee to publish safely.
 
 ## Descope
 
+Audit terminal preparation at base 135acaf17124a12fa6d9facb50897c32131ec2b1 shares the router's public index adapter between legacy and explicit dispatch. Its nonshared binding preserves optional absence and refuses unhealthy declared audit adapters. Focused parity and failure controls are source preparation; full API declarations and installed CLI/Bimaaji admission remain open.
+
 No broad package remediation, release, deployment, process-static cache,
 controller autowiring redesign, or whole-package convergence claim is part of
 this design candidate.
