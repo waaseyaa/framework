@@ -203,3 +203,10 @@ unrelated factories do not preserve arbitrary methods. Two existing downstream
 JSON:API bare-router compatibility methods explicitly retain their public @api
 status. No dead-code baseline, exclusion or release gate is weakened. The native
 full installation diagnostic retains all seven optional route-presence checks.
+
+Hosted repair run 37206985396 passed both root repairs and all behavioral
+assertions, but the coverage shard refused the new tooling test's CoversClass
+target: tools/phpstan is outside the configured packages/*/src product coverage
+scope. The architecture tooling test now truthfully declares CoversNothing,
+following the existing tooling-test convention. Product coverage targets and
+the changed route metadata value/epoch companion declarations remain intact.

@@ -10,12 +10,13 @@ use PHPStan\Type\Constant\ConstantStringType;
 use PHPStan\Type\StringType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Tools\PHPStan\WaaseyaaEntrypointProvider;
 
-#[CoversClass(WaaseyaaEntrypointProvider::class)]
+// Repository tooling lives outside PHPUnit's packages/*/src product coverage scope.
+#[CoversNothing]
 final class RouteHandlerDeadCodeUsageTest extends TestCase
 {
     #[Test]
