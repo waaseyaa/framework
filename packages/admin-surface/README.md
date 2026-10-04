@@ -201,6 +201,9 @@ the model and `composer admin-surface-dependency-view` to refresh the view.
 | Application adapters | `PageBuilder/GenericPageBuilderSurfaceHost.php` | Page-builder domain-to-wire adapter |
 | Delivery and composition | `AdminSpaFallback.php` | Safe fallback HTML response |
 | Delivery and composition | `AdminSurfaceServiceProvider.php` | Service composition, routes, transport, and static delivery |
+| Delivery and composition | `Http/AdminSurfaceHttpController.php` | Selected core host request/response boundary |
+| Delivery and composition | `Http/PageBuilderHttpController.php` | Selected page-builder principal/body/response boundary |
+| Delivery and composition | `Http/AdminSpaHttpController.php` | Selected current SPA/static delivery boundary |
 
 ## Public-interface dispositions
 
@@ -263,3 +266,29 @@ Large extraction of `GenericAdminSurfaceHost` or
 `AdminSurfaceServiceProvider` remains in #3082 and #3083 respectively.
 Generated-owner admission from issue #3073 and required identifier validation
 from issue #3023 remain independently scoped.
+
+
+## ROUTE-METADATA-01 declaration and execution lifetime
+
+The provider contributes a complete immutable route table from copied page-builder
+binding presence. The existing path authority is loaded during registration; cold
+inspection resolves no hosts or execution services and reads no SPA files. Three
+internal nonshared request handlers belong to Delivery and composition. The same
+table and request handlers serve bare compatibility registration through Symfony
+RouteMetadataCompiler projection. The five core response encodings and seven
+page-builder response/status rules remain unchanged.
+
+Canonical custom-host construction occurs only after matching a core operation.
+The factory owns intentional reuse; the framework does not cache the request
+handler. The generic host keeps its existing access/schema authority. Declared
+unhealthy custom or page-builder hosts refuse selection. Canonical page-builder
+routes use binding presence even if execution is unhealthy; legacy bare registration
+retains its healthy optional-host gate. SPA/static files are read at execution,
+so already-created declarations and handlers do not retain stale file contents.
+Legacy callable SPA entrypoints accepting null/request and an explicit path remain
+supported; matched request attributes take precedence when present.
+
+These three concrete handlers are internal, with no new public compatibility
+promise. Legacy replay removal belongs to RM-06 after all bare callers migrate.
+Whole-package delta assessment and installed qualification remain open under the
+existing package audit program.

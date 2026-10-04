@@ -14,7 +14,7 @@ deptrac:
     - name: Delivery and composition
       collectors:
         - type: classLike
-          value: '^Waaseyaa\\AdminSurface\\(?:AdminSpaFallback|AdminSurfaceServiceProvider)$'
+          value: '^Waaseyaa\\AdminSurface\\(?:AdminSpaFallback|AdminSurfaceServiceProvider|Http\\(?:AdminSurfaceHttpController|PageBuilderHttpController|AdminSpaHttpController))$'
     - name: External Access
       collectors:
         - type: classLike

@@ -5,11 +5,11 @@ was audited before the package audit-record convention existed. Its full
 charter, roster, finding ledger and evidence stay in the immutable records
 below; this file points to them instead of copying them.
 
-- **Audit state:** assessed (program reference)
+- **Audit state:** needs delta review (historical program reference)
 - **Remediation state:** planned
 - **Base:** `2718edc02f8a47167db1b31b2192690bff773cfd`, the squash merge of PR #3086; audited 2026-09-17
 - **Dependency identity:** `composer.lock` SHA-256 `4d1aef005a77f239e4a577c6a2379677b7fd275cd95ff9cbae02fedfbfd3a4e4` at the base
-- **Evidence freshness:** current for source at `66e750444b1578ef1d5c4c823ac7fbc83e70863b`. The only later commit touching the package, `e24673de4` (release alpha.301), changed `packages/admin-surface/composer.json` version constraints and no source.
+- **Evidence freshness:** historical source through `66e750444b1578ef1d5c4c823ac7fbc83e70863b`. The only later commit touching the package, `e24673de4` (release alpha.301), changed `packages/admin-surface/composer.json` version constraints and no source.
 - **Owner issue:** `waaseyaa/framework#3074` (closed); program #3118
 
 ## Authoritative evidence
@@ -38,3 +38,6 @@ dependencies and next-action fields. They are not back-filled here. The next
 material change to admin-surface source triggers a delta review, which
 re-records the audit in template form and sets the row to "needs delta review"
 until it is done.
+
+
+ROUTE-METADATA-01 materially changes provider/static delivery after source base c3bd44e3e. The bounded consumer delta is recorded in ../ROUTE-METADATA-01-admin-provider.md; current source review does not re-assess the whole package. Full template/ledger re-record remains #3118-owned; historical captured evidence and trusted audit base remain preserved.

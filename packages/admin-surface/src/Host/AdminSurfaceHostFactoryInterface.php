@@ -5,23 +5,16 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface\Host;
 
 /**
- * Supplies the application's own admin surface host.
+ * Supplies the application's own admin surface host behind canonical routes.
  *
- * Bind an implementation in your service provider's `register()`. The framework
- * resolves it in {@see \Waaseyaa\AdminSurface\AdminSurfaceServiceProvider::routes()}
- * and registers the canonical `admin_surface.*` routes against the host it
- * returns, instead of the default `GenericAdminSurfaceHost`. Everything else —
- * paths, HTTP methods, authentication requirements, and refusal-status
- * promotion — stays the framework's.
+ * Bind one implementation during register(). Canonical HTTP execution calls
+ * the factory only after matching an Admin Surface operation, when every
+ * sibling binding is ready. The nonshared request adapter calls it per selected
+ * construction; the factory owns any intentional host reuse. The legacy bare
+ * routes() entry point still calls it once during registration.
  *
- * A factory rather than the host itself, because a real application host needs
- * services that sibling providers bind during their own `register()`. `routes()`
- * runs after every provider is registered, so building the host there is safe;
- * building it during `register()` is not.
- *
- * Exactly one factory is supported. An application that binds none keeps the
- * generic host and is unaffected.
- *
+ * Paths, gates and response promotion remain framework-owned. Absence keeps
+ * the generic host; an unhealthy declared canonical factory refuses selection.
  * @api
  */
 interface AdminSurfaceHostFactoryInterface
@@ -29,7 +22,7 @@ interface AdminSurfaceHostFactoryInterface
     /**
      * Build the host that serves the canonical admin surface routes.
      *
-     * Called once, at boot, during route registration.
+     * Called on selected canonical construction, or once by legacy route registration.
      */
     public function createAdminSurfaceHost(): AbstractAdminSurfaceHost;
 }

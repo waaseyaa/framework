@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AdminSurface;
 
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\Capability\McpApprovalCapabilities;
-use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceHostFactoryInterface;
 use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\AdminSurface\Http\AdminSpaHttpController;
+use Waaseyaa\AdminSurface\Http\AdminSurfaceHttpController;
+use Waaseyaa\AdminSurface\Http\PageBuilderHttpController;
 use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
-use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceRequest;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Audit\AuditedFieldRead;
@@ -26,8 +26,12 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Field\FieldSchemaAuthority;
 use Waaseyaa\Field\FieldTypeManagerInterface;
+use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
+use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
+use Waaseyaa\Foundation\Routing\Metadata\RouteDefinition;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
-use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\RouteMetadataCompiler;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\Session\SessionCookiePolicy;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
@@ -51,10 +55,34 @@ use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
  * duplicate route name, and shadowing them under different names to win on
  * priority forks the refusal contract (#2422).
  */
-final class AdminSurfaceServiceProvider extends ServiceProvider
+final class AdminSurfaceServiceProvider extends ServiceProvider implements ContributesRouteMetadataInterface
 {
     public function register(): void
     {
+        // Load only the owned path authority before cold declaration reads.
+        new \ReflectionClass(AdminSurfaceRoutePaths::class);
+        $this->bind(AdminSurfaceHttpController::class, function (): AdminSurfaceHttpController {
+            $factory = $this->kernelServices?->get(AdminSurfaceHostFactoryInterface::class);
+            if ($factory !== null && !$factory instanceof AdminSurfaceHostFactoryInterface) {
+                throw new \RuntimeException('The Admin Surface host factory is invalid.');
+            }
+            if ($factory instanceof AdminSurfaceHostFactoryInterface) {
+                return new AdminSurfaceHttpController($factory->createAdminSurfaceHost());
+            }
+            $manager = $this->resolve(EntityTypeManagerInterface::class);
+            if (!$manager instanceof EntityTypeManagerInterface) {
+                throw new \RuntimeException('The Admin Surface entity manager is invalid.');
+            }
+            return new AdminSurfaceHttpController($this->buildGenericHost($manager));
+        });
+        $this->bind(PageBuilderHttpController::class, function (): PageBuilderHttpController {
+            $host = $this->resolve(PageBuilderSurfaceHostInterface::class);
+            if (!$host instanceof PageBuilderSurfaceHostInterface) {
+                throw new \RuntimeException('The page-builder host is invalid.');
+            }
+            return new PageBuilderHttpController($host);
+        });
+        $this->bind(AdminSpaHttpController::class, fn(): AdminSpaHttpController => $this->spaController());
         $this->singleton(AdminPublicationFieldReaderInterface::class, function (): AdminPublicationFieldReaderInterface {
             $capabilities = $this->resolve(CapabilityRegistryInterface::class);
             $privilegedReadLedger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
@@ -250,63 +278,22 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
         $host = $this->resolveApplicationHost() ?? $this->buildGenericHost($entityTypeManager);
-
-        $pageBuilderHost = $this->resolveOptional(PageBuilderSurfaceHostInterface::class);
-        if ($pageBuilderHost instanceof PageBuilderSurfaceHostInterface) {
-            self::registerPageBuilderRoutes($router, $pageBuilderHost);
+        $pageBuilder = $this->resolveOptional(PageBuilderSurfaceHostInterface::class);
+        $context = new RouteContributionContext(self::class, 0, capabilities: [
+            'service:Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => $pageBuilder instanceof PageBuilderSurfaceHostInterface,
+        ]);
+        $controllers = [AdminSurfaceHttpController::class => new AdminSurfaceHttpController($host), AdminSpaHttpController::class => $this->spaController()];
+        if ($pageBuilder instanceof PageBuilderSurfaceHostInterface) {
+            $controllers[PageBuilderHttpController::class] = new PageBuilderHttpController($pageBuilder);
         }
+        self::replay($router, self::declarations($context), $controllers);
+    }
 
-        self::registerRoutes($router, $host);
-
-        // Admin SPA catch-all — registered after _surface API routes so those
-        // match first, but before the framework's SSR catch-all in
-        // BuiltinRouteRegistrar (provider routes() runs at line 145–147).
-        $projectRoot = $this->projectRoot;
-        $vendorDistDir = __DIR__ . '/../dist';
-        $vendorDistContent = is_file($vendorDistDir . '/index.html')
-            ? file_get_contents($vendorDistDir . '/index.html')
-            : null;
+    private function spaController(): AdminSpaHttpController
+    {
         $sessionCookie = $this->config['session']['cookie'] ?? null;
-        $csrfCookieName = new SessionCookiePolicy(
-            is_array($sessionCookie) ? $sessionCookie : null,
-        )->csrfName();
-
-        $router->addRoute('admin_spa', RouteBuilder::create('/admin/{path}')
-            ->methods('GET')
-            ->allowAll()
-            ->controller(static function (mixed $request = null, string $path = '') use ($projectRoot, $vendorDistDir, $vendorDistContent, $csrfCookieName): Response {
-                // Serve static assets (JS, CSS, images) from public/admin/ or vendor dist.
-                // HTML assets receive the same runtime csrfCookieName rewrite as the SPA fallback.
-                if ($path !== '' && !str_contains($path, '..')) {
-                    $publicAsset = $projectRoot . '/public/admin/' . $path;
-                    if (is_file($publicAsset)) {
-                        return self::serveStaticFile($publicAsset, $csrfCookieName);
-                    }
-
-                    $vendorAsset = $vendorDistDir . '/' . $path;
-                    if (is_file($vendorAsset)) {
-                        return self::serveStaticFile($vendorAsset, $csrfCookieName);
-                    }
-                }
-
-                // SPA index fallback for route paths.
-                $html = self::resolveAdminIndex($projectRoot, $vendorDistContent);
-                if ($html !== null) {
-                    return new Response(
-                        self::applyRuntimeCsrfCookieName($html, $csrfCookieName),
-                        200,
-                        ['Content-Type' => 'text/html; charset=UTF-8'],
-                    );
-                }
-
-                $appName = getenv('APP_NAME');
-                $appName = is_string($appName) && $appName !== '' ? $appName : 'Application';
-
-                return AdminSpaFallback::htmlResponse($appName);
-            })
-            ->requirement('path', '(?!(?:_surface|api)(?:/|$)).*')
-            ->default('path', '')
-            ->build());
+        $csrfName = new SessionCookiePolicy(is_array($sessionCookie) ? $sessionCookie : null)->csrfName();
+        return new AdminSpaHttpController($this->projectRoot, __DIR__ . '/../dist', $csrfName);
     }
 
     /**
@@ -355,180 +342,64 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
      */
     public static function registerRoutes(WaaseyaaRouter $router, AbstractAdminSurfaceHost $host): void
     {
-        // Session endpoint uses requireSession (not requireAuthentication) so the
-        // SPA can distinguish "not logged in" from "endpoint not available"
-        // (network error). The host's resolveSession() checks the account and
-        // returns null for unauthorized users, which surfaces as a refusal
-        // envelope AND — since #2161 — a real 401 on the status line.
-        $router->addRoute('admin_surface.session', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_SESSION)
-            ->methods('GET')
-            ->requireSession()
-            ->controller(fn($request) => self::surfaceResponse($host->handleSession($request)))
-            ->build());
-
-        $router->addRoute('admin_surface.catalog', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_CATALOG)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request) => self::surfaceResponse($host->handleCatalog($request)))
-            ->build());
-
-        $router->addRoute('admin_surface.list', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_LIST)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request, $type) => self::surfaceResponse($host->handleList($request, $type)))
-            ->build());
-
-        $router->addRoute('admin_surface.get', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_GET)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request, $type, $id) => self::surfaceResponse($host->handleGet($request, $type, $id)))
-            ->build());
-
-        $router->addRoute('admin_surface.action', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_ACTION)
-            ->methods('POST')
-            ->requireAuthentication()
-            ->requireCsrf()
-            ->controller(fn($request, $type, $action) => self::surfaceResponse($host->handleAction($request, $type, $action)))
-            ->build());
+        self::replay($router, self::declarations(new RouteContributionContext(self::class, 0), includePageBuilder: false, includeSpa: false), [AdminSurfaceHttpController::class => new AdminSurfaceHttpController($host)]);
     }
 
-    /**
-     * Emit the Admin Surface envelope with its own transport contract.
-     *
-     * Every `AbstractAdminSurfaceHost::handle*` method returns the package's
-     * flat `{ok, data, error, meta}` envelope. It is not a JSON:API document,
-     * so handing an array to `ControllerDispatcher` would incorrectly apply
-     * the Foundation JSON:API media type and pretty-printing. Returning a
-     * `JsonResponse` here keeps that package-specific knowledge at the route
-     * boundary and preserves the compact `application/json` contract.
-     *
-     * Only a genuine 400-599 integer is promoted. `handle*` is overridable, so a
-     * host subclass can return a hand-built envelope whose status is absent, a
-     * string, or out of range; handing that to the dispatcher would reach the
-     * `Response` constructor and turn a clean refusal into a 500. Anything
-     * unrecognised keeps HTTP 200 instead.
-     *
-     * @param  array<string, mixed> $envelope
-     */
-    private static function surfaceResponse(array $envelope): JsonResponse
+    public static function registerPageBuilderRoutes(WaaseyaaRouter $router, PageBuilderSurfaceHostInterface $host): void
     {
-        $status = $envelope['error']['status'] ?? null;
-        if (($envelope['ok'] ?? null) !== false
-            || !is_int($status)
-            || $status < 400
-            || $status > 599
-        ) {
-            $status = 200;
+        $context = new RouteContributionContext(self::class, 0, capabilities: ['service:Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => true]);
+        self::replay($router, self::declarations($context, includeCore: false, includeSpa: false), [PageBuilderHttpController::class => new PageBuilderHttpController($host)]);
+    }
+
+    /** @return iterable<RouteDefinition> Pure declarations from admitted binding presence. */
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        yield from self::declarations($context);
+    }
+
+    /** @return iterable<RouteDefinition> */
+    private static function declarations(RouteContributionContext $context, bool $includeCore = true, bool $includePageBuilder = true, bool $includeSpa = true): iterable
+    {
+        $ordinal = 0;
+        $pageBuilderPresent = $context->capabilities['service:Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface'] ?? false;
+        foreach ([
+            ['admin_surface.page_builder.definitions', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DEFINITIONS, PageBuilderHttpController::class, 'definitions', 'GET', ['_authenticated' => true], [], 'page'],
+            ['admin_surface.page_builder.command', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND, PageBuilderHttpController::class, 'command', 'POST', ['_authenticated' => true, '_csrf' => true], [], 'page'],
+            ['admin_surface.page_builder.preview', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW, PageBuilderHttpController::class, 'preview', 'POST', ['_authenticated' => true, '_csrf' => true], [], 'page'],
+            ['admin_surface.page_builder.history', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_HISTORY, PageBuilderHttpController::class, 'history', 'GET', ['_authenticated' => true], [], 'page'],
+            ['admin_surface.page_builder.revision', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_REVISION, PageBuilderHttpController::class, 'revision', 'GET', ['_authenticated' => true], ['revision' => '[1-9][0-9]*'], 'page'],
+            ['admin_surface.page_builder.restore', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_RESTORE, PageBuilderHttpController::class, 'restore', 'POST', ['_authenticated' => true, '_csrf' => true], [], 'page'],
+            ['admin_surface.page_builder.draft', AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT, PageBuilderHttpController::class, 'draft', 'GET', ['_authenticated' => true], [], 'page'],
+            ['admin_surface.session', AdminSurfaceRoutePaths::PATH_SESSION, AdminSurfaceHttpController::class, 'session', 'GET', ['_session' => true], [], 'core'],
+            ['admin_surface.catalog', AdminSurfaceRoutePaths::PATH_CATALOG, AdminSurfaceHttpController::class, 'catalog', 'GET', ['_authenticated' => true], [], 'core'],
+            ['admin_surface.list', AdminSurfaceRoutePaths::PATH_LIST, AdminSurfaceHttpController::class, 'list', 'GET', ['_authenticated' => true], [], 'core'],
+            ['admin_surface.get', AdminSurfaceRoutePaths::PATH_GET, AdminSurfaceHttpController::class, 'get', 'GET', ['_authenticated' => true], [], 'core'],
+            ['admin_surface.action', AdminSurfaceRoutePaths::PATH_ACTION, AdminSurfaceHttpController::class, 'action', 'POST', ['_authenticated' => true, '_csrf' => true], [], 'core'],
+        ] as [$name, $path, $target, $action, $method, $options, $requirements, $family]) {
+            if (($family === 'page' && (!$includePageBuilder || !$pageBuilderPresent)) || ($family === 'core' && !$includeCore)) {
+                continue;
+            }
+            yield new RouteDefinition($name, $path, HandlerReference::fromString('class:' . $target . '::' . $action), methods: [$method], options: $options, requirements: $requirements, sourceId: $context->sourceId, ordinal: $ordinal++);
         }
-
-        return new JsonResponse($envelope, $status);
-    }
-
-    public static function registerPageBuilderRoutes(
-        WaaseyaaRouter $router,
-        PageBuilderSurfaceHostInterface $host,
-    ): void {
-        $router->addRoute('admin_surface.page_builder.definitions', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DEFINITIONS)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request, $surface) => self::pageBuilderResponse($host->handleDefinitions(self::pageBuilderRequest($request), $surface)))
-            ->build());
-
-        $router->addRoute('admin_surface.page_builder.command', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND)
-            ->methods('POST')
-            ->requireAuthentication()
-            ->requireCsrf()
-            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleCommand(self::pageBuilderRequest($request), $surface, $id)))
-            ->build());
-
-        $router->addRoute('admin_surface.page_builder.preview', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW)
-            ->methods('POST')
-            ->requireAuthentication()
-            ->requireCsrf()
-            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handlePreview(self::pageBuilderRequest($request), $surface, $id)))
-            ->build());
-
-        $router->addRoute('admin_surface.page_builder.history', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_HISTORY)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleHistory(self::pageBuilderRequest($request), $surface, $id)))
-            ->build());
-
-        $router->addRoute('admin_surface.page_builder.revision', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_REVISION)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request, $surface, $id, $revision) => self::pageBuilderResponse($host->handleRevision(self::pageBuilderRequest($request), $surface, $id, $revision)))
-            ->requirement('revision', '[1-9][0-9]*')
-            ->build());
-
-        $router->addRoute('admin_surface.page_builder.restore', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_RESTORE)
-            ->methods('POST')
-            ->requireAuthentication()
-            ->requireCsrf()
-            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleRestore(self::pageBuilderRequest($request), $surface, $id)))
-            ->build());
-
-        $router->addRoute('admin_surface.page_builder.draft', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT)
-            ->methods('GET')
-            ->requireAuthentication()
-            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleDraft(self::pageBuilderRequest($request), $surface, $id)))
-            ->build());
-    }
-
-    /**
-     * Move a page-builder refusal's status onto the wire.
-     *
-     * Every `PageBuilderSurfaceHostInterface::handle*` method answers with the
-     * Admin Surface `{ok, data, error, meta}` envelope, and every refusal
-     * `GenericPageBuilderSurfaceHost` can produce is an
-     * `AdminSurfaceResultData::error()` array. Returned bare, all seven land on
-     * `ControllerDispatcher::handleCallable()`'s `statusCode ?? 200` default, so
-     * a 401/403/404/409/422/428/501 shipped as HTTP 200 and the real status was
-     * legible only inside the body (#2409, the page-builder half of #2161).
-     *
-     * The dispatcher's own `statusCode`/`body` contract carries the status. The
-     * body keeps the JSON:API media type and pretty-printing these routes have
-     * always emitted, unlike `surfaceResponse()`, which additionally converts
-     * the five `admin_surface.*` routes to a compact `application/json`
-     * document. Only the status line changes here.
-     *
-     * Only a genuine 400-599 integer is promoted. The interface types the
-     * handlers as bare `array<string, mixed>`, so a third-party host may return
-     * an envelope whose status is absent, a string, a float, or out of range;
-     * handing that to the dispatcher would reach the `Response` constructor and
-     * turn a clean refusal into a 500. An envelope that already carries its own
-     * `statusCode`/`body` transport keys is likewise left alone — the dispatcher
-     * already honours those. Anything unrecognised is returned untouched, so the
-     * response is byte-for-byte what it was before this promotion existed.
-     *
-     * @param  array<string, mixed> $envelope
-     * @return array<string, mixed>
-     */
-    private static function pageBuilderResponse(array $envelope): array
-    {
-        $status = $envelope['error']['status'] ?? null;
-        if (($envelope['ok'] ?? null) !== false
-            || !is_int($status)
-            || $status < 400
-            || $status > 599
-            || array_key_exists('statusCode', $envelope)
-            || array_key_exists('body', $envelope)
-        ) {
-            return $envelope;
+        if ($includeSpa) {
+            yield new RouteDefinition('admin_spa', '/admin/{path}', HandlerReference::fromString('class:' . AdminSpaHttpController::class . '::serve'), methods: ['GET'], requirements: ['path' => '(?!(?:_surface|api)(?:/|$)).*'], defaults: ['path' => ''], options: ['_public' => true], sourceId: $context->sourceId, ordinal: $ordinal);
         }
-
-        return ['statusCode' => $status, 'body' => $envelope];
     }
 
-    private static function pageBuilderRequest(Request $request): PageBuilderSurfaceRequest
+    /** @param iterable<RouteDefinition> $definitions
+     * @param array<string, object> $controllers
+     */
+    private static function replay(WaaseyaaRouter $router, iterable $definitions, array $controllers): void
     {
-        return new PageBuilderSurfaceRequest(
-            DecisionAccountResolver::resolve(
-                $request->attributes->get('_authorization_principal'),
-                $request->attributes->get('_account'),
-            ),
-            $request->getContent(),
-        );
+        foreach ($definitions as $definition) {
+            $route = new RouteMetadataCompiler()->compileRoute($definition);
+            $options = $route->getOptions();
+            unset($options['_waaseyaa_priority']);
+            $route->setOptions($options);
+            $controller = $controllers[$definition->handler->target];
+            $route->setDefault('_controller', \Closure::fromCallable([$controller, $definition->handler->method]));
+            $router->addRoute($definition->name, $route);
+        }
     }
 
     /**

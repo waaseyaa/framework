@@ -1,0 +1,309 @@
+{
+  "base": "c3bd44e3e1bb170eaa0bab1b76a29b8e182637cb",
+  "profiles": {
+    "core": [
+      {
+        "name": "admin_surface.session",
+        "path": "/admin/_surface/session",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_session": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.catalog",
+        "path": "/admin/_surface/catalog",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.list",
+        "path": "/admin/_surface/{type}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.get",
+        "path": "/admin/_surface/{type}/{id}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.action",
+        "path": "/admin/_surface/{type}/action/{action}",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_spa",
+        "path": "/admin/{path}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "path": ""
+        },
+        "options": {
+          "_public": true
+        },
+        "requirements": {
+          "path": "(?!(?:_surface|api)(?:/|$)).*"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      }
+    ],
+    "page_builder": [
+      {
+        "name": "admin_surface.page_builder.definitions",
+        "path": "/admin/_surface/page-builder/{surface}/definitions",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.page_builder.command",
+        "path": "/admin/_surface/page-builder/{surface}/{id}/commands",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.page_builder.preview",
+        "path": "/admin/_surface/page-builder/{surface}/{id}/preview",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.page_builder.history",
+        "path": "/admin/_surface/page-builder/{surface}/{id}/revisions",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.page_builder.revision",
+        "path": "/admin/_surface/page-builder/{surface}/{id}/revisions/{revision}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": {
+          "revision": "[1-9][0-9]*"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.page_builder.restore",
+        "path": "/admin/_surface/page-builder/{surface}/{id}/restore",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.page_builder.draft",
+        "path": "/admin/_surface/page-builder/{surface}/{id}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.session",
+        "path": "/admin/_surface/session",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_session": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.catalog",
+        "path": "/admin/_surface/catalog",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.list",
+        "path": "/admin/_surface/{type}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.get",
+        "path": "/admin/_surface/{type}/{id}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_surface.action",
+        "path": "/admin/_surface/{type}/action/{action}",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "admin_spa",
+        "path": "/admin/{path}",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "path": ""
+        },
+        "options": {
+          "_public": true
+        },
+        "requirements": {
+          "path": "(?!(?:_surface|api)(?:/|$)).*"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      }
+    ]
+  }
+}

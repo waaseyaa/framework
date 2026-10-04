@@ -49,7 +49,7 @@
             "package": "waaseyaa/admin-surface",
             "path": "packages/admin-surface",
             "form": "library",
-            "audit_state": "assessed",
+            "audit_state": "needs delta review",
             "remediation_state": "planned",
             "audit_base": "2718edc02f8a47167db1b31b2192690bff773cfd",
             "audit_date": "2026-09-17",
@@ -69,7 +69,7 @@
                     "path": "docs/audits/packages/evidence/admin-surface/README-at-2718edc02.txt"
                 }
             ],
-            "notes": "Reference convergence. Residuals owned by #3078, #3079, #3082, #3083, #3084. Revalidate only material changes."
+            "notes": "Historical convergence needs delta review after ROUTE-METADATA-01 provider admission; #3118 owns full re-record. Existing package residuals remain separately owned."
         },
         {
             "package": "waaseyaa/ai-agent",

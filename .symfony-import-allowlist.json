@@ -20,7 +20,10 @@
     "packages/site-contract/src/Doctor/DoctorSuppressionSet.php": "The provider-neutral diagnostic suppression authority uses Symfony Yaml only as its declared serialization parser and projects no Symfony type into the public contract.",
     "packages/site-contract/src/Seed/SiteSeedParser.php": "The provider-neutral preset-seed authority uses Symfony Yaml only as its declared serialization parser, and translates its parse failures into the package's own ManifestViolation vocabulary rather than projecting a Symfony type into the public contract.",
     "packages/site-contract/src/SiteManifestParser.php": "The provider-neutral manifest authority uses Symfony Yaml only as its declared serialization parser and projects no Symfony type into the public contract.",
-    "packages/site-contract/src/Management/ManagementManifestParser.php": "FW-AGENT-MANAGEMENT-01: the closed companion parser reuses its declared Symfony Yaml dependency solely to refuse duplicate JSON mapping keys and maps ParseException into SiteManifestValidationException; no Symfony type enters its public contract. Review trigger: any parser or exception-boundary change."
+    "packages/site-contract/src/Management/ManagementManifestParser.php": "FW-AGENT-MANAGEMENT-01: the closed companion parser reuses its declared Symfony Yaml dependency solely to refuse duplicate JSON mapping keys and maps ParseException into SiteManifestValidationException; no Symfony type enters its public contract. Review trigger: any parser or exception-boundary change.",
+    "packages/admin-surface/src/Http/AdminSurfaceHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes.",
+    "packages/admin-surface/src/Http/PageBuilderHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes.",
+    "packages/admin-surface/src/Http/AdminSpaHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes."
   },
   "legacy_files": [
     "packages/entity/src/Validation/EntityReferenceExistenceConstraintBuilder.php",
@@ -166,6 +169,9 @@
     "packages/wayfinding/src/Http/AnchorCatalogController.php",
     "packages/wayfinding/src/Http/EmitBeaconController.php",
     "packages/wayfinding/src/Http/SessionTokenController.php",
-    "packages/workspace/src/WorkspaceAssetController.php"
+    "packages/workspace/src/WorkspaceAssetController.php",
+    "packages/admin-surface/src/Http/AdminSurfaceHttpController.php",
+    "packages/admin-surface/src/Http/PageBuilderHttpController.php",
+    "packages/admin-surface/src/Http/AdminSpaHttpController.php"
   ]
 }
