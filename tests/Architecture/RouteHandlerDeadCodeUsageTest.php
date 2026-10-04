@@ -28,7 +28,7 @@ final class RouteHandlerDeadCodeUsageTest extends TestCase
             new ConstantStringType('builtin:json_api'),
         ));
         $usages = new WaaseyaaEntrypointProvider(__DIR__ . '/missing-project')->getUsages($node, $scope);
-        self::assertCount(2, $usages);
+        self::assertCount(1, $usages);
         $targets = [];
         foreach ($usages as $usage) {
             $targets[] = $usage->getMemberRef()->getClassName() . '::' . $usage->getMemberRef()->getMemberName();
@@ -36,7 +36,7 @@ final class RouteHandlerDeadCodeUsageTest extends TestCase
             self::assertNull($usage->getOrigin()->getNote(), 'Declarations must retain regular call edges, not global virtual entrypoints.');
         }
         sort($targets);
-        self::assertSame(['Example\\Controller::show', 'Example\\OtherController::save'], $targets);
+        self::assertSame(['Example\\Controller::show'], $targets);
     }
 
     #[Test]
@@ -44,7 +44,7 @@ final class RouteHandlerDeadCodeUsageTest extends TestCase
     {
         $provider = new WaaseyaaEntrypointProvider(__DIR__ . '/missing-project');
         self::assertSame([], $provider->getUsages($this->call(), $this->scope(new StringType())));
-        foreach (['class:Example\\Controller::*', 'class:Example\\Controller', 'class:Example\\Controller::show!'] as $identifier) {
+        foreach (['class:Example\\Controller::*', 'class:Example\\Controller', 'class:Example\\Controller::show!', 'service:Example\\Controller::show'] as $identifier) {
             self::assertSame([], $provider->getUsages($this->call(), $this->scope(new ConstantStringType($identifier))));
         }
     }

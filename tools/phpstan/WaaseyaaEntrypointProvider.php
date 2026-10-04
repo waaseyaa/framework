@@ -93,7 +93,8 @@ final class WaaseyaaEntrypointProvider extends ReflectionBasedMemberUsageProvide
         // Keep the caller edge: an unused declaration must not make its handler
         // a global entrypoint. Unknown strings never mark arbitrary methods.
         foreach ($scope->getType($node->args[0]->value)->getConstantStrings() as $identifier) {
-            if (preg_match('/^(?:class|service):([A-Za-z_\\\\][A-Za-z0-9_\\\\]*)::([A-Za-z_][A-Za-z0-9_]*)$/D', $identifier->getValue(), $match) !== 1) {
+            // Service IDs are opaque; a class-shaped ID need not return that class.
+            if (preg_match('/^class:([A-Za-z_\\\\][A-Za-z0-9_\\\\]*)::([A-Za-z_][A-Za-z0-9_]*)$/D', $identifier->getValue(), $match) !== 1) {
                 continue;
             }
             $usages[] = new ClassMethodUsage(
