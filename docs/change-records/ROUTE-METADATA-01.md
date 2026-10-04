@@ -216,3 +216,12 @@ describes the lazy completed snapshot dependencies in Bimaaji's README, and
 records the old ConsoleKernel gap as historical. The bounded graph:dump fix
 has its own #3121 release fragment. Historical source checkpoints and broader
 package/MCP/domain-router qualification residuals remain explicit.
+
+Random-order run 37208439757, seed 701217759, exposed an incomplete SSR kernel
+fixture: it advertised waaseyaa/ssr but omitted ThemeServiceProvider from the
+published two-provider roster. A preceding rendered environment then refused a
+second Flash extension. Running the provider tests immediately before the kernel
+test reproduces the failure. The fixture now admits Theme then SSR exactly as the
+package does, asserts a fresh shared environment and restores prior Theme state
+afterward. No product Twig exception, lifecycle guard or source behavior changes.
+Broader process-static renderer ownership remains outside this route release.

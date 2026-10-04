@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\SSR\SsrServiceProvider;
+use Waaseyaa\SSR\ThemeServiceProvider;
 use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\User\AnonymousUser;
@@ -26,16 +27,21 @@ final class SsrKernelRouteMetadataTest extends TestCase
         $databasePath = $project . '/runtime.sqlite';
         file_put_contents($project . '/config/waaseyaa.php', "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'routing' => ['mode' => 'canonical'], 'api_catalog' => ['base_url' => 'https://trusted.example']];");
         file_put_contents($project . '/config/entity-types.php', "<?php return [new \\Waaseyaa\\Entity\\EntityType(id: 'test', label: 'Test', class: \\stdClass::class, keys: ['id' => 'id'])];");
-        file_put_contents($project . '/vendor/composer/installed.json', json_encode(['packages' => [['name' => 'waaseyaa/audit', 'extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Audit\AuditServiceProvider::class]]]], ['name' => 'waaseyaa/ssr', 'extra' => ['waaseyaa' => ['providers' => [SsrServiceProvider::class]]]]]], JSON_THROW_ON_ERROR));
+        // Match the published SSR roster: Theme initializes this kernel's Twig
+        // environment before SSR adds extensions, even after an earlier render.
+        file_put_contents($project . '/vendor/composer/installed.json', json_encode(['packages' => [['name' => 'waaseyaa/audit', 'extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Audit\AuditServiceProvider::class]]]], ['name' => 'waaseyaa/ssr', 'extra' => ['waaseyaa' => ['providers' => [ThemeServiceProvider::class, SsrServiceProvider::class]]]]]], JSON_THROW_ON_ERROR));
         $schemaDatabase = \Waaseyaa\Database\DBALDatabase::createSqlite($databasePath, 'testing');
         RuntimeSchemaMigrations::audit($schemaDatabase);
         RuntimeSchemaMigrations::broadcast($schemaDatabase);
         $schemaDatabase->getConnection()->close();
         unset($schemaDatabase);
         RuntimeSchemaMigrations::entitiesForProject($project);
+        $previousTheme = ThemeServiceProvider::getTwigEnvironment();
         try {
             $kernel = new HttpKernel($project);
             $kernel->bootForCli();
+            self::assertNotSame($previousTheme, ThemeServiceProvider::getTwigEnvironment());
+            self::assertSame(ThemeServiceProvider::getTwigEnvironment(), SsrServiceProvider::getTwigEnvironment());
             $snapshot = $kernel->getRouteSnapshot();
             self::assertCount(19, $snapshot->routes);
             $kinds = array_column($kernel->getRouteParticipation()->records, 'kind', 'provider');
@@ -65,6 +71,7 @@ final class SsrKernelRouteMetadataTest extends TestCase
         } finally {
             ProcessFieldReadRuntime::reset();
             SsrServiceProvider::setTwigEnvironment(null);
+            new \ReflectionProperty(ThemeServiceProvider::class, 'twigEnvironment')->setValue(null, $previousTheme);
             if (isset($database)) {
                 $database->getConnection()->close();
             }
