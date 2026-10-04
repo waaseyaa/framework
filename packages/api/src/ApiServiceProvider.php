@@ -14,6 +14,7 @@ use Waaseyaa\Api\Controller\AiCatalogController;
 use Waaseyaa\Api\Controller\ApiCatalogController;
 use Waaseyaa\Api\Controller\AuditQueryController;
 use Waaseyaa\Api\Controller\ContentSearchController;
+use Waaseyaa\Api\Controller\FieldAutoSaveController;
 use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Controller\McpApprovalController;
 use Waaseyaa\Api\Controller\MediaVersionController;
@@ -31,6 +32,7 @@ use Waaseyaa\Api\Http\Router\ApiCatalogRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\ContentSearchApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
+use Waaseyaa\Api\Http\Router\FieldAutoSaveApiRouter;
 use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\Http\Router\McpApprovalApiRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
@@ -184,6 +186,16 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(FieldAutoSaveApiRouter::class, function (): FieldAutoSaveApiRouter {
+            $manager = $this->resolve(EntityTypeManager::class);
+            $access = $this->resolve(EntityAccessHandler::class);
+            $registry = $this->resolve(FieldDefinitionRegistryInterface::class);
+            if (!$manager instanceof EntityTypeManager || !$access instanceof EntityAccessHandler
+                || !$registry instanceof FieldDefinitionRegistryInterface) {
+                throw new \RuntimeException('The field autosave execution bindings are invalid.');
+            }
+            return new FieldAutoSaveApiRouter(new FieldAutoSaveController($manager, $access, $registry));
+        });
         $this->bind(JsonApiRouter::class, function (): JsonApiRouter {
             $manager = $this->resolve(EntityTypeManager::class);
             $access = $this->resolve(EntityAccessHandler::class);
