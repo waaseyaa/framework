@@ -26,8 +26,16 @@ final class SchemaRequirement
             }
 
             $missing = [];
+            // One live column inspection for the complete requirement. Keep
+            // the existing interface path for non-DBAL schema adapters.
+            $fields = $schema instanceof DBALSchema && $requiredFields !== []
+                ? $schema->fieldNames($table)
+                : null;
             foreach ($requiredFields as $field) {
-                if (!$schema->fieldExists($table, $field)) {
+                $exists = $fields !== null
+                    ? in_array($field, $fields, true)
+                    : $schema->fieldExists($table, $field);
+                if (!$exists) {
                     $missing[] = $field;
                 }
             }

@@ -157,8 +157,90 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
         $receipt = $ledger->reserve($this->descriptor());
         $ledger->finalize($receipt, PrivilegedReadOutcome::Failed);
 
-        $this->expectException(\LogicException::class);
+        try {
+            $ledger->finalize($receipt, PrivilegedReadOutcome::Succeeded);
+            self::fail('A finalized receipt was accepted again.');
+        } catch (\LogicException $failure) {
+            self::assertInstanceOf(\Doctrine\DBAL\Exception\UniqueConstraintViolationException::class, $failure->getPrevious());
+        }
+        self::assertSame(['reserved', 'finalized'], array_column(iterator_to_array($database->query('SELECT event_type FROM privileged_read_ledger ORDER BY id')), 'event_type'));
+        self::assertSame(0, $database->getConnection()->getTransactionNestingLevel());
+    }
+
+    #[Test]
+    public function invalid_receipt_rolls_back_every_pending_finalization_in_a_batch(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::audit($database);
+        $ledger = new DatabaseStrictPrivilegedReadLedger($database);
+        $receipt = $ledger->reserve($this->descriptor());
+        try {
+            $ledger->finalizeMany([$receipt, new \Waaseyaa\Audit\Contract\PrivilegedReadReceipt('unknown')], PrivilegedReadOutcome::Succeeded);
+            self::fail('An unknown receipt was accepted.');
+        } catch (\LogicException $failure) {
+            self::assertStringContainsString('Only durable, unfinished', $failure->getMessage());
+        }
+        self::assertSame([['event_type' => 'reserved']], iterator_to_array($database->query('SELECT event_type FROM privileged_read_ledger')));
         $ledger->finalize($receipt, PrivilegedReadOutcome::Succeeded);
+        self::assertSame(2, (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM privileged_read_ledger'));
+    }
+
+    #[Test]
+    public function invalid_batch_preserves_the_callers_transaction_and_pending_work(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::audit($database);
+        $ledger = new DatabaseStrictPrivilegedReadLedger($database);
+        $receipt = $ledger->reserve($this->descriptor());
+        $outer = $database->transaction('caller');
+        $pending = $ledger->reserve($this->descriptor());
+        try {
+            $ledger->finalizeMany([$receipt, new \Waaseyaa\Audit\Contract\PrivilegedReadReceipt('unknown')], PrivilegedReadOutcome::Succeeded);
+            self::fail('An invalid nested batch was accepted.');
+        } catch (\LogicException) {
+            self::assertSame(1, $database->getConnection()->getTransactionNestingLevel());
+            self::assertSame(['reserved', 'reserved'], array_column(iterator_to_array($database->query('SELECT event_type FROM privileged_read_ledger ORDER BY id')), 'event_type'));
+        }
+        $ledger->finalize($pending, PrivilegedReadOutcome::Succeeded);
+        $outer->rollBack();
+        self::assertSame([['receipt_id' => $receipt->id, 'event_type' => 'reserved']], iterator_to_array($database->query('SELECT receipt_id, event_type FROM privileged_read_ledger')));
+    }
+
+    #[Test]
+    public function existing_caller_snapshot_is_refused_without_restarting_the_caller(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'waaseyaa-ledger-outer-');
+        self::assertIsString($path);
+        $first = DBALDatabase::createSqlite($path);
+        $second = DBALDatabase::createSqlite($path);
+        try {
+            RuntimeSchemaMigrations::audit($first);
+            $ledger = new DatabaseStrictPrivilegedReadLedger($first);
+            $receipt = $ledger->reserve($this->descriptor());
+            $outer = $first->transaction('caller');
+            iterator_to_array($first->query('SELECT event_type FROM privileged_read_ledger'));
+            new DatabaseStrictPrivilegedReadLedger($second)->reserve($this->descriptor());
+            try {
+                $ledger->finalize($receipt, PrivilegedReadOutcome::Succeeded);
+                self::fail('A stale caller snapshot was replayed.');
+            } catch (\Waaseyaa\Audit\Exception\PrivilegedReadLedgerException $failure) {
+                self::assertStringContainsString('database is locked', $failure->getPrevious()->getMessage());
+                self::assertSame(1, $first->getConnection()->getTransactionNestingLevel());
+                self::assertSame(0, (int) $second->getConnection()->fetchOne("SELECT COUNT(*) FROM privileged_read_ledger WHERE event_type = 'finalized'"));
+            } finally {
+                $outer->rollBack();
+            }
+            $ledger->finalize($receipt, PrivilegedReadOutcome::Succeeded);
+            self::assertSame(1, (int) $second->getConnection()->fetchOne("SELECT COUNT(*) FROM privileged_read_ledger WHERE event_type = 'finalized'"));
+        } finally {
+            $first->getConnection()->close();
+            $second->getConnection()->close();
+            foreach (['', '-wal', '-shm'] as $suffix) {
+                if (is_file($path . $suffix)) {
+                    unlink($path . $suffix);
+                }
+            }
+        }
     }
 
     #[Test]
@@ -190,7 +272,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     }
 
     #[Test]
-    public function finalization_retries_after_a_concurrent_wal_snapshot_is_invalidated(): void
+    public function finalization_owns_the_writer_before_validating_receipts(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'waaseyaa-ledger-contention-');
         self::assertIsString($path);
@@ -199,12 +281,15 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
             RuntimeSchemaMigrations::audit($first);
             $second = DBALDatabase::createSqlite($path);
             $secondLedger = new DatabaseStrictPrivilegedReadLedger($second);
-            $secondReceipt = $secondLedger->reserve($this->descriptor());
-            $triggered = false;
-            $proxy = new class ($first, function () use (&$triggered, $secondLedger, $secondReceipt): void {
-                if (!$triggered) {
-                    $triggered = true;
-                    $secondLedger->finalize($secondReceipt, PrivilegedReadOutcome::Succeeded);
+            $second->getConnection()->executeStatement('PRAGMA busy_timeout = 0');
+            $blocked = 0;
+            $descriptor = $this->descriptor();
+            $proxy = new class ($first, function () use (&$blocked, $secondLedger, $descriptor): void {
+                try {
+                    $secondLedger->reserve($descriptor);
+                } catch (\Waaseyaa\Audit\Exception\PrivilegedReadLedgerException $failure) {
+                    self::assertStringContainsString('database is locked', $failure->getPrevious()->getMessage());
+                    ++$blocked;
                 }
             }) implements DatabaseInterface {
                 public function __construct(private readonly DatabaseInterface $inner, private readonly \Closure $afterFirstRead) {}
@@ -247,9 +332,15 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
             $firstReceipt = $firstLedger->reserve($this->descriptor());
             $firstLedger->finalize($firstReceipt, PrivilegedReadOutcome::Succeeded);
 
-            self::assertTrue($triggered);
-            self::assertSame(2, (int) iterator_to_array($first->query('SELECT COUNT(*) AS count FROM privileged_read_ledger WHERE event_type = :event', ['event' => 'finalized']))[0]['count']);
+            self::assertSame(1, $blocked);
+            self::assertSame(1, (int) iterator_to_array($first->query('SELECT COUNT(*) AS count FROM privileged_read_ledger WHERE event_type = :event', ['event' => 'finalized']))[0]['count']);
         } finally {
+            if (isset($first)) {
+                $first->getConnection()->close();
+            }
+            if (isset($second)) {
+                $second->getConnection()->close();
+            }
             @unlink($path);
             @unlink($path . '-wal');
             @unlink($path . '-shm');

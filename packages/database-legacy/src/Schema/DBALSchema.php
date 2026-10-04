@@ -21,8 +21,15 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     private readonly AbstractPlatform $platform;
 
+    /** @var list<string>|null */
+    private ?array $inspectionTables = null;
+
+    /** @var array<string, list<string>> */
+    private array $inspectionColumns = [];
+
     public function __construct(
         private readonly Connection $connection,
+        private bool $inspectionOnly = false,
     ) {
         $this->sm = $connection->createSchemaManager();
         $this->platform = $connection->getDatabasePlatform();
@@ -30,7 +37,35 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function tableExists(string $table): bool
     {
+        if ($this->inspectionOnly) {
+            // Match Doctrine tablesExist()'s case-insensitive catalog contract.
+            return in_array(strtolower($table), array_map('strtolower', $this->listTableNames()), true);
+        }
         return $this->sm->tablesExist([$table]);
+    }
+
+    /**
+     * Read canonical column names once for a runtime validation operation.
+     *
+     * The caller checks table availability first. An explicit inspection scope
+     * shares this read until completion; ordinary adapter reads stay live.
+     *
+     * @return list<string>
+     */
+    public function fieldNames(string $table): array
+    {
+        if ($this->inspectionOnly) {
+            return $this->inspectionColumns[$table] ??= TableColumnNames::for($this->sm, $table);
+        }
+        return TableColumnNames::for($this->sm, $table);
+    }
+
+    /** @internal End the owning database's inspection, including escaped references. */
+    public function endInspection(): void
+    {
+        $this->inspectionOnly = false;
+        $this->inspectionTables = null;
+        $this->inspectionColumns = [];
     }
 
     /**
@@ -54,6 +89,10 @@ final class DBALSchema implements ForeignKeySchemaInterface
     {
         if (!$this->tableExists($table)) {
             return false;
+        }
+
+        if ($this->inspectionOnly) {
+            return in_array($field, $this->fieldNames($table), true);
         }
 
         $columns = $this->sm->listTableColumns($table);
@@ -80,11 +119,14 @@ final class DBALSchema implements ForeignKeySchemaInterface
         // across SQLite, MySQL, PostgreSQL, and other supported drivers.
         // No raw `sqlite_master`-style queries here — issue #1301 (deferred
         // mission #1257 WP09) replaced the SQLite-only path with this call.
-        return $this->sm->listTableNames();
+        return $this->inspectionOnly
+            ? ($this->inspectionTables ??= $this->sm->listTableNames())
+            : $this->sm->listTableNames();
     }
 
     public function createTable(string $name, array $spec): void
     {
+        $this->assertMutable();
         if ($this->tableExists($name)) {
             throw new \RuntimeException("Table \"{$name}\" already exists.");
         }
@@ -136,6 +178,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function dropTable(string $table): void
     {
+        $this->assertMutable();
         if (!$this->tableExists($table)) {
             throw new \RuntimeException("Table \"{$table}\" does not exist.");
         }
@@ -145,6 +188,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function addField(string $table, string $field, array $spec): void
     {
+        $this->assertMutable();
         if (!$this->tableExists($table)) {
             throw new \RuntimeException("Table \"{$table}\" does not exist.");
         }
@@ -163,6 +207,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function dropField(string $table, string $field): void
     {
+        $this->assertMutable();
         if (!$this->tableExists($table)) {
             throw new \RuntimeException("Table \"{$table}\" does not exist.");
         }
@@ -178,6 +223,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function addIndex(string $table, string $name, array $fields): void
     {
+        $this->assertMutable();
         if (empty($fields)) {
             throw new \InvalidArgumentException('Index fields must not be empty.');
         }
@@ -190,6 +236,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function dropIndex(string $table, string $name): void
     {
+        $this->assertMutable();
         $this->alterTableOnly($table, static function (Table $tableObj) use ($name): void {
             $tableObj->dropIndex($name);
         });
@@ -197,6 +244,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function addUniqueKey(string $table, string $name, array $fields): void
     {
+        $this->assertMutable();
         if ($fields === []) {
             throw new \InvalidArgumentException('Unique key fields must not be empty.');
         }
@@ -209,6 +257,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
     public function addPrimaryKey(string $table, array $fields): void
     {
+        $this->assertMutable();
         if ($fields === []) {
             throw new \InvalidArgumentException('Primary key fields must not be empty.');
         }
@@ -243,6 +292,7 @@ final class DBALSchema implements ForeignKeySchemaInterface
         array $referencedColumns,
         array $options = [],
     ): void {
+        $this->assertMutable();
         if ($this->foreignKeyExists($table, $name)) {
             return;
         }
@@ -256,6 +306,13 @@ final class DBALSchema implements ForeignKeySchemaInterface
         ): void {
             $tableObj->addForeignKeyConstraint($referencedTable, $columns, $referencedColumns, $options, $name);
         });
+    }
+
+    private function assertMutable(): void
+    {
+        if ($this->inspectionOnly) {
+            throw new \LogicException('Schema inspection is read-only; DDL must run outside the validation operation.');
+        }
     }
 
     /**

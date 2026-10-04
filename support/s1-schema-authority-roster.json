@@ -3325,6 +3325,76 @@
             "occurrence": 1
         },
         {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "1acd65b8522e4bef067e2feaff5921f8dd5766821b7fc465f6ab3ae3720d8ce6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaInspectionScopeTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaRequirementTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
             "path": "packages/database-legacy/tests/Unit/Schema/SchemaRequirementTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -3337,6 +3407,13 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 2
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/SchemaRequirementTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
         },
         {
             "path": "packages/deployer/tests/Unit/SchemaAuthorityFingerprintParityTest.php",
@@ -13171,6 +13248,27 @@
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "848452b59be362b1d974e7eba2f687f559b5d8214154e372ba5603ec7787c6a2",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Fixtures/Audits/DatabaseLegacy/FW-SCHEMA-INSPECTION-01-guard-cost.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Fixtures/Audits/DatabaseLegacy/FW-SCHEMA-INSPECTION-01-kernel-boot.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Fixtures/Audits/DatabaseLegacy/FW-SCHEMA-INSPECTION-01-kernel-boot.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
             "occurrence": 1
         },
         {

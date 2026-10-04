@@ -1233,6 +1233,24 @@ interface SchemaInterface
 
 `DBALSchema` uses Doctrine DBAL's schema introspection and DDL generation. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
 
+`DBALSchema::fieldNames(string $table): array` reads canonical column names
+through `TableColumnNames`, without modifying the schema. The caller
+checks table availability first. `SchemaRequirement::assertAvailable()` uses
+one table-existence inspection and, for non-empty DBAL requirements, one column
+inspection for all required fields (#3182). Ordinary adapters read live data.
+`DBALDatabase::inspectSchema(Closure $inspection): mixed` groups a read-only
+validation operation: adapters share one catalog enumeration and canonical
+columns per table until the callback completes or throws. Nested operations
+restore the enclosing adapter; escaped adapters revert to live reads on exit.
+The factory uses this scope for registered entity runtime guards and ends it
+before provider boot. Each new operation re-reads the live schema. All schema
+adapter mutators refuse within the scope; the callback contract also forbids
+raw SQL schema mutation. Constraint inspection and the activation fingerprint
+retain their existing independent live reads.
+Non-DBAL `SchemaInterface` implementations retain their per-field checks.
+Missing tables or fields and failed inspection retain the `[S1-DB106]` refusal;
+this optimization never authorizes DDL or changes constraint validation.
+
 `addPrimaryKey()` uses Doctrine's portable schema comparator and generated
 ALTER statements on capable platforms. SQLite cannot add a primary key to an
 existing table, so that platform retains a clear `\RuntimeException` requiring
@@ -1876,7 +1894,7 @@ interface RateLimiterInterface
 }
 ```
 
-Single method: `attempt(key, maxAttempts, windowSeconds)` returns a result array with `allowed` (bool), `remaining` (int), and `retryAfter` (?int seconds). Consumers use this interface when they need to enforce per-key rate limits — e.g. `RateLimitMiddleware` wraps HTTP endpoints, and auth controllers use it for login attempt throttling. Inject `RateLimiterInterface`; `HttpKernel` uses `DatabaseRateLimiter` with its canonical database so the default HTTP boundary is durable across requests and workers.
+Single method: `attempt(key, maxAttempts, windowSeconds)` returns a result array with `allowed` (bool), `remaining` (int), and `retryAfter` (?int seconds). Consumers use this interface when they need to enforce per-key rate limits — e.g. `RateLimitMiddleware` wraps HTTP endpoints, and auth controllers use it for login attempt throttling. Inject `RateLimiterInterface`; `HttpKernel` uses `DatabaseRateLimiter` with its canonical database so the default HTTP boundary is durable across requests and workers. Updates match the observed key, count and window start, so racing increments and expiry resets cannot overwrite another attempt (#3183). A typed unique collision while creating a first row or a lost conditional update re-reads live state, bounded to 32 attempts; exhaustion fails closed. Denied attempts still increment the count. SQLite lock/snapshot failures propagate unchanged. First-row collisions are retried only through a direct DBAL connection known to be outside a transaction; opaque adapters and caller-owned transactions preserve the original exception, since PostgreSQL may have aborted that transaction. Expired resets preserve the existing allowed result, including zero limits. The existing table, public result shape and fixed-window timing remain authoritative.
 
 ### InMemoryRateLimiter
 

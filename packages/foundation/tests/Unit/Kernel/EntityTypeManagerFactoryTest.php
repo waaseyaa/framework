@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 
+use Doctrine\DBAL\Configuration;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
+use Doctrine\DBAL\Schema\AbstractSchemaManager;
+use Doctrine\DBAL\Schema\Column;
+use Doctrine\DBAL\Types\Type;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -243,6 +249,38 @@ final class EntityTypeManagerFactoryTest extends TestCase
             self::assertStringContainsString('S1-DB106', $exception->getMessage());
             self::assertStringContainsString('sql_widget', $exception->getMessage());
         }
+    }
+
+    #[Test]
+    public function registered_runtime_schemas_share_one_catalog_inspection(): void
+    {
+        $manager = $this->manager();
+        foreach (['first', 'second'] as $id) {
+            $manager->registerEntityType(new EntityType(id: $id, label: $id, class: \stdClass::class, keys: ['id' => 'id']));
+        }
+        $schema = $this->createMock(AbstractSchemaManager::class);
+        $schema->expects(self::once())->method('listTableNames')->willReturn(['first', 'second']);
+        $schema->expects(self::never())->method('tablesExist');
+        $schema->expects(self::exactly(2))->method('listTableColumns')->willReturn([
+            'id' => new Column('id', Type::getType('integer')),
+            'uuid' => new Column('uuid', Type::getType('string')),
+            'langcode' => new Column('langcode', Type::getType('string')),
+            '_data' => new Column('_data', Type::getType('text')),
+            'bundle' => new Column('bundle', Type::getType('string')),
+            'label' => new Column('label', Type::getType('string')),
+        ]);
+        $connection = $this->createStub(Connection::class);
+        $connection->method('getConfiguration')->willReturn(new Configuration());
+        $connection->method('getDatabasePlatform')->willReturn(new PostgreSQLPlatform());
+        $connection->method('createSchemaManager')->willReturn($schema);
+
+        new EntityTypeManagerFactory()->assertRegisteredRuntimeSchemas(
+            new DBALDatabase($connection),
+            $manager,
+            $this->fieldRegistry,
+            $this->logger,
+            $this->fieldRegistry->fieldTypeManager(),
+        );
     }
 
     #[Test]

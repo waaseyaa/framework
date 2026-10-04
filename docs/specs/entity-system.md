@@ -550,6 +550,14 @@ interface EntityTypeManagerInterface
 
 `getStorage()` returns `EntityStorageInterface` — a **generic, unwired extension seam**, not a first-party persistence path. See "The legacy save engine is gone (C-22)" below. `EntityStorageInterface` and `EntityQueryInterface` are class-level `@api`. Production runtime-schema readiness is owned by the storage backend: Framework SQL-backed definitions (empty `storageClass`) fail closed with `[S1-DB106]` when their table is missing; a definition whose `storageClass` is a valid `EntityStorageInterface` implementation is not forced to own an SQL table (#2482) and is resolved only through `getStorage()`. An invalid `storageClass` still fails the existing "must implement EntityStorageInterface" contract.
 
+DBAL-backed runtime schema requirements inspect table availability once and
+canonical column names once per requirement (#3182). The factory groups registered runtime guards in one read-only
+`DBALDatabase::inspectSchema()` operation, sharing one catalog read and one
+column read per table. Results are discarded on completion or failure; a
+subsequent operation on the same connection reads the live schema again. Missing tables, missing columns and inspection failures
+still refuse startup with `[S1-DB106]`, without DDL or schema repair. Other schema
+adapters retain the `SchemaInterface::fieldExists()` validation contract.
+
 #### The legacy save engine is gone (C-22)
 
 The framework used to expose **two entry points that both persisted entities in production** — `getRepository()` (`EntityRepository`, canonical) and `getStorage()` (`SqlEntityStorage`, legacy). C-22 removed the legacy engine across four work packages:

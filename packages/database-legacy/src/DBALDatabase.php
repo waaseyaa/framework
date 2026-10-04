@@ -23,6 +23,8 @@ final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIde
 
     private readonly TransactionCompletionCoordinator $transactionCompletionCoordinator;
 
+    private ?DBALSchema $inspectionSchema = null;
+
     public function __construct(
         private readonly Connection $connection,
     ) {
@@ -175,7 +177,30 @@ final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIde
 
     public function schema(): SchemaInterface
     {
-        return new DBALSchema($this->connection);
+        return $this->inspectionSchema ?? new DBALSchema($this->connection);
+    }
+
+    /**
+     * Share live catalog/column inspection within one read-only validation.
+     *
+     * The callback must not mutate schema, including through raw SQL. No
+     * snapshot survives completion or failure; escaped adapters become live.
+     *
+     * @template T
+     * @param \Closure(): T $inspection
+     * @return T
+     */
+    public function inspectSchema(\Closure $inspection): mixed
+    {
+        $previous = $this->inspectionSchema;
+        $schema = new DBALSchema($this->connection, inspectionOnly: true);
+        $this->inspectionSchema = $schema;
+        try {
+            return $inspection();
+        } finally {
+            $schema->endInspection();
+            $this->inspectionSchema = $previous;
+        }
     }
 
     public function transaction(string $name = ''): TransactionInterface

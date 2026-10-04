@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Kernel;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractEventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
@@ -193,11 +194,18 @@ final class EntityTypeManagerFactory
         LoggerInterface $logger,
         FieldTypeManagerInterface $fieldTypes,
     ): void {
-        foreach ($manager->getDefinitions() as $definition) {
-            if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
-                continue;
+        $assert = function () use ($database, $manager, $fieldRegistry, $logger, $fieldTypes): void {
+            foreach ($manager->getDefinitions() as $definition) {
+                if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
+                    continue;
+                }
+                $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger, $fieldTypes)->assertRuntimeSchema();
             }
-            $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger, $fieldTypes)->assertRuntimeSchema();
+        };
+        if ($database instanceof DBALDatabase) {
+            $database->inspectSchema($assert);
+        } else {
+            $assert();
         }
     }
 
