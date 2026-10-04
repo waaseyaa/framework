@@ -13,6 +13,15 @@
 
 ## Implementation Status
 
+**Current route-wiring contract (ROUTE-METADATA-01, #3121):** CLI `graph:dump`
+and `route:list` consume the kernel's completed immutable route snapshot. The
+three route section providers obtain it lazily on each inspection; construction
+does not require an HTTP-only live router. Incomplete, legacy or invalidated
+kernel authority refuses strict export without a routeless fallback. Explicit
+bare collections remain compatible only when no kernel accessor exists. Release
+publication and installed downstream qualification are tracked in the change
+record; the older M1 checkpoints below are historical rather than current gaps.
+
 **Shipped (as of M1 `bimaaji-wakeup-01KS5VEY`):**
 
 - `BimaajiServiceProvider` is auto-discovered via `extra.waaseyaa.providers` in `packages/bimaaji/composer.json`.

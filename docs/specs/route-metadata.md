@@ -1,7 +1,8 @@
 # Route metadata composition
 
-Status: **proposed for Framework #3123**. This document records the accepted
-target and migration contract. It does not describe behavior available at
+Status: **implemented bounded contract; publication qualification in progress**
+under Framework #3123 and #3122. Whole-package convergence remains separate.
+This document records the accepted contract. It does not describe behavior available at
 `5196f173b06bac698f14d292c7b827f2ddac388f`.
 
 ## Purpose and boundary

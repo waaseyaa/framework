@@ -341,23 +341,16 @@ exception inside `tools/call` sanitized to `Internal error.` on the wire
 while stderr receives only exception class and method — never message,
 arguments, credentials, or an absolute throw-site path).
 
-**A known kernel-boot gap, not a #2659 defect.** Of the three D-7 tool ids,
-only `bimaaji_search_specs` is guaranteed to answer `tools/list` under a plain
-`ConsoleKernel` boot. `bimaaji_introspect_graph` and `bimaaji_introspect_section`
-both depend on `Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator`, whose
-`RoutingIntrospectionProvider` / `PublicSurfaceProvider` sections need a
-`Symfony\Routing\RouteCollection` that only `HttpKernel` binds on the
-kernel-services bus — `ConsoleKernel` does not. `AttributeToolRegistry`
-already treats an unconstructible tool as a documented, silent skip (a
-`ToolDependencyUnavailableException` logged at `debug`, per
-`packages/ai-tools/src/Catalogue/AttributeToolRegistry.php`), so
-`mcp:serve`'s catalogue is simply whatever subset of the allowlist the
-current kernel boot can construct — narrower under `bootForCli()` than under
-`bootForHttp()`, and never wider than the allowlist either way. Binding a
-`RouteCollection` on `ConsoleKernel` (or giving the two introspection
-providers a routeless fallback) is a `waaseyaa/bimaaji` / kernel-wiring
-question, not a transport one, and is left for a follow-up rather than folded
-into this issue.
+**Historical kernel-boot gap and its bounded remediation (#3121).** The original
+#2659 observation was that graph tool construction depended on an HTTP-only
+live `RouteCollection`, so plain `ConsoleKernel` discovery could skip the graph
+tools. ROUTE-METADATA-01 removes that construction dependency: Bimaaji obtains
+the completed canonical kernel snapshot lazily at inspection, and refuses
+incomplete, legacy or invalidated authority without an empty-graph fallback.
+The release/consumer evidence is tracked in `docs/change-records/ROUTE-METADATA-01.md`.
+This route fix does not claim complete MCP catalogue qualification. The
+`AttributeToolRegistry` dependency-unavailable skip, configured allowlist,
+capability checks and transport contracts remain unchanged.
 
 **Official-client proof.** On 2026-09-03 the released MCP Inspector CLI
 (`@modelcontextprotocol/inspector` 2.5.0) started this branch's packaged

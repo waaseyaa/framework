@@ -4,7 +4,7 @@
 - Coupling-audit evidence: #3122 comment `issuecomment-5755224083`, finding
   CS-01 (supplemental forge locator; this record remains the durable authority)
 - Baseline: `5196f173b06bac698f14d292c7b827f2ddac388f`
-- Status: **proposed design and audited migration roster; no runtime remediation**
+- Status: **reviewed source implementation; release and consumer deployment qualification in progress**
 - Enduring contract: `docs/specs/route-metadata.md`
 
 ## Problem
@@ -210,3 +210,9 @@ target: tools/phpstan is outside the configured packages/*/src product coverage
 scope. The architecture tooling test now truthfully declares CoversNothing,
 following the existing tooling-test convention. Product coverage targets and
 the changed route metadata value/epoch companion declarations remain intact.
+
+Release documentation reconciliation updates the enduring contract status,
+describes the lazy completed snapshot dependencies in Bimaaji's README, and
+records the old ConsoleKernel gap as historical. The bounded graph:dump fix
+has its own #3121 release fragment. Historical source checkpoints and broader
+package/MCP/domain-router qualification residuals remain explicit.

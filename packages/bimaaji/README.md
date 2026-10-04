@@ -28,9 +28,9 @@ The six default section providers are pre-wired:
 |---|---|---|
 | `AdminIntrospectionProvider` | `admin` | `EntityTypeManagerInterface` |
 | `EntityIntrospectionProvider` | `entities` | `EntityTypeManagerInterface` |
-| `JsonApiIntrospectionProvider` | `jsonapi` | `RouteCollection` |
-| `PublicSurfaceProvider` | `public_surface` | `RouteCollection` |
-| `RoutingIntrospectionProvider` | `routing` | `RouteCollection` |
+| `JsonApiIntrospectionProvider` | `jsonapi` | Lazy completed `RouteSnapshot` accessor |
+| `PublicSurfaceProvider` | `public_surface` | Lazy completed `RouteSnapshot` accessor |
+| `RoutingIntrospectionProvider` | `routing` | Lazy completed `RouteSnapshot` accessor |
 | `SovereigntyIntrospectionProvider` | `sovereignty` | `SovereigntyProfile` |
 
 Filesystem-backed spec indexing is disabled by default. Applications that
