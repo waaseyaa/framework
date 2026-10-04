@@ -438,3 +438,4 @@ convergence work, #2859 lifecycle work beyond this snapshot contract, #3013
 full dispatcher parity, #3004 effective access, #3117 broader CLI convergence,
 and unrelated defects remain separately owned. They do not become implicit
 blockers or implicit implementation authority through this plan.
+MCP terminal preparation follows the audit checkpoint, preserving admin representation and approval origin/operator/store policies through explicit nonshared execution. Four API-owned families and Foundation terminal adaptations remain before full API admission; installed CLI/Bimaaji qualification remains separate.

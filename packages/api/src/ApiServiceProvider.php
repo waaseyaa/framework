@@ -167,6 +167,27 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(McpAdminApiRouter::class, function (): McpAdminApiRouter {
+            $registry = $this->kernelServices?->get(ToolRegistryReadModelInterface::class);
+            $config = $this->kernelServices?->get(ServerConfigReadModelInterface::class);
+            if (($registry !== null && !$registry instanceof ToolRegistryReadModelInterface)
+                || ($config !== null && !$config instanceof ServerConfigReadModelInterface)) {
+                throw new \RuntimeException('The MCP admin execution bindings are invalid.');
+            }
+            return new McpAdminApiRouter(new McpAdminController($registry, $config));
+        });
+        $this->bind(McpApprovalApiRouter::class, function (): McpApprovalApiRouter {
+            // Keep the existing best-effort telemetry policy and lazy store boundary.
+            $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            return new McpApprovalApiRouter(new McpApprovalController(
+                storeResolver: fn(): object => $this->resolve(OperationApprovalStoreInterface::class),
+                allowedOrigins: $this->corsOrigins(),
+                allowSelfApproval: $this->approvalAllowsSelfApproval(),
+                dispatcher: $dispatcher instanceof \Symfony\Contracts\EventDispatcher\EventDispatcherInterface ? $dispatcher : null,
+                logger: $logger instanceof LoggerInterface ? $logger : null,
+            ));
+        });
         $this->bind(AuditApiRouter::class, function (): AuditApiRouter {
             $model = $this->kernelServices?->get(AuditQueryReadModelInterface::class);
             if ($model !== null && !$model instanceof AuditQueryReadModelInterface) {

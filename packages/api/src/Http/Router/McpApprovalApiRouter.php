@@ -45,14 +45,24 @@ final class McpApprovalApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $ref, 2);
 
         return match ($action) {
-            'index' => $this->controller->index($request),
-            'decide' => $this->controller->decide($request, (string) $request->attributes->get('id', '')),
+            'index' => $this->index($request),
+            'decide' => $this->decide($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown McpApproval action: %s', $action),
             ),
         };
+    }
+
+    public function index(Request $request): Response
+    {
+        return $this->controller->index($request);
+    }
+
+    public function decide(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->decide($request, (string) $request->attributes->get('id', ''));
     }
 
     private static function errorResponse(int $status, string $title, string $detail): JsonResponse

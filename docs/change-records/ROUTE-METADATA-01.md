@@ -144,3 +144,4 @@ Audit terminal preparation at base 135acaf17124a12fa6d9facb50897c32131ec2b1 shar
 No broad package remediation, release, deployment, process-static cache,
 controller autowiring redesign, or whole-package convergence claim is part of
 this design candidate.
+MCP terminal preparation at base 5bdc65440bee02dc62ab907d25132445275dc85f extracts shared admin/approval request actions and binds their routers nonshared. Approval store resolution remains per-action, after validation, preserving sanitized 503 and separation of duties. This is local source preparation for RM-06; complete API and installed graph-export acceptance remain open.

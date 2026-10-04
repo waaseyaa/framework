@@ -46,27 +46,30 @@ final class McpAdminApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $ref, 2);
 
         return match ($action) {
-            'tools' => new JsonResponse(
-                $this->controller->tools($request),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'tool' => new JsonResponse(
-                $this->controller->tool($request, (string) $request->attributes->get('name', '')),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'serverConfig' => new JsonResponse(
-                $this->controller->serverConfig($request),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
+            'tools' => $this->tools($request),
+            'tool' => $this->tool($request),
+            'serverConfig' => $this->serverConfig($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown McpAdmin action: %s', $action),
             ),
         };
+    }
+
+    public function tools(Request $request): JsonResponse
+    {
+        return new JsonResponse($this->controller->tools($request), 200, ['Content-Type' => 'application/vnd.api+json']);
+    }
+
+    public function tool(Request $request, mixed $name = null): JsonResponse
+    {
+        return new JsonResponse($this->controller->tool($request, (string) $request->attributes->get('name', '')), 200, ['Content-Type' => 'application/vnd.api+json']);
+    }
+
+    public function serverConfig(Request $request): JsonResponse
+    {
+        return new JsonResponse($this->controller->serverConfig($request), 200, ['Content-Type' => 'application/vnd.api+json']);
     }
 
     private static function errorResponse(int $status, string $title, string $detail): JsonResponse
