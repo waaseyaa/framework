@@ -167,6 +167,18 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(WorkflowTransitionApiRouter::class, function (): WorkflowTransitionApiRouter {
+            $manager = $this->resolve(EntityTypeManager::class);
+            $transition = $this->resolve(TransitionService::class);
+            $access = $this->kernelServices?->get(EntityAccessHandler::class);
+            $audit = $this->kernelServices?->get(AuditQueryReadModelInterface::class);
+            if (!$manager instanceof EntityTypeManager || !$transition instanceof TransitionService
+                || ($access !== null && !$access instanceof EntityAccessHandler)
+                || ($audit !== null && !$audit instanceof AuditQueryReadModelInterface)) {
+                throw new \RuntimeException('The workflow execution bindings are invalid.');
+            }
+            return new WorkflowTransitionApiRouter(new WorkflowTransitionController($manager, $access, $transition, auditQuery: $audit));
+        });
         $this->bind(ContentSearchApiRouter::class, fn(): ContentSearchApiRouter => $this->contentSearchRouter());
         $this->bind(McpAdminApiRouter::class, function (): McpAdminApiRouter {
             $registry = $this->kernelServices?->get(ToolRegistryReadModelInterface::class);

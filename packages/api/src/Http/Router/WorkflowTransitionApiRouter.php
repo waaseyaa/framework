@@ -45,18 +45,25 @@ final class WorkflowTransitionApiRouter implements DomainRouterInterface
 
         [, $action] = explode('::', $controllerRef, 2);
 
-        $entityType = self::routeAttribute($request, '_entity_type');
-        $id = self::routeAttribute($request, 'id');
-
         return match ($action) {
-            'transitions' => $this->controller->transitions($request, $entityType, $id),
-            'transition' => $this->controller->transition($request, $entityType, $id),
+            'transitions' => $this->transitions($request),
+            'transition' => $this->transition($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown workflow transition action: %s', $action),
             ),
         };
+    }
+
+    public function transitions(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->transitions($request, self::routeAttribute($request, '_entity_type'), self::routeAttribute($request, 'id'));
+    }
+
+    public function transition(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->transition($request, self::routeAttribute($request, '_entity_type'), self::routeAttribute($request, 'id'));
     }
 
     private static function routeAttribute(Request $request, string $key): string
