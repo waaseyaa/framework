@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.305] - 2026-10-04
+
+### Added
+
+- Admit Admin Surface route metadata without host construction or asset reads during inspection; preserve existing transport and SPA behavior through selected nonshared request handlers.
+
+- Add explicit scheduler, notification and API/AI catalog HTTP bindings that preserve existing parameter, precondition and representation behavior for staged API metadata adoption.
+
+- Add an explicit audit HTTP terminal that preserves response and query adaptation while refusing unhealthy declared read-model bindings during staged API metadata adoption.
+
+- Add explicit discovery and OIDC-client HTTP terminals preserving kernel discovery authority, matched IDs, mutation fences and secret handling; reconcile the metadata capability contract roster.
+
+- Added an explicit field autosave request adapter and nonshared binding for complete API route metadata migration.
+
+- Added explicit nonshared JSON:API, translation, schema and workflow-definition request terminals in preparation for complete API route metadata migration.
+
+- Add explicit MCP admin and approval HTTP terminals preserving request adaptation, lazy approval-store failure handling and existing decision policy during staged API metadata adoption.
+
+- Add explicit queue HTTP terminal bindings that share existing domain-router parameter and response adaptation for staged API metadata adoption.
+
+- Add explicit media-version and Mercure monitor HTTP terminals that share existing parameter, account, status and streaming adaptation for staged API metadata adoption.
+
+- Publish copied API boot-finalized route availability through frozen canonical route inputs, preserving fail-closed custody and package probe timing.
+
+- Generate JSON:API CRUD, translation, field-save and workflow declarations from immutable exposure inputs, retaining fresh compatibility routes and opaque nonexposed responses.
+
+- Admit complete API route declarations from frozen boot inputs, preserving access metadata and bare route compatibility while resolving explicit request terminals only after matching.
+
+- Add an explicit content-search HTTP binding sharing legacy lazy construction and preserving authorization context, rate limiting and unavailable-service responses during staged API metadata adoption.
+
+- Add explicit workflow transition HTTP terminals preserving matched parameters, opaque access refusals and existing mutation behavior during staged API metadata adoption.
+
+- Declare auth and optional OIDC route metadata without constructing execution services, with explicit deferred auth handlers and finalized OIDC binding presence.
+
+- Publish SSR crawler route metadata and register deferred explicit SEO controller construction, retaining public discovery policy and compatibility route projection.
+
+- Added request-local explicit handler services with metadata-only lookup checks, deterministic registered-binding selection and preserved provider lifetimes.
+
+- Add a kernel-local HTTP projection over admitted route metadata and explicit legacy participation, with fail-closed canonical mode and terminal explicit handler resolution.
+
+- Added complete lazy kernel route snapshot composition from one shared builtin and terminal declaration authority, with whole-cohort refusal and retained legacy HTTP behavior.
+
+- Admit built-in and terminal route metadata alongside provider contributions, freezing shared declaration inputs and preserving stable priority order (#3123).
+
+- Capture the existing API exposure policy during boot and freeze kernel route inputs, refusing missing, stale, duplicate and late publication without inspection-time service resolution (#3123).
+
+- Add a memory-only route input projector that freezes entity metadata and finalized exposure decisions without resolving execution services (#3123).
+
+- Add immutable Foundation route metadata values, bootstrap participation admission and a terminal composition epoch shared by CLI and HTTP kernel consumers (#3123).
+
+- Persist route participation in package manifests and admit it after complete runtime kernel boot, refusing stale, partial, restricted and previously failed route authority (#3123).
+
+- Match metadata routes against the actual Symfony request while preserving language-stripped paths and deferred explicit handler execution.
+
+- Added deferred resolution of verified matched route handlers with explicit service lookup and sanitized failures.
+
+- Add Symfony compilation of immutable route snapshots with stable handler IDs, request-local matching and generation, and explicit unsupported-condition refusal.
+
+- Added single-declaration Symfony route projection for the existing legacy static-route adapter without constructing partial snapshots.
+
+### Fixed
+
+- Fix packaged `graph:dump --strict` under ConsoleKernel by inspecting the consuming application's completed canonical route snapshot; share the same route authority with `route:list` and refuse incomplete or invalidated graphs (#3121).
+
+- Freeze API content-search and MCP package availability during boot so later route reads preserve both presence and absence without late install probes.
+
+- Wire Bimaaji graph export and kernel route listing to completed immutable route metadata, with live custody checks and raw JSON output.
+
+- Avoid constructing unused legacy domain routers for selected declarative HTTP handlers while retaining response conversion, Inertia support and input custody checks.
+
+- Preserve legal binary PHP class names in the isolated Composer freshness probe, retaining exact class-map identity and source custody checks.
 ## [0.1.0-alpha.304] - 2026-10-03
 
 ### Fixed

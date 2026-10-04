@@ -76,26 +76,26 @@
     "require": {
         "php": ">=8.5",
         "symfony/http-foundation": "^7.0",
-        "waaseyaa/access": "^0.1.0-alpha.304",
-        "waaseyaa/api": "^0.1.0-alpha.304",
-        "waaseyaa/audit": "^0.1.0-alpha.304",
-        "waaseyaa/entity": "^0.1.0-alpha.304",
-        "waaseyaa/field": "^0.1.0-alpha.304",
-        "waaseyaa/foundation": "^0.1.0-alpha.304",
-        "waaseyaa/page-builder": "^0.1.0-alpha.304",
-        "waaseyaa/routing": "^0.1.0-alpha.304",
-        "waaseyaa/user": "^0.1.0-alpha.304",
-        "waaseyaa/workflows": "^0.1.0-alpha.304"
+        "waaseyaa/access": "^0.1.0-alpha.305",
+        "waaseyaa/api": "^0.1.0-alpha.305",
+        "waaseyaa/audit": "^0.1.0-alpha.305",
+        "waaseyaa/entity": "^0.1.0-alpha.305",
+        "waaseyaa/field": "^0.1.0-alpha.305",
+        "waaseyaa/foundation": "^0.1.0-alpha.305",
+        "waaseyaa/page-builder": "^0.1.0-alpha.305",
+        "waaseyaa/routing": "^0.1.0-alpha.305",
+        "waaseyaa/user": "^0.1.0-alpha.305",
+        "waaseyaa/workflows": "^0.1.0-alpha.305"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/config": "^0.1.0-alpha.304",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.304",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.304",
-        "waaseyaa/node": "^0.1.0-alpha.304",
-        "waaseyaa/note": "^0.1.0-alpha.304",
-        "waaseyaa/taxonomy": "^0.1.0-alpha.304",
-        "waaseyaa/testing": "^0.1.0-alpha.304"
+        "waaseyaa/config": "^0.1.0-alpha.305",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.305",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.305",
+        "waaseyaa/node": "^0.1.0-alpha.305",
+        "waaseyaa/note": "^0.1.0-alpha.305",
+        "waaseyaa/taxonomy": "^0.1.0-alpha.305",
+        "waaseyaa/testing": "^0.1.0-alpha.305"
     },
     "autoload": {
         "psr-4": {

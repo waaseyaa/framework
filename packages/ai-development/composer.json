@@ -4,8 +4,8 @@
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "waaseyaa/ai-agent": "^0.1.0-alpha.304",
-        "waaseyaa/testing": "^0.1.0-alpha.304"
+        "waaseyaa/ai-agent": "^0.1.0-alpha.305",
+        "waaseyaa/testing": "^0.1.0-alpha.305"
     },
     "minimum-stability": "stable",
     "extra": {

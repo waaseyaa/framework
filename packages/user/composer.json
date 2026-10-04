@@ -39,19 +39,19 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.304",
-        "waaseyaa/access": "^0.1.0-alpha.304",
-        "waaseyaa/foundation": "^0.1.0-alpha.304",
-        "waaseyaa/mail": "^0.1.0-alpha.304",
+        "waaseyaa/entity": "^0.1.0-alpha.305",
+        "waaseyaa/access": "^0.1.0-alpha.305",
+        "waaseyaa/foundation": "^0.1.0-alpha.305",
+        "waaseyaa/mail": "^0.1.0-alpha.305",
         "symfony/http-foundation": "^7.0",
         "twig/twig": "^3.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.304",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.304",
-        "waaseyaa/field": "^0.1.0-alpha.304",
-        "waaseyaa/ssr": "^0.1.0-alpha.304"
+        "waaseyaa/database-legacy": "^0.1.0-alpha.305",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.305",
+        "waaseyaa/field": "^0.1.0-alpha.305",
+        "waaseyaa/ssr": "^0.1.0-alpha.305"
     },
     "autoload": {
         "psr-4": {
