@@ -46,23 +46,38 @@ final class MercureMonitorApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $ref, 2);
 
         return match ($action) {
-            'channels' => new JsonResponse(
-                $this->controller->channels($request),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'events' => $this->controller->events($request),
-            'subscribers' => new JsonResponse(
-                $this->controller->subscribers($request),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
+            'channels' => $this->channels($request),
+            'events' => $this->events($request),
+            'subscribers' => $this->subscribers($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown Mercure monitor action: %s', $action),
             ),
         };
+    }
+
+    public function channels(Request $request): Response
+    {
+        return new JsonResponse(
+            $this->controller->channels($request),
+            200,
+            ['Content-Type' => 'application/vnd.api+json'],
+        );
+    }
+
+    public function events(Request $request): Response
+    {
+        return $this->controller->events($request);
+    }
+
+    public function subscribers(Request $request): Response
+    {
+        return new JsonResponse(
+            $this->controller->subscribers($request),
+            200,
+            ['Content-Type' => 'application/vnd.api+json'],
+        );
     }
 
     private static function errorResponse(int $status, string $title, string $detail): JsonResponse

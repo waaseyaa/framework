@@ -50,8 +50,8 @@ final class MediaVersionApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $controllerRef, 2);
 
         return match ($action) {
-            'index' => $this->respondIndex($request),
-            'show' => $this->respondShow($request),
+            'index' => $this->index($request),
+            'show' => $this->show($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
@@ -60,7 +60,8 @@ final class MediaVersionApiRouter implements DomainRouterInterface
         };
     }
 
-    private function respondIndex(Request $request): JsonResponse
+    /** Named parameters accommodate callable dispatch; matched attributes remain authoritative. */
+    public function index(Request $request, mixed $uuid = null): JsonResponse
     {
         $uuid = self::routeUuid($request);
         $payload = $this->controller->index($uuid, $request);
@@ -68,7 +69,7 @@ final class MediaVersionApiRouter implements DomainRouterInterface
         return $this->jsonApiResponse($payload);
     }
 
-    private function respondShow(Request $request): JsonResponse
+    public function show(Request $request, mixed $uuid = null, mixed $vid = null): JsonResponse
     {
         $uuid = self::routeUuid($request);
         $vid = self::routeVid($request);

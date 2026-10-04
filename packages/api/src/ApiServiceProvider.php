@@ -167,6 +167,26 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(MediaVersionApiRouter::class, function (): MediaVersionApiRouter {
+            $model = $this->kernelServices?->get(MediaVersionReadModelInterface::class);
+            if ($model !== null && !$model instanceof MediaVersionReadModelInterface) {
+                throw new \RuntimeException('The media execution binding is invalid.');
+            }
+            return new MediaVersionApiRouter(new MediaVersionController($model));
+        });
+        $this->bind(MercureMonitorApiRouter::class, function (): MercureMonitorApiRouter {
+            $inspector = $this->kernelServices?->get(ChannelInspectorInterface::class);
+            $stream = $this->kernelServices?->get(EventStreamReadModelInterface::class);
+            $observer = $this->kernelServices?->get(SubscriberObserverInterface::class);
+            if (($inspector !== null && !$inspector instanceof ChannelInspectorInterface)
+                || ($stream !== null && !$stream instanceof EventStreamReadModelInterface)
+                || ($observer !== null && !$observer instanceof SubscriberObserverInterface)
+                || ($inspector === null && $stream === null && $observer === null)) {
+                throw new \RuntimeException('The monitor execution bindings are unavailable or invalid.');
+            }
+            return new MercureMonitorApiRouter(new MercureMonitorController($inspector, $stream, $observer));
+        });
+
         $this->bind(QueueAdminApiRouter::class, function (): QueueAdminApiRouter {
             $failedJobs = $this->resolve(FailedJobRepositoryInterface::class);
             $queue = $this->resolve(QueueInterface::class);
