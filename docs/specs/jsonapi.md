@@ -307,3 +307,6 @@ The following matrix enumerates every entity, query, and mutation exposed by `pa
 ## JSON:API metadata producer
 
 JSON:API structural declarations can now be generated from RouteContributionContext entity/exposure inputs without a manager or service lookup. Existing CRUD, field-save, translation and workflow methods, route defaults/options and ordering are preserved. Compatibility registration compiles fresh routes from immutable cached definitions. Nonexposed entities retain opaque 404 responses for every previously supported method and nested path, independent of account. This generator API does not supply controller construction or bypass domain-router access, serialization and mutation preconditions.
+
+
+ROUTE-METADATA-01 frozen API availability prerequisite: the existing neutral boot publication now copies boolean api.route.* facts with exposure, validates their namespace and types, and exposes them only after freeze. Duplicate, malformed and late publication poisons both views. API publishes only after its existing successful install gates and catalog construction, adding no probes or service resolutions. The kernel projects copied facts with existing service-presence inputs into snapshot identity. Optional publish arguments preserve callers; absent API supplies no API route facts. Full API admission and installed strict Bimaaji proof remain open.

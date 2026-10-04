@@ -8,11 +8,16 @@ namespace Waaseyaa\Foundation\Routing\Metadata;
 final class RouteExposureInputs
 {
     private ?array $publication = null;
+    /** @var array<string, bool> */
+    private array $routeCapabilities = [];
     private bool $sealed = false;
     private bool $failed = false;
 
-    /** @param array<array-key, mixed> $effectiveMap The existing policy's scalar map. */
-    public function publish(array $effectiveMap): void
+    /**
+     * @param array<array-key, mixed> $effectiveMap The existing policy's scalar map.
+     * @param array<array-key, mixed> $routeCapabilities Existing API boot-finalized availability facts.
+     */
+    public function publish(array $effectiveMap, array $routeCapabilities = []): void
     {
         if ($this->sealed) {
             $this->failed = true;
@@ -29,7 +34,14 @@ final class RouteExposureInputs
                 }
                 ScalarRouteMetadata::identifier($id);
             }
+            foreach ($routeCapabilities as $name => $available) {
+                if (!is_string($name) || !is_bool($available) || !str_starts_with($name, 'api.route.') || strlen($name) <= strlen('api.route.')) {
+                    throw new \UnexpectedValueException();
+                }
+                ScalarRouteMetadata::identifier($name);
+            }
             $this->publication = ScalarRouteMetadata::copy($effectiveMap);
+            $this->routeCapabilities = ScalarRouteMetadata::copy($routeCapabilities);
         } catch (\Throwable) {
             // Preserve ordinary boot; canonical input admission owns this refusal.
             $this->failed = true;
@@ -80,6 +92,13 @@ final class RouteExposureInputs
             $this->failed = true;
             throw $this->unavailable();
         }
+    }
+
+    /** @return array<string, bool> */
+    public function routeCapabilities(): array
+    {
+        $this->assertReady();
+        return $this->routeCapabilities;
     }
 
     /** Check custody on every kernel access, including after contexts were cached. */

@@ -63,6 +63,7 @@ final class AuthOidcKernelRouteMetadataTest extends TestCase
             self::assertCount($oidcPresent ? 30 : 28, $snapshot->routes);
             self::assertSame(0, AuthMetadataKernelFixtureProvider::$calls);
             self::assertSame($oidcPresent, $kernel->getRouteInputs()->capabilities['service:Waaseyaa\\Oidc\\Token\\TokenController'] ?? false);
+            self::assertSame([], array_filter($kernel->getRouteInputs()->capabilities, static fn(string $name): bool => str_starts_with($name, 'api.route.'), ARRAY_FILTER_USE_KEY));
             $kinds = array_column($kernel->getRouteParticipation()->records, 'kind', 'provider');
             self::assertSame('declarative', $kinds[AuthOidcRouteServiceProvider::class]);
             $database = $kernel->getDatabase();

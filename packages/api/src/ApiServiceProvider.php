@@ -421,16 +421,21 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         // strict allowlist validation fails during kernel boot, before routing.
         $policy = $this->resolve(EntityTypeApiExposurePolicy::class);
         $routeInputs = $this->resolveOptional(RouteExposureInputs::class);
-        if ($policy instanceof EntityTypeApiExposurePolicy && $routeInputs instanceof RouteExposureInputs) {
-            $routeInputs->publish($policy->effectiveMap());
-        }
         $this->resolve(InternalFieldVisibilityPolicy::class);
         // Finalize optional install facts at boot, even when both catalogs are
         // disabled. Later route reads must not discover a different install.
-        $this->contentSearchAvailable();
-        $this->mcpInstalled();
+        $contentSearchAvailable = $this->contentSearchAvailable();
+        $mcpInstalled = $this->mcpInstalled();
         $this->apiCatalog = $this->buildApiCatalog();
         $this->aiCatalog = $this->buildAiCatalog();
+        if ($policy instanceof EntityTypeApiExposurePolicy && $routeInputs instanceof RouteExposureInputs) {
+            $routeInputs->publish($policy->effectiveMap(), [
+                'api.route.content_search' => $contentSearchAvailable,
+                'api.route.mcp' => $mcpInstalled,
+                'api.route.catalog' => $this->apiCatalog !== null,
+                'api.route.ai_catalog' => $this->aiCatalog !== null,
+            ]);
+        }
     }
 
     public function httpDomainRouters(HttpKernel $httpKernel): iterable

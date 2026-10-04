@@ -78,4 +78,70 @@ final class RouteExposureInputsTest extends TestCase
         $inputs->publish(['1e0' => false, '01' => true]);
         self::assertSame(['1e0' => false, '01' => true], $inputs->freeze(['01', '1e0'], true));
     }
+    public function testCapabilitiesDetachAndBecomeReadableOnlyAfterFreeze(): void
+    {
+        $inputs = new RouteExposureInputs();
+        $available = true;
+        $inputs->publish(['post' => true], ['api.route.catalog' => &$available]);
+        $available = false;
+        try {
+            $inputs->routeCapabilities();
+            self::fail('Unfrozen capabilities must refuse.');
+        } catch (RouteCompositionException $error) {
+            self::assertSame('inputs-unavailable', $error->reason);
+        }
+        $inputs->freeze(['post'], true);
+        $copy = $inputs->routeCapabilities();
+        self::assertSame(['api.route.catalog' => true], $copy);
+        $copy['api.route.catalog'] = false;
+        self::assertSame(['api.route.catalog' => true], $inputs->routeCapabilities());
+    }
+
+    public function testMalformedCapabilitiesPoisonBothPublications(): void
+    {
+        foreach ([['api' => true], ['service:secret' => true], ['api.route.' => true], [0 => true], ['api.route.catalog' => 'private-value']] as $capabilities) {
+            $inputs = new RouteExposureInputs();
+            $inputs->publish(['post' => true], $capabilities);
+            foreach (['freeze', 'routeCapabilities'] as $operation) {
+                try {
+                    $operation === 'freeze' ? $inputs->freeze(['post'], true) : $inputs->routeCapabilities();
+                    self::fail('Malformed publication must refuse.');
+                } catch (RouteCompositionException $error) {
+                    self::assertSame('inputs-unavailable', $error->reason);
+                    self::assertStringNotContainsString('private-value', $error->getMessage());
+                }
+            }
+        }
+    }
+
+    public function testLateAndDuplicatePublicationPoisonCapabilities(): void
+    {
+        foreach ([false, true] as $late) {
+            $inputs = new RouteExposureInputs();
+            $inputs->publish(['post' => true], ['api.route.catalog' => true]);
+            $copy = [];
+            if ($late) {
+                $inputs->freeze(['post'], true);
+                $copy = $inputs->routeCapabilities();
+            }
+            try {
+                $inputs->publish(['post' => true], ['api.route.catalog' => false]);
+            } catch (RouteCompositionException) {
+                self::assertTrue($late);
+            }
+            try {
+                $inputs->routeCapabilities();
+                self::fail('Poisoned capabilities must refuse.');
+            } catch (RouteCompositionException $error) {
+                self::assertSame('inputs-unavailable', $error->reason);
+            }
+            if ($late) {
+                self::assertSame(['api.route.catalog' => true], $copy);
+            }
+        }
+        $absent = new RouteExposureInputs();
+        $absent->freeze([], false);
+        self::assertSame([], $absent->routeCapabilities());
+    }
+
 }

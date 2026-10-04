@@ -123,6 +123,13 @@ final class ApiServiceProviderTest extends TestCase
         $provider->boot();
         self::assertSame(1, $manager->definitionReads);
         self::assertSame(['post' => false], $inputs->freeze(['post'], true));
+        self::assertSame([
+            'api.route.content_search' => false,
+            'api.route.mcp' => class_exists(\Waaseyaa\Mcp\McpServiceProvider::class),
+            'api.route.catalog' => false,
+            'api.route.ai_catalog' => false,
+        ], $inputs->routeCapabilities());
+        self::assertSame(1, $manager->definitionReads);
     }
 
     public function testBareProviderBootWithoutPublicationSlotRetainsPolicyBehavior(): void
