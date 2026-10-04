@@ -46,18 +46,29 @@ final class NotificationAdminApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $controllerRef, 2);
 
         return match ($action) {
-            'index' => new JsonResponse(
-                $this->controller->index($request),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'test' => $this->controller->test($request, self::routeType($request)),
+            'index' => $this->index($request),
+            'test' => $this->test($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown notification action: %s', $action),
             ),
         };
+    }
+
+    public function index(Request $request): Response
+    {
+        return new JsonResponse(
+            $this->controller->index($request),
+            200,
+            ['Content-Type' => 'application/vnd.api+json'],
+        );
+    }
+
+    /** Named parameters accommodate callable dispatch; matched attributes remain authoritative. */
+    public function test(Request $request, mixed $type = null): Response
+    {
+        return $this->controller->test($request, self::routeType($request));
     }
 
     private static function routeType(Request $request): string

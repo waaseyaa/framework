@@ -45,21 +45,32 @@ final class SchedulerAdminApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $controllerRef, 2);
 
         return match ($action) {
-            'index' => new JsonResponse(
-                $this->controller->index(),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'trigger' => $this->controller->trigger(
-                self::routeName($request),
-                $request->headers->get('Idempotency-Key'),
-            ),
+            'index' => $this->index($request),
+            'trigger' => $this->trigger($request),
             default => self::errorResponse(
                 404,
                 'Not Found',
                 sprintf('Unknown scheduler action: %s', $action),
             ),
         };
+    }
+
+    public function index(Request $request): Response
+    {
+        return new JsonResponse(
+            $this->controller->index(),
+            200,
+            ['Content-Type' => 'application/vnd.api+json'],
+        );
+    }
+
+    /** Named parameters accommodate callable dispatch; matched attributes remain authoritative. */
+    public function trigger(Request $request, mixed $name = null): Response
+    {
+        return $this->controller->trigger(
+            self::routeName($request),
+            $request->headers->get('Idempotency-Key'),
+        );
     }
 
     private static function routeName(Request $request): string

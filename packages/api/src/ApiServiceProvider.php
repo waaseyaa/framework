@@ -167,6 +167,36 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(ApiCatalogRouter::class, function (): ApiCatalogRouter {
+            if ($this->apiCatalog === null) {
+                throw new \RuntimeException('The boot-finalized API catalog is unavailable.');
+            }
+            return new ApiCatalogRouter(new ApiCatalogController($this->apiCatalog));
+        });
+        $this->bind(AiCatalogRouter::class, function (): AiCatalogRouter {
+            if ($this->aiCatalog === null) {
+                throw new \RuntimeException('The boot-finalized AI catalog is unavailable.');
+            }
+            return new AiCatalogRouter(new AiCatalogController($this->aiCatalog));
+        });
+        $this->bind(SchedulerAdminApiRouter::class, function (): SchedulerAdminApiRouter {
+            $schedule = $this->resolve(ScheduleInterface::class);
+            $state = $this->resolve(ScheduleStateRepository::class);
+            $runner = $this->resolve(ScheduleRunner::class);
+            if (!$schedule instanceof ScheduleInterface || !$state instanceof ScheduleStateRepository || !$runner instanceof ScheduleRunner) {
+                throw new \RuntimeException('The required scheduler execution bindings are invalid.');
+            }
+            return new SchedulerAdminApiRouter(new SchedulerController($schedule, $state, $runner));
+        });
+        $this->bind(NotificationAdminApiRouter::class, function (): NotificationAdminApiRouter {
+            $dispatcher = $this->resolve(NotificationDispatcher::class);
+            $reader = $this->resolve(\Waaseyaa\Access\User\UserInternalFieldReaderInterface::class);
+            if (!$dispatcher instanceof NotificationDispatcher || !$reader instanceof \Waaseyaa\Access\User\UserInternalFieldReaderInterface) {
+                throw new \RuntimeException('The required notification execution bindings are invalid.');
+            }
+            return new NotificationAdminApiRouter(new NotificationController($dispatcher, $reader));
+        });
+
         $this->bind(MediaVersionApiRouter::class, function (): MediaVersionApiRouter {
             $model = $this->kernelServices?->get(MediaVersionReadModelInterface::class);
             if ($model !== null && !$model instanceof MediaVersionReadModelInterface) {
