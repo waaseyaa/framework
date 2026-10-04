@@ -523,8 +523,10 @@ final class HttpKernel extends AbstractKernel
             if ($controller !== null) {
                 $httpRequest->attributes->set('_controller', $controller);
             }
-            $dispatcher = $this->buildRouterChain();
-            // Domain-router contributions also execute arbitrary provider PHP.
+            $dispatcher = $controller instanceof \Closure
+                ? new ControllerDispatcher([], $this->logger, $this->resolveInertiaFullPageRenderer())
+                : $this->buildRouterChain();
+            // Legacy routers and the optional renderer execute arbitrary provider PHP.
             $this->getRouteInputs();
         } catch (HandlerResolutionException|RouteCompositionException $error) {
             $this->logger->error($error->getMessage());

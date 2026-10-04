@@ -696,11 +696,56 @@ final class HttpKernelTest extends TestCase
 
         $database = $kernel->getDatabase();
         RuntimeSchemaMigrations::broadcast($database);
+        $provider->throwDomainRouters = true;
         $request->attributes->set('_account', new AnonymousUser());
         $response = new \ReflectionMethod(HttpKernel::class, 'dispatchMatchedRequest')->invoke($kernel, $request, new \Waaseyaa\Api\Controller\BroadcastStorage($database));
         self::assertSame('actual', $response->getContent());
         self::assertSame(1, $provider->factories);
         self::assertSame(1, $provider->contributions);
+        self::assertSame(0, $provider->domainRouterCalls);
+    }
+
+    #[Test]
+    public function builtin_dispatch_retains_the_legacy_router_chain(): void
+    {
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedMetadataHttpProvider::class]]);
+        $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
+        $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+        $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedMetadataHttpProvider))[0];
+        $request = Request::create('/api/openapi.json');
+        self::assertSame($request, new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/api/openapi.json', 'GET', $request));
+        $database = $kernel->getDatabase();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_account', new AnonymousUser());
+        $response = new \ReflectionMethod(HttpKernel::class, 'dispatchMatchedRequest')->invoke($kernel, $request, new \Waaseyaa\Api\Controller\BroadcastStorage($database));
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(1, $provider->domainRouterCalls);
+        self::assertSame(0, $provider->factories);
+    }
+
+    #[Test]
+    public function caught_renderer_input_failure_never_invokes_the_selected_handler(): void
+    {
+        $this->writeInstalledPackageProviders(['test/http' => [AdmittedMetadataHttpProvider::class]]);
+        $kernel = new HttpKernel($this->projectRoot);
+        $kernel->bootForCli();
+        $providers = new \ReflectionProperty(AbstractKernel::class, 'providers')->getValue($kernel);
+        $provider = array_values(array_filter($providers, static fn($provider): bool => $provider instanceof AdmittedMetadataHttpProvider))[0];
+        $provider->poisonRendererInputs = true;
+        $request = Request::create('/en/metadata');
+        $request->headers->set('X-Proof', 'actual');
+        self::assertSame($request, new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/metadata', 'GET', $request));
+        $database = $kernel->getDatabase();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_account', new AnonymousUser());
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($database);
+        foreach ([1, 2] as $attempt) {
+            $response = new \ReflectionMethod(HttpKernel::class, 'dispatchMatchedRequest')->invoke($kernel, $request, $storage);
+            self::assertSame(500, $response->getStatusCode());
+        }
+        self::assertSame(1, $provider->rendererCalls);
+        self::assertSame(0, $provider->executions);
     }
 
     #[Test]
@@ -1428,15 +1473,30 @@ final class AdmittedHttpFixtureProvider extends ServiceProvider
     }
 }
 
-final class AdmittedMetadataHttpProvider extends ServiceProvider implements \Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface
+final class AdmittedMetadataHttpProvider extends ServiceProvider implements \Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface, \Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface
 {
     public bool $poisonInputs = false;
     public bool $poisonFactoryInputs = false;
     public int $executions = 0;
     public int $contributions = 0;
     public int $factories = 0;
+    public bool $throwDomainRouters = false;
+    public bool $poisonRendererInputs = false;
+    public int $domainRouterCalls = 0;
+    public int $rendererCalls = 0;
     public function register(): void
     {
+        $this->bind(\Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface::class, function (): object {
+            $this->rendererCalls++;
+            if ($this->poisonRendererInputs) {
+                $slot = $this->kernelServices->get(\Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs::class);
+                try {
+                    $slot->publish(['test' => false]);
+                } catch (\Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException) {
+                }
+            }
+            return new \stdClass();
+        });
         $this->bind('http.proof', function (): object {
             $this->factories++;
             if ($this->poisonFactoryInputs) {
@@ -1448,6 +1508,14 @@ final class AdmittedMetadataHttpProvider extends ServiceProvider implements \Waa
             }
             return new AdmittedMetadataHttpHandler($this);
         });
+    }
+    public function httpDomainRouters(HttpKernel $kernel): iterable
+    {
+        $this->domainRouterCalls++;
+        if ($this->throwDomainRouters) {
+            throw new \Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException('contribution-failed', 'Unselected legacy routers must not execute.');
+        }
+        return [];
     }
     public function routeDefinitions(\Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext $context): iterable
     {

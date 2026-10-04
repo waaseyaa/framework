@@ -1,5 +1,9 @@
 # API producer and terminal migration prerequisite
 
+## Lazy HTTP execution prerequisite
+
+Base 0c3c8762c7c6637f25cd3d78384283e52e8f5cdc. Root owns HttpKernel selected dispatch and its real composer/dispatcher controls. A resolved declarative closure bypasses unused legacy domain-router construction but retains ControllerDispatcher response conversion and the existing optional Inertia renderer. Builtin string and unmatched legacy handlers retain the existing chain. Input custody is checked after selected factory and after optional renderer/provider construction, including caught publication failures. Discriminators prove unused failing legacy hooks never execute, builtin hooks still execute, and caught renderer/factory poisoning refuses before handler execution. This removes eager unrelated service construction before complete API metadata admission; no new generic mechanism or fallback is introduced.
+
 ## Field autosave terminal preparation
 
 Base 6df06e306a2e6c9628272426dee0e2fdbc6a8da8. Root owns a minimal API-specific field autosave request adapter, its explicit nonshared binding and discriminating resolver/dispatcher tests. The controller's public update signature requires entityType/id/key scalar arguments; generic dispatcher forwards only matched non-underscored names and cannot supply _entity_type. The adapter reads matched attributes, normalizes scalars exactly as the workflow adapter does and invokes the unchanged controller. Required canonical manager/access/field registry bindings refuse invalid selection. Direct-controller response parity covers media/body validation, entity/field/access refusal and mutation fencing; successful persisted value and renewed current token are independently checked. Existing working-copy, workflow-denial and representation tests retain controller semantics. Full metadata admission remains pending; no route is added by this preparatory slice.
