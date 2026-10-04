@@ -167,6 +167,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(ContentSearchApiRouter::class, fn(): ContentSearchApiRouter => $this->contentSearchRouter());
         $this->bind(McpAdminApiRouter::class, function (): McpAdminApiRouter {
             $registry = $this->kernelServices?->get(ToolRegistryReadModelInterface::class);
             $config = $this->kernelServices?->get(ServerConfigReadModelInterface::class);
@@ -335,45 +336,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         ];
 
         if ($this->contentSearchAvailable()) {
-            $configuration = $this->contentSearchConfiguration();
-            \assert(is_array($configuration));
-            $services = $this->kernelServices;
-
-            // The closures deliberately capture only the kernel-services bus
-            // and immutable scalar config. Resolving either database-backed
-            // service while building routes violates the request lifecycle and
-            // can lose rate-limit writes (#1611).
-            $loggerResolver = static function () use ($services): ?LoggerInterface {
-                try {
-                    $logger = $services?->get(LoggerInterface::class);
-                } catch (\Throwable) {
-                    return null;
-                }
-
-                return $logger instanceof LoggerInterface ? $logger : null;
-            };
-            $routers[] = new ContentSearchApiRouter(
-                static function () use ($services, $configuration, $loggerResolver): ContentSearchController {
-                    if ($services === null) {
-                        throw new \RuntimeException('The kernel-services bus is unavailable.');
-                    }
-                    $provider = $services->get(self::CONTENT_SEARCH_PROVIDER);
-                    $limiter = $services->get(self::CONTENT_SEARCH_LIMITER);
-                    if ($provider === null || $limiter === null) {
-                        throw new \RuntimeException('The optional public content search service binding is unavailable.');
-                    }
-
-                    return new ContentSearchController(
-                        provider: new SearchPackageContentSearchAdapter($provider),
-                        limiter: new AtomicRateLimiterAdapter($limiter),
-                        identityMaxAttempts: $configuration['identity_max'],
-                        globalMaxAttempts: $configuration['global_max'],
-                        windowSeconds: $configuration['window'],
-                        logger: $loggerResolver(),
-                    );
-                },
-                $loggerResolver,
-            );
+            $routers[] = $this->contentSearchRouter();
         }
 
         if ($this->apiCatalog !== null) {
@@ -1054,6 +1017,51 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
     private function mcpInstalled(): bool
     {
         return $this->mcpAvailable ??= class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
+    }
+
+    private function contentSearchRouter(): ContentSearchApiRouter
+    {
+        $configuration = $this->contentSearchConfiguration();
+        if ($configuration === false) {
+            throw new \RuntimeException('Public content search is disabled.');
+        }
+        $services = $this->kernelServices;
+
+        // The closures deliberately capture only the kernel-services bus
+        // and immutable scalar config. Resolving either database-backed
+        // service while building routes violates the request lifecycle and
+        // can lose rate-limit writes (#1611).
+        $loggerResolver = static function () use ($services): ?LoggerInterface {
+            try {
+                $logger = $services?->get(LoggerInterface::class);
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return $logger instanceof LoggerInterface ? $logger : null;
+        };
+        return new ContentSearchApiRouter(
+            static function () use ($services, $configuration, $loggerResolver): ContentSearchController {
+                if ($services === null) {
+                    throw new \RuntimeException('The kernel-services bus is unavailable.');
+                }
+                $provider = $services->get(self::CONTENT_SEARCH_PROVIDER);
+                $limiter = $services->get(self::CONTENT_SEARCH_LIMITER);
+                if ($provider === null || $limiter === null) {
+                    throw new \RuntimeException('The optional public content search service binding is unavailable.');
+                }
+
+                return new ContentSearchController(
+                    provider: new SearchPackageContentSearchAdapter($provider),
+                    limiter: new AtomicRateLimiterAdapter($limiter),
+                    identityMaxAttempts: $configuration['identity_max'],
+                    globalMaxAttempts: $configuration['global_max'],
+                    windowSeconds: $configuration['window'],
+                    logger: $loggerResolver(),
+                );
+            },
+            $loggerResolver,
+        );
     }
 
     /**

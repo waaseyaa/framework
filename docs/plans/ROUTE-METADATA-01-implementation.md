@@ -439,3 +439,4 @@ full dispatcher parity, #3004 effective access, #3117 broader CLI convergence,
 and unrelated defects remain separately owned. They do not become implicit
 blockers or implicit implementation authority through this plan.
 MCP terminal preparation follows the audit checkpoint, preserving admin representation and approval origin/operator/store policies through explicit nonshared execution. Four API-owned families and Foundation terminal adaptations remain before full API admission; installed CLI/Bimaaji qualification remains separate.
+Content-search terminal preparation follows MCP, sharing the lazy provider factory across legacy and explicit execution. Discovery, workflow and OIDC-client families remain, together with Foundation terminal adaptations, before complete API admission and installed CLI/Bimaaji qualification.

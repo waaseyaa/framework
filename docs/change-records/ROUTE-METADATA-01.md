@@ -145,3 +145,4 @@ No broad package remediation, release, deployment, process-static cache,
 controller autowiring redesign, or whole-package convergence claim is part of
 this design candidate.
 MCP terminal preparation at base 5bdc65440bee02dc62ab907d25132445275dc85f extracts shared admin/approval request actions and binds their routers nonshared. Approval store resolution remains per-action, after validation, preserving sanitized 503 and separation of duties. This is local source preparation for RM-06; complete API and installed graph-export acceptance remain open.
+Content-search terminal preparation at base d69aa24ae2cf25a884fe75ed88f12f9313c92870 adds a nonshared router binding using the existing public handler and one shared provider factory. Context-first validation, optional-service 503 and configured rate limiting remain inside request execution. Full metadata admission and installed graph-export acceptance remain open.
