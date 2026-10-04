@@ -50,11 +50,18 @@ use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
 // Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Field\FieldSchemaAuthority;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Discovery\AiCatalog\AiCatalogEntry;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\Exception\ConfigException;
+use Waaseyaa\Foundation\Http\Router\JsonApiRouter;
+use Waaseyaa\Foundation\Http\Router\SchemaRouter;
+use Waaseyaa\Foundation\Http\Router\TranslationRouter;
+use Waaseyaa\Foundation\Http\Router\WorkflowDefinitionsApiRouter;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
@@ -75,6 +82,7 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
+use Waaseyaa\Workflows\Read\ActiveWorkflows;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
 final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface, ConfiguresHttpKernelInterface
@@ -176,6 +184,56 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(JsonApiRouter::class, function (): JsonApiRouter {
+            $manager = $this->resolve(EntityTypeManager::class);
+            $access = $this->resolve(EntityAccessHandler::class);
+            $exposure = $this->resolve(EntityTypeApiExposurePolicy::class);
+            $visibility = $this->resolve(InternalFieldVisibilityPolicy::class);
+            if (!$manager instanceof EntityTypeManager || !$access instanceof EntityAccessHandler
+                || !$exposure instanceof EntityTypeApiExposurePolicy || !$visibility instanceof InternalFieldVisibilityPolicy) {
+                throw new \RuntimeException('The JSON:API execution bindings are invalid.');
+            }
+            return new JsonApiRouter($manager, $access, exposurePolicy: $exposure, internalFieldVisibility: $visibility);
+        });
+        $this->bind(TranslationRouter::class, function (): TranslationRouter {
+            $manager = $this->resolve(EntityTypeManager::class);
+            $access = $this->resolve(EntityAccessHandler::class);
+            $exposure = $this->resolve(EntityTypeApiExposurePolicy::class);
+            $visibility = $this->resolve(InternalFieldVisibilityPolicy::class);
+            if (!$manager instanceof EntityTypeManager || !$access instanceof EntityAccessHandler
+                || !$exposure instanceof EntityTypeApiExposurePolicy || !$visibility instanceof InternalFieldVisibilityPolicy) {
+                throw new \RuntimeException('The translation execution bindings are invalid.');
+            }
+            return new TranslationRouter($manager, $access, $exposure, $visibility);
+        });
+        $this->bind(SchemaRouter::class, function (): SchemaRouter {
+            $manager = $this->resolve(EntityTypeManager::class);
+            $access = $this->resolve(EntityAccessHandler::class);
+            $exposure = $this->resolve(EntityTypeApiExposurePolicy::class);
+            $registry = $this->kernelServices?->get(FieldDefinitionRegistryInterface::class);
+            $authority = $this->kernelServices?->get(FieldSchemaAuthority::class);
+            if (!$manager instanceof EntityTypeManager || !$access instanceof EntityAccessHandler
+                || !$exposure instanceof EntityTypeApiExposurePolicy
+                || ($registry !== null && !$registry instanceof FieldDefinitionRegistryInterface)
+                || ($authority !== null && !$authority instanceof FieldSchemaAuthority)) {
+                throw new \RuntimeException('The schema execution bindings are invalid.');
+            }
+            if ($authority === null) {
+                $fieldTypes = $this->resolve(FieldTypeManagerInterface::class);
+                if (!$fieldTypes instanceof FieldTypeManagerInterface) {
+                    throw new \RuntimeException('The boot-scoped field registry is unavailable.');
+                }
+                $authority = new FieldSchemaAuthority($fieldTypes);
+            }
+            return new SchemaRouter($manager, $access, $registry, $exposure, $authority);
+        });
+        $this->bind(WorkflowDefinitionsApiRouter::class, function (): WorkflowDefinitionsApiRouter {
+            $active = $this->kernelServices?->get(ActiveWorkflows::class);
+            if ($active !== null && !$active instanceof ActiveWorkflows) {
+                throw new \RuntimeException('The workflow definitions execution binding is invalid.');
+            }
+            return new WorkflowDefinitionsApiRouter($active);
+        });
         $this->bind(DiscoveryRouter::class, function (): DiscoveryRouter {
             if ($this->discoveryHandler === null) {
                 throw new \RuntimeException('The finalized HTTP discovery handler is unavailable.');

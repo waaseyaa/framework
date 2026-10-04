@@ -43,6 +43,11 @@ final class SchemaRouter implements DomainRouterInterface
             return $this->jsonApiResponse(200, $openApi->generate());
         }
 
+        return $this->show($request);
+    }
+
+    public function show(Request $request, mixed $entity_type = null): Response
+    {
         $ctx = WaaseyaaContext::fromRequest($request);
         $schemaPresenter = new SchemaPresenter(
             $this->fieldDefinitionRegistry,

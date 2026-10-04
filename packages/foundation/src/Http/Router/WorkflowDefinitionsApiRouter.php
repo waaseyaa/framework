@@ -43,7 +43,18 @@ final class WorkflowDefinitionsApiRouter implements DomainRouterInterface
 
         [, $action] = explode('::', $controllerRef, 2);
 
-        // --- WorkflowDefinitionsController actions ---
+        if ($action === 'list') {
+            return $this->list($request);
+        }
+
+        return $this->jsonApiResponse(404, [
+            'jsonapi' => ['version' => '1.1'],
+            'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Unknown workflow definitions action: %s', $action)]],
+        ]);
+    }
+
+    public function list(Request $request): Response
+    {
         $activeWorkflows = $this->activeWorkflows;
         $apiController = new WorkflowDefinitionsController(
             $activeWorkflows instanceof ActiveWorkflows
@@ -51,18 +62,6 @@ final class WorkflowDefinitionsApiRouter implements DomainRouterInterface
                 : null,
         );
 
-        $payload = match ($action) {
-            'list' => $apiController->list(),
-            default => null,
-        };
-
-        if ($payload === null) {
-            return $this->jsonApiResponse(404, [
-                'jsonapi' => ['version' => '1.1'],
-                'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Unknown workflow definitions action: %s', $action)]],
-            ]);
-        }
-
-        return $this->jsonApiResponse(200, $payload);
+        return $this->jsonApiResponse(200, $apiController->list());
     }
 }

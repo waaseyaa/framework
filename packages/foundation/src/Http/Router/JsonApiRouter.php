@@ -49,7 +49,7 @@ final class JsonApiRouter implements DomainRouterInterface
         return str_contains($controllerString, 'JsonApiController');
     }
 
-    public function handle(Request $request): Response
+    public function handle(Request $request, mixed $id = null): Response
     {
         $expectation = null;
         if (in_array($request->getMethod(), ['PATCH', 'DELETE'], true)) {

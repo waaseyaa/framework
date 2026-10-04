@@ -52,7 +52,7 @@ final class TranslationRouter implements DomainRouterInterface
         return str_contains($controllerString, 'TranslationController');
     }
 
-    public function handle(Request $request): Response
+    public function handle(Request $request, mixed $id = null, mixed $langcode = null): Response
     {
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();

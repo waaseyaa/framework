@@ -1,5 +1,9 @@
 # API producer and terminal migration prerequisite
 
+## Foundation API terminal preparation
+
+Base d8fdd2af02a3f23d0a3cf7ea6ad65ebab4168387. Root owns explicit nonshared ApiServiceProvider bindings for JsonApiRouter, TranslationRouter, SchemaRouter and WorkflowDefinitionsApiRouter, their request actions, resolver/dispatcher controls and coupled contracts. JSON:API and translation handle methods already own method selection and matched parameters; accept forwarded names without changing request authority. Schema show and workflow list become shared legacy/explicit actions. Required manager/access services refuse invalid selection. Existing exposure/internal visibility and canonical field registry/boot-scoped schema authority remain; optional workflow absence returns the same empty result, while unhealthy declared services refuse. No metadata admission or replacement container occurs. Acceptance compares real selected dispatch and legacy envelopes, populated reads, opaque refusals, mutation preconditions, named-argument authority and lazy/nonshared lifetime. Field autosave is a separate explicit request-adapter prerequisite. Full API/provider/installed strict export proof remains open.
+
 ROUTE-METADATA-01 RM-06, #3122. Base 885182c915b138a4d8e43da14eedf53ce203bba1. This is a bounded API route-path review, not a full package audit or convergence claim.
 
 API owns exposure-driven JSON:API declarations and public/admin endpoint declarations. Foundation owns transport dispatch and middleware; existing domain routers adapt route parameters, audited account context, document/status envelopes and preconditions before invoking controllers. A stable class reference alone is not equivalent to those adapters. API provider adoption must prove the complete existing terminal path, including refusals, rather than directly invoking incompatible controller methods.
