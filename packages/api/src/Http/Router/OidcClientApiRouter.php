@@ -46,22 +46,51 @@ final class OidcClientApiRouter implements DomainRouterInterface
         }
 
         [, $action] = explode('::', $controllerRef, 2);
-        $id = $request->attributes->get('id');
-        $idStr = is_scalar($id) ? (string) $id : '';
-
         return match ($action) {
-            'index' => new JsonResponse(
-                $this->controller->index(),
-                200,
-                ['Content-Type' => 'application/vnd.api+json'],
-            ),
-            'show' => $this->controller->show($idStr),
-            'create' => $this->controller->create($request),
-            'update' => $this->controller->update($idStr, $request),
-            'delete' => $this->controller->delete($idStr, $request),
-            'regenerateSecret' => $this->controller->regenerateSecret($idStr),
+            'index' => $this->index($request),
+            'show' => $this->show($request),
+            'create' => $this->create($request),
+            'update' => $this->update($request),
+            'delete' => $this->delete($request),
+            'regenerateSecret' => $this->regenerateSecret($request),
             default => self::errorResponse(404, 'Not Found', "Unknown OIDC client action: {$action}"),
         };
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        return new JsonResponse($this->controller->index(), 200, ['Content-Type' => 'application/vnd.api+json']);
+    }
+
+    public function show(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->show(self::requestId($request));
+    }
+
+    public function create(Request $request): Response
+    {
+        return $this->controller->create($request);
+    }
+
+    public function update(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->update(self::requestId($request), $request);
+    }
+
+    public function delete(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->delete(self::requestId($request), $request);
+    }
+
+    public function regenerateSecret(Request $request, mixed $id = null): Response
+    {
+        return $this->controller->regenerateSecret(self::requestId($request));
+    }
+
+    private static function requestId(Request $request): string
+    {
+        $id = $request->attributes->get('id');
+        return is_scalar($id) ? (string) $id : '';
     }
 
     private static function errorResponse(int $status, string $title, string $detail): JsonResponse

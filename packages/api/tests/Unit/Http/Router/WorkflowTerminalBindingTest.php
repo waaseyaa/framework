@@ -97,6 +97,17 @@ final class WorkflowTerminalBindingTest extends TestCase
         }
     }
 
+    public function testExplicitCallableArgumentCannotReplaceMatchedId(): void
+    {
+        [$manager, $transition, $access] = $this->world();
+        [$provider] = $this->provider([EntityTypeManager::class => $manager, TransitionService::class => $transition, EntityAccessHandler::class => $access]);
+        $definition = $this->definition('transitions');
+        $request = new Request(attributes: ['_entity_type' => 'article', 'id' => '1', '_account' => new AuthorizationPrincipal(7, true, ['authenticated'], [], 'fixture'), '_route' => $definition->name, '_controller' => $definition->handler->id]);
+        $services = new KernelHandlerContainer([$provider], [])->explicitServices($request);
+        $callable = new RouteHandlerResolver($definition, $services)->resolveMatched();
+        self::assertSame(200, $callable($request, id: 'missing')->getStatusCode());
+    }
+
     private function world(): array
     {
         $storage = new InMemoryEntityStorage();

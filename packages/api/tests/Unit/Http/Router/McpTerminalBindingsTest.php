@@ -107,8 +107,8 @@ final class McpTerminalBindingsTest extends TestCase
         $decided = new ApprovalRequest($id, $pending->tuple, ApprovalStatus::Approved, 'fixture', [], $now, $pending->expiresAt, 42, $now->modify('+1 minute'));
         foreach ([false, true] as $allowSelf) {
             $store = $this->createMock(OperationApprovalStoreInterface::class);
-            $store->expects(self::exactly(2))->method('find')->with($id)->willReturn($pending);
-            $store->expects($allowSelf ? self::exactly(2) : self::never())->method('decide')->with($id, true, 42, null)->willReturn($decided);
+            $store->expects(self::exactly(3))->method('find')->with($id)->willReturn($pending);
+            $store->expects($allowSelf ? self::exactly(3) : self::never())->method('decide')->with($id, true, 42, null)->willReturn($decided);
             [$provider, $bus] = $this->provider([OperationApprovalStoreInterface::class => $store]);
             $provider->setKernelContext(sys_get_temp_dir(), ['cors_origins' => ['https://operator.test'], 'mcp' => ['write_tier' => ['approval' => ['allow_self_approval' => $allowSelf]]]], []);
             $request = Request::create('https://app.test/api/mcp/approvals/' . $id . '/decision', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"decision":"approve"}');
@@ -119,6 +119,11 @@ final class McpTerminalBindingsTest extends TestCase
             $request->attributes->set('_route_params', ['id' => 'different-id']);
             $legacy = new McpApprovalApiRouter(new McpApprovalController(static fn() => $store, ['https://operator.test'], $allowSelf));
             $this->parity($provider, $bus, $legacy, McpApprovalController::class, 'decide', $request, $allowSelf ? 204 : 403);
+            $definition = $this->definition(McpApprovalApiRouter::class, 'decide');
+            $request->attributes->set('_controller', $definition->handler->id);
+            $services = new KernelHandlerContainer([$provider], [])->explicitServices($request);
+            $callable = new RouteHandlerResolver($definition, $services)->resolveMatched();
+            self::assertSame($allowSelf ? 204 : 403, $callable($request, id: 'different-id')->getStatusCode());
         }
     }
 

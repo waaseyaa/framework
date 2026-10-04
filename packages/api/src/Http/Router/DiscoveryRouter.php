@@ -66,19 +66,12 @@ final class DiscoveryRouter implements DomainRouterInterface
     public function handle(Request $request): Response
     {
         $controller = $request->attributes->get('_controller', '');
+        if (str_contains($controller, 'ApiDiscoveryController')) {
+            return $this->discover($request);
+        }
+
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();
-
-        if (str_contains($controller, 'ApiDiscoveryController')) {
-            $discoveryController = new ApiDiscoveryController(
-                $this->entityTypeManager,
-                account: $ctx->principal,
-                exposurePolicy: $this->exposurePolicy,
-            );
-            $result = $discoveryController->discover();
-
-            return $this->jsonApiResponse(200, ['jsonapi' => ['version' => '1.1'], ...$result]);
-        }
 
         return match ($controller) {
             'discovery.topic_hub' => $this->handleTopicHub($params, $ctx),
@@ -90,6 +83,13 @@ final class DiscoveryRouter implements DomainRouterInterface
                 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => "Unknown discovery action: $controller"]],
             ]),
         };
+    }
+
+    public function discover(Request $request): Response
+    {
+        $ctx = WaaseyaaContext::fromRequest($request);
+        $controller = new ApiDiscoveryController($this->entityTypeManager, account: $ctx->principal, exposurePolicy: $this->exposurePolicy);
+        return $this->jsonApiResponse(200, ['jsonapi' => ['version' => '1.1'], ...$controller->discover()]);
     }
 
     private function handleTopicHub(array $params, WaaseyaaContext $ctx): Response

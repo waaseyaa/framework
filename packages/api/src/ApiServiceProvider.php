@@ -25,6 +25,7 @@ use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Api\Discovery\AiCatalog;
 use Waaseyaa\Api\Discovery\ApiCatalog;
+use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\Http\Router\AiCatalogRouter;
 use Waaseyaa\Api\Http\Router\ApiCatalogRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
@@ -59,6 +60,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
@@ -75,7 +77,7 @@ use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
-final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface
+final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface, ConfiguresHttpKernelInterface
 {
     private const string CONTENT_SEARCH_PROVIDER = 'Waaseyaa\\Search\\SearchProviderInterface';
     private const string CONTENT_SEARCH_LIMITER = 'Waaseyaa\\Auth\\AtomicRateLimiterInterface';
@@ -97,6 +99,13 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     private ?ApiCatalog $apiCatalog = null;
     private ?AiCatalog $aiCatalog = null;
+
+    private ?DiscoveryApiHandler $discoveryHandler = null;
+
+    public function configureHttpKernel(HttpKernel $kernel): void
+    {
+        $this->discoveryHandler = $kernel->getDiscoveryApiHandler();
+    }
 
     public function withApiCatalogEntryProviders(array $providers): void
     {
@@ -167,6 +176,24 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        $this->bind(DiscoveryRouter::class, function (): DiscoveryRouter {
+            if ($this->discoveryHandler === null) {
+                throw new \RuntimeException('The finalized HTTP discovery handler is unavailable.');
+            }
+            $manager = $this->resolve(EntityTypeManager::class);
+            $exposure = $this->resolve(EntityTypeApiExposurePolicy::class);
+            if (!$manager instanceof EntityTypeManager || !$exposure instanceof EntityTypeApiExposurePolicy) {
+                throw new \RuntimeException('The discovery execution bindings are invalid.');
+            }
+            return new DiscoveryRouter($this->discoveryHandler, $manager, $exposure);
+        });
+        $this->bind(OidcClientApiRouter::class, function (): OidcClientApiRouter {
+            $manager = $this->resolve(EntityTypeManager::class);
+            if (!$manager instanceof EntityTypeManager) {
+                throw new \RuntimeException('The OIDC client execution binding is invalid.');
+            }
+            return new OidcClientApiRouter(new OidcClientController($manager));
+        });
         $this->bind(WorkflowTransitionApiRouter::class, function (): WorkflowTransitionApiRouter {
             $manager = $this->resolve(EntityTypeManager::class);
             $transition = $this->resolve(TransitionService::class);
