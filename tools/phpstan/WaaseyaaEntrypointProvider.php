@@ -5,6 +5,12 @@ namespace Waaseyaa\Tools\PHPStan;
 use ReflectionClassConstant;
 use ReflectionMethod;
 use ReflectionProperty;
+use PhpParser\Node;
+use PHPStan\Analyser\Scope;
+use ShipMonk\PHPStan\DeadCode\Graph\ClassMemberUsage;
+use ShipMonk\PHPStan\DeadCode\Graph\ClassMethodRef;
+use ShipMonk\PHPStan\DeadCode\Graph\ClassMethodUsage;
+use ShipMonk\PHPStan\DeadCode\Graph\UsageOrigin;
 use ShipMonk\PHPStan\DeadCode\Provider\ReflectionBasedMemberUsageProvider;
 use ShipMonk\PHPStan\DeadCode\Provider\VirtualUsageData;
 
@@ -66,6 +72,36 @@ final class WaaseyaaEntrypointProvider extends ReflectionBasedMemberUsageProvide
         $this->declaredProviders = self::loadDeclaredProviders($projectRoot);
         $this->entitySupportingTraits = self::loadEntitySupportingTraits($projectRoot);
         $this->controllerMethodRefs = self::loadControllerMethodRefs($projectRoot);
+    }
+
+    /** @return list<ClassMemberUsage> */
+    public function getUsages(Node $node, Scope $scope): array
+    {
+        $usages = parent::getUsages($node, $scope);
+        if (!$node instanceof Node\Expr\StaticCall
+            || !$node->class instanceof Node\Name
+            || !$node->name instanceof Node\Identifier
+            || $scope->resolveName($node->class) !== 'Waaseyaa\\Foundation\\Routing\\Metadata\\HandlerReference'
+            || $node->name->toString() !== 'fromString'
+            || !isset($node->args[0])
+            || !$node->args[0] instanceof Node\Arg
+        ) {
+            return $usages;
+        }
+
+        // PHPStan supplies finite strings, including table-driven declarations.
+        // Keep the caller edge: an unused declaration must not make its handler
+        // a global entrypoint. Unknown strings never mark arbitrary methods.
+        foreach ($scope->getType($node->args[0]->value)->getConstantStrings() as $identifier) {
+            if (preg_match('/^(?:class|service):([A-Za-z_\\\\][A-Za-z0-9_\\\\]*)::([A-Za-z_][A-Za-z0-9_]*)$/D', $identifier->getValue(), $match) !== 1) {
+                continue;
+            }
+            $usages[] = new ClassMethodUsage(
+                UsageOrigin::createRegular($node, $scope),
+                new ClassMethodRef(ltrim($match[1], '\\'), $match[2], possibleDescendant: false),
+            );
+        }
+        return $usages;
     }
 
     protected function shouldMarkMethodAsUsed(ReflectionMethod $method): ?VirtualUsageData

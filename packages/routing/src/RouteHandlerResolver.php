@@ -43,9 +43,13 @@ final class RouteHandlerResolver
             throw new HandlerResolutionException($name, $handler->id, 'resolution-failed');
         }
         $method = $handler->method;
-        if (!is_object($instance) || $method === null || !method_exists($instance, $method) || !new \ReflectionMethod($instance, $method)->isPublic() || !is_callable([$instance, $method])) {
+        if (!is_object($instance) || $method === null || !method_exists($instance, $method)) {
             throw new HandlerResolutionException($name, $handler->id, 'invalid-method');
         }
-        return \Closure::fromCallable([$instance, $method]);
+        $reflection = new \ReflectionMethod($instance, $method);
+        if (!$reflection->isPublic() || !is_callable([$instance, $method])) {
+            throw new HandlerResolutionException($name, $handler->id, 'invalid-method');
+        }
+        return $reflection->getClosure($instance);
     }
 }

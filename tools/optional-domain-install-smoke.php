@@ -7,6 +7,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Api\ApiDiscoveryController;
+use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\User;
 
@@ -91,6 +92,7 @@ foreach ($developmentPlanePackages as $package) {
 $kernel = new HttpKernel($projectRoot);
 (new ReflectionMethod($kernel, 'boot'))->invoke($kernel);
 $matchRoute = new ReflectionMethod($kernel, 'matchRoute');
+$dispatchMatchedRequest = new ReflectionMethod($kernel, 'dispatchMatchedRequest');
 
 $entityIdsByPackage = [
     'waaseyaa/genealogy' => ['genealogy_tree', 'genealogy_person', 'genealogy_event', 'genealogy_family'],
@@ -118,8 +120,8 @@ $adminPrincipal = $principalFactory instanceof AccountPrincipalFactoryInterface
     ? $principalFactory->fromAccount($adminAccount)
     : null;
 
-$invokeSurfaceRoute = static function (string $path, string $expectedRouteName) use ($kernel, $matchRoute, $adminAccount, $adminPrincipal, $assert): array {
-    $matched = $matchRoute->invoke($kernel, $path, 'GET');
+$invokeSurfaceRoute = static function (string $path, string $expectedRouteName) use ($kernel, $matchRoute, $dispatchMatchedRequest, $adminAccount, $adminPrincipal, $assert): array {
+    $matched = $matchRoute->invoke($kernel, $path, 'GET', Request::create($path));
     $assert($matched instanceof Request, sprintf('admin surface route %s did not match', $path));
     if (!$matched instanceof Request) {
         return [];
@@ -129,18 +131,13 @@ $invokeSurfaceRoute = static function (string $path, string $expectedRouteName) 
         sprintf('admin surface path %s matched %s instead of %s', $path, $matched->attributes->get('_route'), $expectedRouteName),
     );
 
-    $controller = $matched->attributes->get('_controller');
-    $assert(is_callable($controller), sprintf('admin surface route %s has no callable controller', $path));
-    if (!is_callable($controller)) {
-        return [];
-    }
-
-    $request = Request::create($path);
-    $request->attributes->set('_account', $adminAccount);
+    $matched->attributes->set('_account', $adminAccount);
     if ($adminPrincipal !== null) {
-        $request->attributes->set('_authorization_principal', $adminPrincipal);
+        $matched->attributes->set('_authorization_principal', $adminPrincipal);
     }
-    $result = $controller($request);
+    // The matched declaration identifies a deferred handler. Exercise the same
+    // terminal as HTTP so explicit resolution and final custody checks run.
+    $result = $dispatchMatchedRequest->invoke($kernel, $matched, new BroadcastStorage($kernel->getDatabase()));
     $assert($result instanceof Response, sprintf('admin surface route %s returned no response', $path));
     if (!$result instanceof Response) {
         return [];
@@ -180,7 +177,7 @@ $assert(
     sprintf('MCP admin navigation capability is %s', $expectedPresent ? 'absent' : 'present'),
 );
 
-$apiDiscoveryRoute = $matchRoute->invoke($kernel, '/api', 'GET');
+$apiDiscoveryRoute = $matchRoute->invoke($kernel, '/api', 'GET', Request::create('/api', 'GET'));
 $assert($apiDiscoveryRoute instanceof Request, 'API discovery route /api did not match');
 if ($apiDiscoveryRoute instanceof Request) {
     $assert(
@@ -231,7 +228,7 @@ $routes = [
     'waaseyaa/engagement' => ['GET', '/api/comment', 'api.comment.index'],
 ];
 foreach ($routes as $package => [$method, $path, $expectedRouteName]) {
-    $routeResult = $matchRoute->invoke($kernel, $path, $method);
+    $routeResult = $matchRoute->invoke($kernel, $path, $method, Request::create($path, $method));
     $actualRouteName = $routeResult instanceof Request ? $routeResult->attributes->get('_route') : null;
     $assert(
         ($actualRouteName === $expectedRouteName) === $expectedPresent,
@@ -239,7 +236,7 @@ foreach ($routes as $package => [$method, $path, $expectedRouteName]) {
     );
 }
 
-$catalogRoute = $matchRoute->invoke($kernel, '/.well-known/api-catalog', 'GET');
+$catalogRoute = $matchRoute->invoke($kernel, '/.well-known/api-catalog', 'GET', Request::create('/.well-known/api-catalog', 'GET'));
 $catalogRouteName = $catalogRoute instanceof Request ? $catalogRoute->attributes->get('_route') : null;
 $assert(
     ($catalogRouteName === 'api.catalog') === $expectedPresent,

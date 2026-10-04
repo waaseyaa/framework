@@ -186,3 +186,20 @@ The affected 57 tests / 131 assertions pass and the companion gate passes. No
 production behavior changes in this qualification repair. Hosted exact-head proof,
 release-cut, published installation and live export are pending at this checkpoint.
 Whole-package audits and unrelated kernel/profile/domain-router residuals remain.
+
+Hosted candidate 8d9461c, run 37205279482, passed behavior, coverage, random-order,
+browser and native-host owners. Two root failures prevented publication: the
+installation smoke used callable-controller and method-only matching assumptions,
+and PHPStan's dead-code collector crashed on the resolver's dynamic callable array.
+The smoke now supplies real requests and dispatches selected Admin Surface handlers
+through the HTTP terminal. The resolver reuses its validated ReflectionMethod to
+produce the same bound closure, retaining public/callable refusal checks.
+
+The existing ShipMonk member-usage extension API and PHPStan constant-string
+inference supply deferred metadata handler edges, including table declarations.
+This is minimal Waaseyaa identifier policy, not a new parser or analysis engine.
+Edges retain their actual declaring caller; unknown strings, builtin targets and
+unrelated factories do not preserve arbitrary methods. Two existing downstream
+JSON:API bare-router compatibility methods explicitly retain their public @api
+status. No dead-code baseline, exclusion or release gate is weakened. The native
+full installation diagnostic retains all seven optional route-presence checks.

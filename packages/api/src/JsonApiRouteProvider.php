@@ -88,11 +88,13 @@ final class JsonApiRouteProvider
         }
     }
 
+    /** Bare-router compatibility entrypoint for downstream consumers. @api */
     public function registerRoutes(WaaseyaaRouter $router): void
     {
         $this->replayTemplates($router, $this->routeTemplates(false));
     }
 
+    /** Bare-router workflow compatibility entrypoint for downstream consumers. @api */
     public function registerWorkflowTransitionRoutes(WaaseyaaRouter $router): void
     {
         $this->replayTemplates($router, $this->routeTemplates(true));
