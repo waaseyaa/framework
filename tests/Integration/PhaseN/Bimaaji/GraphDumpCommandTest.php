@@ -123,12 +123,41 @@ final class GraphDumpCommandTest extends TestCase
         self::assertSame($first, $second, 'graph:dump output must be byte-for-byte stable across runs (NFR-003).');
     }
 
+    #[Test]
+    public function serializationCannotPublishGraphAfterCaughtRouteInputMutation(): void
+    {
+        foreach ([[], ['--strict']] as $arguments) {
+            $inputs = new \Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs();
+            $inputs->freeze([], false);
+            $value = new class ($inputs) implements \JsonSerializable {
+                public int $serializations = 0;
+                public function __construct(private \Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs $inputs) {}
+                public function jsonSerialize(): mixed
+                {
+                    $this->serializations++;
+                    try {
+                        $this->inputs->publish([]);
+                    } catch (\Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException) {
+                        // A third-party value can catch mutation refusal.
+                    }
+                    return ['ordinary' => 'value'];
+                }
+            };
+            $tester = $this->createTester([$this->stubProvider('routing', ['late' => $value])], static fn() => $inputs->assertReady());
+            $tester->execute($arguments);
+            self::assertSame(1, $value->serializations);
+            self::assertSame(1, $tester->getExitCode());
+            self::assertSame('', $tester->getStdout());
+            self::assertStringContainsString('Finalized route exposure publication is unavailable', $tester->getStderr());
+        }
+    }
+
     /**
      * @param list<GraphSectionProviderInterface> $providers
      */
-    private function createTester(array $providers): CliTester
+    private function createTester(array $providers, ?\Closure $routeAuthorityCheck = null): CliTester
     {
-        $handler = new GraphDumpHandler(providers: $providers);
+        $handler = new GraphDumpHandler(providers: $providers, routeAuthorityCheck: $routeAuthorityCheck);
 
         $definition = new HandlerCommand(
             name: 'graph:dump',

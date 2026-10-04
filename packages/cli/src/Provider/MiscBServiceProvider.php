@@ -75,18 +75,16 @@ final class MiscBServiceProvider extends ServiceProvider implements ProvidesCons
                 ),
             ],
             handler: function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
-                // WaaseyaaRouter is built per HTTP request inside
-                // HttpKernel::serveHttpRequest() (never container-bound), so there
-                // is nothing to resolve in the console — `resolve()` threw
-                // "No binding registered for ...WaaseyaaRouter" (#1684). Build a
-                // populated router from the SAME single source the kernel uses,
-                // BuiltinRouteRegistrar, so route:list reflects the real route
-                // table (builtin + per-entity-type routes) instead of crashing.
-                //
-                // Provider-supplied HTTP domain routes are out of scope here: the
-                // console command context exposes no provider list to enumerate
-                // them (consoleCommands() takes no providers), and a bare empty
-                // router would wrongly print "No routes found."
+                $snapshot = $this->kernelServices?->get(\Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot::class);
+                if ($snapshot !== null) {
+                    if (!$snapshot instanceof \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot) {
+                        throw new \RuntimeException('CLI: invalid canonical route authority.');
+                    }
+                    $router = new \Waaseyaa\Routing\WaaseyaaRouter(snapshot: $snapshot);
+                    return new RouteListHandler(router: $router)->execute($io);
+                }
+                // Bare provider compatibility only. Kernel accessors refuse
+                // unavailable/incomplete authority instead of taking this path.
                 $entityTypeManager = $this->resolve(\Waaseyaa\Entity\EntityTypeManagerInterface::class);
                 \assert($entityTypeManager instanceof \Waaseyaa\Entity\EntityTypeManager);
 

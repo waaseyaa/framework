@@ -17,7 +17,7 @@
 
 - `BimaajiServiceProvider` is auto-discovered via `extra.waaseyaa.providers` in `packages/bimaaji/composer.json`.
 - `ApplicationGraphGenerator` is bound as a container singleton, wired with the six default `GraphSectionProvider` implementations (admin, entities, jsonapi, public_surface, routing, sovereignty).
-- Each default provider's constructor dependencies (`EntityTypeManagerInterface`, `RouteCollection`, `SovereigntyProfile`) resolve from the kernel-services bus. `RouteCollection` falls back to `WaaseyaaRouter::getRouteCollection()`; `SovereigntyProfile` falls back to `SovereigntyProfile::Local`.
+- Each default provider's constructor dependencies (`EntityTypeManagerInterface`, `RouteCollection`, `SovereigntyProfile`) resolve from the kernel-services bus. Route inspection first reads the canonical kernel snapshot; bare explicit `RouteCollection` falls back to `WaaseyaaRouter::getRouteCollection()` only when the kernel accessor is absent; `SovereigntyProfile` falls back to `SovereigntyProfile::Local`.
 - `BimaajiServiceProvider` implements `HasNativeCommandsInterface` (empty stub; the `graph:dump` command lands in WP02 of M1).
 - Unit test coverage at `packages/bimaaji/tests/Unit/BimaajiServiceProviderTest.php` (7 tests, 38 assertions: binding identity, tagged collection, six-section output, lazy resolution, capability interface, RouteCollection fallback).
 
@@ -199,3 +199,21 @@ details — see `docs/specs/mcp-endpoint.md` § "Bimaaji MCP bridge".
 ## Read-only agent guidance verification
 
 `bin/waaseyaa ai:verify` checks recorded Bimaaji agent guidance using the canonical installer transformers and managed-region rules. It reports schema-1 whole-file evidence separately from current managed-region freshness, preserves human outer edits, and refuses missing, malformed, unsupported or escaping evidence. `--client` selects recorded clients; an uninstalled or unknown selection cannot succeed by checking nothing. See [Bimaaji install and verification](bimaaji-install.md) and [FW-AI-VERIFY-01](../change-records/FW-AI-VERIFY-01.md). Upgrade, update/apply, removal and Composer-hook orchestration remain separate work under #2664.
+
+
+## ROUTE-METADATA-01 canonical inspection
+
+Bimaaji route sections now receive lazy collection accessors by default, reading
+the completed kernel RouteSnapshot and projecting it with RouteMetadataCompiler
+on every provide(). Explicit collection constructor callers remain compatible.
+Incomplete, legacy, failed or malformed kernel authority refuses without a
+fallback. Final route custody is checked after all graph sections, even in soft
+section mode; independent section failures retain prior behavior. JSON:API
+identity reads _entity_type defaults before legacy parameter options. Graph JSON
+uses writeRaw and preserves literal console markup. The kernel and bare-context
+contract is defined in route-metadata.md. Installed FETDER proof remains pending.
+
+The command rechecks route authority after JSON serialization and before writing.
+Third-party JsonSerializable values may run code or catch mutation refusal;
+failed final custody returns exit1 with no graph bytes in either strict or ordinary
+mode. Serialization failures also return a command error without partial JSON.

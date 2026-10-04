@@ -85,21 +85,21 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
         $this->singleton(
             JsonApiIntrospectionProvider::class,
             fn(): JsonApiIntrospectionProvider => new JsonApiIntrospectionProvider(
-                $this->resolveRouteCollection(),
+                fn(): RouteCollection => $this->resolveRouteCollection(),
             ),
         );
 
         $this->singleton(
             PublicSurfaceProvider::class,
             fn(): PublicSurfaceProvider => new PublicSurfaceProvider(
-                $this->resolveRouteCollection(),
+                fn(): RouteCollection => $this->resolveRouteCollection(),
             ),
         );
 
         $this->singleton(
             RoutingIntrospectionProvider::class,
             fn(): RoutingIntrospectionProvider => new RoutingIntrospectionProvider(
-                $this->resolveRouteCollection(),
+                fn(): RouteCollection => $this->resolveRouteCollection(),
             ),
         );
 
@@ -131,6 +131,7 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
                 providers: $this->defaultSectionProviders(),
                 logger: $this->resolveLogger(),
                 strict: false,
+                routeAuthorityCheck: fn() => $this->canonicalRouteAuthority(),
             ),
         );
 
@@ -143,6 +144,7 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
             fn(): GraphDumpHandler => new GraphDumpHandler(
                 providers: $this->defaultSectionProviders(),
                 logger: $this->resolveLogger(),
+                routeAuthorityCheck: fn() => $this->canonicalRouteAuthority(),
             ),
         );
 
@@ -397,6 +399,12 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
 
     private function resolveRouteCollection(): RouteCollection
     {
+        $snapshot = $this->canonicalRouteAuthority();
+        if ($snapshot !== null) {
+            return new \Waaseyaa\Routing\RouteMetadataCompiler()->compile($snapshot);
+        }
+        // Explicit bare collection/router compatibility only. Real kernels
+        // expose an accessor which throws on incomplete or failed authority.
         $candidate = $this->kernelServices?->get(RouteCollection::class);
         if ($candidate instanceof RouteCollection) {
             return $candidate;
@@ -410,6 +418,15 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
             'Bimaaji\\BimaajiServiceProvider: no RouteCollection or WaaseyaaRouter bound on the kernel-services bus. '
             . 'JsonAPI, public-surface, and routing introspection require Symfony\\Component\\Routing\\RouteCollection.',
         );
+    }
+
+    private function canonicalRouteAuthority(): ?\Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot
+    {
+        $snapshot = $this->kernelServices?->get(\Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot::class);
+        if ($snapshot !== null && !$snapshot instanceof \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot) {
+            throw new \RuntimeException('Bimaaji: invalid canonical route authority.');
+        }
+        return $snapshot;
     }
 
     private function resolveSovereigntyProfile(): SovereigntyProfile

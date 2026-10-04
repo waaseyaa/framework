@@ -20,7 +20,8 @@ final class RoutingIntrospectionProvider implements GraphSectionProviderInterfac
     ];
 
     public function __construct(
-        private readonly RouteCollection $routes,
+        /** @var RouteCollection|\Closure(): RouteCollection */
+        private readonly RouteCollection|\Closure $routes,
     ) {}
 
     public function getKey(): string
@@ -32,7 +33,8 @@ final class RoutingIntrospectionProvider implements GraphSectionProviderInterfac
     {
         $data = [];
 
-        foreach ($this->routes->all() as $name => $route) {
+        $routes = $this->routes instanceof \Closure ? ($this->routes)() : $this->routes;
+        foreach ($routes->all() as $name => $route) {
             $defaults = $route->getDefaults();
             $options = $route->getOptions();
 

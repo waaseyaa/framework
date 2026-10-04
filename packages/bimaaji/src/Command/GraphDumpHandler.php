@@ -42,6 +42,7 @@ final class GraphDumpHandler
     public function __construct(
         iterable $providers,
         private readonly ?LoggerInterface $logger = null,
+        private readonly ?\Closure $routeAuthorityCheck = null,
     ) {
         $list = [];
         foreach ($providers as $provider) {
@@ -68,6 +69,7 @@ final class GraphDumpHandler
             providers: $this->providers,
             logger: $this->logger ?? new NullLogger(),
             strict: $strict,
+            routeAuthorityCheck: $this->routeAuthorityCheck,
         );
 
         try {
@@ -116,8 +118,16 @@ final class GraphDumpHandler
             ];
         }
 
-        $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        $io->writeln($json);
+        try {
+            $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            // Section values may run JsonSerializable code. Recheck custody
+            // after serialization, before any graph byte is published.
+            ($this->routeAuthorityCheck)?->__invoke();
+        } catch (\Throwable $error) {
+            $io->error(sprintf('graph:dump refused output: [%s] %s', $error::class, $error->getMessage()));
+            return 1;
+        }
+        $io->writeRaw($json . "\n");
 
         return 0;
     }

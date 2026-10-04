@@ -9,19 +9,19 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\RouteCollection;
 use Waaseyaa\Bimaaji\BimaajiServiceProvider;
-use Waaseyaa\CLI\Command\AiVerifyCommand;
 use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraph;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
+use Waaseyaa\Bimaaji\Install\PackagedSkillResources;
+use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Introspection\Admin\AdminIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\Entity\EntityIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\JsonApi\JsonApiIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\PublicSurface\PublicSurfaceProvider;
 use Waaseyaa\Bimaaji\Introspection\Routing\RoutingIntrospectionProvider;
-use Waaseyaa\Bimaaji\Install\PackagedSkillResources;
-use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Introspection\Sovereignty\SovereigntyIntrospectionProvider;
 use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
+use Waaseyaa\CLI\Command\AiVerifyCommand;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
@@ -166,11 +166,9 @@ final class BimaajiServiceProviderTest extends TestCase
     public function provider_dependencies_resolve_lazily_via_kernel_services(): void
     {
         $resolved = [];
-        $kernel = new class($resolved) implements KernelServicesInterface {
+        $kernel = new class ($resolved) implements KernelServicesInterface {
             /** @param array<string, int> $tracker */
-            public function __construct(private array &$tracker)
-            {
-            }
+            public function __construct(private array &$tracker) {}
 
             public function get(string $abstract): ?object
             {
@@ -187,19 +185,18 @@ final class BimaajiServiceProviderTest extends TestCase
             private static function stubEntityTypeManager(): EntityTypeManagerInterface
             {
                 return new class implements EntityTypeManagerInterface {
-            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+                    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+                    {
+                        return [];
+                    }
                     public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface
                     {
                         throw new \RuntimeException('not used in WP01 unit test');
                     }
 
-                    public function registerEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void
-                    {
-                    }
+                    public function registerEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void {}
 
-                    public function registerCoreEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void
-                    {
-                    }
+                    public function registerCoreEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void {}
 
                     /** @return array<string, \Waaseyaa\Entity\EntityTypeInterface> */
                     public function getDefinitions(): array
@@ -262,6 +259,8 @@ final class BimaajiServiceProviderTest extends TestCase
         // instantiated, each having pulled its deps from the kernel-services
         // bus.
         self::assertGreaterThanOrEqual(1, $resolved[EntityTypeManagerInterface::class] ?? 0);
+        self::assertSame(0, $resolved[RouteCollection::class] ?? 0);
+        $generator->generate();
         self::assertGreaterThanOrEqual(1, $resolved[RouteCollection::class] ?? 0);
         self::assertGreaterThanOrEqual(1, $resolved[SovereigntyConfigInterface::class] ?? 0);
     }
@@ -304,10 +303,8 @@ final class BimaajiServiceProviderTest extends TestCase
     {
         $router = $this->makeRouterWithEmptyCollection();
 
-        $kernel = new class($router) implements KernelServicesInterface {
-            public function __construct(private WaaseyaaRouter $router)
-            {
-            }
+        $kernel = new class ($router) implements KernelServicesInterface {
+            public function __construct(private WaaseyaaRouter $router) {}
 
             public function get(string $abstract): ?object
             {
@@ -413,19 +410,18 @@ final class BimaajiServiceProviderTest extends TestCase
             private static function stubEntityTypeManager(): EntityTypeManagerInterface
             {
                 return new class implements EntityTypeManagerInterface {
-            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+                    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+                    {
+                        return [];
+                    }
                     public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface
                     {
                         throw new \RuntimeException('not used in WP01 unit test');
                     }
 
-                    public function registerEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void
-                    {
-                    }
+                    public function registerEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void {}
 
-                    public function registerCoreEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void
-                    {
-                    }
+                    public function registerCoreEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void {}
 
                     /** @return array<string, \Waaseyaa\Entity\EntityTypeInterface> */
                     public function getDefinitions(): array

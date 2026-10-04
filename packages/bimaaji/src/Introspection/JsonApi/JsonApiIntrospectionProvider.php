@@ -11,7 +11,8 @@ use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
 final class JsonApiIntrospectionProvider implements GraphSectionProviderInterface
 {
     public function __construct(
-        private readonly RouteCollection $routes,
+        /** @var RouteCollection|\Closure(): RouteCollection */
+        private readonly RouteCollection|\Closure $routes,
     ) {}
 
     public function getKey(): string
@@ -23,14 +24,18 @@ final class JsonApiIntrospectionProvider implements GraphSectionProviderInterfac
     {
         $data = [];
 
-        foreach ($this->routes as $name => $route) {
+        $routes = $this->routes instanceof \Closure ? ($this->routes)() : $this->routes;
+        foreach ($routes as $name => $route) {
             $options = $route->getOptions();
 
             if (!isset($options['_json_api']) || $options['_json_api'] === false) {
                 continue;
             }
 
-            $entityType = $this->resolveEntityType($options);
+            $entityType = $route->getDefault('_entity_type');
+            if (!is_string($entityType)) {
+                $entityType = $this->resolveEntityType($options);
+            }
 
             $data[$name] = [
                 'entity_type' => $entityType,

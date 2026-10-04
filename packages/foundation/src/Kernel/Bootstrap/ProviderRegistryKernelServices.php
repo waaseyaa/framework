@@ -118,6 +118,8 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
          */
         ?\Closure $healthCheckerAccessor = null,
         private readonly ?RouteExposureInputs $routeExposureInputs = null,
+        /** @var (\Closure(): \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot)|null */
+        private readonly ?\Closure $routeSnapshotAccessor = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -126,6 +128,11 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     public function get(string $abstract): ?object
     {
+        if ($abstract === \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot::class) {
+            // Kernel authority precedes provider overrides. Never cache a read:
+            // completed snapshots retain live custody/refusal checks.
+            return $this->routeSnapshotAccessor !== null ? ($this->routeSnapshotAccessor)() : null;
+        }
         if ($abstract === RouteExposureInputs::class) {
             return $this->routeExposureInputs;
         }

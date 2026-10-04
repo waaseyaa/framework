@@ -81,6 +81,8 @@ final class ProviderRegistry
          */
         bool $validateCapabilities = true,
         ?RouteExposureInputs $routeExposureInputs = null,
+        /** @var (\Closure(): \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot)|null */
+        ?\Closure $routeSnapshotAccessor = null,
     ): array {
         $this->providers = [];
 
@@ -100,6 +102,7 @@ final class ProviderRegistry
             secretResolverRegistry: $secretResolverRegistry,
             healthCheckerAccessor: $healthCheckerAccessor,
             routeExposureInputs: $routeExposureInputs,
+            routeSnapshotAccessor: $routeSnapshotAccessor,
         );
 
         foreach ($manifest->providers as $providerClass) {

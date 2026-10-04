@@ -488,3 +488,41 @@ ROUTE-METADATA-01 complete API admission: ApiServiceProvider contributes one pur
 
 
 ROUTE-METADATA-01 Admin Surface admission: one table declares core, optional page-builder and SPA routes from copied binding presence and preloaded path authority. Explicit nonshared core/page-builder/SPA request handlers preserve existing gates, transport/status rules, principal/body forwarding and cookie rewrite. Host construction, package probes and SPA file reads occur only during selected execution. Canonical unhealthy declared host dependencies refuse; bare compatibility retains its healthy optional-host gate and projects the same table with the same handlers. Custom host factory lifetime is per selected construction, with factory-owned reuse and legacy once-at-registration behavior retained. Deptrac classifies the three handlers in existing Delivery and composition; generated dependency view is refreshed. Source admission does not complete FETDER/CLI/Bimaaji or installed strict export qualification.
+
+
+## ROUTE-METADATA-01 canonical inspection
+
+The kernel-services bus exposes RouteSnapshot through a lazy kernel-owned
+accessor. Every read performs completed-boot, participation and input-custody
+checks. Missing, restricted, failed or legacy participation refuses complete
+inspection without executing legacy hooks. This accessor precedes provider
+bindings and never caches around kernel refusal checks.
+
+Bimaaji's three route sections accept either an explicitly supplied bare
+RouteCollection or a lazy collection accessor. The default provider reads the
+canonical snapshot at each provide() and projects through RouteMetadataCompiler;
+no execution services, legacy hooks or HTTP router assembly are involved. Cached
+section instances therefore recheck custody on subsequent exports. A final
+route-authority check after all graph sections prevents even a caught late input
+mutation from escaping as graph output, in strict and ordinary generation.
+An absent kernel accessor permits the existing explicitly supplied collection or
+router compatibility path; a refused or malformed kernel authority never does.
+JSON:API entity identity reads canonical _entity_type defaults before the legacy
+parameters option. Routing/public classifications retain their existing shape.
+
+route:list uses that same completed snapshot in real kernel contexts. Its bare
+provider compatibility still builds builtins when there is no kernel accessor;
+this is not a complete application graph claim. GraphDumpHandler emits JSON
+through SymfonyCommandIO::writeRaw(), preserving literal strings and newlines.
+The new accessor/callback constructor arguments are optional; existing direct
+constructor callers remain valid. No dependencies or PHP runtime policy change.
+
+Source qualification includes a real booted ConsoleKernel command factory and
+canonical HTTP matching/dispatch of one nonempty application declaration, stable
+strict output, and installed legacy-contributor refusal without calling hooks.
+These synthetic profiles do not qualify the FETDER installed application.
+
+The command rechecks route authority after JSON serialization and before writing.
+Third-party JsonSerializable values may run code or catch mutation refusal;
+failed final custody returns exit1 with no graph bytes in either strict or ordinary
+mode. Serialization failures also return a command error without partial JSON.

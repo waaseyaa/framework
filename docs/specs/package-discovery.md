@@ -800,3 +800,13 @@ use one path per provider and continue to refuse canonical inspection. HTTP
 binding admission checks explicit registered keys without constructing handlers;
 terminal dispatch owns resolution. No manifest refresh or legacy fallback is
 used for unknown or poisoned admission. See [route-metadata.md](route-metadata.md).
+
+
+## ROUTE-METADATA-01 canonical inspection
+
+ProviderRegistry passes an optional lazy RouteSnapshot accessor into the kernel
+services bus. AbstractKernel supplies its guarded getRouteSnapshot() accessor;
+restricted/failed/preboot/legacy states therefore propagate existing refusals.
+The reserved bus entry precedes provider overrides, reads custody every time and
+never caches away lifecycle checks. Existing construction callers may omit it.
+This handoff does not collect declarations during provider registration.

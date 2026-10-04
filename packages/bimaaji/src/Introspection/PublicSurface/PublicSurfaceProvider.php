@@ -11,7 +11,8 @@ use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
 final class PublicSurfaceProvider implements GraphSectionProviderInterface
 {
     public function __construct(
-        private readonly RouteCollection $routes,
+        /** @var RouteCollection|\Closure(): RouteCollection */
+        private readonly RouteCollection|\Closure $routes,
     ) {}
 
     public function getKey(): string
@@ -23,7 +24,8 @@ final class PublicSurfaceProvider implements GraphSectionProviderInterface
     {
         $data = [];
 
-        foreach ($this->routes->all() as $name => $route) {
+        $routes = $this->routes instanceof \Closure ? ($this->routes)() : $this->routes;
+        foreach ($routes->all() as $name => $route) {
             $options = $route->getOptions();
 
             $isRendered = ($options['_render'] ?? false) === true;

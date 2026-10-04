@@ -595,6 +595,7 @@ abstract class AbstractKernel
             // genesis. Ordinary boot keeps validateCapabilities true.
             validateCapabilities: !$this->restrictedDiscoveryOnly,
             routeExposureInputs: $this->routeExposureInputsForProviders(),
+            routeSnapshotAccessor: fn(): RouteSnapshot => $this->getRouteSnapshot(),
         );
     }
 

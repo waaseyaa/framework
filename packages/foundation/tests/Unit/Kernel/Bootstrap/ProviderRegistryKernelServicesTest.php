@@ -50,6 +50,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         ?SecretResolverRegistry $secretResolverRegistry = null,
         ?\Closure $healthCheckerAccessor = null,
         ?RouteExposureInputs $routeExposureInputs = null,
+        ?\Closure $routeSnapshotAccessor = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -66,7 +67,31 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             secretResolverRegistry: $secretResolverRegistry,
             healthCheckerAccessor: $healthCheckerAccessor,
             routeExposureInputs: $routeExposureInputs,
+            routeSnapshotAccessor: $routeSnapshotAccessor,
         );
+    }
+
+    public function testRouteAuthorityAccessorIsLazyLiveAndPropagatesRefusal(): void
+    {
+        $database = $this->createStub(DatabaseInterface::class);
+        $snapshot = new \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot([], []);
+        $reads = 0;
+        $failed = false;
+        $services = $this->services($database, routeSnapshotAccessor: static function () use ($snapshot, &$reads, &$failed) {
+            $reads++;
+            if ($failed) {
+                throw new \Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException('boot-failed', 'Fixture refusal.');
+            }
+            return $snapshot;
+        });
+        self::assertSame(0, $reads);
+        self::assertSame($snapshot, $services->get($snapshot::class));
+        self::assertSame($snapshot, $services->get($snapshot::class));
+        self::assertSame(2, $reads);
+        self::assertNull($this->services($database)->get($snapshot::class));
+        $failed = true;
+        $this->expectException(\Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException::class);
+        $services->get($snapshot::class);
     }
 
     public function testExposurePublicationSlotIsTheKernelInstanceOrAbsent(): void

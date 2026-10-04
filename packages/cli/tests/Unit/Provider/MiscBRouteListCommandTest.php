@@ -56,6 +56,36 @@ final class MiscBRouteListCommandTest extends TestCase
         self::assertStringContainsString('/api/openapi.json', $tester->getStdout());
     }
 
+    #[Test]
+    public function route_list_uses_application_snapshot_and_refuses_failed_authority(): void
+    {
+        $snapshot = new \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot([new \Waaseyaa\Foundation\Routing\Metadata\RouteDefinition('application.home', '/application', \Waaseyaa\Foundation\Routing\Metadata\HandlerReference::fromString('builtin:render.page'), methods: ['GET'], sourceId: 'fixture')], []);
+        $bus = new class ($snapshot) implements KernelServicesInterface {
+            public bool $failed = false;
+            public function __construct(private readonly \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot $snapshot) {}
+            public function get(string $abstract): ?object
+            {
+                if ($abstract !== $this->snapshot::class) {
+                    throw new \LogicException('No legacy construction is allowed.');
+                }
+                if ($this->failed) {
+                    throw new \Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException('inputs-unavailable', 'Fixture refusal.');
+                }
+                return $this->snapshot;
+            }
+        };
+        $provider = new MiscBServiceProvider();
+        $provider->setKernelServices($bus);
+        $tester = CliTester::for($this->routeListCommand($provider), $this->throwingContainer());
+        $tester->executeMap([]);
+        self::assertSame(0, $tester->getExitCode());
+        self::assertStringContainsString('application.home', $tester->getStdout());
+        self::assertStringNotContainsString('/api/openapi.json', $tester->getStdout());
+        $bus->failed = true;
+        $this->expectException(\Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException::class);
+        $tester->executeMap([]);
+    }
+
     private function routeListCommand(MiscBServiceProvider $provider): HandlerCommand
     {
         foreach ($provider->consoleCommands() as $command) {

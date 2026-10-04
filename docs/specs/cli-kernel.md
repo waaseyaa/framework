@@ -977,3 +977,14 @@ for migration, acceptance and remaining packaged proof.
 
 `AiVerifyCommand` is a transport-only adapter supplied a typed callback by the optional Bimaaji provider. CLI owns option normalization and output; Bimaaji owns verification, client policy and the shared human/JSON report. CLI adds no runtime dependency on Bimaaji. See [bimaaji-install.md](bimaaji-install.md) for `ai:verify` semantics.
 <!-- Spec reviewed 2026-09-08 - #3046: `user:provision-registered` is a normal fully booted command whose only request body is one bounded canonical JSON document on stdin. It selects exactly one application-registered non-administrator role, delegates membership and permission-union semantics to the same authority as `user:assign-role`, and writes the account with its final credential hash, role, and permissions in one repository save. Derived internal name/mail identity keys provide storage-level concurrency conflicts for all current User construction and rename paths. Public output is one closed canonical `created`, `existing`, `refused`, or `uncertain` document; raw credentials, provider/storage diagnostics, and exception chains never enter output. Historical rows predating the derived keys require an explicit operator preflight/backfill before this mechanism can be treated as a complete old-database identity migration. -->
+
+
+## ROUTE-METADATA-01 canonical inspection
+
+The real kernel route:list command reads the completed RouteSnapshot from the
+provider bus and creates its router from that immutable value. It lists provider
+and application routes as well as builtins. Refused authority propagates without
+replaying legacy hooks or returning a partial builtin table. Bare direct provider
+contexts without a kernel accessor retain prior builtin listing compatibility.
+See route-metadata.md for the shared inspection contract and residual installed
+qualification. Graph JSON uses writeRaw without presentation normalization.

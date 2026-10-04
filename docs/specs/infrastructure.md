@@ -3407,3 +3407,13 @@ ROUTE-METADATA-01 complete API admission: ApiServiceProvider contributes one pur
 
 
 ROUTE-METADATA-01 Admin Surface admission: one table declares core, optional page-builder and SPA routes from copied binding presence and preloaded path authority. Explicit nonshared core/page-builder/SPA request handlers preserve existing gates, transport/status rules, principal/body forwarding and cookie rewrite. Host construction, package probes and SPA file reads occur only during selected execution. Canonical unhealthy declared host dependencies refuse; bare compatibility retains its healthy optional-host gate and projects the same table with the same handlers. Custom host factory lifetime is per selected construction, with factory-owned reuse and legacy once-at-registration behavior retained. Deptrac classifies the three handlers in existing Delivery and composition; generated dependency view is refreshed. Source admission does not complete FETDER/CLI/Bimaaji or installed strict export qualification.
+
+
+## ROUTE-METADATA-01 canonical inspection
+
+ProviderRegistryKernelServices serves RouteSnapshot through the optional lazy
+kernel accessor, ahead of provider bindings. Each read retains completed-boot,
+participation and input-custody checks. Bimaaji projects that authority via the
+existing RouteMetadataCompiler; route:list constructs its router from it.
+Neither consumer assembles HTTP execution routers or invokes legacy hooks.
+The shared refusal/compatibility contract is recorded in route-metadata.md.

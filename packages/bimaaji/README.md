@@ -38,7 +38,7 @@ intentionally expose spec search to an authenticated `bimaaji.read` principal
 must configure a non-empty `bimaaji.specs_directory`; Bimaaji never guesses a
 project-root `docs/specs` path for a remotely callable tool.
 
-`SovereigntyProfile` is derived from `SovereigntyConfigInterface::getProfile()` and falls back to `SovereigntyProfile::Local` when no config is bound. `RouteCollection` is looked up directly and falls back to `WaaseyaaRouter::getRouteCollection()`.
+`SovereigntyProfile` is derived from `SovereigntyConfigInterface::getProfile()` and falls back to `SovereigntyProfile::Local` when no config is bound. Route sections read the completed kernel RouteSnapshot lazily on each export. Bare explicitly supplied RouteCollection or WaaseyaaRouter compatibility applies only without a kernel accessor; invalid or incomplete kernel authority refuses.
 
 ## Extending: third-party graph sections
 
@@ -139,3 +139,7 @@ in #1387/#1464) should:
 - **Doctrine spec:** [docs/specs/bimaaji.md](../../docs/specs/bimaaji.md) — design rationale, FRs/NFRs, invariants, file map.
 - **Design history:** [docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md](../../docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md) — the 5-mission cluster that promoted bimaaji from "scaffolding" to "shipped."
 - **Roadmap context:** [GitHub Milestone #67](https://github.com/waaseyaa/framework/milestone/67) (Track 2: Bimaaji & agentic).
+
+Canonical route export uses the existing Symfony projection and raw JSON output.
+The optional collection/accessor constructor form retains direct caller compatibility.
+Installed FETDER and supported Linux qualification remain pending under #3122.

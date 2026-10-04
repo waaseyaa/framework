@@ -18,6 +18,8 @@ final class ApplicationGraphGenerator
         private readonly iterable $providers,
         private readonly ?LoggerInterface $logger = null,
         private readonly bool $strict = false,
+        /** Recheck kernel route custody after every section has returned. */
+        private readonly ?\Closure $routeAuthorityCheck = null,
     ) {}
 
     public function generate(): ApplicationGraph
@@ -39,6 +41,7 @@ final class ApplicationGraphGenerator
             }
         }
 
+        ($this->routeAuthorityCheck)?->__invoke();
         return new ApplicationGraph(self::GRAPH_VERSION, $sections);
     }
 }
