@@ -21,12 +21,14 @@ final class AuthOidcKernelRouteMetadataTest extends TestCase
     {
         yield 'declared OIDC bindings' => [true];
         yield 'absent OIDC bindings' => [false];
+        yield 'complete API and OIDC' => [true, true];
+        yield 'complete API without OIDC' => [false, true];
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('oidcPresenceCases')]
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
     #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
-    public function testRealKernelUsesFrozenBindingsAndExecutesSelectedControllers(bool $oidcPresent): void
+    public function testRealKernelUsesFrozenBindingsAndExecutesSelectedControllers(bool $oidcPresent, bool $apiPresent = false): void
     {
         AuthMetadataKernelFixtureProvider::$oidcPresent = $oidcPresent;
         $project = sys_get_temp_dir() . '/waaseyaa_auth_metadata_' . bin2hex(random_bytes(8));
@@ -37,6 +39,11 @@ final class AuthOidcKernelRouteMetadataTest extends TestCase
         file_put_contents($project . '/config/waaseyaa.php', "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'routing' => ['mode' => 'canonical'], 'api_catalog' => ['base_url' => 'https://trusted.example']];");
         file_put_contents($project . '/config/entity-types.php', "<?php return [new \\Waaseyaa\\Entity\\EntityType(id: 'test', label: 'Test', class: \\stdClass::class, keys: ['id' => 'id'])];");
         file_put_contents($project . '/vendor/composer/installed.json', json_encode(['packages' => [['name' => 'waaseyaa/audit', 'extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Audit\AuditServiceProvider::class]]]], ['name' => 'waaseyaa/routing', 'extra' => ['waaseyaa' => ['providers' => [AuthOidcRouteServiceProvider::class, AuthMetadataKernelFixtureProvider::class]]]]]], JSON_THROW_ON_ERROR));
+        if ($apiPresent) {
+            $installed = json_decode(file_get_contents($project . '/vendor/composer/installed.json'), true, flags: JSON_THROW_ON_ERROR);
+            $installed['packages'][] = ['name' => 'waaseyaa/api', 'extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Api\ApiServiceProvider::class]]]];
+            file_put_contents($project . '/vendor/composer/installed.json', json_encode($installed, JSON_THROW_ON_ERROR));
+        }
         $schemaDatabase = \Waaseyaa\Database\DBALDatabase::createSqlite($databasePath, 'testing');
         RuntimeSchemaMigrations::audit($schemaDatabase);
         RuntimeSchemaMigrations::broadcast($schemaDatabase);
@@ -60,12 +67,23 @@ final class AuthOidcKernelRouteMetadataTest extends TestCase
             }
             self::assertSame($snapshot, $repeated);
             self::assertSame([], $autoloads);
-            self::assertCount($oidcPresent ? 30 : 28, $snapshot->routes);
+            self::assertCount(($oidcPresent ? 30 : 28) + ($apiPresent ? 28 : 0), $snapshot->routes);
             self::assertSame(0, AuthMetadataKernelFixtureProvider::$calls);
             self::assertSame($oidcPresent, $kernel->getRouteInputs()->capabilities['service:Waaseyaa\\Oidc\\Token\\TokenController'] ?? false);
-            self::assertSame([], array_filter($kernel->getRouteInputs()->capabilities, static fn(string $name): bool => str_starts_with($name, 'api.route.'), ARRAY_FILTER_USE_KEY));
+            $apiFacts = array_filter($kernel->getRouteInputs()->capabilities, static fn(string $name): bool => str_starts_with($name, 'api.route.'), ARRAY_FILTER_USE_KEY);
+            self::assertSame($apiPresent ? ['api.route.content_search' => false, 'api.route.mcp' => true, 'api.route.catalog' => false, 'api.route.ai_catalog' => false] : [], $apiFacts);
             $kinds = array_column($kernel->getRouteParticipation()->records, 'kind', 'provider');
             self::assertSame('declarative', $kinds[AuthOidcRouteServiceProvider::class]);
+            if ($apiPresent) {
+                self::assertSame('declarative', $kinds[\Waaseyaa\Api\ApiServiceProvider::class]);
+                $hidden = Request::create('/api/test/private/path');
+                self::assertSame($hidden, new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/api/test/private/path', 'GET', $hidden));
+                $hidden->attributes->set('_account', new AnonymousUser());
+                $hiddenResponse = new \ReflectionMethod(HttpKernel::class, 'dispatchMatchedRequest')->invoke($kernel, $hidden, new BroadcastStorage($kernel->getDatabase()));
+                self::assertSame(404, $hiddenResponse->getStatusCode());
+                self::assertStringNotContainsString('private/path', $hiddenResponse->getContent());
+                self::assertSame($snapshot, $kernel->getRouteSnapshot());
+            }
             $database = $kernel->getDatabase();
             $storage = new BroadcastStorage($database);
             $wrongMethod = Request::create('https://evil.example/api/auth/logout', 'GET');
@@ -109,7 +127,7 @@ final class AuthOidcKernelRouteMetadataTest extends TestCase
             if (isset($database)) {
                 $database->getConnection()->close();
             }
-            unset($kernel, $database, $storage, $request, $match, $response, $wrongMethod, $refusal);
+            unset($kernel, $database, $storage, $request, $match, $response, $wrongMethod, $refusal, $hidden, $hiddenResponse);
             gc_collect_cycles();
             new Filesystem()->remove($project);
         }

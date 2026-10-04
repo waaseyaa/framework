@@ -1,0 +1,1697 @@
+{
+  "base": "e73b49debb7f265ef5f20ca2539053a422a07e13",
+  "profiles": {
+    "disabled": [
+      {
+        "name": "api.discovery",
+        "path": "/api",
+        "handler": "Waaseyaa\\Api\\ApiDiscoveryController::discover",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.index",
+        "path": "/api/article",
+        "handler": "Waaseyaa\\Api\\JsonApiController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.show",
+        "path": "/api/article/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.store",
+        "path": "/api/article",
+        "handler": "Waaseyaa\\Api\\JsonApiController::store",
+        "methods": [
+          "POST"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.update",
+        "path": "/api/article/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.destroy",
+        "path": "/api/article/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::destroy",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.field_autosave",
+        "path": "/api/article/{id}/field/{key}",
+        "handler": "Waaseyaa\\Api\\Controller\\FieldAutoSaveController::update",
+        "methods": [
+          "PUT"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.index",
+        "path": "/api/article/{id}/translations",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.show",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.store",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::store",
+        "methods": [
+          "POST"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.update",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.destroy",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::destroy",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.hidden.not_exposed",
+        "path": "/api/hidden",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.hidden.not_exposed_path",
+        "path": "/api/hidden/{path}",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": {
+          "path": ".+"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc_client.not_exposed",
+        "path": "/api/oidc_client",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc_client.not_exposed_path",
+        "path": "/api/oidc_client/{path}",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": {
+          "path": ".+"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.schema.show",
+        "path": "/api/schema/{entity_type}",
+        "handler": "Waaseyaa\\Api\\Controller\\SchemaController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.workflow_definitions.list",
+        "path": "/api/workflow-definitions",
+        "handler": "Waaseyaa\\Api\\Workflow\\WorkflowDefinitionsController::list",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.queue.jobs.index",
+        "path": "/api/queue/jobs",
+        "handler": "Waaseyaa\\Api\\Controller\\QueueController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.queue.jobs.retry",
+        "path": "/api/queue/jobs/{id}/retry",
+        "handler": "Waaseyaa\\Api\\Controller\\QueueController::retry",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.queue.jobs.discard",
+        "path": "/api/queue/jobs/{id}/discard",
+        "handler": "Waaseyaa\\Api\\Controller\\QueueController::discard",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.scheduler.tasks.index",
+        "path": "/api/scheduler/tasks",
+        "handler": "Waaseyaa\\Api\\Controller\\SchedulerController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.scheduler.tasks.trigger",
+        "path": "/api/scheduler/tasks/{name}/trigger",
+        "handler": "Waaseyaa\\Api\\Controller\\SchedulerController::trigger",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.notification.channels.index",
+        "path": "/api/notification/channels",
+        "handler": "Waaseyaa\\Api\\Controller\\NotificationController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.notification.channels.test",
+        "path": "/api/notification/channels/{type}/test",
+        "handler": "Waaseyaa\\Api\\Controller\\NotificationController::test",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mercure.monitor.channels",
+        "path": "/api/mercure/channels",
+        "handler": "Waaseyaa\\Api\\Controller\\MercureMonitorController::channels",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mercure.monitor.events",
+        "path": "/api/mercure/events",
+        "handler": "Waaseyaa\\Api\\Controller\\MercureMonitorController::events",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mercure.monitor.subscribers",
+        "path": "/api/mercure/subscribers",
+        "handler": "Waaseyaa\\Api\\Controller\\MercureMonitorController::subscribers",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.media.versions.index",
+        "path": "/api/media/{uuid}/versions",
+        "handler": "Waaseyaa\\Api\\Controller\\MediaVersionController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.media.versions.show",
+        "path": "/api/media/{uuid}/versions/{vid}",
+        "handler": "Waaseyaa\\Api\\Controller\\MediaVersionController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.audit.events.index",
+        "path": "/api/audit/events",
+        "handler": "Waaseyaa\\Api\\Controller\\AuditQueryController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.admin.tools.index",
+        "path": "/api/mcp/tools",
+        "handler": "Waaseyaa\\Api\\Controller\\McpAdminController::tools",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.admin.tools.show",
+        "path": "/api/mcp/tools/{name}",
+        "handler": "Waaseyaa\\Api\\Controller\\McpAdminController::tool",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.admin.server-config",
+        "path": "/api/mcp/server-config",
+        "handler": "Waaseyaa\\Api\\Controller\\McpAdminController::serverConfig",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.approvals.index",
+        "path": "/api/mcp/approvals",
+        "handler": "Waaseyaa\\Api\\Controller\\McpApprovalController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_session": [
+            "waaseyaa_uid"
+          ],
+          "_permission": "mcp.approval.view"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.approvals.decision",
+        "path": "/api/mcp/approvals/{id}/decision",
+        "handler": "Waaseyaa\\Api\\Controller\\McpApprovalController::decide",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_session": [
+            "waaseyaa_uid"
+          ],
+          "_permission": "mcp.approval.decide",
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.index",
+        "path": "/api/oidc-clients",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.create",
+        "path": "/api/oidc-clients",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::create",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.show",
+        "path": "/api/oidc-clients/{id}",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.update",
+        "path": "/api/oidc-clients/{id}",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.delete",
+        "path": "/api/oidc-clients/{id}",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::delete",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.regenerate-secret",
+        "path": "/api/oidc-clients/{id}/regenerate-secret",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::regenerateSecret",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.index",
+        "path": "/api/classification/policies",
+        "handler": "Waaseyaa\\Api\\JsonApiController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "governance-viewer,admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.show",
+        "path": "/api/classification/policies/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "governance-viewer,admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.store",
+        "path": "/api/classification/policies",
+        "handler": "Waaseyaa\\Api\\JsonApiController::store",
+        "methods": [
+          "POST"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.update",
+        "path": "/api/classification/policies/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.destroy",
+        "path": "/api/classification/policies/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::destroy",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      }
+    ],
+    "enabled": [
+      {
+        "name": "api.content_search",
+        "path": "/api/content/search",
+        "handler": "Waaseyaa\\Api\\Controller\\ContentSearchController::search",
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true,
+          "_waaseyaa_priority": 100
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.discovery",
+        "path": "/api",
+        "handler": "Waaseyaa\\Api\\ApiDiscoveryController::discover",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.index",
+        "path": "/api/article",
+        "handler": "Waaseyaa\\Api\\JsonApiController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.show",
+        "path": "/api/article/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.store",
+        "path": "/api/article",
+        "handler": "Waaseyaa\\Api\\JsonApiController::store",
+        "methods": [
+          "POST"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.update",
+        "path": "/api/article/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.destroy",
+        "path": "/api/article/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::destroy",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.field_autosave",
+        "path": "/api/article/{id}/field/{key}",
+        "handler": "Waaseyaa\\Api\\Controller\\FieldAutoSaveController::update",
+        "methods": [
+          "PUT"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.index",
+        "path": "/api/article/{id}/translations",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.show",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.store",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::store",
+        "methods": [
+          "POST"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.update",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true,
+          "_json_api": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.article.translations.destroy",
+        "path": "/api/article/{id}/translations/{langcode}",
+        "handler": "Waaseyaa\\Api\\Controller\\TranslationController::destroy",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": {
+          "_entity_type": "article"
+        },
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.hidden.not_exposed",
+        "path": "/api/hidden",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.hidden.not_exposed_path",
+        "path": "/api/hidden/{path}",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": {
+          "path": ".+"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc_client.not_exposed",
+        "path": "/api/oidc_client",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc_client.not_exposed_path",
+        "path": "/api/oidc_client/{path}",
+        "handler": "Waaseyaa\\Api\\Controller\\NotExposedController::__invoke",
+        "methods": [
+          "GET",
+          "POST",
+          "PATCH",
+          "DELETE",
+          "PUT"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true
+        },
+        "requirements": {
+          "path": ".+"
+        },
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.catalog",
+        "path": "/.well-known/api-catalog",
+        "handler": "api.catalog",
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true,
+          "_waaseyaa_priority": 10
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "ai.catalog",
+        "path": "/.well-known/ai-catalog.json",
+        "handler": "ai.catalog",
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "defaults": [],
+        "options": {
+          "_public": true,
+          "_waaseyaa_priority": 10
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.schema.show",
+        "path": "/api/schema/{entity_type}",
+        "handler": "Waaseyaa\\Api\\Controller\\SchemaController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.workflow_definitions.list",
+        "path": "/api/workflow-definitions",
+        "handler": "Waaseyaa\\Api\\Workflow\\WorkflowDefinitionsController::list",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.queue.jobs.index",
+        "path": "/api/queue/jobs",
+        "handler": "Waaseyaa\\Api\\Controller\\QueueController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.queue.jobs.retry",
+        "path": "/api/queue/jobs/{id}/retry",
+        "handler": "Waaseyaa\\Api\\Controller\\QueueController::retry",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.queue.jobs.discard",
+        "path": "/api/queue/jobs/{id}/discard",
+        "handler": "Waaseyaa\\Api\\Controller\\QueueController::discard",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.scheduler.tasks.index",
+        "path": "/api/scheduler/tasks",
+        "handler": "Waaseyaa\\Api\\Controller\\SchedulerController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.scheduler.tasks.trigger",
+        "path": "/api/scheduler/tasks/{name}/trigger",
+        "handler": "Waaseyaa\\Api\\Controller\\SchedulerController::trigger",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.notification.channels.index",
+        "path": "/api/notification/channels",
+        "handler": "Waaseyaa\\Api\\Controller\\NotificationController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.notification.channels.test",
+        "path": "/api/notification/channels/{type}/test",
+        "handler": "Waaseyaa\\Api\\Controller\\NotificationController::test",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mercure.monitor.channels",
+        "path": "/api/mercure/channels",
+        "handler": "Waaseyaa\\Api\\Controller\\MercureMonitorController::channels",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mercure.monitor.events",
+        "path": "/api/mercure/events",
+        "handler": "Waaseyaa\\Api\\Controller\\MercureMonitorController::events",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mercure.monitor.subscribers",
+        "path": "/api/mercure/subscribers",
+        "handler": "Waaseyaa\\Api\\Controller\\MercureMonitorController::subscribers",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.media.versions.index",
+        "path": "/api/media/{uuid}/versions",
+        "handler": "Waaseyaa\\Api\\Controller\\MediaVersionController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.media.versions.show",
+        "path": "/api/media/{uuid}/versions/{vid}",
+        "handler": "Waaseyaa\\Api\\Controller\\MediaVersionController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.audit.events.index",
+        "path": "/api/audit/events",
+        "handler": "Waaseyaa\\Api\\Controller\\AuditQueryController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.admin.tools.index",
+        "path": "/api/mcp/tools",
+        "handler": "Waaseyaa\\Api\\Controller\\McpAdminController::tools",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.admin.tools.show",
+        "path": "/api/mcp/tools/{name}",
+        "handler": "Waaseyaa\\Api\\Controller\\McpAdminController::tool",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.admin.server-config",
+        "path": "/api/mcp/server-config",
+        "handler": "Waaseyaa\\Api\\Controller\\McpAdminController::serverConfig",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.approvals.index",
+        "path": "/api/mcp/approvals",
+        "handler": "Waaseyaa\\Api\\Controller\\McpApprovalController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_session": [
+            "waaseyaa_uid"
+          ],
+          "_permission": "mcp.approval.view"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.mcp.approvals.decision",
+        "path": "/api/mcp/approvals/{id}/decision",
+        "handler": "Waaseyaa\\Api\\Controller\\McpApprovalController::decide",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_authenticated": true,
+          "_session": [
+            "waaseyaa_uid"
+          ],
+          "_permission": "mcp.approval.decide",
+          "_csrf": true
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.index",
+        "path": "/api/oidc-clients",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.create",
+        "path": "/api/oidc-clients",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::create",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.show",
+        "path": "/api/oidc-clients/{id}",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.update",
+        "path": "/api/oidc-clients/{id}",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.delete",
+        "path": "/api/oidc-clients/{id}",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::delete",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.oidc-clients.regenerate-secret",
+        "path": "/api/oidc-clients/{id}/regenerate-secret",
+        "handler": "Waaseyaa\\Api\\Controller\\OidcClientController::regenerateSecret",
+        "methods": [
+          "POST"
+        ],
+        "defaults": [],
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.index",
+        "path": "/api/classification/policies",
+        "handler": "Waaseyaa\\Api\\JsonApiController::index",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "governance-viewer,admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.show",
+        "path": "/api/classification/policies/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::show",
+        "methods": [
+          "GET"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "governance-viewer,admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.store",
+        "path": "/api/classification/policies",
+        "handler": "Waaseyaa\\Api\\JsonApiController::store",
+        "methods": [
+          "POST"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.update",
+        "path": "/api/classification/policies/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::update",
+        "methods": [
+          "PATCH"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      },
+      {
+        "name": "api.classification.policies.destroy",
+        "path": "/api/classification/policies/{id}",
+        "handler": "Waaseyaa\\Api\\JsonApiController::destroy",
+        "methods": [
+          "DELETE"
+        ],
+        "defaults": {
+          "_entity_type": "retention_policy"
+        },
+        "options": {
+          "_role": "admin"
+        },
+        "requirements": [],
+        "host": "",
+        "schemes": [],
+        "condition": ""
+      }
+    ]
+  }
+}

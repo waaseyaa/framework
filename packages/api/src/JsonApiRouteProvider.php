@@ -26,7 +26,7 @@ final class JsonApiRouteProvider
     ) {}
 
     /** @return iterable<RouteDefinition> Pure generation from finalized copied inputs. @api */
-    public static function routeDefinitions(RouteContributionContext $context, string $basePath = '/api', bool $workflow = false, int $ordinal = 0): iterable
+    public static function routeDefinitions(RouteContributionContext $context, string $basePath = '/api', bool $workflow = false, int $ordinal = 0, bool $requestTerminals = false): iterable
     {
         $exposure = [];
         foreach ($context->entities as $entity) {
@@ -39,7 +39,7 @@ final class JsonApiRouteProvider
         $entities = array_values($exposure);
         usort($entities, static fn(array $left, array $right): int => strcmp($left['id'], $right['id']));
         if (!$workflow) {
-            yield new RouteDefinition('api.discovery', $basePath, HandlerReference::fromString('class:Waaseyaa\\Api\\ApiDiscoveryController::discover'), methods: ['GET'], options: ['_public' => true], sourceId: $context->sourceId, ordinal: $ordinal++);
+            yield new RouteDefinition('api.discovery', $basePath, HandlerReference::fromString($requestTerminals ? 'class:Waaseyaa\\Api\\Http\\Router\\DiscoveryRouter::discover' : 'class:Waaseyaa\\Api\\ApiDiscoveryController::discover'), methods: ['GET'], options: ['_public' => true], sourceId: $context->sourceId, ordinal: $ordinal++);
         }
         foreach ($entities as $entity) {
             $id = $entity['id'];
@@ -72,6 +72,16 @@ final class JsonApiRouteProvider
                 $options = [$public ? '_public' : '_authenticated' => true];
                 if ($jsonApi) {
                     $options['_json_api'] = true;
+                }
+                if ($requestTerminals) {
+                    [$class, $action] = explode('::', $controller, 2);
+                    $controller = match ($class) {
+                        'Waaseyaa\Api\JsonApiController' => 'Waaseyaa\Foundation\Http\Router\JsonApiRouter::handle',
+                        'Waaseyaa\Api\Controller\TranslationController' => 'Waaseyaa\Foundation\Http\Router\TranslationRouter::handle',
+                        'Waaseyaa\Api\Controller\FieldAutoSaveController' => 'Waaseyaa\Api\Http\Router\FieldAutoSaveApiRouter::update',
+                        'Waaseyaa\Api\Controller\WorkflowTransitionController' => 'Waaseyaa\Api\Http\Router\WorkflowTransitionApiRouter::' . $action,
+                        default => throw new \LogicException('Unsupported JSON:API request terminal.'),
+                    };
                 }
                 yield new RouteDefinition('api.' . $id . '.' . $suffix, $path . $tail, HandlerReference::fromString('class:' . $controller), methods: [$method], defaults: ['_entity_type' => $id], options: $options, sourceId: $context->sourceId, ordinal: $ordinal++);
             }

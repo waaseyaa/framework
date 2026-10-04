@@ -19,6 +19,7 @@ use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Controller\McpApprovalController;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
+use Waaseyaa\Api\Controller\NotExposedController;
 use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
@@ -66,10 +67,15 @@ use Waaseyaa\Foundation\Http\Router\TranslationRouter;
 use Waaseyaa\Foundation\Http\Router\WorkflowDefinitionsApiRouter;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
+use Waaseyaa\Foundation\Routing\Metadata\RouteCompositionException;
+use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
+use Waaseyaa\Foundation\Routing\Metadata\RouteDefinition;
 use Waaseyaa\Foundation\Routing\Metadata\RouteExposureInputs;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
@@ -79,7 +85,7 @@ use Waaseyaa\Notification\NotificationDispatcher;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Queue\Transport\TransportInterface;
-use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\RouteMetadataCompiler;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
@@ -87,7 +93,7 @@ use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\Read\ActiveWorkflows;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
-final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface, ConfiguresHttpKernelInterface
+final class ApiServiceProvider extends ServiceProvider implements ContributesRouteMetadataInterface, HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface, ConfiguresHttpKernelInterface
 {
     private const string CONTENT_SEARCH_PROVIDER = 'Waaseyaa\\Search\\SearchProviderInterface';
     private const string CONTENT_SEARCH_LIMITER = 'Waaseyaa\\Auth\\AtomicRateLimiterInterface';
@@ -186,6 +192,9 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function register(): void
     {
+        // Load the owned structural generator at bootstrap, before cold inspection.
+        new \ReflectionClass(JsonApiRouteProvider::class);
+        $this->bind(NotExposedController::class, static fn(): NotExposedController => new NotExposedController());
         $this->bind(FieldAutoSaveApiRouter::class, function (): FieldAutoSaveApiRouter {
             $manager = $this->resolve(EntityTypeManager::class);
             $access = $this->resolve(EntityAccessHandler::class);
@@ -617,391 +626,147 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         return $routers;
     }
 
+    /** @return iterable<RouteDefinition> Complete API declarations from copied finalized inputs. */
+    public function routeDefinitions(RouteContributionContext $context): iterable
+    {
+        yield from $this->declarations($context, true);
+    }
+
+    /** @return iterable<RouteDefinition> */
+    private function declarations(RouteContributionContext $context, bool $requestTerminals): iterable
+    {
+        foreach (['api.route.content_search', 'api.route.mcp', 'api.route.catalog', 'api.route.ai_catalog'] as $fact) {
+            if (!array_key_exists($fact, $context->capabilities)) {
+                throw new RouteCompositionException('inputs-unavailable', 'Finalized API route availability is unavailable.');
+            }
+        }
+        $ordinal = 0;
+        if ($context->capabilities['api.route.content_search']) {
+            yield $this->definition($context, $ordinal++, 'api.content_search', '/api/content/search', 'Waaseyaa\Api\Controller\ContentSearchController::search', ['GET', 'HEAD'], [], ['_public' => true], 100, $requestTerminals);
+        }
+        foreach (JsonApiRouteProvider::routeDefinitions($context, ordinal: $ordinal, requestTerminals: $requestTerminals) as $definition) {
+            yield $definition;
+            $ordinal++;
+        }
+        foreach ([
+            ['api.route.catalog', 'api.catalog', '/.well-known/api-catalog', 'Waaseyaa\Api\Controller\ApiCatalogController::serve'],
+            ['api.route.ai_catalog', 'ai.catalog', '/.well-known/ai-catalog.json', 'Waaseyaa\Api\Controller\AiCatalogController::serve'],
+        ] as [$fact, $name, $path, $controller]) {
+            if ($context->capabilities[$fact]) {
+                yield $this->definition($context, $ordinal++, $name, $path, $controller, ['GET', 'HEAD'], [], ['_public' => true], 10, $requestTerminals);
+            }
+        }
+        if ($context->capabilities['service:Waaseyaa\Workflows\Transition\TransitionService'] ?? false) {
+            foreach (JsonApiRouteProvider::routeDefinitions($context, workflow: true, ordinal: $ordinal, requestTerminals: $requestTerminals) as $definition) {
+                yield $definition;
+                $ordinal++;
+            }
+        }
+        $oidcPresent = in_array('oidc_client', array_column($context->entities, 'id'), true);
+        foreach ([
+            ['api.schema.show', '/api/schema/{entity_type}', 'Waaseyaa\\Api\\Controller\\SchemaController::show', ['GET'], [], ['_authenticated' => true], ''],
+            ['api.workflow_definitions.list', '/api/workflow-definitions', 'Waaseyaa\\Api\\Workflow\\WorkflowDefinitionsController::list', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.queue.jobs.index', '/api/queue/jobs', 'Waaseyaa\\Api\\Controller\\QueueController::index', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.queue.jobs.retry', '/api/queue/jobs/{id}/retry', 'Waaseyaa\\Api\\Controller\\QueueController::retry', ['POST'], [], ['_role' => 'admin'], ''],
+            ['api.queue.jobs.discard', '/api/queue/jobs/{id}/discard', 'Waaseyaa\\Api\\Controller\\QueueController::discard', ['POST'], [], ['_role' => 'admin'], ''],
+            ['api.scheduler.tasks.index', '/api/scheduler/tasks', 'Waaseyaa\\Api\\Controller\\SchedulerController::index', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.scheduler.tasks.trigger', '/api/scheduler/tasks/{name}/trigger', 'Waaseyaa\\Api\\Controller\\SchedulerController::trigger', ['POST'], [], ['_role' => 'admin'], ''],
+            ['api.notification.channels.index', '/api/notification/channels', 'Waaseyaa\\Api\\Controller\\NotificationController::index', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.notification.channels.test', '/api/notification/channels/{type}/test', 'Waaseyaa\\Api\\Controller\\NotificationController::test', ['POST'], [], ['_role' => 'admin'], ''],
+            ['api.mercure.monitor.channels', '/api/mercure/channels', 'Waaseyaa\\Api\\Controller\\MercureMonitorController::channels', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.mercure.monitor.events', '/api/mercure/events', 'Waaseyaa\\Api\\Controller\\MercureMonitorController::events', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.mercure.monitor.subscribers', '/api/mercure/subscribers', 'Waaseyaa\\Api\\Controller\\MercureMonitorController::subscribers', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.media.versions.index', '/api/media/{uuid}/versions', 'Waaseyaa\\Api\\Controller\\MediaVersionController::index', ['GET'], [], ['_authenticated' => true], ''],
+            ['api.media.versions.show', '/api/media/{uuid}/versions/{vid}', 'Waaseyaa\\Api\\Controller\\MediaVersionController::show', ['GET'], [], ['_authenticated' => true], ''],
+            ['api.audit.events.index', '/api/audit/events', 'Waaseyaa\\Api\\Controller\\AuditQueryController::index', ['GET'], [], ['_role' => 'admin'], ''],
+            ['api.mcp.admin.tools.index', '/api/mcp/tools', 'Waaseyaa\\Api\\Controller\\McpAdminController::tools', ['GET'], [], ['_role' => 'admin'], 'api.route.mcp'],
+            ['api.mcp.admin.tools.show', '/api/mcp/tools/{name}', 'Waaseyaa\\Api\\Controller\\McpAdminController::tool', ['GET'], [], ['_role' => 'admin'], 'api.route.mcp'],
+            ['api.mcp.admin.server-config', '/api/mcp/server-config', 'Waaseyaa\\Api\\Controller\\McpAdminController::serverConfig', ['GET'], [], ['_role' => 'admin'], 'api.route.mcp'],
+            ['api.mcp.approvals.index', '/api/mcp/approvals', 'Waaseyaa\\Api\\Controller\\McpApprovalController::index', ['GET'], [], ['_authenticated' => true, '_session' => ['waaseyaa_uid'], '_permission' => 'mcp.approval.view'], 'api.route.mcp'],
+            ['api.mcp.approvals.decision', '/api/mcp/approvals/{id}/decision', 'Waaseyaa\\Api\\Controller\\McpApprovalController::decide', ['POST'], [], ['_authenticated' => true, '_session' => ['waaseyaa_uid'], '_permission' => 'mcp.approval.decide', '_csrf' => true], 'api.route.mcp'],
+            ['api.oidc-clients.index', '/api/oidc-clients', 'Waaseyaa\\Api\\Controller\\OidcClientController::index', ['GET'], [], ['_role' => 'admin'], 'entity:oidc_client'],
+            ['api.oidc-clients.create', '/api/oidc-clients', 'Waaseyaa\\Api\\Controller\\OidcClientController::create', ['POST'], [], ['_role' => 'admin'], 'entity:oidc_client'],
+            ['api.oidc-clients.show', '/api/oidc-clients/{id}', 'Waaseyaa\\Api\\Controller\\OidcClientController::show', ['GET'], [], ['_role' => 'admin'], 'entity:oidc_client'],
+            ['api.oidc-clients.update', '/api/oidc-clients/{id}', 'Waaseyaa\\Api\\Controller\\OidcClientController::update', ['PATCH'], [], ['_role' => 'admin'], 'entity:oidc_client'],
+            ['api.oidc-clients.delete', '/api/oidc-clients/{id}', 'Waaseyaa\\Api\\Controller\\OidcClientController::delete', ['DELETE'], [], ['_role' => 'admin'], 'entity:oidc_client'],
+            ['api.oidc-clients.regenerate-secret', '/api/oidc-clients/{id}/regenerate-secret', 'Waaseyaa\\Api\\Controller\\OidcClientController::regenerateSecret', ['POST'], [], ['_role' => 'admin'], 'entity:oidc_client'],
+            ['api.classification.policies.index', '/api/classification/policies', 'Waaseyaa\\Api\\JsonApiController::index', ['GET'], ['_entity_type' => 'retention_policy'], ['_role' => 'governance-viewer,admin'], ''],
+            ['api.classification.policies.show', '/api/classification/policies/{id}', 'Waaseyaa\\Api\\JsonApiController::show', ['GET'], ['_entity_type' => 'retention_policy'], ['_role' => 'governance-viewer,admin'], ''],
+            ['api.classification.policies.store', '/api/classification/policies', 'Waaseyaa\\Api\\JsonApiController::store', ['POST'], ['_entity_type' => 'retention_policy'], ['_role' => 'admin'], ''],
+            ['api.classification.policies.update', '/api/classification/policies/{id}', 'Waaseyaa\\Api\\JsonApiController::update', ['PATCH'], ['_entity_type' => 'retention_policy'], ['_role' => 'admin'], ''],
+            ['api.classification.policies.destroy', '/api/classification/policies/{id}', 'Waaseyaa\\Api\\JsonApiController::destroy', ['DELETE'], ['_entity_type' => 'retention_policy'], ['_role' => 'admin'], ''],
+        ] as [$name, $path, $controller, $methods, $defaults, $options, $gate]) {
+            if (($gate === 'api.route.mcp' && !$context->capabilities[$gate]) || ($gate === 'entity:oidc_client' && !$oidcPresent)) {
+                continue;
+            }
+            yield $this->definition($context, $ordinal++, $name, $path, $controller, $methods, $defaults, $options, 0, $requestTerminals);
+        }
+    }
+
+    private function definition(RouteContributionContext $context, int $ordinal, string $name, string $path, string $controller, array $methods, array $defaults, array $options, int $priority, bool $requestTerminals): RouteDefinition
+    {
+        if ($requestTerminals) {
+            [$class, $method] = explode('::', $controller, 2);
+            $class = match ($class) {
+                'Waaseyaa\Api\Controller\ContentSearchController' => 'Waaseyaa\Api\Http\Router\ContentSearchApiRouter',
+                'Waaseyaa\Api\Controller\ApiCatalogController' => 'Waaseyaa\Api\Http\Router\ApiCatalogRouter',
+                'Waaseyaa\Api\Controller\AiCatalogController' => 'Waaseyaa\Api\Http\Router\AiCatalogRouter',
+                'Waaseyaa\Api\Controller\SchemaController' => 'Waaseyaa\Foundation\Http\Router\SchemaRouter',
+                'Waaseyaa\Api\Workflow\WorkflowDefinitionsController' => 'Waaseyaa\Foundation\Http\Router\WorkflowDefinitionsApiRouter',
+                'Waaseyaa\Api\Controller\QueueController' => 'Waaseyaa\Api\Http\Router\QueueAdminApiRouter',
+                'Waaseyaa\Api\Controller\SchedulerController' => 'Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter',
+                'Waaseyaa\Api\Controller\NotificationController' => 'Waaseyaa\Api\Http\Router\NotificationAdminApiRouter',
+                'Waaseyaa\Api\Controller\MercureMonitorController' => 'Waaseyaa\Api\Http\Router\MercureMonitorApiRouter',
+                'Waaseyaa\Api\Controller\MediaVersionController' => 'Waaseyaa\Api\Http\Router\MediaVersionApiRouter',
+                'Waaseyaa\Api\Controller\AuditQueryController' => 'Waaseyaa\Api\Http\Router\AuditApiRouter',
+                'Waaseyaa\Api\Controller\McpAdminController' => 'Waaseyaa\Api\Http\Router\McpAdminApiRouter',
+                'Waaseyaa\Api\Controller\McpApprovalController' => 'Waaseyaa\Api\Http\Router\McpApprovalApiRouter',
+                'Waaseyaa\Api\Controller\OidcClientController' => 'Waaseyaa\Api\Http\Router\OidcClientApiRouter',
+                'Waaseyaa\Api\JsonApiController' => 'Waaseyaa\Foundation\Http\Router\JsonApiRouter',
+                default => throw new \LogicException('Unsupported API request terminal.'),
+            };
+            $method = match ($class) {
+                'Waaseyaa\Api\Http\Router\ContentSearchApiRouter', 'Waaseyaa\Api\Http\Router\ApiCatalogRouter', 'Waaseyaa\Api\Http\Router\AiCatalogRouter', 'Waaseyaa\Foundation\Http\Router\JsonApiRouter' => 'handle',
+                'Waaseyaa\Api\Http\Router\OidcClientApiRouter' => $method === 'destroy' ? 'delete' : $method,
+                default => $method,
+            };
+            $controller = $class . '::' . $method;
+        }
+        return new RouteDefinition($name, $path, HandlerReference::fromString('class:' . $controller), methods: $methods, defaults: $defaults, options: $options, priority: $priority, sourceId: $context->sourceId, ordinal: $ordinal);
+    }
+
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
     {
-        $exposurePolicy = $this->exposurePolicy($entityTypeManager);
-
-        // Register the exact endpoint before generated `/api/{type}/{id}`
-        // routes and give it an explicit priority. This prevents an exposed
-        // `content` entity type from shadowing `/api/content/search`.
-        if ($this->contentSearchAvailable()) {
-            $router->addRoute(
-                'api.content_search',
-                RouteBuilder::create('/api/content/search')
-                    ->controller(ContentSearchApiRouter::CONTROLLER)
-                    ->allowAll()
-                    ->methods('GET', 'HEAD')
-                    ->priority(100)
-                    ->build(),
-            );
+        // Bare-provider compatibility has no kernel publication. Copy its existing
+        // finalized policy and gates once, then replay the same structural table.
+        $policy = $this->exposurePolicy($entityTypeManager);
+        $entities = [];
+        foreach ($entityTypeManager->getDefinitions() as $definition) {
+            $entities[] = ['id' => $definition->id(), 'api_exposed' => EntityTypeApiExposure::isExposed($definition, $policy)];
         }
-
-        $jsonApiRouteProvider = new JsonApiRouteProvider($entityTypeManager, exposurePolicy: $exposurePolicy);
-        $jsonApiRouteProvider->registerRoutes($router);
-
-        if ($this->apiCatalog !== null) {
-            $router->addRoute(
-                'api.catalog',
-                RouteBuilder::create(ApiCatalog::PATH)
-                    ->controller('api.catalog')
-                    ->methods('GET', 'HEAD')
-                    ->allowAll()
-                    ->priority(10)
-                    ->build(),
-            );
+        $context = new RouteContributionContext(self::class, 0, capabilities: [
+            'api.route.content_search' => $this->contentSearchAvailable(),
+            'api.route.mcp' => $this->mcpInstalled(),
+            'api.route.catalog' => $this->apiCatalog !== null,
+            'api.route.ai_catalog' => $this->aiCatalog !== null,
+            'service:Waaseyaa\Workflows\Transition\TransitionService' => $this->resolveOptional(TransitionService::class) instanceof TransitionService,
+        ], entities: $entities);
+        foreach ($this->declarations($context, false) as $definition) {
+            $route = new RouteMetadataCompiler()->compileRoute($definition);
+            $options = $route->getOptions();
+            if ($definition->priority === 0) {
+                unset($options['_waaseyaa_priority']);
+            }
+            $route->setOptions($options);
+            $route->setDefault('_controller', match ($definition->name) {
+                'api.catalog' => 'api.catalog',
+                'ai.catalog' => 'ai.catalog',
+                default => $definition->handler->target === NotExposedController::class
+                    ? new NotExposedController()->__invoke(...)
+                    : $definition->handler->target . '::' . $definition->handler->method,
+            });
+            $router->addRoute($definition->name, $route);
         }
-
-        if ($this->aiCatalog !== null) {
-            $router->addRoute(
-                'ai.catalog',
-                RouteBuilder::create(AiCatalog::PATH)
-                    ->controller('ai.catalog')
-                    ->methods('GET', 'HEAD')
-                    ->allowAll()
-                    ->priority(10)
-                    ->build(),
-            );
-        }
-
-        // CW-v1 WP-4 (#1920): gated on TransitionService resolving — see the
-        // matching gate in httpDomainRouters() above for the full rationale.
-        $transitionService = $this->resolveOptional(TransitionService::class);
-        if ($transitionService instanceof TransitionService) {
-            $jsonApiRouteProvider->registerWorkflowTransitionRoutes($router);
-        }
-
-        // Schema self-description surface requires authentication: it enumerates
-        // every registered entity type plus its attribute/field schema, and computes
-        // field-access against a value-less prototype entity — disclosing the
-        // DEFINITIONS of instance-state-gated fields (e.g. classification-gated)
-        // that a real row would deny. SCOPE: only these two REST routes (#1649).
-        $router->addRoute(
-            'api.schema.show',
-            RouteBuilder::create('/api/schema/{entity_type}')
-                ->controller('Waaseyaa\\Api\\Controller\\SchemaController::show')
-                ->requireAuthentication()
-                ->methods('GET')
-                ->build(),
-        );
-
-        $router->addRoute(
-            'api.workflow_definitions.list',
-            RouteBuilder::create('/api/workflow-definitions')
-                ->controller('Waaseyaa\\Api\\Workflow\\WorkflowDefinitionsController::list')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-
-        // M4B WP01: admin queue dashboard. Failed-jobs MVP only — queued/in-flight
-        // job columns ship later once `TransportInterface::listJobs()` exists
-        // (see WP01 follow-up issue tracked under #1471).
-        $queueController = 'Waaseyaa\\Api\\Controller\\QueueController';
-        $router->addRoute(
-            'api.queue.jobs.index',
-            RouteBuilder::create('/api/queue/jobs')
-                ->controller($queueController . '::index')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.queue.jobs.retry',
-            RouteBuilder::create('/api/queue/jobs/{id}/retry')
-                ->controller($queueController . '::retry')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.queue.jobs.discard',
-            RouteBuilder::create('/api/queue/jobs/{id}/discard')
-                ->controller($queueController . '::discard')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-        );
-
-        // M4B WP02: admin scheduler dashboard. Read-mostly view of the cron
-        // registry plus a "Run now" trigger. Tasks themselves remain
-        // code-defined via attributes (C-002) — no edit UI.
-        $schedulerController = 'Waaseyaa\\Api\\Controller\\SchedulerController';
-        $router->addRoute(
-            'api.scheduler.tasks.index',
-            RouteBuilder::create('/api/scheduler/tasks')
-                ->controller($schedulerController . '::index')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.scheduler.tasks.trigger',
-            RouteBuilder::create('/api/scheduler/tasks/{name}/trigger')
-                ->controller($schedulerController . '::trigger')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-        );
-
-        // M4C WP01: admin notifications dashboard. Channels list + synthetic
-        // test send. Delivery log + per-channel enable/disable deferred —
-        // notification package does not yet carry the persistence.
-        $notificationController = 'Waaseyaa\\Api\\Controller\\NotificationController';
-        $router->addRoute(
-            'api.notification.channels.index',
-            RouteBuilder::create('/api/notification/channels')
-                ->controller($notificationController . '::index')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.notification.channels.test',
-            RouteBuilder::create('/api/notification/channels/{type}/test')
-                ->controller($notificationController . '::test')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-        );
-
-        // M5D WP01: Mercure broadcast monitor endpoints. All gated by
-        // `_role: admin`; controller does NOT re-check role (NFR-001 / DIR-004).
-        $mmController = 'Waaseyaa\\Api\\Controller\\MercureMonitorController';
-        $router->addRoute(
-            'api.mercure.monitor.channels',
-            RouteBuilder::create('/api/mercure/channels')
-                ->controller($mmController . '::channels')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.mercure.monitor.events',
-            RouteBuilder::create('/api/mercure/events')
-                ->controller($mmController . '::events')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.mercure.monitor.subscribers',
-            RouteBuilder::create('/api/mercure/subscribers')
-                ->controller($mmController . '::subscribers')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-
-        // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ WP03 T-L):
-        // Media version read API — list all versions + show a specific version.
-        // Gated by _authenticated (FR-008): any logged-in account may call;
-        // per-version filtering is applied inside the read-model adapter
-        // (GateInterface) — forbidden versions are silently omitted from lists
-        // and return 403 on direct show. Binary-stream download deferred (FR-010).
-        $mvController = 'Waaseyaa\\Api\\Controller\\MediaVersionController';
-        $router->addRoute(
-            'api.media.versions.index',
-            RouteBuilder::create('/api/media/{uuid}/versions')
-                ->controller($mvController . '::index')
-                ->requireAuthentication()
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.media.versions.show',
-            RouteBuilder::create('/api/media/{uuid}/versions/{vid}')
-                ->controller($mvController . '::show')
-                ->requireAuthentication()
-                ->methods('GET')
-                ->build(),
-        );
-
-        // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF).
-        // Controller wired in WP03 (packages/api). Route reserved here so
-        // the api package registers the named route independently of the
-        // foundation kernel. Refs: gap-matrix-A3, DIR-004.
-        $router->addRoute(
-            'api.audit.events.index',
-            RouteBuilder::create('/api/audit/events')
-                ->controller('Waaseyaa\\Api\\Controller\\AuditQueryController::index')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-
-        if ($this->mcpInstalled()) {
-            // M5C WP01: MCP endpoint admin — read-only tool registry + server config.
-            // All three endpoints gated by `_role: admin`; controller does NOT
-            // re-check role (NFR-001 / DIR-004). Refs C-L6-01, DIR-004.
-            $mcpAdminController = 'Waaseyaa\\Api\\Controller\\McpAdminController';
-            $router->addRoute(
-                'api.mcp.admin.tools.index',
-                RouteBuilder::create('/api/mcp/tools')
-                    ->controller($mcpAdminController . '::tools')
-                    ->requireRole('admin')
-                    ->methods('GET')
-                    ->build(),
-            );
-            $router->addRoute(
-                'api.mcp.admin.tools.show',
-                RouteBuilder::create('/api/mcp/tools/{name}')
-                    ->controller($mcpAdminController . '::tool')
-                    ->requireRole('admin')
-                    ->methods('GET')
-                    ->build(),
-            );
-            $router->addRoute(
-                'api.mcp.admin.server-config',
-                RouteBuilder::create('/api/mcp/server-config')
-                    ->controller($mcpAdminController . '::serverConfig')
-                    ->requireRole('admin')
-                    ->methods('GET')
-                    ->build(),
-            );
-
-            // MCP approval decision surface (#2177 F1 C1b). Both routes demand
-            // a REAL login session (`_session ['waaseyaa_uid']`) on top of
-            // authentication, so a bearer-only identity — the very principal
-            // class whose destructive calls are being approved — can never
-            // reach the queue or the decision. The decision route additionally
-            // opts IN to CSRF validation (requireCsrf) because it is a
-            // cookie-authenticated JSON endpoint: the default JSON
-            // content-type exemption must not apply. The controller layers the
-            // exact-origin and separation-of-duties gates on top.
-            $mcpApprovalController = 'Waaseyaa\\Api\\Controller\\McpApprovalController';
-            $router->addRoute(
-                'api.mcp.approvals.index',
-                RouteBuilder::create('/api/mcp/approvals')
-                    ->controller($mcpApprovalController . '::index')
-                    ->requireAuthentication()
-                    ->requireSession(['waaseyaa_uid'])
-                    ->requirePermission('mcp.approval.view')
-                    ->methods('GET')
-                    ->build(),
-            );
-            $router->addRoute(
-                'api.mcp.approvals.decision',
-                RouteBuilder::create('/api/mcp/approvals/{id}/decision')
-                    ->controller($mcpApprovalController . '::decide')
-                    ->requireAuthentication()
-                    ->requireSession(['waaseyaa_uid'])
-                    ->requirePermission('mcp.approval.decide')
-                    ->requireCsrf()
-                    ->methods('POST')
-                    ->build(),
-            );
-        }
-
-        // WP05 (oidc-flows-completion-01KSEFTP): OIDC client admin CRUD API.
-        // The entity definition is the installation/activation signal. All
-        // endpoints require admin role. client_secret is returned once on
-        // create/regenerate; omitted on all other responses.
-        if ($entityTypeManager->hasDefinition('oidc_client')) {
-            $oidcClientController = 'Waaseyaa\\Api\\Controller\\OidcClientController';
-            $router->addRoute(
-                'api.oidc-clients.index',
-                RouteBuilder::create('/api/oidc-clients')
-                ->controller($oidcClientController . '::index')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-            );
-            $router->addRoute(
-                'api.oidc-clients.create',
-                RouteBuilder::create('/api/oidc-clients')
-                ->controller($oidcClientController . '::create')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-            );
-            $router->addRoute(
-                'api.oidc-clients.show',
-                RouteBuilder::create('/api/oidc-clients/{id}')
-                ->controller($oidcClientController . '::show')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-            );
-            $router->addRoute(
-                'api.oidc-clients.update',
-                RouteBuilder::create('/api/oidc-clients/{id}')
-                ->controller($oidcClientController . '::update')
-                ->requireRole('admin')
-                ->methods('PATCH')
-                ->build(),
-            );
-            $router->addRoute(
-                'api.oidc-clients.delete',
-                RouteBuilder::create('/api/oidc-clients/{id}')
-                ->controller($oidcClientController . '::delete')
-                ->requireRole('admin')
-                ->methods('DELETE')
-                ->build(),
-            );
-            $router->addRoute(
-                'api.oidc-clients.regenerate-secret',
-                RouteBuilder::create('/api/oidc-clients/{id}/regenerate-secret')
-                ->controller($oidcClientController . '::regenerateSecret')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-            );
-        }
-
-        // Classification retention-engine (classification-retention-engine-01KSEFTH WP02).
-        // Friendly URLs for the RetentionPolicy entity served via the framework's
-        // standard JSON:API entity controller. Read endpoints gate to
-        // `governance-viewer` (audit/legal read-only) OR `admin`; mutations gate
-        // to `admin` only. The auto-generated `/api/retention_policy` routes
-        // (from JsonApiRouteProvider) remain reachable; these aliases exist for
-        // discoverability and stable URL contracts documented in the admin SPA.
-        // Refs: FR-008, NFR-001 / DIR-004.
-        $retentionPolicyController = 'Waaseyaa\\Api\\JsonApiController';
-        $router->addRoute(
-            'api.classification.policies.index',
-            RouteBuilder::create('/api/classification/policies')
-                ->controller($retentionPolicyController . '::index')
-                ->requireRole('governance-viewer,admin')
-                ->methods('GET')
-                ->default('_entity_type', 'retention_policy')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.classification.policies.show',
-            RouteBuilder::create('/api/classification/policies/{id}')
-                ->controller($retentionPolicyController . '::show')
-                ->requireRole('governance-viewer,admin')
-                ->methods('GET')
-                ->default('_entity_type', 'retention_policy')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.classification.policies.store',
-            RouteBuilder::create('/api/classification/policies')
-                ->controller($retentionPolicyController . '::store')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->default('_entity_type', 'retention_policy')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.classification.policies.update',
-            RouteBuilder::create('/api/classification/policies/{id}')
-                ->controller($retentionPolicyController . '::update')
-                ->requireRole('admin')
-                ->methods('PATCH')
-                ->default('_entity_type', 'retention_policy')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.classification.policies.destroy',
-            RouteBuilder::create('/api/classification/policies/{id}')
-                ->controller($retentionPolicyController . '::destroy')
-                ->requireRole('admin')
-                ->methods('DELETE')
-                ->default('_entity_type', 'retention_policy')
-                ->build(),
-        );
     }
 
     private function exposurePolicy(EntityTypeManager $entityTypeManager): EntityTypeApiExposurePolicy

@@ -253,14 +253,20 @@ final class KernelRouteParticipationTest extends TestCase
         file_put_contents($this->root . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Api\ApiServiceProvider::class]]]], JSON_THROW_ON_ERROR));
         $kernel = new RouteParticipationKernelFixture($this->root);
         $kernel->bootForCli();
+        $capabilities = $kernel->getRouteInputs()->capabilities;
         self::assertSame([
             'api' => true,
-            'service:Waaseyaa\\Api\\EntityTypeApiExposurePolicy' => true,
-            'service:Waaseyaa\\Api\\InternalFieldVisibilityPolicy' => true,
-            'service:Waaseyaa\\Api\\Audit\\AuditQueryReadModelInterface' => true,
-        ], $kernel->getRouteInputs()->capabilities);
+            'api.route.content_search' => false,
+            'api.route.mcp' => true,
+            'api.route.catalog' => false,
+            'api.route.ai_catalog' => false,
+        ], array_filter($capabilities, static fn(string $name): bool => !str_starts_with($name, 'service:'), ARRAY_FILTER_USE_KEY));
+        self::assertCount(23, array_filter($capabilities, static fn(string $name): bool => str_starts_with($name, 'service:'), ARRAY_FILTER_USE_KEY));
+        foreach (['Waaseyaa\Api\EntityTypeApiExposurePolicy', 'Waaseyaa\Api\InternalFieldVisibilityPolicy', 'Waaseyaa\Api\Audit\AuditQueryReadModelInterface', 'Waaseyaa\Api\Controller\NotExposedController'] as $service) {
+            self::assertTrue($capabilities['service:' . $service]);
+        }
         self::assertFalse($kernel->getRouteInputs()->entities[0]['api_exposed']);
-        self::assertSame('legacy', $kernel->getRouteParticipation()->records[0]['kind']);
+        self::assertSame('declarative', $kernel->getRouteParticipation()->records[0]['kind']);
     }
 
     public function testLatePublicationPoisonsCachedKernelInputs(): void
@@ -296,7 +302,7 @@ final class KernelRouteParticipationTest extends TestCase
         $kernel = new RouteParticipationKernelFixture($this->root);
         $kernel->skipProviderBoot = true;
         $kernel->bootForCli();
-        self::assertSame('legacy', $kernel->getRouteParticipation()->records[0]['kind']);
+        self::assertSame('declarative', $kernel->getRouteParticipation()->records[0]['kind']);
         $this->expectException(RouteCompositionException::class);
         $kernel->getRouteInputs();
     }
