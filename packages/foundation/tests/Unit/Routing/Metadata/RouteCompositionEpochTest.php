@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Tests\Unit\Routing\Metadata;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
@@ -18,7 +18,11 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInter
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
-#[CoversNothing]
+#[CoversClass(RouteCompositionEpoch::class)]
+#[CoversClass(RouteCompositionException::class)]
+#[CoversClass(RouteParticipationCompiler::class)]
+#[CoversClass(ValidatedRouteParticipation::class)]
+#[CoversClass(WaaseyaaRouter::class)]
 final class RouteCompositionEpochTest extends TestCase
 {
     public function testWholeSourceCollectionHasStablePriorityAndDetachedInputs(): void

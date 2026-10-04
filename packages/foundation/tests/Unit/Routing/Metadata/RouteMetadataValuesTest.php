@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Tests\Unit\Routing\Metadata;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Routing\Metadata\HandlerReference;
@@ -12,7 +12,10 @@ use Waaseyaa\Foundation\Routing\Metadata\RouteContributionContext;
 use Waaseyaa\Foundation\Routing\Metadata\RouteDefinition;
 use Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot;
 
-#[CoversNothing]
+#[CoversClass(HandlerReference::class)]
+#[CoversClass(RouteContributionContext::class)]
+#[CoversClass(RouteDefinition::class)]
+#[CoversClass(RouteSnapshot::class)]
 final class RouteMetadataValuesTest extends TestCase
 {
     public function testValuesPreserveFieldsWithoutLoadingAHandlerClass(): void

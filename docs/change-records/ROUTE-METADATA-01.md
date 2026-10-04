@@ -166,3 +166,23 @@ ROUTE-METADATA-01 Admin Surface admission: one table declares core, optional pag
 
 
 ROUTE-METADATA-01 CLI/Bimaaji canonical wiring slice. Base80aa9ef882f6e269c3d2e458ba7839c4d19422b7. Root owns Foundation bus accessor and registry handoff, CLI route:list, Bimaaji route sections/generator/handler, tests and coupled docs. One optional lazy kernel accessor returns completed RouteSnapshot with live custody checks. RouteMetadataCompiler remains the Symfony projection owner. Bimaaji section accessors are evaluated at provide(), not cached during construction; final authority callback checks after all sections, outside soft section-failure handling. CLI uses the same snapshot. Bare explicit collection/router or builtin-list compatibility stays bounded to absent kernel context; no fallback after refusal. Graph output uses writeRaw. Source tests exercise completed and legacy-refused real kernel profiles, cached provider refusal, late final custody and JSON:API defaults. No dependency/lock changes. Required FETDER producer and installed distribution qualification remain open, together with full package audits, broader CLI/access work and supported hosted Linux proof. No publication/deployment.
+
+
+## Publication integration, 4 October 2026
+
+Russell authorized publication, FETDER adoption and deployment with "publish it".
+The release candidate integrates published alpha.304 main 184ab7d6 into the
+reviewed route repair 612e41e7. Composer resolutions preserve added dependencies
+at the current alpha.304 floor; root lock metadata and canonical SQLite dependency
+byte authority are refreshed. Independent integration review approved 3832c97bb.
+Focused consumer/kernel tests pass 122 tests / 508 assertions. Integrated FETDER
+main f4a2f01 preserves its current 173 routes and admin consolidation; independent
+review approved source checkpoint 332a2ef and source-profile checks passed.
+
+The first complete main-relative default preflight ran 43 gates and found one
+coverage-companion gap: route value/epoch tests incorrectly declared CoversNothing.
+Their existing public-boundary assertions now declare the classes they exercise.
+The affected 57 tests / 131 assertions pass and the companion gate passes. No
+production behavior changes in this qualification repair. Hosted exact-head proof,
+release-cut, published installation and live export are pending at this checkpoint.
+Whole-package audits and unrelated kernel/profile/domain-router residuals remain.
