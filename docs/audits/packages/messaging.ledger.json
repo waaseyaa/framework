@@ -7,7 +7,7 @@
     "composer_lock_sha256": "f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
     "php": "8.5.5",
     "host": "Native Windows",
-    "evidence_freshness": "Frozen audit base retained; S1 delta reconciled at fdfedcb3a5b2ef0d817f92adcbcd7e81abbf15e8. Unaffected findings retain historical evidence; audit remains unpublished local draft. Structural delta is checked at 9945603c10a75036307ae371140840b332013790 (messaging bytes match landed S1); no old runtime result is promoted to fresh qualification. S3/S7 landed at 59bf986d7152805a6d156ab54cb30f2cccbad89c; full hosted CI37817226478 proves that exact repair head. Remaining discovery evidence retains historical identity.",
+    "evidence_freshness": "Frozen audit base retained; S1 delta reconciled at fdfedcb3a5b2ef0d817f92adcbcd7e81abbf15e8. Unaffected findings retain historical evidence; assessment is published on main. Structural delta is checked at 9945603c10a75036307ae371140840b332013790 (messaging bytes match landed S1); no old runtime result is promoted to fresh qualification. S3/S7 landed at 59bf986d7152805a6d156ab54cb30f2cccbad89c; full hosted CI37817226478 proves that exact repair head. Remaining discovery evidence retains historical identity.",
     "consumers": []
   },
   "milestone": {
@@ -16,7 +16,7 @@
     "converged": null,
     "reasons": [
       "Complete roster, charter, checklist dispositions, independent evidence/refutation and critic citation checks; bounded generic entrypoint trace completed.",
-      "Assessment record is committed by this audit-only candidate. Repair readiness and convergence are not claimed; candidate index records assessed.",
+      "Assessment record is committed on main. Repair readiness and convergence are not claimed; main index records assessed.",
       "Alpha-context user custody waiver accepted; detailed notes stay in scratch and durable private custody is not claimed.",
       "2026-10-08 structural supplement independently verified/refuted; original frozen runtime evidence and custody waiver retained. Final immutable-record review approved; isolation verification passed.",
       "S3/S7 landed at 59bf986d7, resolving documentation, adapter autoload and structural debt. D2/D3, other findings and installation qualification remain; whole-package convergence not claimed."
@@ -154,7 +154,7 @@
       "role": "Current immutable-principal Protected-read adapter",
       "classification": "owned and coherent",
       "evidence_level": "reviewed",
-      "notes": "Moved from containing policy file in bounded repair candidate, not yet landed; exact semantics preserved.",
+      "notes": "Moved from containing policy file in landed PR #3189 at 59bf986d7152805a6d156ab54cb30f2cccbad89c; exact semantics preserved and hosted qualification passed.",
       "findings": [
         "MSG-SURFACE-001"
       ]
@@ -164,7 +164,7 @@
       "role": "Current immutable-principal Protected-read adapter",
       "classification": "owned and coherent",
       "evidence_level": "reviewed",
-      "notes": "Moved from containing policy file in bounded repair candidate, not yet landed; exact semantics preserved.",
+      "notes": "Moved from containing policy file in landed PR #3189 at 59bf986d7152805a6d156ab54cb30f2cccbad89c; exact semantics preserved and hosted qualification passed.",
       "findings": [
         "MSG-SURFACE-001"
       ]
@@ -954,7 +954,7 @@
     {
       "issue": "#3188",
       "claim": "S7 structural and S3 public/documentation repair",
-      "status": "bounded repair landed; ready for closure",
+      "status": "bounded repair landed; acceptance complete",
       "evidence": "PR #3189 merged at exact qualified SHA59bf986d7; full CI37817226478 passed, 59 successful jobs."
     }
   ],
