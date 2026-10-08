@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Listing;
 
 use Waaseyaa\Cache\TaggedCacheInterface;
+use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\EntityStorage\Event\AfterDeleteEvent;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
@@ -15,7 +16,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Event listener that invalidates listing cache entries when entities change.
  *
  * Subscribes to {@see AfterSaveEvent} and {@see AfterDeleteEvent} (event-subscription
- * wiring happens in WP11 via the {@see \Waaseyaa\Listing\ServiceProvider}). On each
+ * wiring is owned by {@see \Waaseyaa\Listing\ServiceProvider}). Canonical
+ * repository POST_DELETE notifications also call this invalidator. On each
  * event the invalidator computes a small set of tag strings derived from the entity
  * and asks the {@see TaggedCacheInterface} to evict all entries that carry them.
  *
@@ -35,8 +37,6 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Best-effort semantics (FR-040): cache backend errors are caught + logged at
  * warning level via {@see LoggerInterface} and execution continues. The
  * invalidator MUST NOT crash the request that triggered the save/delete.
- *
- * @api
  *
  * @see \Waaseyaa\EntityStorage\Event\AfterSaveEvent
  * @see \Waaseyaa\EntityStorage\Event\AfterDeleteEvent
@@ -59,7 +59,6 @@ final class ListingCacheInvalidator
     /**
      * Handle an {@see AfterSaveEvent} by invalidating the entity's listing tags.
      *
-     * @api
      */
     public function onAfterSave(AfterSaveEvent $event): void
     {
@@ -69,7 +68,6 @@ final class ListingCacheInvalidator
     /**
      * Handle an {@see AfterDeleteEvent} by invalidating the entity's listing tags.
      *
-     * @api
      */
     public function onAfterDelete(AfterDeleteEvent $event): void
     {
@@ -81,6 +79,11 @@ final class ListingCacheInvalidator
      *
      * @param list<string>|null $affectedLangcodes
      */
+    public function onPostDelete(EntityEvent $event): void
+    {
+        $this->invalidate($event->entity, null);
+    }
+
     private function invalidate(object $entity, ?array $affectedLangcodes): void
     {
         if ($this->cache === null) {

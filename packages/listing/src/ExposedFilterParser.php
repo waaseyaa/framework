@@ -114,9 +114,6 @@ final class ExposedFilterParser
     {
         $values = [];
         foreach ($def->filters as $filter) {
-            if (!$filter instanceof FilterDefinition) {
-                continue;
-            }
             if ($filter->exposedParam === null) {
                 continue;
             }

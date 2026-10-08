@@ -1,0 +1,2113 @@
+{
+  "schema_version": 1,
+  "package": "waaseyaa/listing",
+  "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+  "audit_date": "2026-10-08",
+  "dependency_identity": {
+    "composer_lock_sha256": "f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+    "php": "8.5.5",
+    "host": "Native Windows",
+    "evidence_freshness": "current at f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+    "consumers": []
+  },
+  "milestone": {
+    "assessed": false,
+    "repair_ready": false,
+    "converged": null,
+    "reasons": [
+      "Security-sensitive finding requires maintainer-designated durable private custody."
+    ]
+  },
+  "charter": [
+    {
+      "question": "Owns",
+      "answer": "Declarative single-entity-type read listings: definitions, discovery, validation, exposed filters, access-filtered deterministic pagination, optional tagged cache and lifecycle eviction.",
+      "evidence": "packages/listing/src; docs/specs/listing-pipeline-v1.md"
+    },
+    {
+      "question": "Does not own",
+      "answer": "Entity persistence/schema, policy authoring, cache backend implementation, routes/controllers/templates, cross-entity joins, cursor paging or saved listing UI.",
+      "evidence": "ListingResolver::resolve; spec non-goals; no routes or writes in package"
+    },
+    {
+      "question": "Consumers",
+      "answer": "Framework closure installs provider; cli directly requires listing and PublishedContentRecipe emits a nonempty app provider/controller. Runtime applications consume registry/parser/resolver/result. Reference source consumers include Phase14/29 and bundle/anonymous gate integration. External installed consumers not used as qualification.",
+      "evidence": "composer.json; packages/cli/composer.json; packages/cli/src/Site/Recipe/PublishedContentRecipe.php; tests/Integration/Phase14"
+    },
+    {
+      "question": "Dependencies",
+      "answer": "Required foundation (provider/log/request), entity (types/fields), entity-storage (repository/events), field (metadata validation), access (gate), cache (contexts/tag contract). Direct typed-data requirement lacks source calls and needs disposition. Symfony event interfaces are reached transitively through foundation. Dev database-legacy and phpunit support tests. Cache backend itself optional.",
+      "evidence": "packages/listing/composer.json; Deptrac JSON 297 allowed dependencies, zero uncovered; ServiceProvider service-locator review"
+    },
+    {
+      "question": "Public surface",
+      "answer": "23 declaration entries for 25 source symbols; factories, immutable definitions/result, parser/value input, registry/resolver, provider capability and refusal exceptions. Two exports unclassified, stability comments drift. No transported JSON response owned here; enum backing strings and hash bytes form persisted/cache identity.",
+      "evidence": "packages/listing/public-surface.php; LST-SURFACE-001; source read"
+    },
+    {
+      "question": "Installation profiles",
+      "answer": "Primitive-only and standalone split direct use; kernel composition; framework closure; generated application recipe. Metapackage composition is conditional via CLI in expanded graph, not a core-only capability. Supported closures need named qualified evidence; none inferred from root tests.",
+      "evidence": "root Composer manifest; CLI requirement; core/cms/full manifests; distribution checklist"
+    },
+    {
+      "question": "Evidence it works",
+      "answer": "331 package tests/582 assertions and 62 Phase14/29 tests/217 assertions pass at the exact source/lock on native Windows. Synthetic provider composition reproduces behavior; no installed or hosted qualification claimed.",
+      "evidence": "logs/listing-tests.log; logs/integration-tests.log; probes/composition.php"
+    }
+  ],
+  "roster": [
+    {
+      "file": "packages/listing/composer.json",
+      "role": "Package/dependency/discovery/export identity",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/public-surface.php",
+      "role": "Public/internal symbol authority",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/EntityRepositoryRegistry.php",
+      "role": "Entity-type repository lookup",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/Exception/ListingCoercionException.php",
+      "role": "Strict parsing failure metadata",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/Exception/UnknownListingException.php",
+      "role": "Registry miss",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/Exception/UnsupportedListingException.php",
+      "role": "Invalid definition metadata",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ExposedFilterCoercer.php",
+      "role": "Operator-aware URL value coercion",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-FILTER-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/ExposedFilterParser.php",
+      "role": "Definition-bound permissive/strict parser",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-STRUCTURE-001",
+        "LST-FILTER-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/ExposedFilterValues.php",
+      "role": "Parsed input and hash identity",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/Filter.php",
+      "role": "Filter factories",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/FilterDefinition.php",
+      "role": "Operator value-shape invariant",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-FILTER-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/HasListingsInterface.php",
+      "role": "Provider declaration capability",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ListingCacheInvalidator.php",
+      "role": "Best-effort entity lifecycle eviction",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-CACHE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/ListingCacheKeyBuilder.php",
+      "role": "Definition/input/context cache identity",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ListingCacheProjection.php",
+      "role": "Identifier-only cached payload",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/ListingDefinition.php",
+      "role": "Immutable declaration and effective contexts",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/ListingDefinitionRegistry.php",
+      "role": "Read-only id lookup",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ListingDefinitionValidator.php",
+      "role": "Finalization-time entity/field/backend proxy checks",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ListingDiscoverer.php",
+      "role": "Provider flattening and duplicate refusal",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ListingResolver.php",
+      "role": "Query planning, filtering, access, pagination and cache",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-QUERY-001",
+        "LST-QUERY-002",
+        "LST-CACHE-002",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/ListingResult.php",
+      "role": "Rows and pagination/cache metadata",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/Operator.php",
+      "role": "Stable operator vocabulary",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/Pagination.php",
+      "role": "Exact/unknown total metadata",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/ServiceProvider.php",
+      "role": "Kernel bus composition, listener registration and finalization",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": [
+        "LST-CACHE-001",
+        "LST-DISCOVERY-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/src/Sort.php",
+      "role": "Sort factories",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/SortDefinition.php",
+      "role": "Sort declaration",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    },
+    {
+      "file": "packages/listing/src/SortDirection.php",
+      "role": "Sort vocabulary",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "All shipped production files reviewed. See charter and structural dispositions.",
+      "findings": []
+    }
+  ],
+  "checklists": [
+    {
+      "profile": "identity",
+      "item": "Identity, versioning, split target and exports",
+      "status": "answered",
+      "answer": "waaseyaa/listing, library GPL-2.0-or-later, PHP>=8.5, namespace Waaseyaa\\Listing, split.yml target listing, alpha305 internal dependency floor. 27 production files; no runtime assets.",
+      "evidence": "composer.json; public-surface.php; split.yml",
+      "findings": []
+    },
+    {
+      "profile": "identity",
+      "item": "Purpose, ownership and excluded capabilities",
+      "status": "answered",
+      "answer": "Charter owns read orchestration; display, persistence, policies, saved UI and cursor paging stay outside. Runtime does not create tables or write entities.",
+      "evidence": "charter; all source files",
+      "findings": []
+    },
+    {
+      "profile": "identity",
+      "item": "Consumers, composition roots, installation closure",
+      "status": "answered",
+      "answer": "Generated recipe and root provider are real source consumers. Direct primitive constructor use differs from kernel composition. Distribution evidence is currently source only.",
+      "evidence": "charter; PublishedContentRecipe; manifests",
+      "findings": []
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "Construction, discovery/register, boot/finalization, resolution",
+      "status": "answered",
+      "answer": "All providers register before ordinary boots; listing validates in finalizeProviderBoot after all ordinary boots. Late bundle and invalid-definition controls pass. Discovery and repository registry capture live inputs when first resolved; early resolution can freeze incomplete inputs and needs lifecycle review under existing #2859.",
+      "evidence": "ListingProviderBootFinalizationTest; ServiceProvider; ProviderRegistry",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ]
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "Canonical provider capability source",
+      "status": "finding",
+      "answer": "Current reflection works for default bus but ignores public ProviderCapabilitySource. Replace private-property dependence through S2; no hypothetical alternate host claimed broken without supported-profile evidence.",
+      "evidence": "ServiceProvider::discoverProviders; ProviderRegistryKernelServices; ProviderCapabilitySource",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ]
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "Failed boot, retry and state reuse",
+      "status": "gap",
+      "answer": "Finalization fails fast for invalid definitions. Package does not promise restart/worker reconfiguration; singleton registries are snapshots. Full failed-attempt retry and early resolver lifecycle not independently qualified; owning foundation lifecycle #2859.",
+      "evidence": "finalization regression; issue #2859",
+      "findings": []
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "HTTP/CLI request context and absent dependencies",
+      "status": "answered",
+      "answer": "Provider asks kernel bus for RequestContext; falls back anonymous only when absent. Tagged cache is optional; absent gate becomes deny-all; concrete EntityTypeManager missing raises named error. Repository factory errors are swallowed then missing repository fails at resolve.",
+      "evidence": "ServiceProvider resolveRequest/gate/cache/repositories; closed #2167; source suites",
+      "findings": []
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "Nonempty real composition and terminal effect",
+      "status": "finding",
+      "answer": "Synthetic app uses actual ProviderRegistry, default kernel bus, Listing provider, production EntityAccessGate and real in-memory repository/cache. Discovery succeeds, off-page delete stale metadata discriminated by manual eviction. Installed boot and full HTTP journey pending.",
+      "evidence": "probes/composition.php",
+      "findings": [
+        "LST-CACHE-001"
+      ]
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Construction invariants and illegal values",
+      "status": "answered",
+      "answer": "Id/param patterns, nonempty op/field, page/TTL positivity, list/tuple/operator-shape enforced. IN/BETWEEN element domain is only partially checked. Boot validator applies size/type/bundle/field/type compatibility, using storage metadata rather than actual supportsQuery call.",
+      "evidence": "FilterDefinition; ListingDefinition; Pagination; ListingDefinitionValidator; 331 suite",
+      "findings": []
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Filter conjunction and stable sorting",
+      "status": "finding",
+      "answer": "Repeated native EQ overwrites conjunction; bundle criteria can overwrite too. Native/demoted ordering appends id and defers complete chain for bundle fields. Same-field conflicting sort declarations lack named policy; primitive duplicate criteria failure is reproduced.",
+      "evidence": "behavior probe; BundleFieldQueryPlanningTest",
+      "findings": [
+        "LST-QUERY-001"
+      ]
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Operator semantics and backend parity",
+      "status": "finding",
+      "answer": "Most operators refine hydrated public fields in PHP; only scalar EQ pushes to driver. Text matching contradicts case-insensitive FR-007. IN is strict while EQ string-normalizes driver values; test backend-specific representations before changing.",
+      "evidence": "ListingResolver::matchesOne; behavior probe; contract suite",
+      "findings": [
+        "LST-QUERY-002"
+      ]
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Authorization, fast path and dense pagination",
+      "status": "finding",
+      "answer": "Per-row op checks AND-compose and densify pages before slicing; exact totals count accessible rows. Production gate has no opt-in probe; test Gate can opt in. Access-owned issue #3005 preserves correct fallback.",
+      "evidence": "AnonymousGateAccessListingTest; EntityAccessGate; provider probe",
+      "findings": [
+        "LST-ACCESS-001"
+      ]
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Exposed URL parsing, malformed input and exceptions",
+      "status": "finding",
+      "answer": "Parser ignores undeclared keys, drops nonstring/coercion failures with debug logging, strict mode propagates metadata exception. Provider uses null logger factory; configurable logger is opt-in. Default type inference follows default values, not field metadata. Supported datetime coercion succeeds but the resolver rejects the resulting value.",
+      "evidence": "ExposedFilterParser; ExposedFilterCoercer; independent date probe",
+      "findings": [
+        "LST-FILTER-001"
+      ]
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Translation identity, cache contexts and row tags",
+      "status": "gap",
+      "answer": "Implicit/explicit langcode and tag/contexts covered with SQLite blob/column fixtures. Cached ids reload through repository without explicit langcode and require further served-language qualification; no new defect claimed solely from topology tests.",
+      "evidence": "Backend suites; Phase29; cached language contract review",
+      "findings": []
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Events, ordering and mutation failure",
+      "status": "finding",
+      "answer": "Provider wires AfterSave/AfterDelete at priority100; comment incorrectly says zero. Invalidator uses affectedLangcodes or active fallback, catches cache failures per tag. Ordinary repository delete emits another lifecycle, so promised delivery is absent.",
+      "evidence": "ServiceProvider; ListingCacheInvalidator; real provider probe",
+      "findings": [
+        "LST-CACHE-001"
+      ]
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Determinism, paging and approximate totals",
+      "status": "gap",
+      "answer": "Exact paging clamps below1 and above last page, dense access rows sliced after checks. Approximate flag suppresses totals but still materializes accessible rows; this follows correctness constraints rather than proving bounded work. Very large approximate offsets lack overflow control evidence.",
+      "evidence": "Pagination tests; contract suite; #2541",
+      "findings": []
+    },
+    {
+      "profile": "http-ui-contracts",
+      "item": "Owned request/response crossings",
+      "status": "answered",
+      "answer": "Package owns parsed query values and PHP result metadata, no route or HTTP JSON response. Generated controller is consumer-owned; Twig uses public properties. A full middleware/CSRF stack is not this read-only library responsibility.",
+      "evidence": "PublishedContentRecipe; ListingResult; no routes",
+      "findings": []
+    },
+    {
+      "profile": "http-ui-contracts",
+      "item": "Input and output conformance",
+      "status": "finding",
+      "answer": "Constructor/parser tests prove component contracts; cookbook method shapes are wrong. No PHP-to-TypeScript/schema/generated wire mirror in this package; generated PHP recipe is typed.",
+      "evidence": "ListingResult; cookbook; recipe",
+      "findings": [
+        "LST-DOCS-001"
+      ]
+    },
+    {
+      "profile": "http-ui-contracts",
+      "item": "Authentication/refusal boundary",
+      "status": "gap",
+      "answer": "Actual production gate unit integration covers anonymous allow/refusal and scope principal. Full HTTP middleware journey remains consumer qualification, not implied by in-process tests.",
+      "evidence": "AnonymousGateAccessListingTest",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Split installation with no-dev",
+      "status": "gap",
+      "answer": "No source class extends a dev-only symbol. Runtime service provider requires foundation composition and concrete manager. Standalone --no-dev sealed split install not executed; owner proposed S4, hosted closure owner ci/split-artifact-acceptance.",
+      "evidence": "source roster; manifests",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Optional cache absent and present",
+      "status": "answered",
+      "answer": "Source null-cache and cache-failure tests pass; real provider with explicit TaggedCache works. Package requiring cache contracts does not automatically bind a backend.",
+      "evidence": "contract/integration suite; provider probe",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Exports and bytes",
+      "status": "gap",
+      "answer": "Split includes source, composer/public surface and tests. Root export-ignore covers secret/control files. No README or assets/build exist. No exported archive installed and compared in this run; S4 owns it.",
+      "evidence": "git ls-files packages/listing; .gitattributes; split.yml",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Metapackage and generated application",
+      "status": "gap",
+      "answer": "Root includes listing; cli requires it. Core-only evidence does not prove listing. Generated PublishedContentRecipe calls the actual property API. Fresh generated installed app not qualified; S4 owns this profile.",
+      "evidence": "Composer manifests; PublishedContentRecipe",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Native and hosted evidence",
+      "status": "gap",
+      "answer": "Native PHP8.5.5 source tests and Deptrac passed. Hosted Linux owns POSIX hooks, symlink fixtures and exact-base closure qualification. No hosted check fabricated.",
+      "evidence": "evidence runs",
+      "findings": []
+    },
+    {
+      "profile": "structure",
+      "item": "Unused state and obsolete paths",
+      "status": "finding",
+      "answer": "Unreachable empty accessOps branch, parser type recheck, unused cache payload contract legacy payload path and stale WP/manifest future claims dispositioned for bounded removal/documentation. No production class is classified dead solely by absent direct callers.",
+      "evidence": "LST-STRUCTURE-001; LST-SURFACE-001",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "structure",
+      "item": "Repeated mechanisms and competing authorities",
+      "status": "finding",
+      "answer": "Hash canonicalization duplicated inside listing; page parse/clamp duplicated. Field metadata manager remains canonical for validation and bundle detection. Foundation JSON encoder is NOT equivalent, so moving blindly to it is refuted.",
+      "evidence": "ListingDefinition; ExposedFilterValues; resolver; foundation CanonicalJson",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "structure",
+      "item": "Adapter truthfulness and necessity",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "dependencies",
+      "item": "Complete import/layer classification and controls",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "dependencies",
+      "item": "String/service-locator and temporal dependencies",
+      "status": "finding",
+      "answer": "Bus lookup manager, gate, logger, dispatcher, cache, field registry and private provider closure reviewed. Required manager/repository wiring distinct from optional cache. Concrete manager limits adapters; singleton snapshots can precede final registration. S2/2859 owns named lifecycle investigation.",
+      "evidence": "ServiceProvider complete read; bus; registry",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ]
+    },
+    {
+      "profile": "dependencies",
+      "item": "Generic infrastructure and Symfony fit",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "tests",
+      "item": "Unit, backend, contract and composition evidence",
+      "status": "answered",
+      "answer": "331 package tests pass including same contract over in-memory/SQLite, blob/column translation, cache TTL/errors, access and bundle planning. 62 Phase14/29 tests pass. Probes reveal conjunction/text/delete gaps despite suite pass; no broad suite rerun warranted.",
+      "evidence": "JUnit logs; probes",
+      "findings": []
+    },
+    {
+      "profile": "tests",
+      "item": "Nonvacuous architectural controls",
+      "status": "answered",
+      "answer": "Allowed/forbidden/uncovered fixtures discriminate config. Behavior probe reports broken outputs explicitly; cache manual-eviction comparison separates terminal storage from stale cache metadata. More source tests do not prove split install.",
+      "evidence": "Deptrac controls; composition/behavior probes",
+      "findings": []
+    },
+    {
+      "profile": "documentation",
+      "item": "Executable examples and surface consistency",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "not-applied",
+      "item": "Persistence writes and schema authority",
+      "status": "does not apply",
+      "answer": "No writes, migrations, jobs, generator or committed frontend artifacts are owned by listing. Lifecycle eviction of external writes is reviewed under domain/runtime; generated CLI consumer belongs to its owner.",
+      "evidence": "all production roster",
+      "findings": []
+    },
+    {
+      "profile": "not-applied",
+      "item": "Transactions, jobs, retries and restart effects",
+      "status": "does not apply",
+      "answer": "No writes, migrations, jobs, generator or committed frontend artifacts are owned by listing. Lifecycle eviction of external writes is reviewed under domain/runtime; generated CLI consumer belongs to its owner.",
+      "evidence": "all production roster",
+      "findings": []
+    },
+    {
+      "profile": "not-applied",
+      "item": "Generation and committed frontend build",
+      "status": "does not apply",
+      "answer": "No writes, migrations, jobs, generator or committed frontend artifacts are owned by listing. Lifecycle eviction of external writes is reviewed under domain/runtime; generated CLI consumer belongs to its owner.",
+      "evidence": "all production roster",
+      "findings": []
+    },
+    {
+      "profile": "general: Identity and ownership",
+      "item": "Composer or ecosystem package identity, versioning, exports, and split target",
+      "status": "answered",
+      "answer": "waaseyaa/listing, library GPL-2.0-or-later, PHP>=8.5, namespace Waaseyaa\\Listing, split.yml target listing, alpha305 internal dependency floor. 27 production files; no runtime assets.",
+      "evidence": "composer.json; public-surface.php; split.yml",
+      "findings": []
+    },
+    {
+      "profile": "general: Identity and ownership",
+      "item": "Stated purpose in README, specifications, change records, and package metadata",
+      "status": "answered",
+      "answer": "Charter owns read orchestration; display, persistence, policies, saved UI and cursor paging stay outside. Runtime does not create tables or write entities.",
+      "evidence": "charter; all source files",
+      "findings": []
+    },
+    {
+      "profile": "general: Identity and ownership",
+      "item": "Capabilities explicitly owned and excluded",
+      "status": "answered",
+      "answer": "Charter owns read orchestration; display, persistence, policies, saved UI and cursor paging stay outside. Runtime does not create tables or write entities.",
+      "evidence": "charter; all source files",
+      "findings": []
+    },
+    {
+      "profile": "general: Identity and ownership",
+      "item": "Upstream authority and downstream consumers",
+      "status": "answered",
+      "answer": "Generated recipe and root provider are real source consumers. Direct primitive constructor use differs from kernel composition. Distribution evidence is currently source only.",
+      "evidence": "charter; PublishedContentRecipe; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Identity and ownership",
+      "item": "Source, generated-application, runtime, and distributed-package composition roots",
+      "status": "answered",
+      "answer": "Generated recipe and root provider are real source consumers. Direct primitive constructor use differs from kernel composition. Distribution evidence is currently source only.",
+      "evidence": "charter; PublishedContentRecipe; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Identity and ownership",
+      "item": "Supported installation profiles and the dependency closure each promises; distinguish primitive-only use from kernel/metapackage composition",
+      "status": "answered",
+      "answer": "Generated recipe and root provider are real source consumers. Direct primitive constructor use differs from kernel composition. Distribution evidence is currently source only.",
+      "evidence": "charter; PublishedContentRecipe; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Entrypoints and runtime wiring",
+      "item": "Service providers, container bindings, factories, registries, and feature discovery",
+      "status": "answered",
+      "answer": "All providers register before ordinary boots; listing validates in finalizeProviderBoot after all ordinary boots. Late bundle and invalid-definition controls pass. Discovery and repository registry capture live inputs when first resolved; early resolution can freeze incomplete inputs and needs lifecycle review under existing #2859.",
+      "evidence": "ListingProviderBootFinalizationTest; ServiceProvider; ProviderRegistry",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ]
+    },
+    {
+      "profile": "general: Entrypoints and runtime wiring",
+      "item": "HTTP routes, controllers, middleware, commands, jobs, events, and listeners",
+      "status": "answered",
+      "answer": "Provider asks kernel bus for RequestContext; falls back anonymous only when absent. Tagged cache is optional; absent gate becomes deny-all; concrete EntityTypeManager missing raises named error. Repository factory errors are swallowed then missing repository fails at resolve.",
+      "evidence": "ServiceProvider resolveRequest/gate/cache/repositories; closed #2167; source suites",
+      "findings": []
+    },
+    {
+      "profile": "general: Entrypoints and runtime wiring",
+      "item": "Configuration, environment inputs, migrations, storage, and cache behavior",
+      "status": "answered",
+      "answer": "Runtime PHP listing definitions and URL inputs apply. Tagged cache is optional and host supplied. Listing owns read/storage and cache eviction contracts; writes and migrations alone do not apply.",
+      "evidence": "ListingDefinition; ExposedFilterParser; ServiceProvider; package cache tests; actual provider composition probe",
+      "findings": []
+    },
+    {
+      "profile": "general: Entrypoints and runtime wiring",
+      "item": "Optional integrations and behavior when each dependency is absent",
+      "status": "answered",
+      "answer": "Provider asks kernel bus for RequestContext; falls back anonymous only when absent. Tagged cache is optional; absent gate becomes deny-all; concrete EntityTypeManager missing raises named error. Repository factory errors are swallowed then missing repository fails at resolve.",
+      "evidence": "ServiceProvider resolveRequest/gate/cache/repositories; closed #2167; source suites",
+      "findings": []
+    },
+    {
+      "profile": "general: Entrypoints and runtime wiring",
+      "item": "Startup, shutdown, retry, idempotency, and failure-state behavior",
+      "status": "answered",
+      "answer": "Provider asks kernel bus for RequestContext; falls back anonymous only when absent. Tagged cache is optional; absent gate becomes deny-all; concrete EntityTypeManager missing raises named error. Repository factory errors are swallowed then missing repository fails at resolve.",
+      "evidence": "ServiceProvider resolveRequest/gate/cache/repositories; closed #2167; source suites",
+      "findings": []
+    },
+    {
+      "profile": "general: Contracts and public surfaces",
+      "item": "Exported classes, interfaces, traits, functions, constants, DTOs, and exceptions",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Contracts and public surfaces",
+      "item": "Composer autoload and package public-surface declarations",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Contracts and public surfaces",
+      "item": "Unclassified exports versus explicitly internal symbols; omission from a declaration is not proof that a real consumer is unsupported",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Contracts and public surfaces",
+      "item": "Request, response, event, persistence, JSON, TypeScript, schema, and generated contracts",
+      "status": "answered",
+      "answer": "PHP query/result contracts, lifecycle subscriptions, stable operator values and cache identity apply. Transported JSON and TypeScript are absent. Domain/runtime answers cover those applicable contracts; CLI-generated callers are separately owned and unqualified.",
+      "evidence": "domain-contracts and kernel-runtime rows; ListingResult; Operator; ServiceProvider; generated recipe tests",
+      "findings": []
+    },
+    {
+      "profile": "general: Contracts and public surfaces",
+      "item": "Compatibility policy, lifecycle, deprecation path, and error semantics",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Contracts and public surfaces",
+      "item": "Canonical definitions and every derived or duplicated representation",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Internal layers derived from the package charter",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Required, optional, development-only, adapter, and framework dependencies",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Inbound dependencies from peer packages and applications",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Outbound dependencies, including dynamic and container-resolved edges",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Cycles, layer bypasses, uncovered dependencies, allowlists, and expiry conditions",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Coupling to peer internals versus narrow public contracts; concrete consumers and compatibility obligations",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Temporal coupling: initialization order, early resolution, retries and coordinated readiness across packages",
+      "status": "finding",
+      "answer": "Bus lookup manager, gate, logger, dispatcher, cache, field registry and private provider closure reviewed. Required manager/repository wiring distinct from optional cache. Concrete manager limits adapters; singleton snapshots can precede final registration. S2/2859 owns named lifecycle investigation.",
+      "evidence": "ServiceProvider complete read; bus; registry",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ]
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Shared mutable state, captured service/provider objects and service-locator dependencies hidden from import graphs",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Change coupling: a concrete change that requires synchronized edits across owners, and whether that coordination is intentional",
+      "status": "finding",
+      "answer": "Bus lookup manager, gate, logger, dispatcher, cache, field registry and private provider closure reviewed. Required manager/repository wiring distinct from optional cache. Concrete manager limits adapters; singleton snapshots can precede final registration. S2/2859 owns named lifecycle investigation.",
+      "evidence": "ServiceProvider complete read; bus; registry",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ]
+    },
+    {
+      "profile": "general: Dependency structure",
+      "item": "Adapter chains from a supported composition root to their terminal implementations; what each layer owns, whether the terminal implementation is production-reachable, and whether a wrapper conceals rather than repairs defective behavior",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Authentication, authorization, field access, CSRF, and information-oracle behavior",
+      "status": "gap",
+      "answer": "Entity gate and current field-read boundary reviewed through production composition with synthetic principals. Security-sensitive lifecycle evidence is handled privately. No full installed HTTP/middleware exposure qualified; S4 owns consumer qualification.",
+      "evidence": "AnonymousGateAccessListingTest",
+      "findings": []
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Validation order and stable refusal mapping",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Refusal stack: route options, real middleware, handler non-invocation, HTTP status, and response shape",
+      "status": "gap",
+      "answer": "Actual production gate unit integration covers anonymous allow/refusal and scope principal. Full HTTP middleware journey remains consumer qualification, not implied by in-process tests.",
+      "evidence": "AnonymousGateAccessListingTest",
+      "findings": []
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Concurrency, revision, mutation-token, replay, and idempotency contracts",
+      "status": "does not apply",
+      "answer": "Listing owns synchronous read/query input and PHP result objects, no routes, mutation/CSRF/replay protocol, transported response schemas, parser-of-source or frontend build. Cache identity/tag metadata and entity read/refusal integration were reviewed separately. Generated PHP app is a caller with S4 qualification ownership.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": []
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Optional capability discovery versus actual route or service availability",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Malformed input, unavailable dependency, partial failure, and recovery behavior",
+      "status": "finding",
+      "answer": "Parser ignores undeclared keys, drops nonstring/coercion failures with debug logging, strict mode propagates metadata exception. Provider uses null logger factory; configurable logger is opt-in. Default type inference follows default values, not field metadata. Supported datetime coercion succeeds but the resolver rejects the resulting value.",
+      "evidence": "ExposedFilterParser; ExposedFilterCoercer; independent date probe",
+      "findings": [
+        "LST-FILTER-001"
+      ]
+    },
+    {
+      "profile": "general: Behavior and boundary integrity",
+      "item": "Adapter truthfulness across inputs, fields, authorization, refusals, errors, mutations, persistence effects, transaction boundaries, retries, and lifecycle transitions",
+      "status": "gap",
+      "answer": "Actual production gate unit integration covers anonymous allow/refusal and scope principal. Full HTTP middleware journey remains consumer qualification, not implied by in-process tests.",
+      "evidence": "AnonymousGateAccessListingTest",
+      "findings": []
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Unused locals, fields, parameters, callbacks, imports, flags, configuration and branches, including leftovers excluded from static-tool findings",
+      "status": "finding",
+      "answer": "Unreachable empty accessOps branch, parser type recheck, unused cache payload contract legacy payload path and stale WP/manifest future claims dispositioned for bounded removal/documentation. No production class is classified dead solely by absent direct callers.",
+      "evidence": "LST-STRUCTURE-001; LST-SURFACE-001",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Deprecated no-ops, old/new implementations, aliases, fallbacks and compatibility shims; apply the skill's alpha Framework policy instead of assuming retention",
+      "status": "finding",
+      "answer": "Unreachable empty accessOps branch, parser type recheck, unused cache payload contract legacy payload path and stale WP/manifest future claims dispositioned for bounded removal/documentation. No production class is classified dead solely by absent direct callers.",
+      "evidence": "LST-STRUCTURE-001; LST-SURFACE-001",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Concentrated hosts, providers, controllers, or managers with multiple policy roles",
+      "status": "finding",
+      "answer": "ListingResolver is 937 lines with query, access, cache, language and paging responsibilities. These form one listing read orchestration, not a new unrelated host. ServiceProvider 416 lines mixes necessary wiring with removable private discovery and fallback shape logic; S2/S3 bound cleanup. No arbitrary class splitting prescribed.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Repeated translation, validation, serialization, or authorization logic",
+      "status": "finding",
+      "answer": "Hash canonicalization duplicated inside listing; page parse/clamp duplicated. Field metadata manager remains canonical for validation and bundle detection. Foundation JSON encoder is NOT equivalent, so moving blindly to it is refuted.",
+      "evidence": "ListingDefinition; ExposedFilterValues; resolver; foundation CanonicalJson",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Competing sources of truth and dual representations; identify the canonical authority and whether derived views are mechanically checked",
+      "status": "finding",
+      "answer": "Hash canonicalization duplicated inside listing; page parse/clamp duplicated. Field metadata manager remains canonical for validation and bundle detection. Foundation JSON encoder is NOT equivalent, so moving blindly to it is refuted.",
+      "evidence": "ListingDefinition; ExposedFilterValues; resolver; foundation CanonicalJson",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Interfaces with no production implementation or consumer",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Implementations reachable only from tests or obsolete examples",
+      "status": "finding",
+      "answer": "Unreachable empty accessOps branch, parser type recheck, unused cache payload contract legacy payload path and stale WP/manifest future claims dispositioned for bounded removal/documentation. No production class is classified dead solely by absent direct callers.",
+      "evidence": "LST-STRUCTURE-001; LST-SURFACE-001",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Abstractions that hide ownership rather than clarifying it",
+      "status": "finding",
+      "answer": "Unreachable empty accessOps branch, parser type recheck, unused cache payload contract legacy payload path and stale WP/manifest future claims dispositioned for bounded removal/documentation. No production class is classified dead solely by absent direct callers.",
+      "evidence": "LST-STRUCTURE-001; LST-SURFACE-001",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Adapters backed by test-only or fake delegates, effective no-ops, manufactured success, swallowed failures, lossy translation, or an unavailable terminal capability",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Adapters introduced to make internal paths agree: identify the original producer/consumer mismatch, normalization/defaults/coercions and whether correcting one canonical contract removes the adapter",
+      "status": "finding",
+      "answer": "Repository map bridges entity type to repository, context resolver bridges request values, Gate adapter bridges per-row policy, cache projection stores only ids. Necessary seams retained; private provider reflection and broad cache-object extraction do not represent necessary maintained boundaries. Default gate optional deny is explicit defensive refusal.",
+      "evidence": "real provider probe; gate/repository/context/cache classes",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Repeated execution versus repeated implementation; measure query or translation cost before claiming a performance defect",
+      "status": "finding",
+      "answer": "Hash canonicalization duplicated inside listing; page parse/clamp duplicated. Field metadata manager remains canonical for validation and bundle detection. Foundation JSON encoder is NOT equivalent, so moving blindly to it is refuted.",
+      "evidence": "ListingDefinition; ExposedFilterValues; resolver; foundation CanonicalJson",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Current custom responsibility, real callers and observable behavior",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Candidate Symfony component, installed/supported version, and verified source/test or official-documentation evidence of fit",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Waaseyaa domain semantics retained, including authorization, sovereignty, lifecycle, error and wire contracts",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Direct use versus a thin adapter; whether the adapter actually reduces maintenance or only relocates coupling",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Compatibility for public symbols, generated artifacts, stored formats and supported application extensions",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Required/optional dependency and split-installation impact, migration effort and ongoing maintenance tradeoff",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Equivalence controls for normal behavior, refusals, failure mapping and relevant lifecycle transitions",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Disposition: simplify around Symfony or replace when fit is established; retain only with an evidenced capability/compatibility gap, owner and review trigger; defer only with bounded migration acceptance and a removal condition",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Custom infrastructure versus Symfony",
+      "item": "Remediation destination for each verified replacement opportunity, including those outside the current consumer unblock",
+      "status": "gap",
+      "answer": "Installed Validator v7.4.10 Type/All/Collection can cover generic shape checks; domain operator/type/backend policy and explicit exceptions remain Waaseyaa. Listing provider discovery should use foundation capability source; Symfony tagged-service iterator is upstream generic candidate for foundation composition, not a listing-only new container. Cache/EventDispatcher already maintained integration. Canonical hashing preserves float identity; generic JsonEncoder alone does not canonicalize it. Retention/replacement design needs measured equivalence and closure impact before repair; D2 owns decision.",
+      "evidence": "locked Symfony source TypeValidator/ResolveTaggedIteratorArgumentPass; https://symfony.com/doc/7.4/reference/constraints/Type.html; https://symfony.com/doc/7.4/service_container/tags.html",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Unit tests for pure contracts and policies",
+      "status": "answered",
+      "answer": "Allowed/forbidden/uncovered fixtures discriminate config. Behavior probe reports broken outputs explicitly; cache manual-eviction comparison separates terminal storage from stale cache metadata. More source tests do not prove split install.",
+      "evidence": "Deptrac controls; composition/behavior probes",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Integration tests through real composition roots",
+      "status": "answered",
+      "answer": "Allowed/forbidden/uncovered fixtures discriminate config. Behavior probe reports broken outputs explicitly; cache manual-eviction comparison separates terminal storage from stale cache metadata. More source tests do not prove split install.",
+      "evidence": "Deptrac controls; composition/behavior probes",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Boundary tests for authorization, refusal, optional dependencies, and failure mapping",
+      "status": "answered",
+      "answer": "Allowed/forbidden/uncovered fixtures discriminate config. Behavior probe reports broken outputs explicitly; cache manual-eviction comparison separates terminal storage from stale cache metadata. More source tests do not prove split install.",
+      "evidence": "Deptrac controls; composition/behavior probes",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Producer conformance that fails on undeclared emitted keys and missing required keys",
+      "status": "gap",
+      "answer": "PHP definitions, results and cached projection shapes apply. Constructor/result/parser and cache integration tests supply component controls; generated recipe tests assert caller shape. Complete producer-to-installed-consumer drift controls and installed optional/nested fixtures are not qualified; S4 and U1 own that remaining qualification.",
+      "evidence": "ListingDefinitionTest; ListingResultTest; ExposedFilterParserTest; CacheIntegrationTest; PublishedContentRecipeTest; S4/U1",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Canonical-to-consumer compatibility that fails on extra or missing keys, presence, nullability, and value drift",
+      "status": "gap",
+      "answer": "PHP definitions, results and cached projection shapes apply. Constructor/result/parser and cache integration tests supply component controls; generated recipe tests assert caller shape. Complete producer-to-installed-consumer drift controls and installed optional/nested fixtures are not qualified; S4 and U1 own that remaining qualification.",
+      "evidence": "ListingDefinitionTest; ListingResultTest; ExposedFilterParserTest; CacheIntegrationTest; PublishedContentRecipeTest; S4/U1",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Non-empty optional and nested fixtures typed against or mechanically validated by the canonical contract",
+      "status": "gap",
+      "answer": "PHP definitions, results and cached projection shapes apply. Constructor/result/parser and cache integration tests supply component controls; generated recipe tests assert caller shape. Complete producer-to-installed-consumer drift controls and installed optional/nested fixtures are not qualified; S4 and U1 own that remaining qualification.",
+      "evidence": "ListingDefinitionTest; ListingResultTest; ExposedFilterParserTest; CacheIntegrationTest; PublishedContentRecipeTest; S4/U1",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Source-parser controls for module discovery, nested structures, and empty-result failure when parsing cannot be avoided",
+      "status": "does not apply",
+      "answer": "Listing owns synchronous read/query input and PHP result objects, no routes, mutation/CSRF/replay protocol, transported response schemas, parser-of-source or frontend build. Cache identity/tag metadata and entity read/refusal integration were reviewed separately. Generated PHP app is a caller with S4 qualification ownership.",
+      "evidence": "Deptrac controls; composition/behavior probes",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Schema, generated-output freshness, and workflow path-filter checks",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Architecture controls with positive, negative, and uncovered cases",
+      "status": "answered",
+      "answer": "Scratch Deptrac charter layers contract/runtime/composition/external authorities: 297 allowed, zero violations/uncovered. Seeded allowed passes1 edge; forbidden fails1 violation; unclassified fails1 uncovered. Existing 73-package layer gate passes. No repository package config added pending #3075 coordination.",
+      "evidence": "logs/deptrac.json; deptrac-controls reports; logs/package-layers.json",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Mutation or discriminator evidence where a passing test could otherwise be vacuous",
+      "status": "answered",
+      "answer": "Allowed/forbidden/uncovered fixtures discriminate config. Behavior probe reports broken outputs explicitly; cache manual-eviction comparison separates terminal storage from stale cache metadata. More source tests do not prove split install.",
+      "evidence": "Deptrac controls; composition/behavior probes",
+      "findings": []
+    },
+    {
+      "profile": "general: Tests and mechanical gates",
+      "item": "Real-composition adapter controls with a positive path, an applicable refusal or failure path, an asserted terminal effect or returned state, and a discriminator that fails for a no-op or fake delegate",
+      "status": "answered",
+      "answer": "Actual provider/repository composition returns nonempty rows and distinguishes stale metadata from explicit eviction. Existing production EntityAccessGate integration exercises anonymous allow and authenticated-only refusal/allow. Full rendered HTTP journey remains an owned qualification gap.",
+      "evidence": "probes/composition.php; AnonymousGateAccessListingTest; Phase14/29 suites; qualification U1",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Package charter and public composition examples",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Hard versus optional dependency documentation",
+      "status": "gap",
+      "answer": "No source class extends a dev-only symbol. Runtime service provider requires foundation composition and concrete manager. Standalone --no-dev sealed split install not executed; owner proposed S4, hosted closure owner ci/split-artifact-acceptance.",
+      "evidence": "source roster; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Source and split-package installation",
+      "status": "gap",
+      "answer": "No source class extends a dev-only symbol. Runtime service provider requires foundation composition and concrete manager. Standalone --no-dev sealed split install not executed; owner proposed S4, hosted closure owner ci/split-artifact-acceptance.",
+      "evidence": "source roster; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Generated-application consumption",
+      "status": "gap",
+      "answer": "Root includes listing; cli requires it. Core-only evidence does not prove listing. Generated PublishedContentRecipe calls the actual property API. Fresh generated installed app not qualified; S4 owns this profile.",
+      "evidence": "Composer manifests; PublishedContentRecipe",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Frontend build and committed distribution freshness where applicable",
+      "status": "does not apply",
+      "answer": "Listing owns synchronous read/query input and PHP result objects, no routes, mutation/CSRF/replay protocol, transported response schemas, parser-of-source or frontend build. Cache identity/tag metadata and entity read/refusal integration were reviewed separately. Generated PHP app is a caller with S4 qualification ownership.",
+      "evidence": "source roster; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Distribution form details: see `profiles/distribution.md`",
+      "status": "gap",
+      "answer": "No source class extends a dev-only symbol. Runtime service provider requires foundation composition and concrete manager. Standalone --no-dev sealed split install not executed; owner proposed S4, hosted closure owner ci/split-artifact-acceptance.",
+      "evidence": "source roster; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Refreshed dependency views after production behavior changes",
+      "status": "gap",
+      "answer": "No source class extends a dev-only symbol. Runtime service provider requires foundation composition and concrete manager. Standalone --no-dev sealed split install not executed; owner proposed S4, hosted closure owner ci/split-artifact-acceptance.",
+      "evidence": "source roster; manifests",
+      "findings": []
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Upgrade and deprecation guidance",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    },
+    {
+      "profile": "general: Documentation and delivery forms",
+      "item": "Changelog fragment and stable change record",
+      "status": "finding",
+      "answer": "Framework cookbook fails at DateTime construction and absent methods/flags; package docblocks conflict with public-surface authority. Split README absent. Group each coherent owner repair and do not invent compatibility aliases.",
+      "evidence": "cookbook; source docblocks",
+      "findings": [
+        "LST-DOCS-001",
+        "LST-SURFACE-001"
+      ]
+    }
+  ],
+  "intake": [],
+  "findings": [
+    {
+      "id": "LST-QUERY-001",
+      "title": "Repeated equality filters lose AND semantics",
+      "area": "QUERY",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "ListingResolver.php:412 writes each native EQ to one field-keyed criteria map; :420 overwrites bundle criteria. Conflicting weight=10 AND weight=20 yields id2. A later bundle scope similarly overwrites an explicit bundle-key criterion.",
+      "expected_contract": "FR-002 AND-composes every filter; the implicit bundle scope narrows the same conjunction.",
+      "consequence": "Accepted definitions produce wrong rows and totals. This is a logical filter error; it does not independently establish unauthorized disclosure.",
+      "refutation": "AND is explicit FR-002; native criteria overwriting is not an intentional override rule. Exposed values can replace one declaration, but that does not authorize a second declaration to erase its peer. Identical repeated equality is harmless; incompatible repeated equality and explicit bundle conflicts have no constructor refusal.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S1"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Conflicting repeated EQ returns no rows, identical repeated EQ retains matches, filter order cannot change membership, and explicit bundle criteria cannot broaden the conjunction. Cover in-memory, SQLite and bundle-deferred paths.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [
+        "behavior"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "LST-QUERY-002",
+      "title": "Text operators contradict the case-insensitive contract",
+      "area": "QUERY",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "ListingResolver.php:701-702 uses str_starts_with and str_contains without case folding. Alpha matched by alpha or al returns no rows in the retained scratch behavior probe.",
+      "expected_contract": "FR-007 explicitly defines case-insensitive STARTS_WITH and CONTAINS with literal percent/underscore handling.",
+      "consequence": "Search-like listings omit otherwise matching rows. Existing same-case tests cannot detect this.",
+      "refutation": "The current normative FR-007 says case-insensitive. These operators run in PHP, so database collation cannot restore the promised behavior. Repeated same-case tests demonstrate functioning substring matching but do not justify overriding the contract.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S1"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Mixed-case positive/negative controls, literal percent/underscore and an explicit Unicode policy pass across supported backends. Reconcile the canonical spec if the intended contract differs.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [
+        "behavior"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "LST-CACHE-001",
+      "title": "Repository deletion leaves cached listing metadata stale",
+      "area": "CACHE",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "ServiceProvider.php:179 subscribes only to AfterDeleteEvent, while EntityRepository::delete publishes EntityEvents::POST_DELETE. A real ProviderRegistry probe caches page1 total2, deletes off-page id2, receives cached total2, then gets fresh total1 after manual eviction.",
+      "expected_contract": "FR-038/039 and the cookbook promise that successful repository deletes invalidate tagged listing results.",
+      "consequence": "Hosts explicitly binding a tagged cache retain obsolete totals and navigation after committed deletion. Default composition is not assumed to bind a tagged cache.",
+      "refutation": "On-page missing rows trigger a real cache miss, which does not detect off-page deletion. Cache is optional; a backend is explicitly supplied by the host in the probe. No default deployed tagged cache or universal impact is claimed.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "issue",
+          "ref": "#2996"
+        }
+      ],
+      "dependencies": "Canonical deletion event and after-commit delivery decision with waaseyaa/entity-storage; listing owns its subscription.",
+      "acceptance": "Repository delete through the real provider/listener/cache path invalidates off-page totals; save remains a positive control, no-cache works, rollback/refusal does not publish invalidation, and the selected canonical lifecycle delivers once.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [
+        "composition"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "LST-DISCOVERY-001",
+      "title": "Discovery depends on a private kernel property",
+      "area": "DISCOVERY",
+      "severity": "info",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "ServiceProvider.php:220-274 describes a typed accessor but only reflects providersAccessor. Foundation exposes ProviderCapabilitySource through the public kernel bus. The default concrete bus works because its private property has that name.",
+      "expected_contract": "Listing discovery should consume the canonical live capability projection and preserve complete registration at finalization.",
+      "consequence": "Private foundation changes require synchronized listing edits, and missing introspection silently yields an empty registry. A supported alternate bus failure is not yet established.",
+      "refutation": "Default current kernel bus works. No observed current consumer consequence or qualified alternate-bus failure is available, so classify as info under the scale instead of asserting a runtime consumer defect. Private-property reflection is still unnecessary because public live ProviderCapabilitySource exists.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S2"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Use ProviderCapabilitySource with a nonempty provider and duplicate/refusal controls, preserve late bundle boot validation, and settle early-resolution behavior without silent empty-success fallback.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "C",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": [
+          "LST-DISCOVERY-001 A low to B info; no consumer consequence qualified; B to C"
+        ]
+      },
+      "probes": [],
+      "notes": ""
+    },
+    {
+      "id": "LST-SURFACE-001",
+      "title": "Package surface declarations leave two exports unclassified",
+      "area": "SURFACE",
+      "severity": "info",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "public-surface.php has 23 entries for 25 source declarations. ServiceProvider and ListingCacheProjection are omitted. Multiple internal declarations carry conflicting stable/@api comments.",
+      "expected_contract": "Every shipped symbol receives an intentional disposition grounded in current callers, and public contract documentation agrees.",
+      "consequence": "Governance metadata and contributor documentation cannot reliably distinguish supported composition from implementation detail.",
+      "refutation": "An internal cache projection needs classification, not promotion. Alpha permits removing obsolete stability promises; public class existence alone does not establish retention obligation.",
+      "disposition": "document",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S3"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Classify both omitted symbols; reconcile constructor/registry/parser exception contracts and remove stale stability claims. Keep current generated consumers working and mechanically verify surface coverage.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "C",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": ""
+    },
+    {
+      "id": "LST-CACHE-002",
+      "title": "Cached row reconstruction performs one repository read per row",
+      "area": "CACHE",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "Independent instrumentation records one terminal repository point read per cached row identifier. Existing #3016 covers batching this read boundary. Caching still saves query planning, refinement, sorting and counting.",
+      "expected_contract": "Use the canonical supported batched read boundary where available while preserving identity order, missing-row handling and read authorization.",
+      "consequence": "Paged cached results incur repeated driver reads; do not claim that all cache benefit is lost.",
+      "refutation": "Point reads still save query planning, refinements, sorting and counting. Claiming zero cache benefit would be false. A canonical batching repair must preserve repository read, field and language boundaries.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "issue",
+          "ref": "#3016"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Measure reconstruction driver calls for a nonempty cached page; use batched reads preserving row order, missing-row fallback and principal field checks; report before/after counts.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": ""
+    },
+    {
+      "id": "LST-STRUCTURE-001",
+      "title": "Internal duplication and obsolete branches need bounded consolidation",
+      "area": "STRUCTURE",
+      "severity": "info",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "ListingDefinition and ExposedFilterValues duplicate canonicalization. Resolver duplicates page parsing/clamping, retains an unreachable empty-accessOps fast path, and accepts a cached ListingResult only to reject it immediately. Parser repeats an already enforced filter type check. typed-data is declared directly but source imports none of its symbols.",
+      "expected_contract": "One intentional mechanism per contract; adapters bridge necessary current boundaries. Alpha annotations alone do not retain obsolete paths.",
+      "consequence": "Maintenance drift risk without demonstrated current output corruption. Foundation Schema/Diff/CanonicalJson has DIFFERENT float flags and is not a byte-equivalent substitute.",
+      "refutation": "Foundation CanonicalJson differs in zero-fraction preservation and string key sort order. Blind substitution changes cache identity. Internal duplication remains valid but must not become a generic refactor or an assertion that typed-data dependency is safe to remove without contract review.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S3"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Consolidate only equivalent listing hash/page logic with golden keys and both pagination paths; remove unreachable branches and obsolete cache-shape adapter after caller/export review; justify or remove the direct typed-data requirement. Preserve native float identity.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "C",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": ""
+    },
+    {
+      "id": "LST-ACCESS-001",
+      "title": "Production gate does not expose listing fast-path capability",
+      "area": "ACCESS",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "The real provider boot probe resolves EntityAccessGate, which does not implement ListingFastPathProbeInterface. ListingResolver therefore scans all matching rows even for a policy declaring SUPPORTS_LISTING_FAST_PATH. Gate used in contract tests does implement the probe.",
+      "expected_contract": "FR-032 permits explicit safe capability opt-in; the production adapter should expose only independently qualified safe policy composition.",
+      "consequence": "Performance guarantee is unqualified in actual kernel wiring. Current per-row filtering is correct and safe.",
+      "refutation": "The real default gate correctly uses conservative access filtering. Optional test-gate fast-path support does not establish production capability; this is a measured performance gap, not a permission failure.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "issue",
+          "ref": "#3005"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Qualify actual booted gate with eligible/ineligible/multiple-policy controls and measured hydration; retain principal/access filtering and correct declaration syntax. Follow #3005 and #2859.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/access",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [
+        "composition"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "LST-DOCS-001",
+      "title": "Published first-listing examples do not match the shipped API",
+      "area": "DOCS",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "docs/cookbook/listing-first-cut.md constructs a DateTimeImmutable comparison that FilterDefinition rejects, invokes nonexistent ListingResult getter methods and ListingDefinition::approximateTotal(true), and gives invalid static constant syntax. Its ^0.2 install example is not the current alpha305 line. Manifest-time discovery claims differ from runtime provider discovery.",
+      "expected_contract": "A consumer can execute the documented declaration, controller, rendering and installation path against the current package.",
+      "consequence": "Application authors following the guide encounter construction/runtime errors and misleading cache/discovery promises.",
+      "refutation": "Recipe shape tests pass but do not execute the cookbook snippets. Supported typed PHP properties and scalar filter values do not make the documented methods or DateTime constructor valid. Missing README alone would be informational.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "owner-audit",
+          "ref": "waaseyaa/framework documentation delta under #3118"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Execute the maintained provider/controller/template example against current alpha source; verify property access, supported scalar dates, constructor flags, real policy declaration and host-provided cache. Correct spec discovery/manifest claims without adding compatibility shims.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/framework",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [
+        "behavior"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "LST-FILTER-001",
+      "title": "Supported date coercion produces values the resolver rejects",
+      "area": "FILTER",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "ExposedFilterParser.php:94 exposes withTypeResolver; ExposedFilterCoercer.php:98/255 accepts a valid ISO date and returns DateTimeImmutable, but ListingResolver.php:641 reconstructs FilterDefinition and throws because comparison/EQ shapes accept only scalars.",
+      "expected_contract": "A successfully parsed supported date override can be consumed by the listing resolver using one canonical value representation.",
+      "consequence": "Applications using the supported datetime type resolver fail on valid requests instead of resolving the listing. The default inferred string path does not establish this seam works.",
+      "refutation": "The default inferred parser yields string and works, but withTypeResolver is a documented supported integration seam and the coercer advertises datetime/date. A successful parse must be consumable by the resolver. This is distinct from invalid manually constructed cookbook filters.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S1"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Settle one date representation across coercion, construction, hashing, query planning and comparisons; prove valid/invalid date overrides in permissive/strict modes and supported memory/SQLite paths.",
+      "residual_risk": "Installed-consumer qualification remains separately owned.",
+      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": [
+        "Direct listing consumers",
+        "Generated PublishedContentRecipe applications"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": [
+        "behavior"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "LST-SEC-001",
+      "title": "Cached authorization may outlive current authorization",
+      "area": "SEC",
+      "severity": "withheld",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "A security-sensitive authorization-lifecycle lead is independently investigated in private.",
+      "expected_contract": "Protected results honor current authority before release.",
+      "consequence": "Potential exposure is conditional and is assessed in private; no incident is claimed.",
+      "refutation": "Compensating consumer checks and conditional cache configuration are evaluated privately.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "private-report",
+          "ref": "framework advisory; owner waaseyaa/listing"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Current authority and refusal transitions are discriminated through supported composition, with installed exposure separately qualified.",
+      "residual_risk": "Private triage and durable custody pending.",
+      "next_action": "Independent behavioral verification and bounded private reach review complete; maintainer-designated durable private custody pending.",
+      "discovered_in": "waaseyaa/listing",
+      "owned_by": "waaseyaa/listing",
+      "co_owners": [],
+      "affected_consumers": "withheld",
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "reversals": []
+      },
+      "probes": 1,
+      "notes": ""
+    }
+  ],
+  "refuted": [
+    {
+      "id": "LST-R-001",
+      "lead": "Foundation canonical JSON is an equivalent hash replacement.",
+      "investigation": "Compare encoder flags and ksort mode.",
+      "refutation": "Foundation intentionally omits JSON_PRESERVE_ZERO_FRACTION; listing preserves it. Blind replacement changes cache identity. Internal listing duplication still belongs to S3.",
+      "evidence": "Foundation Schema/Diff/CanonicalJson; ListingDefinition/ExposedFilterValues"
+    },
+    {
+      "id": "LST-R-002",
+      "lead": "Short access-filtered pages remain the #2541 bug.",
+      "investigation": "Read current full query/access/paginate flow and execute contract tests.",
+      "refutation": "Current non-fast path filters all candidates before slicing, preserving dense pages and accessible totals. Deep-page performance is independent.",
+      "evidence": "331 listing tests; closed #2541; resolver"
+    },
+    {
+      "id": "LST-R-003",
+      "lead": "Anonymous default gate always denies valid view policies.",
+      "investigation": "Run current EntityAccessGate integration positive and refusal controls.",
+      "refutation": "Current adapter resolves anonymous/scope principal; listing anonymous allow test passes. Missing host gate intentionally denies.",
+      "evidence": "AnonymousGateAccessListingTest; EntityAccessGate"
+    },
+    {
+      "id": "LST-R-004",
+      "lead": "Bundle field filters are always pushed to a missing base column.",
+      "investigation": "Inspect canonical registry and native/deferred plan, execute bundle integration.",
+      "refutation": "Current registry demotes bundle fields and complete mixed sorts before paging. Missing registry is an explicit custom-host qualification gap, not current kernel failure.",
+      "evidence": "BundleFieldQueryPlanningTest; ServiceProvider field registry; resolver"
+    },
+    {
+      "id": "LST-R-005",
+      "lead": "Missing cached on-page entity proves no delete cache defect.",
+      "investigation": "Compare missing on-page id fallback with off-page deletion probe.",
+      "refutation": "Missing id does force a refresh, but surviving first-page ids can return obsolete total metadata. Does not refute LST-CACHE-001.",
+      "evidence": "composition probe; cache payload contract"
+    },
+    {
+      "id": "LST-R-006",
+      "lead": "Green source tests qualify installed distribution.",
+      "investigation": "Apply distribution evidence classes.",
+      "refutation": "Root autoload/path packages prove source only. Installed standalone, closure and generated roots require separate artifacts.",
+      "evidence": "distribution profile; composer install log"
+    }
+  ],
+  "handoffs": [],
+  "decisions": [
+    {
+      "id": "D1",
+      "decision": "Choose durable private custody for the security brief.",
+      "findings": [
+        "LST-SEC-001"
+      ],
+      "what_would_settle_it": "Maintainer names a private directory outside repositories and session scratch; verified copy and access controls recorded privately.",
+      "who_decides": "Russell",
+      "status": "open",
+      "resolution": null
+    },
+    {
+      "id": "D2",
+      "decision": "Set a bounded generic-validation and provider-discovery infrastructure disposition.",
+      "findings": [
+        "LST-DISCOVERY-001",
+        "LST-STRUCTURE-001"
+      ],
+      "what_would_settle_it": "Compare supported Symfony Validator constraints with current failure/shape policy, preserve hash identities, and route generic composition work to foundation without introducing a second container.",
+      "who_decides": "Framework maintainer",
+      "status": "open",
+      "resolution": null
+    }
+  ],
+  "uncertainties": [
+    {
+      "id": "U1",
+      "uncertainty": "Installed-profile and actual external-consumer exposure have not been qualified.",
+      "findings": [],
+      "what_would_settle_it": "Exact-base sealed no-dev split/framework install and generated app exercise through its composition root, plus privately held consumer evidence where applicable.",
+      "status": "open",
+      "resolution": null
+    }
+  ],
+  "issue_reconciliation": [
+    {
+      "issue": "#3118",
+      "claim": "Package coverage program; listing not assessed.",
+      "status": "open at audit read",
+      "evidence": "coverage-index row; cached issue-3118"
+    },
+    {
+      "issue": "#2996",
+      "claim": "Deletion delivery and commit timing.",
+      "status": "open at audit read",
+      "evidence": "composition reproduction; issue-2996 scope exact"
+    },
+    {
+      "issue": "#3016",
+      "claim": "Batch cached reconstruction with intact access.",
+      "status": "open at audit read",
+      "evidence": "source find loop; issue-3016"
+    },
+    {
+      "issue": "#3005",
+      "claim": "Qualify production fast-path capability.",
+      "status": "open at audit read",
+      "evidence": "real provider gate probe; issue-3005"
+    },
+    {
+      "issue": "#3006",
+      "claim": "Deep-page hydration across listing/publishing.",
+      "status": "open at audit read",
+      "evidence": "resolver offset+pageSize fetch; needs measured consumer qualification"
+    },
+    {
+      "issue": "#2859",
+      "claim": "Provider lifecycle and readiness are cross-package concerns.",
+      "status": "open at audit read",
+      "evidence": "ServiceProvider singleton timing; cached issue-2859"
+    }
+  ],
+  "remediation_plan": [
+    {
+      "slice": "S1",
+      "findings": [
+        "LST-QUERY-001",
+        "LST-QUERY-002",
+        "LST-FILTER-001"
+      ],
+      "acceptance": "Preserve conjunction, declared text semantics and coherent date input representation with backend and negative controls; reconcile only the affected spec.",
+      "depends_on": []
+    },
+    {
+      "slice": "S2",
+      "findings": [
+        "LST-DISCOVERY-001"
+      ],
+      "acceptance": "Canonical live provider capability discovery, late boot and early-resolution/refusal controls; remove private-property reflection.",
+      "depends_on": []
+    },
+    {
+      "slice": "S3",
+      "findings": [
+        "LST-SURFACE-001",
+        "LST-STRUCTURE-001"
+      ],
+      "acceptance": "Exhaustive surface disposition, current source docs, equivalent hash/page consolidation and dependency justification. No legacy aliases.",
+      "depends_on": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "slice": "S4",
+      "findings": [
+        "LST-SURFACE-001"
+      ],
+      "acceptance": "Sealed no-dev split/closure and nonempty generated app qualification, optional cache controls and executable examples; record exact runner identities.",
+      "depends_on": [
+        "S3"
+      ]
+    },
+    {
+      "slice": "S5",
+      "findings": [
+        "LST-CACHE-001"
+      ],
+      "acceptance": "Execute #2996 acceptance through canonical lifecycle and commit/rollback controls.",
+      "depends_on": [
+        "Canonical deletion event and after-commit delivery decision with entity-storage"
+      ]
+    },
+    {
+      "slice": "S6",
+      "findings": [
+        "LST-CACHE-002"
+      ],
+      "acceptance": "Execute #3016 batching acceptance with measured reads and intact authorization.",
+      "depends_on": []
+    }
+  ],
+  "qualification": [
+    {
+      "profile": "primitive-only",
+      "supported": "yes",
+      "evidence_class": "source",
+      "evidence": "reproduced: constructor/parser/resolver suites in exact monorepo scratch clone; not qualified.",
+      "gap_owner": "S4 standalone split qualification"
+    },
+    {
+      "profile": "standalone split",
+      "supported": "yes",
+      "evidence_class": "none",
+      "evidence": "No sealed standalone --no-dev install/boot executed.",
+      "gap_owner": "S4"
+    },
+    {
+      "profile": "kernel composition",
+      "supported": "yes",
+      "evidence_class": "source",
+      "evidence": "reproduced: actual ProviderRegistry/default bus and nonempty synthetic app; not full installed kernel/HTTP boot.",
+      "gap_owner": "S4 and ci/split-artifact-acceptance"
+    },
+    {
+      "profile": "metapackage",
+      "supported": "conditional via cli",
+      "evidence_class": "none",
+      "evidence": "No direct core-only listing claim; full expansion via CLI must be qualified.",
+      "gap_owner": "S4"
+    },
+    {
+      "profile": "framework closure",
+      "supported": "yes",
+      "evidence_class": "none",
+      "evidence": "Source Composer closure inspected; no exact-base hosted archive evidence reused.",
+      "gap_owner": "ci/split-artifact-acceptance"
+    },
+    {
+      "profile": "generated application",
+      "supported": "yes",
+      "evidence_class": "none",
+      "evidence": "Real PublishedContentRecipe source reviewed; no newly installed app journey executed.",
+      "gap_owner": "S4 and skeleton generated-app CI"
+    }
+  ],
+  "probes": [
+    {
+      "name": "behavior",
+      "purpose": "Synthetic reproduction of conjunction, text, typed-date and cookbook failures.",
+      "result": "exit0: conflicting conjunction returns id2, mixed-case text misses, typed date parse succeeds then resolution throws; manually constructed cookbook DateTime also throws.",
+      "retained_path": "tests/Fixtures/Audits/Listing/LST-QUERY-001-base-filter-reproduction.php",
+      "reproduce": "Run php with the absolute retained_path in this candidate checkout, using the original audit base source root as working directory. The repaired candidate is not expected to reproduce these historical defects."
+    },
+    {
+      "name": "composition",
+      "purpose": "Synthetic application through real ProviderRegistry, listing provider, terminal repository and explicit tagged cache.",
+      "result": "exit0: totals2 cached2 fresh1; real EntityAccessGate lacks fast-path capability.",
+      "retained_path": "tests/Fixtures/Audits/Listing/LST-CACHE-001-base-lifecycle-reproduction.php",
+      "reproduce": "Run php with the absolute retained_path in this candidate checkout, using the original audit base source root as working directory. The repaired candidate is not expected to reproduce these historical defects."
+    },
+    {
+      "name": "deptrac-controls",
+      "purpose": "Nonvacuous allowed, forbidden and uncovered dependency controls.",
+      "result": "allowed exit0/1 edge; forbidden exit1/1 violation; uncovered exit1/1 uncovered.",
+      "retained_path": null,
+      "reproduce": "Use scratch deptrac-controls configs with --no-cache --fail-on-uncovered --report-uncovered --formatter=json"
+    }
+  ],
+  "evidence_runs": [
+    {
+      "command": "composer install --no-interaction --prefer-dist --no-progress --no-scripts",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Exact source lock installation in disposable scratch checkout; original checkout untouched.",
+      "result": "exit0; PHPunit13.1.14 and Deptrac4.7.2; source package junctions remain source evidence."
+    },
+    {
+      "command": "php vendor/bin/phpunit packages/listing/tests --no-coverage --do-not-cache-result",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Focused source behavior over package unit/backend/contract/integration.",
+      "result": "exit0; 331 tests, 582 assertions; 7.268 seconds; logs/listing-tests.log"
+    },
+    {
+      "command": "php vendor/bin/phpunit tests/Integration/Phase14 tests/Integration/Phase29 --no-coverage --do-not-cache-result",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Related source integration, cache and two-axis controls.",
+      "result": "exit0; 62 tests, 217 assertions; 0.858 seconds; logs/integration-tests.log"
+    },
+    {
+      "command": "php vendor/bin/phpunit packages/cli/tests/Unit/Site/PublishedContentRecipeTest.php --no-coverage --do-not-cache-result",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Direct generator caller assertions; source recipe shape, not installed generated runtime.",
+      "result": "exit0; 6 tests, 60 assertions; 0.662 seconds; logs/generated-recipe.log"
+    },
+    {
+      "command": "php ../probes/behavior.php; php ../probes/composition.php",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Nonvacuous defect discriminators, synthetic fixtures and actual provider composition as labeled.",
+      "result": "Both exit0 reproductions. No claim of live incident or installed qualification."
+    },
+    {
+      "command": "php vendor/bin/deptrac --config-file=../deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered --formatter=json",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Charter dependency classification, not complete runtime correctness.",
+      "result": "exit0; 297 allowed, 0 violations/uncovered; controls discriminate all three classes."
+    },
+    {
+      "command": "php bin/check-package-layers --output=json",
+      "base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
+      "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; scratch exact clone; Composer locked install --no-scripts",
+      "host": "Windows",
+      "proves": "Existing architecture authority.",
+      "result": "exit0; 73 packages scanned; no violations."
+    }
+  ],
+  "not_reviewed": [
+    "External installed applications, live services and complete rendered HTTP journey.",
+    "Sealed standalone/no-dev exported package and exact-base hosted closure/generated-app qualification.",
+    "Private routed briefs from prior audits were not supplied. Exact committed ledger owner/co-owner/handoff intake is zero; all older record cross-package tables reviewed."
+  ],
+  "host_limits": [
+    "Native Windows cannot replace hosted Linux POSIX/symlink/permission evidence. ci/split-artifact-acceptance and relevant generated-app jobs own missing qualification.",
+    "Original checkout has no vendor. Dependencies installed only in an immutable scratch clone with the exact lock. No source mutation or unqualified donor vendor reuse."
+  ],
+  "scorecard": {
+    "elapsed": "Full-session elapsed unavailable. First retained install log began 14:24 America/Toronto; focused suites took 7.268s, 0.858s and 0.662s.",
+    "agent_count": 4,
+    "subagent_tokens": "unavailable",
+    "source_files": 25,
+    "source_lines": 3517,
+    "production_files": 27,
+    "consumers": "Root framework closure, CLI generator and synthetic/reference source consumers; no installed external root qualified.",
+    "intake_items": 0,
+    "profiles": [
+      "domain-contracts",
+      "kernel-runtime",
+      "http-ui-contracts",
+      "distribution"
+    ],
+    "findings": "11 reconciled findings: 9 listing-owned and 2 cross-package.",
+    "verification_reversals": [
+      "LST-DISCOVERY-001 A low to B info; no consumer consequence qualified; B to C"
+    ],
+    "record_lines": 210,
+    "record_words": 3068,
+    "ledger_bytes": 123243,
+    "probes_written": 2,
+    "probes_retained": 2,
+    "open": {
+      "decisions": 2,
+      "uncertainties": 1
+    },
+    "unfiled_findings": [
+      "LST-QUERY-001",
+      "LST-QUERY-002",
+      "LST-DISCOVERY-001",
+      "LST-SURFACE-001",
+      "LST-STRUCTURE-001",
+      "LST-DOCS-001",
+      "LST-FILTER-001",
+      "LST-SEC-001"
+    ],
+    "critic": "Independent verification A and B complete; final critic correction recheck passed with no remaining blockers"
+  }
+}

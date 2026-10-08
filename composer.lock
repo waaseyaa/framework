@@ -5501,7 +5501,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/listing",
-                "reference": "9d241b997826cee86a640a72b2f1940634e8cdf9"
+                "reference": "d5c9813ff3e88dcf86bd2266f7a4af4b5753bd8a"
             },
             "require": {
                 "php": ">=8.5",
@@ -5510,12 +5510,11 @@
                 "waaseyaa/entity": "^0.1.0-alpha.305",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.305",
                 "waaseyaa/field": "^0.1.0-alpha.305",
-                "waaseyaa/foundation": "^0.1.0-alpha.305",
-                "waaseyaa/typed-data": "^0.1.0-alpha.305"
+                "waaseyaa/foundation": "^0.1.0-alpha.305"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.304"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.305"
             },
             "type": "library",
             "extra": {

@@ -261,6 +261,7 @@ final class ListingCacheInvalidationIntegrationTest extends TestCase
 #[\Waaseyaa\Access\Gate\PolicyAttribute(entityType: 'event')]
 final class AllowAllEventPolicy2
 {
+    public const bool SUPPORTS_LISTING_FAST_PATH = true;
     public function view(?object $user, mixed $subject): bool
     {
         return true;

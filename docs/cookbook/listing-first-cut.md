@@ -28,7 +28,7 @@ open while you read.
 Your application's `composer.json`:
 
 ```bash
-composer require waaseyaa/listing:^0.2
+composer require waaseyaa/listing:^0.1.0-alpha.305
 ```
 
 `waaseyaa/listing` pulls in `waaseyaa/cache` (`TaggedCacheInterface` lives
@@ -98,7 +98,7 @@ final class EventsServiceProvider extends ServiceProvider implements HasListings
                 id: 'upcoming_events',
                 entityType: 'event',
                 filters: [
-                    Filter::gte('starts_at', new \DateTimeImmutable('now')),
+                    Filter::gte('starts_at', (new \DateTimeImmutable('now'))->format('Y-m-d\\TH:i:sP')),
                     // Exposed filter — bound to ?status= in the URL.
                     Filter::exposed(Filter::eq('status', 'published'), 'status'),
                 ],
@@ -111,8 +111,9 @@ final class EventsServiceProvider extends ServiceProvider implements HasListings
 }
 ```
 
-`PackageManifestCompiler` discovers the listing at boot time and registers
-it with `ListingDefinitionRegistry` keyed by `'upcoming_events'`.
+`PackageManifestCompiler` registers the provider classes. Listing's service
+provider discovers `HasListingsInterface` providers through foundation's live
+capability source and builds `ListingDefinitionRegistry` keyed by `'upcoming_events'`.
 
 ---
 
@@ -155,11 +156,11 @@ final class EventsController
 
 `ListingResolver::resolve()` returns a typed `ListingResult` with:
 
-- `rows()` — entities matching filters, access-policy-filtered per row.
-- `pagination()` — `page`, `pageSize`, `totalRows`, `totalPages`,
+- `rows` — entities matching filters, access-policy-filtered per row.
+- `pagination` — `page`, `pageSize`, `totalRows`, `totalPages`,
   `hasPrev`, `hasNext`.
-- `cacheTags()` — `['entity:event', 'entity:event:42', ...]`.
-- `cacheContexts()` — `['user.roles', 'url.query.status', 'url.query.page']`.
+- `cacheTags` — `['entity:event', 'entity:event:42', ...]`.
+- `cacheContexts` — `['user.roles', 'url.query.status', 'url.query.page']`.
 
 `?page=N` clamps silently: out-of-range page numbers resolve to page 1 or
 the last page. Coercion failures on exposed filters (e.g.
@@ -178,11 +179,11 @@ renders. A minimal partial:
 <section class="listing listing--upcoming-events">
   <h1>Upcoming events</h1>
 
-  {% if result.rows() is empty %}
+  {% if result.rows is empty %}
     <p>No upcoming events.</p>
   {% else %}
     <ul>
-      {% for event in result.rows() %}
+      {% for event in result.rows %}
         <li>
           <a href="/events/{{ event.uuid }}">{{ event.title }}</a>
           <time datetime="{{ event.starts_at|date('c') }}">
@@ -192,7 +193,7 @@ renders. A minimal partial:
       {% endfor %}
     </ul>
 
-    {% set pagination = result.pagination() %}
+    {% set pagination = result.pagination %}
     <nav class="pagination">
       {% if pagination.hasPrev %}
         <a href="?page={{ pagination.page - 1 }}">Previous</a>
@@ -206,15 +207,19 @@ renders. A minimal partial:
 </section>
 ```
 
-`result.cacheTags()` flows into your response's `Surrogate-Control` /
+`result.cacheTags` flows into your response's `Surrogate-Control` /
 `Cache-Tag` header if you use one — the resolver's own cache hits are
-internal, but propagating tags to a CDN layer is the natural next step.
+internal. A response cache must also honor all contexts and the application
+authorization lifecycle before caching private output.
 
 ---
 
 ## Step 6 — Automatic cache invalidation
 
-The resolver caches a `ListingResult` keyed by
+The optional resolver cache stores identifier projections only for listings
+whose gate explicitly confirms policy-independent view membership. Other
+listings resolve current access before pagination on every call. Eligible
+projections are keyed by
 `(definition hash, exposed values, context values)`. On every entity write,
 `ListingCacheInvalidator` subscribes to `AfterSaveEvent` and
 `AfterDeleteEvent` and calls
@@ -256,16 +261,16 @@ it('returns only upcoming events sorted by start time', function () {
     $def = new ListingDefinition(
         id: 'upcoming_events',
         entityType: 'event',
-        filters: [Filter::gte('starts_at', new \DateTimeImmutable('2025-01-01'))],
+        filters: [Filter::gte('starts_at', '2025-01-01T00:00:00+00:00')],
         sorts: [Sort::asc('starts_at')],
         pageSize: 10,
     );
 
     $result = $resolver->resolve($def);
 
-    expect(iterator_to_array($result->rows()))
+    expect($result->rows)
         ->toHaveCount(2)
-        ->and($result->rows()[0]->title)->toBe('Soon');
+        ->and($result->rows[0]->title)->toBe('Soon');
 });
 ```
 
@@ -278,11 +283,15 @@ it('returns only upcoming events sorted by start time', function () {
   include `entity:<type>:<id>:<langcode>`. See
   `Filter::langcode()` to override.
 - **Approximate totals.** Long listings on hot pages can opt out of the
-  full-set access scan via `ListingDefinition::approximateTotal(true)`.
+  total count reporting with constructor argument `approximateTotal: true`.
+  Current access filtering still scans the candidates before slicing.
   `Pagination::$totalRows` returns `null`; the rest stays correct.
 - **Fast-path access.** If your policy is "view = always allow", set
-  `static SUPPORTS_LISTING_FAST_PATH = true` on your `AccessPolicy` and the
-  per-row loop is short-circuited.
+  `public const bool SUPPORTS_LISTING_FAST_PATH = true` on your `AccessPolicy` and the
+  per-row loop is short-circuited only when the injected gate implements
+  `ListingFastPathProbeInterface` and confirms the capability. The production
+  `EntityAccessGate` currently uses per-row checks; a policy constant alone
+  does not enable its fast path.
 - **Strict exposed filters in tests.** `ExposedFilterParser::strict()`
   raises on coercion failures instead of silently dropping — useful in
   integration tests where you want a `?status=banana` typo to fail loud.
@@ -299,3 +308,13 @@ it('returns only upcoming events sorted by start time', function () {
   contract is shaped this way.
 - [`docs/specs/stability-charter.md`](../specs/stability-charter.md) §5.6,
   §5.9 — which symbols are stable surface and which are internal.
+
+Typed `date`/`datetime` exposed filters validate date parsing and retain the
+input as a scalar string. Use the same ISO storage format for declarations,
+URL inputs and field values; the listing parser does not normalize timezones.
+Strict mode raises `ListingCoercionException`; permissive mode retains the
+declared default when input is invalid.
+
+Translatable identifier projections require a single effective langcode equality.
+Mixed-language scopes resolve fresh so translations sharing an identifier cannot
+be substituted during cache reconstruction.

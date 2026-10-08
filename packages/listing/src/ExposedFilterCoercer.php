@@ -20,7 +20,7 @@ use Waaseyaa\Listing\Exception\ListingCoercionException;
  *
  *   - Scalar operators (`EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`) — coerce
  *     the raw string per typed-data type (string / int / float / bool /
- *     DateTimeImmutable).
+ *     validated date string).
  *   - `IN` / `NOT_IN` — split on `,`, coerce each element per type, return
  *     `list<scalar>`. An empty element or whole-empty list is an error.
  *   - `BETWEEN` — split on `~`, expect exactly 2 parts, coerce each per
@@ -95,7 +95,7 @@ final class ExposedFilterCoercer
             'int', 'integer' => $this->toInt($param, $raw, $op, $typedDataType),
             'float', 'double' => $this->toFloat($param, $raw, $op, $typedDataType),
             'bool', 'boolean' => $this->toBool($param, $raw, $op, $typedDataType),
-            'datetime', 'date' => $this->toDateTime($param, $raw, $op, $typedDataType),
+            'datetime', 'date' => $this->toDateString($param, $raw, $op, $typedDataType),
             default => throw new ListingCoercionException(
                 param: $param,
                 raw: $raw,
@@ -252,14 +252,20 @@ final class ExposedFilterCoercer
     /**
      * @throws ListingCoercionException
      */
-    private function toDateTime(
+    private function toDateString(
         string $param,
         string $raw,
         Operator $op,
         string $typedDataType,
-    ): DateTimeImmutable {
+    ): string {
         try {
-            return new DateTimeImmutable($raw);
+            new DateTimeImmutable($raw);
+            $errors = DateTimeImmutable::getLastErrors();
+            if ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)) {
+                throw new \InvalidArgumentException('Invalid calendar date.');
+            }
+
+            return $raw;
         } catch (Throwable $previous) {
             throw new ListingCoercionException(
                 param: $param,

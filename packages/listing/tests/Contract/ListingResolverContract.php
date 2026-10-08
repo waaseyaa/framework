@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\Gate\Gate;
 use Waaseyaa\Cache\Backend\MemoryBackend;
 use Waaseyaa\Cache\ContextRegistry;
@@ -102,7 +101,7 @@ abstract class ListingResolverContract extends TestCase
         EntityStorageDriverInterface $driver,
         bool $translatable = false,
         array $queryParams = [],
-        ?MemoryBackend $cache = null,
+        ?\Waaseyaa\Cache\TaggedCacheInterface $cache = null,
         ?ListingCacheKeyBuilder $keyBuilder = null,
         ?string $activeLangcode = null,
         ?Gate $gate = null,
@@ -141,7 +140,7 @@ abstract class ListingResolverContract extends TestCase
 
         return new ListingResolver(
             repositories: $registry,
-            gate: $gate ?? new Gate([new AllowAllArticlePolicy()]),
+            gate: $gate ?? new Gate([$cache !== null ? new FastPathArticlePolicy() : new AllowAllArticlePolicy()]),
             contextResolver: $contextResolver,
             entityTypes: $manager,
             requestContext: $request,
@@ -540,6 +539,42 @@ abstract class ListingResolverContract extends TestCase
         self::assertContains('language.content', $result->cacheContexts);
     }
 
+    #[Test]
+    public function cachedBatchReadPreservesExplicitLanguageOverRequestDefault(): void
+    {
+        $driver = $this->createTranslatableDriver();
+        $this->seed($driver, 'article', [
+            ['id' => '1', 'title' => 'hi', 'langcode' => 'en'],
+            ['id' => '2', 'title' => 'bonjour', 'langcode' => 'fr'],
+        ]);
+        $resolver = $this->buildResolver($driver, translatable: true, activeLangcode: 'fr', cache: new MemoryBackend(), keyBuilder: new ListingCacheKeyBuilder());
+        $def = new ListingDefinition(id: 'explicit_language', entityType: 'article', filters: [Filter::langcode('en')]);
+        foreach (range(1, 2) as $_) {
+            $result = $resolver->resolve($def);
+            self::assertCount(1, $result->rows);
+            self::assertSame('1', (string) $result->rows[0]->id());
+            self::assertSame('hi', $result->rows[0]->get('title'));
+            self::assertSame('en', $result->rows[0]->get('langcode'));
+        }
+    }
+
+    #[Test]
+    public function mixedLanguageScopeUsesFreshResolution(): void
+    {
+        $driver = $this->createTranslatableDriver();
+        $this->seed($driver, 'article', [
+            ['id' => '1', 'title' => 'hi', 'langcode' => 'en'],
+            ['id' => '2', 'title' => 'bonjour', 'langcode' => 'fr'],
+        ]);
+        $cache = new \Waaseyaa\Listing\Tests\Fixtures\CountingTaggedCache();
+        $resolver = $this->buildResolver($driver, translatable: true, activeLangcode: 'fr', cache: $cache, keyBuilder: new ListingCacheKeyBuilder());
+        $def = new ListingDefinition(id: 'mixed_language', entityType: 'article', filters: [Filter::in('langcode', ['en', 'fr'])]);
+        self::assertCount(2, $resolver->resolve($def)->rows);
+        self::assertCount(2, $resolver->resolve($def)->rows);
+        self::assertSame(0, $cache->gets);
+        self::assertSame(0, $cache->stores);
+    }
+
     // ------------------------------------------------------------------
     // FR-058 + caching paths
     // ------------------------------------------------------------------
@@ -788,4 +823,115 @@ abstract class ListingResolverContract extends TestCase
 
         return $out;
     }
+    #[Test]
+
+    public function conflictingRepeatedEqualityPreservesConjunction(): void
+    {
+
+        $driver = $this->createDriver();
+
+        $this->seed($driver, 'article', [
+
+            ['id' => '1', 'title' => 'Alpha', 'weight' => 10],
+
+            ['id' => '2', 'title' => 'Beta', 'weight' => 20],
+
+        ]);
+
+        $resolver = $this->buildResolver($driver);
+
+        foreach ([[10, 20], [20, 10]] as [$first, $second]) {
+
+            $def = new ListingDefinition(id: 'conjunction', entityType: 'article', filters: [Filter::eq('weight', $first), Filter::eq('weight', $second)]);
+
+            self::assertSame([], $resolver->resolve($def)->rows);
+
+        }
+
+        $same = new ListingDefinition(id: 'same_eq', entityType: 'article', filters: [Filter::eq('weight', 10), Filter::eq('weight', 10)]);
+
+        self::assertCount(1, $resolver->resolve($same)->rows);
+
+        $exposed = new ListingDefinition(id: 'exposed_eq', entityType: 'article', filters: [Filter::exposed(Filter::eq('weight', 10), 'weight'), Filter::eq('weight', 10)]);
+
+        self::assertSame([], $resolver->resolve($exposed, new ExposedFilterValues(['weight' => 20]))->rows);
+
+    }
+
+    #[Test]
+    public function cachedPageUsesOneBatchReadAndMissingRowsRefresh(): void
+    {
+        $inner = $this->createDriver();
+        $this->seedThreeRows($inner);
+        $driver = new SpyStorageDriver($inner);
+        $resolver = $this->buildResolver($driver, cache: new MemoryBackend(), keyBuilder: new ListingCacheKeyBuilder());
+        $def = new ListingDefinition(id: 'batch_page', entityType: 'article', pageSize: 2, sorts: [Sort::desc('weight')]);
+        $first = $resolver->resolve($def);
+        self::assertSame(['3', '2'], array_map(static fn($row): string => (string) $row->id(), $first->rows));
+        $driver->readCalls = $driver->readMultipleCalls = $driver->countCalls = 0;
+        $driver->findByLimits = [];
+        $second = $resolver->resolve($def);
+        self::assertSame(['3', '2'], array_map(static fn($row): string => (string) $row->id(), $second->rows));
+        self::assertSame(0, $driver->readCalls);
+        self::assertSame(1, $driver->readMultipleCalls);
+        self::assertSame(0, $driver->countCalls);
+        self::assertSame([], $driver->findByLimits);
+        $inner->remove('article', '3');
+        $third = $resolver->resolve($def);
+        self::assertSame(['2', '1'], array_map(static fn($row): string => (string) $row->id(), $third->rows));
+        self::assertSame(2, $third->pagination->totalRows);
+    }
+
+    #[Test]
+
+    public function textOperatorsFoldUnicodeAndTreatWildcardsLiterally(): void
+    {
+
+        $driver = $this->createDriver();
+
+        $this->seed($driver, 'article', [['id' => '1', 'title' => 'École 50%_OFF']]);
+
+        $resolver = $this->buildResolver($driver);
+
+        foreach ([Filter::startsWith('title', 'éCO'), Filter::contains('title', '50%_off')] as $filter) {
+
+            $def = new ListingDefinition(id: 'folding', entityType: 'article', filters: [$filter]);
+
+            self::assertCount(1, $resolver->resolve($def)->rows);
+
+        }
+
+        $def = new ListingDefinition(id: 'literal', entityType: 'article', filters: [Filter::contains('title', '50__off')]);
+
+        self::assertSame([], $resolver->resolve($def)->rows);
+
+    }
+
+    #[Test]
+
+    public function parsedDateOverrideCanBeResolved(): void
+    {
+
+        $driver = $this->createDriver();
+
+        $this->seed($driver, 'article', [['id' => '1', 'title' => '2026-05-16T12:00:00Z']]);
+
+        $resolver = $this->buildResolver($driver);
+
+        $def = new ListingDefinition(id: 'date_override', entityType: 'article', filters: [Filter::exposed(Filter::eq('title', '2020-01-01T00:00:00Z'), 'since')]);
+
+        $parser = \Waaseyaa\Listing\ExposedFilterParser::create()->withTypeResolver(static fn(): string => 'datetime');
+
+        foreach ([$parser, $parser->strict()] as $mode) {
+
+            $values = $mode->parse(['since' => '2026-05-16T12:00:00Z'], $def);
+
+            self::assertCount(1, $resolver->resolve($def, $values)->rows);
+
+        }
+
+        self::assertSame([], $resolver->resolve($def, $parser->parse(['since' => 'not-a-date'], $def))->rows);
+
+    }
+
 }

@@ -14,6 +14,7 @@ use Waaseyaa\Cache\ContextResolver;
 use Waaseyaa\Cache\TaggedCacheInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Event\AfterDeleteEvent;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
@@ -21,6 +22,7 @@ use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as FoundationServiceProvider;
 
 /**
@@ -60,8 +62,8 @@ final class ServiceProvider extends FoundationServiceProvider implements Finaliz
 {
     /**
      * Event-listener priority. The codebase uses positive priorities to run
-     * earlier; cache invalidation runs after most lifecycle work so the
-     * default priority of 0 is intentional. Kept as a named constant for
+     * earlier; priority 100 evicts caches before ordinary notification consumers.
+     * The repository controls after-commit delivery. Kept as a named constant for
      * test introspection.
      */
     private const EVENT_LISTENER_PRIORITY = 100;
@@ -176,6 +178,11 @@ final class ServiceProvider extends FoundationServiceProvider implements Finaliz
                 self::EVENT_LISTENER_PRIORITY,
             );
             $dispatcher->addListener(
+                EntityEvents::POST_DELETE->value,
+                $invalidator->onPostDelete(...),
+                self::EVENT_LISTENER_PRIORITY,
+            );
+            $dispatcher->addListener(
                 AfterDeleteEvent::class,
                 $invalidator->onAfterDelete(...),
                 self::EVENT_LISTENER_PRIORITY,
@@ -224,55 +231,14 @@ final class ServiceProvider extends FoundationServiceProvider implements Finaliz
         ];
     }
 
-    /**
-     * Build the iterable of registered service providers exposed to
-     * {@see ListingDiscoverer}.
-     *
-     * Discovery strategy:
-     *
-     *   1. Ask the kernel-services bus for the canonical provider list
-     *      under {@code ServiceProviderRegistryAccessorInterface::class}.
-     *      When the host binds an accessor (or `ProviderRegistryKernelServices`
-     *      grows native support), that path wins.
-     *
-     *   2. Fallback: introspect the kernel-services bus via reflection.
-     *      The default kernel binding,
-     *      {@code Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices},
-     *      holds the live list under a private `$providersAccessor` closure.
-     *      Reading it reflectively keeps the listing pipeline self-contained
-     *      until foundation grows a typed accessor.
-     *
-     *   3. Final fallback: empty list. The registry resolves to an empty
-     *      {@see ListingDefinitionRegistry}; validator runs as a no-op and
-     *      boot succeeds even when no host has declared listings.
-     *
-     * @return iterable<object>
-     */
+    /** @return iterable<object> Live provider capability projection owned by foundation. */
     private function discoverProviders(): iterable
     {
-        if ($this->kernelServices === null) {
-            return [];
-        }
+        $source = $this->kernelServices?->get(ProviderCapabilitySource::class);
 
-        // Reflection fallback against ProviderRegistryKernelServices. The
-        // foundation owns the bus implementation; reading the private
-        // accessor is intentional and documented above.
-        try {
-            $reflection = new \ReflectionObject($this->kernelServices);
-            if (!$reflection->hasProperty('providersAccessor')) {
-                return [];
-            }
-            $property = $reflection->getProperty('providersAccessor');
-            $accessor = $property->getValue($this->kernelServices);
-            if (!$accessor instanceof \Closure) {
-                return [];
-            }
-            $providers = $accessor();
-
-            return is_array($providers) ? $providers : [];
-        } catch (\Throwable) {
-            return [];
-        }
+        return $source instanceof ProviderCapabilitySource
+            ? $source->implementing(HasListingsInterface::class)
+            : [];
     }
 
     /**

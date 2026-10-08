@@ -43,7 +43,7 @@ NOT silently change these.
 
 | Tag shape | Meaning | Emitted by |
 |---|---|---|
-| `entity:<type>` | Any change to any entity of `<type>` | `ListingCacheInvalidator` on every `AfterSaveEvent` / `AfterDeleteEvent` |
+| `entity:<type>` | Any change to any entity of `<type>` | `ListingCacheInvalidator` on every `AfterSaveEvent` / canonical repository `POST_DELETE` |
 | `entity:<type>:<id>` | A specific entity has changed | Same, scoped to the changed id |
 | `entity:<type>:<id>:<langcode>` | A specific translation of a specific entity has changed | Same, when the entity type implements `TranslatableInterface` (M-006); langcodes come from `AfterSaveEvent::$affectedLangcodes` |
 
@@ -60,7 +60,7 @@ etc.).
 ### When to add a new tag namespace
 
 Add a new namespace when the framework cannot reach the invalidation
-trigger through `AfterSaveEvent` / `AfterDeleteEvent`. Examples:
+trigger through `AfterSaveEvent` / canonical repository `POST_DELETE`. Examples:
 
 - A search-index rebuild that no entity write captures (`search:index:reset`).
 - A tenant-wide configuration flip (`tenant:<id>:config`).
@@ -89,7 +89,7 @@ sub-namespace of `user`), not composite keys.
 
 The `Waaseyaa\Cache\ContextNames` constants enumerate the framework's
 whitelisted contexts. The `ContextRegistry` accepts these out of the
-box; unknown context names appearing in a `ListingResult::cacheContexts()`
+box; unknown context names appearing in a `ListingResult::$cacheContexts`
 cause the resolver to bypass the cache for that resolution (and log a
 warning), they do not throw.
 
@@ -173,7 +173,8 @@ Choose names that are:
 ## 7. How to invalidate (event listener pattern)
 
 `ListingCacheInvalidator` (internal, mission-owned) is the reference
-example. It subscribes to `AfterSaveEvent` and `AfterDeleteEvent`,
+example. It subscribes to `AfterSaveEvent`, canonical repository `POST_DELETE`, and
+standalone typed `AfterDeleteEvent` notifications,
 computes the affected tags from the event's entity + `$affectedLangcodes`,
 and calls `TaggedCacheInterface::invalidateByTag()` for each tag. The
 listener is best-effort: failures log via `LoggerInterface` at warning
@@ -240,7 +241,7 @@ final class TenantConfigInvalidator
 - [`docs/specs/listing-pipeline-v1.md`](../specs/listing-pipeline-v1.md)
   §3.9 — `TaggedCacheInterface` contract.
 - [`docs/specs/listing-pipeline-v1.md`](../specs/listing-pipeline-v1.md)
-  §3.10 — invalidation flow on `AfterSaveEvent` / `AfterDeleteEvent`.
+  §3.10 — invalidation flow on `AfterSaveEvent` / canonical repository `POST_DELETE`.
 - [`docs/specs/stability-charter.md`](../specs/stability-charter.md)
   §5.9 — stable-surface declaration for this vocabulary.
 - [`docs/cookbook/listing-first-cut.md`](../cookbook/listing-first-cut.md)

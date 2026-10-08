@@ -19,12 +19,9 @@ use LogicException;
  * conflicting id. There is no precedence rule; duplicate ids indicate a
  * misconfigured composition and must be resolved by the application.
  *
- * Discovery is deterministic given a stable provider order. The future
- * {@code PackageManifestCompiler} integration (WP11) will memoize the
- * flattened list into {@code var/manifest.php} so this loop runs only at
- * manifest-build time.
- *
- * @api
+ * Discovery is deterministic given a stable provider order. The listing
+ * provider invokes it at runtime through foundation's public capability
+ * source before boot finalization validates the resulting definitions.
  */
 final class ListingDiscoverer
 {

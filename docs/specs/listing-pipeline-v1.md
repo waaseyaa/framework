@@ -312,25 +312,25 @@ INTERNAL (NOT stable surface):
 ### 7.1 Resolution algorithm
 
 1. `$def = $registry->get($id)` — throws `UnknownListingException` on miss.
-2. `$exposed = $parser->parse($req->getQueryParams(), $def)` — never throws on user input.
+2. `$exposed = $parser->parse($req->getQueryParams(), $def)` — permissive mode drops invalid input; strict mode raises a contextual coercion exception.
 3. `$contextValues = []`; for each `$ctx` in `$def->effectiveContexts()` (declared + implicit per FR-024): `$contextValues[$ctx] = $resolver->resolve($ctx, $req)`.
-4. `$key = $keyBuilder->build($def, $exposed, $contextValues)`.
-5. `$cached = $cache->get($key)` — if non-null, return as `ListingResult`.
+4. Result caching is eligible only when the optional cache and key builder exist, every required context is known, and the gate explicitly confirms policy-independent default view membership. Compute the key only for eligible listings.
+5. On eligible cache hits, accept only `ListingCacheProjection`; batch hydrate its identifiers through the canonical repository, preserving order and effective language. A missing row falls through to fresh resolution. Other listings always use the current access-filtered path.
 6. Build `$query = $queryBuilder->fromListing($def, $exposed, $contextValues)` — applies filters, sorts, implicit langcode (FR-047), implicit `id` tie-break sort (FR-014), `?page=N` → offset/limit. **Bundle-attached fields** (registered via `FieldDefinitionRegistry::registerBundleFields()`) are never pushed as storage-native criteria or order-by — they live in per-bundle subtables the base query cannot see; their filters are refined in-PHP post-fetch and a sort on one re-applies the complete sort chain in-PHP (see the 2026-07-26 spec-review note).
 7. `$rawRows = $query->execute()`.
 8. `$accessRows = []`; for each `$row` in `$rawRows`: if all `$op` in `$def->accessOps` return non-`Forbidden` from gate, append to `$accessRows`. (FR-032 fast-path opt-in short-circuits the loop.)
 9. Build `$pagination` per FR-025 — `$totalRows` computed by running steps 7–8 over the full result set sans paging (or `null` if FR-027 fast-path / `approximateTotal`).
 10. Build `$tags` per FR-023 + `$contexts` per FR-024; instantiate `ListingResult($accessRows, $pagination, $tags, $contexts)`.
-11. `$cache->setWithTags($key, $result, $tags, $ttl=null)`.
+11. For eligible listings only, store an identifier projection with pagination, tags and contexts; entity objects are never cached. Cache failures remain best effort.
 12. Return `$result`.
 
 ### 7.2 Cache lookup + miss
 
-`$cache->get($key)` returns `null` on miss. The resolver MUST handle `null` as "miss"; non-null but malformed values (e.g. wrong class after a deserialisation hiccup) MUST be discarded with a warning and a fresh miss-path resolution. Symmetrical with the foundation's atomic-file-write + corrupt-file-recovery patterns from AGENTS.md.
+`$cache->get($key)` returns `false` on miss. The resolver handles that as a miss. A `CacheItem` carrying an obsolete or malformed payload is discarded and freshly resolved; arbitrary object-data adapters are not part of the contract. Symmetrical with the foundation's atomic-file-write + corrupt-file-recovery patterns from AGENTS.md.
 
 ### 7.3 Tag invalidation flow
 
-1. `AfterSaveEvent` or `AfterDeleteEvent` dispatched.
+1. `AfterSaveEvent` or canonical repository `EntityEvents::POST_DELETE` notification is dispatched after committed persistence. Standalone typed `AfterDeleteEvent` producers remain supported; listing does not emit duplicate lifecycle events.
 2. `ListingCacheInvalidator::on*(EntityEvent $e)` reads `$e->entity` (public readonly per AGENTS.md gotcha).
 3. Compute `$tags = ["entity:{$e->entity->getEntityTypeId()}", "entity:{$e->entity->getEntityTypeId()}:{$e->entity->id()}"]`.
 4. If translatable: for each `$lc` in `$e->affectedLangcodes ?? [$e->entity->activeLangcode()]`, append `"entity:{$e->entity->getEntityTypeId()}:{$e->entity->id()}:{$lc}"`.
@@ -459,3 +459,33 @@ These items are deliberately not pinned in §3; they're for the `plan` phase to 
 - [`stability-charter.md`](stability-charter.md) §3.2 (beta entry criteria — to be amended), §5 (stable surface — new §5.X + §5.Y).
 - [`drupal-comparison-matrix.md`](drupal-comparison-matrix.md) §1.4, §3.4, §6.6 — origin of the gap.
 - [`public-surface-map.md`](public-surface-map.md) — adds `Waaseyaa\Listing\*` + new `Waaseyaa\Cache\TaggedCacheInterface` + `ContextResolver` + `ContextRegistry` at mission close.
+
+## 2026-10-08 convergence contract clarification
+
+All declared filters and implicit bundle restrictions are conjunctive. Native
+criteria may narrow once per field; further equalities are refined together
+with remaining operators. Exposed values replace only their own declaration.
+
+Text operators use Unicode full case folding through mbstring (or foundation's
+Symfony polyfill). Percent and underscore are literal characters. No accent
+stripping or Unicode normalization is implied.
+
+Typed exposed date/date-time coercion produces validated scalar strings,
+including each IN/NOT_IN/BETWEEN element. Parsing errors and calendar warnings
+are refused. The storage representation is retained, with no implicit timezone
+conversion; applications use one ISO representation for compared field values.
+
+Result cache eligibility is independent of whether pagination can be pushed.
+Unpaged, approximate and non-native-filter listings may cache when the gate's
+explicit policy-independent view capability and context requirements hold.
+Non-default access operations always follow current per-row authorization.
+Result cache contexts remain present even when the resolver bypasses its cache.
+
+The listing provider consumes foundation's public live ProviderCapabilitySource.
+Definition validation runs after all ordinary provider boots. Standalone hosts
+without a capability source have no discovered definitions. Late registration
+after singleton discovery remains outside that boot lifecycle.
+
+Translatable identifier projections require a single effective langcode equality.
+Mixed-language scopes resolve fresh so translations sharing an identifier cannot
+be substituted during cache reconstruction.

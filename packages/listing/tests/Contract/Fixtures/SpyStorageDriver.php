@@ -28,6 +28,8 @@ use Waaseyaa\EntityStorage\Driver\StorageSnapshot;
 final class SpyStorageDriver implements EntityStorageDriverInterface
 {
     public int $countCalls = 0;
+    public int $readCalls = 0;
+    public int $readMultipleCalls = 0;
 
     /** @var list<int|null> the `$limit` argument of each findBy() call, in order */
     public array $findByLimits = [];
@@ -64,11 +66,13 @@ final class SpyStorageDriver implements EntityStorageDriverInterface
 
             public function read(string $entityType, string $id, ?string $langcode = null): ?StorageRow
             {
+                ++$this->spy->readCalls;
                 return $this->inner->read($entityType, $id, $langcode);
             }
 
             public function readMultiple(string $entityType, array $ids, ?string $langcode = null): StorageRowSet
             {
+                ++$this->spy->readMultipleCalls;
                 return $this->inner->readMultiple($entityType, $ids, $langcode);
             }
 

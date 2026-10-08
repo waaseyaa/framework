@@ -12,10 +12,8 @@ namespace Waaseyaa\Listing;
  * {@see FilterDefinition::$exposedParam} matches a key here; absent keys
  * fall through to the filter's declared `$value`.
  *
- * Construction is fully validated by the future `ExposedFilterParser`
- * (M-007 WP09 / FR-042..FR-045); WP05 only consumes already-parsed values.
- * The shape committed here is the resolver-visible surface — future
- * versions remain additively compatible.
+ * ExposedFilterParser validates URL input before constructing this map.
+ * Direct PHP callers supply values matching each declared operator shape.
  *
  * @api
  */
@@ -60,29 +58,8 @@ final readonly class ExposedFilterValues
      */
     public function cacheKeyHash(): string
     {
-        $canonical = self::canonicalize($this->values);
-        $json = json_encode(
-            $canonical,
-            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION,
-        );
-
-        return substr(hash('sha256', $json), 0, 16);
+        return ListingHash::of($this->values);
     }
 
-    private static function canonicalize(mixed $value): mixed
-    {
-        if (!is_array($value)) {
-            return $value;
-        }
-        if (array_is_list($value)) {
-            return array_map(self::canonicalize(...), $value);
-        }
-        ksort($value);
-        $out = [];
-        foreach ($value as $k => $v) {
-            $out[$k] = self::canonicalize($v);
-        }
 
-        return $out;
-    }
 }

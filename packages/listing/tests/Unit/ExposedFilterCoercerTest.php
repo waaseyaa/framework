@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Listing\Tests\Unit;
 
-use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -133,18 +132,15 @@ final class ExposedFilterCoercerTest extends TestCase
     #[Test]
     public function eqDateTimeCoercesIsoString(): void
     {
-        /** @var DateTimeImmutable $result */
         $result = $this->coercer->coerce('createdAt', '2026-05-16T12:00:00Z', Operator::EQ, 'datetime');
-        self::assertInstanceOf(DateTimeImmutable::class, $result);
-        self::assertSame('2026-05-16T12:00:00+00:00', $result->format('c'));
+        self::assertSame('2026-05-16T12:00:00Z', $result);
     }
 
     #[Test]
     public function dateAliasIsAccepted(): void
     {
-        /** @var DateTimeImmutable $result */
         $result = $this->coercer->coerce('createdAt', '2026-05-16', Operator::GTE, 'date');
-        self::assertInstanceOf(DateTimeImmutable::class, $result);
+        self::assertSame('2026-05-16', $result);
     }
 
     #[Test]
@@ -153,6 +149,19 @@ final class ExposedFilterCoercerTest extends TestCase
         $this->expectException(ListingCoercionException::class);
         $this->expectExceptionMessage('date/time');
         $this->coercer->coerce('createdAt', 'not-a-date', Operator::EQ, 'datetime');
+    }
+
+    #[Test]
+    public function dateListsKeepScalarStorageRepresentation(): void
+    {
+        self::assertSame(['2026-01-01', '2026-12-31'], $this->coercer->coerce('date', '2026-01-01,2026-12-31', Operator::IN, 'date'));
+    }
+
+    #[Test]
+    public function invalidCalendarDatesAreRefused(): void
+    {
+        $this->expectException(ListingCoercionException::class);
+        $this->coercer->coerce('date', '2026-02-30', Operator::EQ, 'date');
     }
 
     #[Test]
@@ -210,8 +219,8 @@ final class ExposedFilterCoercerTest extends TestCase
         $result = $this->coercer->coerce('date', '2026-01-01~2026-12-31', Operator::BETWEEN, 'date');
         self::assertIsArray($result);
         self::assertCount(2, $result);
-        self::assertInstanceOf(DateTimeImmutable::class, $result[0]);
-        self::assertInstanceOf(DateTimeImmutable::class, $result[1]);
+        self::assertSame('2026-01-01', $result[0]);
+        self::assertSame('2026-12-31', $result[1]);
     }
 
     #[Test]

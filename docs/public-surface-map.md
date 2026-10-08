@@ -778,21 +778,24 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Exception\UnknownListingException` | final class | public | Registry miss (carries listing id) |
 | `Exception\UnsupportedListingException` | final class | public | Definition-time validation failure (carries listing id, field name, reason) |
 | `ExposedFilterCoercer` | final class | internal | — |
-| `ExposedFilterParser` | final class | public | Parses query params into `ExposedFilterValues`; never throws on user input |
+| `ExposedFilterParser` | final class | public | Parses query params into `ExposedFilterValues`; permissive mode drops invalid input; strict mode throws ListingCoercionException |
 | `ExposedFilterValues` | final readonly class | public | Typed view over parsed `$_GET` slice passed to `ListingResolver::resolve()` |
 | `Filter` | final class | public | Sugar factories: `eq()`, `gte()`, `in()`, `isNull()`, `langcode()`, `exposed()`, etc. |
 | `FilterDefinition` | final readonly class | public | Field + operator + value; optional `exposedParam` for URL-driven filters |
 | `HasListingsInterface` | interface | public | ServiceProviders implement to declare listings; mirrors `HasMigrationsInterface` |
 | `ListingCacheInvalidator` | final class | internal | — |
 | `ListingCacheKeyBuilder` | final class | internal | — |
+| `ListingCacheProjection` | final readonly class | internal | — |
 | `ListingDefinition` | final readonly class | public | Immutable listing manifest: id, entity type, filters, sorts, page size, access ops |
-| `ListingDefinitionRegistry` | final class | public | `get(string $id): ListingDefinition` — throws `UnknownListingException` on miss |
+| `ListingDefinitionRegistry` | final class | public | `get(string $id): ListingDefinition` â€” throws `UnknownListingException` on miss |
 | `ListingDefinitionValidator` | final class | internal | — |
 | `ListingDiscoverer` | final class | internal | — |
+| `ListingHash` | final class | internal | — |
 | `ListingResolver` | final class | public | Single public method `resolve(ListingDefinition, ?ExposedFilterValues): ListingResult` |
 | `ListingResult` | final readonly class | public | Resolution result: rows + pagination + cache tags + cache contexts |
 | `Operator` | enum | public | Filter vocabulary: EQ, NEQ, LT, LTE, GT, GTE, IN, NOT_IN, IS_NULL, IS_NOT_NULL, BETWEEN, STARTS_WITH, CONTAINS |
 | `Pagination` | final readonly class | public | Page metadata: page, page size, total rows, total pages, hasPrev, hasNext |
+| `ServiceProvider` | final class | public | Manifest-registered listing composition and boot finalization |
 | `Sort` | final class | public | Sugar factories: `asc()`, `desc()` |
 | `SortDefinition` | final readonly class | public | Field + direction; resolver appends an implicit id tie-break sort |
 | `SortDirection` | enum | public | ASC, DESC |

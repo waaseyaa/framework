@@ -41,8 +41,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * Caching is **fully optional** — when `?TaggedCacheInterface $cache` and
  * `?ListingCacheKeyBuilder $keyBuilder` are both `null`, resolution skips
- * the cache lookup/store paths entirely and never touches them. WP06 wires
- * cache-aware re-resolution; this class supports both paths from day one.
+ * the cache lookup/store paths entirely and never touches them. Eligibility
+ * additionally requires explicit policy-independent view membership.
  *
  * Error model:
  * - Storage-backend errors propagate as-is (FR-057).
@@ -51,9 +51,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * - Per-row access denials silently filter the row from `$accessRows`
  *   (FR-021); they never throw.
  *
- * Stable surface (charter §5.X): the constructor parameter shape +
- * `resolve(ListingDefinition, ?ExposedFilterValues): ListingResult`
- * signature is committed from v0.x.
+ * Public boundary: construction and
+ * `resolve(ListingDefinition, ?ExposedFilterValues): ListingResult`.
  *
  * @api
  */
@@ -104,14 +103,18 @@ final class ListingResolver
         // §7.1 step 3 — effective contexts + their resolved values
         $cacheContexts = $this->computeCacheContexts($def, $entityType);
         $contextValues = $this->resolveContextValues($cacheContexts);
-        $cachingEnabled = $this->isCachingEnabled();
+        $cacheLangcode = $this->cacheLangcode($def, $exposed, $entityType);
+        $cachingEnabled = $this->isCachingEnabled()
+            && $this->canUseAccessFastPath($def)
+            && (!$entityType->isTranslatable() || $cacheLangcode !== null)
+            && !$this->hasUnknownContexts($contextValues, $cacheContexts);
         $cacheKey = null;
 
         // §7.1 step 4-5 — cache key + lookup
         if ($cachingEnabled) {
             $cacheKey = $this->safeBuildKey($def, $exposed, $contextValues);
             if ($cacheKey !== null) {
-                $hit = $this->safeCacheGet($cacheKey, $def);
+                $hit = $this->safeCacheGet($cacheKey, $def, $cacheLangcode);
                 if ($hit !== null) {
                     return $hit;
                 }
@@ -284,7 +287,7 @@ final class ListingResolver
         }
     }
 
-    private function safeCacheGet(string $key, ListingDefinition $def): ?ListingResult
+    private function safeCacheGet(string $key, ListingDefinition $def, ?string $langcode): ?ListingResult
     {
         $cache = $this->cache;
         if ($cache === null) {
@@ -307,36 +310,40 @@ final class ListingResolver
         }
 
         // CacheItem wraps the stored value; unwrap if necessary.
-        $value = $this->extractCachedValue($item);
+        $value = $item->data;
 
         if (!$value instanceof ListingCacheProjection) {
             return null;
         }
 
         $repository = $this->repositories->for($def->entityType);
+        $byId = [];
+        foreach ($repository->findMany($value->rowIds, $langcode) as $row) {
+            $byId[(string) $row->id()] = $row;
+        }
         $rows = [];
         foreach ($value->rowIds as $id) {
-            $row = $repository->find((string) $id);
-            if (!$row instanceof EntityInterface) {
+            if (!isset($byId[(string) $id])) {
                 return null;
             }
-            $rows[] = $row;
+            $rows[] = $byId[(string) $id];
         }
 
         return new ListingResult($rows, $value->pagination, $value->cacheTags, $value->cacheContexts);
     }
 
-    private function extractCachedValue(mixed $item): mixed
+    /** Identifier-only projections need one language to identify each translation. */
+    private function cacheLangcode(ListingDefinition $def, ExposedFilterValues $exposed, \Waaseyaa\Entity\EntityTypeInterface $entityType): ?string
     {
-        if ($item instanceof ListingResult) {
-            return $item;
-        }
-        if (is_object($item) && property_exists($item, 'data')) {
-            // CacheItem-like shape used by Waaseyaa cache backends.
-            return $item->data;
+        if ($entityType->isTranslatable()) {
+            foreach ($this->effectiveFilters($def, $exposed, $entityType) as $filter) {
+                if ($filter->field === 'langcode' && $filter->op === Operator::EQ && is_string($filter->value) && $filter->value !== '') {
+                    return $filter->value;
+                }
+            }
         }
 
-        return $item;
+        return null;
     }
 
     /**
@@ -409,7 +416,11 @@ final class ListingResolver
                 && is_scalar($filter->value)
                 && !$this->isBundleAttachedField($def->entityType, $filter->field, $def->bundle)
             ) {
-                $criteria[$filter->field] = $filter->value;
+                if (array_key_exists($filter->field, $criteria)) {
+                    $remaining[] = $filter;
+                } else {
+                    $criteria[$filter->field] = $filter->value;
+                }
             } else {
                 $remaining[] = $filter;
             }
@@ -417,7 +428,11 @@ final class ListingResolver
 
         if ($def->bundle !== null) {
             $bundleKey = $entityType->getKeys()['bundle'] ?? 'bundle';
-            $criteria[$bundleKey] = $def->bundle;
+            if (array_key_exists($bundleKey, $criteria)) {
+                $remaining[] = new FilterDefinition($bundleKey, Operator::EQ, $def->bundle);
+            } else {
+                $criteria[$bundleKey] = $def->bundle;
+            }
         }
 
         // FR-014: stable secondary sort on id key after user-declared sorts.
@@ -583,15 +598,8 @@ final class ListingResolver
         $totalPages = $totalAccessibleRows === 0 ? 1 : (int) ceil($totalAccessibleRows / $pageSize);
 
         // FR-026/FR-027: parse + clamp the requested page against the real total.
-        $pageParam = $this->requestContext->getQueryParams()['page'] ?? null;
-        $requestedPage = is_string($pageParam) && $pageParam !== '' ? (int) $pageParam : 1;
-        $page = $requestedPage;
-        if ($page < 1) {
-            $page = 1;
-        }
-        if ($page > $totalPages) {
-            $page = $totalPages;
-        }
+        $requestedPage = $this->requestedPage();
+        $page = min(max(1, $requestedPage), $totalPages);
 
         $offset = ($page - 1) * $pageSize;
         // No OFFSET on findBy(): fetch the window up to the page end, then slice.
@@ -698,8 +706,8 @@ final class ListingResolver
             Operator::IS_NULL => $actual === null,
             Operator::IS_NOT_NULL => $actual !== null,
             Operator::BETWEEN => $this->matchesBetween($actual, $value),
-            Operator::STARTS_WITH => is_string($actual) && is_string($value) && str_starts_with($actual, $value),
-            Operator::CONTAINS => is_string($actual) && is_string($value) && str_contains($actual, $value),
+            Operator::STARTS_WITH => is_string($actual) && is_string($value) && str_starts_with(mb_convert_case($actual, MB_CASE_FOLD, 'UTF-8'), mb_convert_case($value, MB_CASE_FOLD, 'UTF-8')),
+            Operator::CONTAINS => is_string($actual) && is_string($value) && str_contains(mb_convert_case($actual, MB_CASE_FOLD, 'UTF-8'), mb_convert_case($value, MB_CASE_FOLD, 'UTF-8')),
         };
     }
 
@@ -793,15 +801,10 @@ final class ListingResolver
      * {@see ListingFastPathProbeInterface} capability on the gate. When the gate
      * does not implement the probe (or the policy did not opt in), this returns
      * `false` and the per-row loop runs — the always-correct, never-leaks
-     * default. The empty-accessOps short-circuit is retained for completeness
-     * but is unreachable in practice (FR-004 forbids empty access ops).
+     * default. FR-004 forbids empty access ops.
      */
     private function canUseAccessFastPath(ListingDefinition $def): bool
     {
-        if ($def->accessOps === []) {
-            return true;
-        }
-
         if ($def->accessOps !== self::DEFAULT_VIEW_ACCESS_OPS) {
             return false;
         }
@@ -829,8 +832,7 @@ final class ListingResolver
         // §7.1 step 9 — page parameter parsed from the URL. RequestContext::getQueryParams()
         // returns array<string, string> per its contract, so we only need to handle the
         // string-or-missing case.
-        $pageParam = $this->requestContext->getQueryParams()['page'] ?? null;
-        $requestedPage = is_string($pageParam) && $pageParam !== '' ? (int) $pageParam : 1;
+        $requestedPage = $this->requestedPage();
 
         if ($approximateTotal) {
             $page = max(1, $requestedPage);
@@ -853,13 +855,7 @@ final class ListingResolver
         $totalPages = $totalAccessibleRows === 0 ? 1 : (int) ceil($totalAccessibleRows / $pageSize);
 
         // FR-027 clamp: page <= 0 -> 1; page > totalPages -> totalPages.
-        $page = $requestedPage;
-        if ($page < 1) {
-            $page = 1;
-        }
-        if ($page > $totalPages) {
-            $page = $totalPages;
-        }
+        $page = min(max(1, $requestedPage), $totalPages);
 
         $offset = ($page - 1) * $pageSize;
         $pagedRows = array_slice($accessRows, $offset, $pageSize);
@@ -918,6 +914,13 @@ final class ListingResolver
         sort($unique, SORT_STRING);
 
         return $unique;
+    }
+
+    private function requestedPage(): int
+    {
+        $value = $this->requestContext->getQueryParams()['page'] ?? null;
+
+        return is_string($value) && $value !== '' ? (int) $value : 1;
     }
 
     private function readActiveLangcode(EntityInterface $row): string

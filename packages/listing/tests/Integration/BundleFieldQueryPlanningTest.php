@@ -134,6 +134,17 @@ final class BundleFieldQueryPlanningTest extends TestCase
     }
 
     #[Test]
+    public function explicitBundleEqualityCannotOverrideTheListingScope(): void
+    {
+        $resolver = $this->buildSqliteResolver();
+        $this->seedSqliteRows([['title' => 'one', 'subtitle' => 'featured']]);
+        $conflicting = new ListingDefinition(id: 'conflicting_scope', entityType: 'content_item', bundle: 'article', filters: [Filter::eq('type', 'page')]);
+        self::assertSame([], $resolver->resolve($conflicting)->rows);
+        $matching = new ListingDefinition(id: 'matching_scope', entityType: 'content_item', bundle: 'article', filters: [Filter::eq('type', 'article')]);
+        self::assertSame(['one'], $this->titles($resolver->resolve($matching)->rows));
+    }
+
+    #[Test]
     public function sortOnBundleFieldOrdersRowsInPhp(): void
     {
         $resolver = $this->buildSqliteResolver();

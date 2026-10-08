@@ -30,10 +30,6 @@
         },
         {
             "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
             "url": "../database-legacy"
         }
     ],
@@ -44,8 +40,7 @@
         "waaseyaa/entity": "^0.1.0-alpha.305",
         "waaseyaa/entity-storage": "^0.1.0-alpha.305",
         "waaseyaa/field": "^0.1.0-alpha.305",
-        "waaseyaa/foundation": "^0.1.0-alpha.305",
-        "waaseyaa/typed-data": "^0.1.0-alpha.305"
+        "waaseyaa/foundation": "^0.1.0-alpha.305"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",

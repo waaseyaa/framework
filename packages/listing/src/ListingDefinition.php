@@ -120,19 +120,12 @@ final readonly class ListingDefinition
      * Deterministic 16-hex-char cache-key suffix derived from the
      * canonical JSON of the definition's stable surface (FR-005 / FR-037).
      *
-     * Canonical JSON sorts object keys lexicographically and uses fixed
-     * numeric / string serialization; see Q2 of the schema-evolution ADR
-     * for the canonicalization rules we share across the framework.
+     * ListingHash preserves this package's numeric-key ordering and float
+     * identity. Other framework canonical encoders have distinct contracts.
      */
     public function cacheKeyHash(): string
     {
-        $canonical = self::canonicalize($this->toHashable());
-        $json = json_encode(
-            $canonical,
-            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION,
-        );
-
-        return substr(hash('sha256', $json), 0, 16);
+        return ListingHash::of($this->toHashable());
     }
 
     /**
@@ -166,27 +159,6 @@ final readonly class ListingDefinition
             'cacheTtl' => $this->cacheTtl,
             'unbounded' => $this->unbounded,
         ];
-    }
-
-    /**
-     * Recursively sort associative array keys (lists keep order) so that
-     * {@see json_encode} produces a canonical representation.
-     */
-    private static function canonicalize(mixed $value): mixed
-    {
-        if (!is_array($value)) {
-            return $value;
-        }
-        if (array_is_list($value)) {
-            return array_map(self::canonicalize(...), $value);
-        }
-        ksort($value);
-        $out = [];
-        foreach ($value as $k => $v) {
-            $out[$k] = self::canonicalize($v);
-        }
-
-        return $out;
     }
 
     private function validateShallow(): void

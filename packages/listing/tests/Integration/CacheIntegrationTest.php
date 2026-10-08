@@ -19,7 +19,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Listing\EntityRepositoryRegistry;
 use Waaseyaa\Listing\ExposedFilterValues;
@@ -59,6 +58,8 @@ final class CacheIntegrationTest extends TestCase
         array $queryParams = [],
         array $roles = [],
         ?int $accountId = null,
+        bool $fastPath = true,
+        ?\Waaseyaa\Access\Gate\GateInterface $gate = null,
     ): ListingResolver {
         $entityType = new EntityType(
             id: 'article',
@@ -86,7 +87,7 @@ final class CacheIntegrationTest extends TestCase
 
         return new ListingResolver(
             repositories: $registry,
-            gate: new Gate([new AllowAllArticlePolicy()]),
+            gate: $gate ?? new Gate([$fastPath ? new \Waaseyaa\Listing\Tests\Contract\Fixtures\FastPathArticlePolicy() : new AllowAllArticlePolicy()]),
             contextResolver: $contextResolver,
             entityTypes: $manager,
             requestContext: $request,
@@ -105,6 +106,49 @@ final class CacheIntegrationTest extends TestCase
             $driver->write('article', (string) $row['id'], $row);
         }
     }
+
+    #[Test]
+    public function changingCapabilityBypassesPreviouslyStoredProjection(): void
+    {
+        $driver = new InMemoryStorageDriver();
+        $this->seedThreeRows($driver);
+        $cache = new \Waaseyaa\Listing\Tests\Fixtures\CountingTaggedCache();
+        $gate = new class implements \Waaseyaa\Access\Gate\GateInterface, \Waaseyaa\Access\Gate\ListingFastPathProbeInterface {
+            public bool $independent = true;
+            public function policyAllowsListingFastPath(string $entityType): bool
+            {
+                return $this->independent;
+            }
+            public function allows(string $ability, mixed $subject, ?object $user = null): bool
+            {
+                return false;
+            }
+            public function denies(string $ability, mixed $subject, ?object $user = null): bool
+            {
+                return !$this->allows($ability, $subject, $user);
+            }
+            public function authorize(string $ability, mixed $subject, ?object $user = null): void
+            {
+                throw new \RuntimeException('denied');
+            }
+        };
+        $resolver = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), gate: $gate);
+        $def = new ListingDefinition(id: 'capability', entityType: 'article', pageSize: 2);
+        self::assertCount(2, $resolver->resolve($def)->rows);
+        self::assertSame(1, $cache->stores);
+        $cache->gets = $cache->stores = 0;
+        $gate->independent = false;
+        self::assertSame([], $resolver->resolve($def)->rows);
+        self::assertSame(0, $cache->gets);
+        self::assertSame(0, $cache->stores);
+        $gate->independent = true;
+        $cache->gets = $cache->stores = 0;
+        $nonView = new ListingDefinition(id: 'capability_update', entityType: 'article', accessOps: ['update']);
+        self::assertSame([], $resolver->resolve($nonView)->rows);
+        self::assertSame(0, $cache->gets);
+        self::assertSame(0, $cache->stores);
+    }
+
 
     /**
      * @return list<string>
@@ -349,8 +393,8 @@ final class CacheIntegrationTest extends TestCase
         // every user. Two accounts must produce different cache keys.
         $def = new ListingDefinition(id: 'view_per_user', entityType: 'article', pageSize: 20);
 
-        $resolverUserA = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), accountId: 1);
-        $resolverUserB = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), accountId: 2);
+        $resolverUserA = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), accountId: 1, fastPath: false);
+        $resolverUserB = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), accountId: 2, fastPath: false);
 
         $a = $resolverUserA->resolve($def);
         // Mutate state between resolves — a shared cache key would mask this
@@ -442,7 +486,7 @@ final class CacheIntegrationTest extends TestCase
         bool $throwOnGet = false,
         bool $throwOnSetWithTags = false,
     ): TaggedCacheInterface {
-        return new class($throwOnGet, $throwOnSetWithTags) implements TaggedCacheInterface {
+        return new class ($throwOnGet, $throwOnSetWithTags) implements TaggedCacheInterface {
             private MemoryBackend $delegate;
 
             public function __construct(

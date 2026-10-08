@@ -231,9 +231,9 @@ final class ExposedFilterParserTest extends TestCase
             ],
         );
         $parser = ExposedFilterParser::create()
-            ->withTypeResolver(static fn (FilterDefinition $f): string => 'datetime');
+            ->withTypeResolver(static fn(FilterDefinition $f): string => 'datetime');
         $result = $parser->parse(['since' => '2026-05-16'], $def);
-        self::assertInstanceOf(\DateTimeImmutable::class, $result->get('since'));
+        self::assertSame('2026-05-16', $result->get('since'));
     }
 
     #[Test]

@@ -19,6 +19,15 @@ use Waaseyaa\Listing\ExposedFilterValues;
 final class ExposedFilterValuesTest extends TestCase
 {
     #[Test]
+    public function cacheHashPreservesOriginalNumericAndListIdentity(): void
+    {
+        self::assertSame('3b70e61ead98ed15', new ExposedFilterValues(['float' => 1.0])->cacheKeyHash());
+        self::assertSame('b211e95afc03b3b0', new ExposedFilterValues(['float' => 1])->cacheKeyHash());
+        self::assertSame('9ff6e484fe32f54e', new ExposedFilterValues(['map' => [10 => 'ten', 2 => 'two'], 'list' => ['b', 'a']])->cacheKeyHash());
+        self::assertSame('9ff6e484fe32f54e', new ExposedFilterValues(['list' => ['b', 'a'], 'map' => [2 => 'two', 10 => 'ten']])->cacheKeyHash());
+        self::assertNotSame('9ff6e484fe32f54e', new ExposedFilterValues(['map' => [2 => 'two', 10 => 'ten'], 'list' => ['a', 'b']])->cacheKeyHash());
+    }
+    #[Test]
     public function emptyConstructionReturnsEmptyAll(): void
     {
         $values = new ExposedFilterValues();

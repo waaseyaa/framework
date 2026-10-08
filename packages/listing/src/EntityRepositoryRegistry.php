@@ -16,10 +16,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
  * plain map populated at boot by the host application (CLI / HTTP
  * kernels) from the entity-type manager. Tests construct it directly.
  *
- * Stable surface (charter §5.X): the two-method shape (`for()`, `has()`)
- * is committed; future additions are additive.
- *
- * @api
+ * Internal composition map populated by the listing service provider.
  */
 final class EntityRepositoryRegistry
 {
