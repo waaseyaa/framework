@@ -58,7 +58,8 @@ final class EntityRepositoryRevisionTest extends TestCase
         $this->dispatchedEvents = [];
         $this->dispatchedEventPayloads = [];
         $dispatcher = $this->createStub(EventDispatcherInterface::class);
-        $dispatcher->method('dispatch')->willReturnCallback(function ($event, $eventName) {
+        $dispatcher->method('dispatch')->willReturnCallback(function (object $event, ?string $eventName = null): object {
+            $eventName ??= $event::class;
             $this->dispatchedEvents[] = $eventName;
             $this->dispatchedEventPayloads[$eventName][] = $event;
             return $event;

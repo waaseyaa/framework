@@ -83,3 +83,9 @@ shared-wrapper comparison now narrows an adapter-local receiver to DBALDatabase
 before using its concrete native-connection accessor; DatabaseInterface remains
 unchanged. A focused same-connection wrapper and different-connection refusal
 test preserve this boundary without widening the composition checker.
+
+The next exact-head hosted run passed lint and dead-code analysis but exposed a
+revision-test dispatcher stub requiring two arguments. Its callback now models
+both named legacy events and the PSR-14 class-name default. Production code and
+revision assertions remain unchanged; the affected revision and messaging suites
+pass (46 tests / 156 assertions).
