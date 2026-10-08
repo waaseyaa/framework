@@ -1,13 +1,13 @@
 # `waaseyaa/listing` convergence audit
 
 - **Milestone:** in progress. Repair ready: no. Converged: not claimed.
-- **Audit state:** in progress. **Remediation state:** in progress.
+- **Audit state:** in progress. **Remediation state:** resolved.
 - **Base:** `f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc`, audited `2026-10-08`.
 - **Dependency identity:** `composer.lock` SHA-256 `f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036`; PHP `8.5.5`; native Windows.
 - **Evidence freshness:** current at the base; original checkout clean. Scratch source clone binds the same source and lock.
 - **Owner:** `waaseyaa/framework#3195` (program #3118). Retained audit history at the original base; see FW-LISTING-CONVERGENCE-01 for the repair candidate.
 - **Profiles applied:** domain contracts, kernel/runtime, HTTP/query input and distribution. Persistence/execution and generation/build do not apply: listing owns reads and cache eviction, no writes/schema/jobs/generation.
-- **Structured ledger:** `docs/audits/packages/listing.ledger.json`: 11 findings, 6 refuted leads, 122 checklist answers, 0 handoffs, 2 decisions (2 open), 1 uncertainties (1 open), 3 probe entries, 7 evidence runs.
+- **Structured ledger:** `docs/audits/packages/listing.ledger.json`: 11 findings, 6 refuted leads, 122 checklist answers, 0 handoffs, 2 decisions (1 open), 1 uncertainties (1 open), 3 probe entries, 12 evidence runs.
 
 ## Summary
 
@@ -206,7 +206,7 @@ Every run binds the full base and lock above. Original-base public probes are re
 - **Findings:** 9 package-owned IDs and 2 cross-package IDs. Severity follows reconciled verifier verdicts, with security details withheld.
 - **Verification:** Independent verification A and B complete; final critic correction recheck passed with no remaining blockers. Reversals are recorded in the ledger.
 - **Probes:** 2 public root probes plus independent role controls. Two original-base probes retained in governed fixture paths. Dependency controls cover allowed, forbidden and unclassified edges.
-- **Open:** 2 open decisions; 1 open uncertainties; new S1-S4 findings and private triage lack filed destinations. Existing issue destinations were scope-checked.
+- **Open:** 1 open decisions; 1 open uncertainties; private custody remains unchosen. Bounded repair destinations are complete; separately owned work retains its existing issues.
 - **Authority:** Audit history. Repository repair work is authorized under FW-LISTING-CONVERGENCE-01; no external mutation or release is authorized.
 
 
@@ -248,3 +248,41 @@ The observed human-navigation defect was contradictory documentation. Folder
 moves and wider resolver decomposition are not supported by this review.
 Installed and hosted qualification evidence is reconciled separately after the
 exact candidate runs; original source results remain historical evidence.
+
+
+## Landing and qualification, 2026-10-08
+
+Bounded repairs landed on main at `10bfd868e740c754d123b06dfb7f1df8abfc200e` through PR #3196.
+Full hosted run [37850251513](https://github.com/waaseyaa/framework/actions/runs/37850251513) passes, including `ci/full-qualification`.
+The split job `113561101751` seals tested PR merge `f88a3f97f564aa6e9bd444128885beefd4f39a1a`; its Git tree
+`8a9e3b2d68d95809f868522949b6dd8ebba1ebfb` is identical to the reviewed branch head.
+This distinction preserves the actual tested object rather than relabeling it.
+
+The standalone no-dev listing-only consumer boots real provider composition and
+passes parsed Unicode text, equality conjunction, optional cache and refusal
+controls. The installed skeleton compiles the published-content recipe, registers
+the emitted provider through literal Composer authority, synchronizes schema and
+serves a public listing that includes the published witness and excludes a draft.
+The additive full metapackage and framework closure boot; no core-only listing
+claim or canonical detail-URL qualification is inferred. All six selected profiles
+are qualified to their recorded surfaces in the ledger.
+
+Focused source results: 426 tests, 1,069 assertions. The index/ledger repair adds
+134 metadata tests, 1,091 assertions. Required local pre-push checks execute
+41 gates and reuse two with equivalent inputs; three are not applicable.
+Independent immutable review approves the repaired source and metadata delta.
+Current source dependency analysis passes with 306 allowed edges and zero
+violations, uncovered edges, warnings or errors.
+
+D2 settles the bounded infrastructure disposition: public foundation discovery
+and listing-owned operator/field policy. Installed Symfony Validator v7.4.10
+Type/Choice/DateTime validators report violations, while this boundary must also
+convert raw operator-shaped values and consult boot metadata. Adding adapters
+would retain that domain policy; no second generic validation authority is added.
+Revisit on material growth in generic validation/composition obligations.
+
+Original-base findings, charter observations and source results above remain
+historical evidence. Their bounded repair slices are complete; #3005/#2859
+retain separately owned production fast-path work. D1 private custody remains
+open. External existing applications were not inspected and no live exposure,
+incident, release or deployment is claimed. Assessed/converged stays unclaimed.

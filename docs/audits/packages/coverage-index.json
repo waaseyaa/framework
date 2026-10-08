@@ -649,7 +649,7 @@
             "path": "packages/listing",
             "form": "library",
             "audit_state": "in progress",
-            "remediation_state": "in progress",
+            "remediation_state": "resolved",
             "audit_base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
             "audit_date": "2026-10-08",
             "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
@@ -672,7 +672,7 @@
                     "path": "tests/Fixtures/Audits/Listing/LST-CACHE-001-base-lifecycle-reproduction.php"
                 }
             ],
-            "notes": "Original-base history retained with independently verified maintainability supplement and bounded repairs under #3195. Private custody and exact installed/hosted evidence remain explicit."
+            "notes": "Bounded package repairs landed at 10bfd868e740c754d123b06dfb7f1df8abfc200e; full run 37850251513 and installed split job 113561101751 pass. Original audit base retained; assessment remains in progress for private custody and external exposure limits."
         },
         {
             "package": "waaseyaa/mail",

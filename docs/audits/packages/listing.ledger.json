@@ -299,6 +299,26 @@
       "evidence_level": "reviewed",
       "notes": "All shipped production files reviewed. See charter and structural dispositions.",
       "findings": []
+    },
+    {
+      "file": "packages/listing/src/ListingHash.php",
+      "role": "Listing-specific canonical identity",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Added by the bounded repair; maintainability supplement reviewed current production at 10bfd868e740c754d123b06dfb7f1df8abfc200e.",
+      "findings": [
+        "LST-STRUCTURE-001"
+      ]
+    },
+    {
+      "file": "packages/listing/README.md",
+      "role": "Maintainer and consumer entrypoint",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Added by the bounded repair; maintainability supplement reviewed current production at 10bfd868e740c754d123b06dfb7f1df8abfc200e.",
+      "findings": [
+        "LST-DOCS-001"
+      ]
     }
   ],
   "checklists": [
@@ -1408,8 +1428,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Conflicting repeated EQ returns no rows, identical repeated EQ retains matches, filter order cannot change membership, and explicit bundle criteria cannot broaden the conjunction. Cover in-memory, SQLite and bundle-deferred paths.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1429,7 +1449,7 @@
       "probes": [
         "behavior"
       ],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-QUERY-002",
@@ -1455,8 +1475,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Mixed-case positive/negative controls, literal percent/underscore and an explicit Unicode policy pass across supported backends. Reconcile the canonical spec if the intended contract differs.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1476,7 +1496,7 @@
       "probes": [
         "behavior"
       ],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-CACHE-001",
@@ -1502,8 +1522,8 @@
       ],
       "dependencies": "Canonical deletion event and after-commit delivery decision with waaseyaa/entity-storage; listing owns its subscription.",
       "acceptance": "Repository delete through the real provider/listener/cache path invalidates off-page totals; save remains a positive control, no-cache works, rollback/refusal does not publish invalidation, and the selected canonical lifecycle delivers once.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1523,7 +1543,7 @@
       "probes": [
         "composition"
       ],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-DISCOVERY-001",
@@ -1549,8 +1569,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Use ProviderCapabilitySource with a nonempty provider and duplicate/refusal controls, preserve late bundle boot validation, and settle early-resolution behavior without silent empty-success fallback.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1570,7 +1590,7 @@
         ]
       },
       "probes": [],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-SURFACE-001",
@@ -1596,8 +1616,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Classify both omitted symbols; reconcile constructor/registry/parser exception contracts and remove stale stability claims. Keep current generated consumers working and mechanically verify surface coverage.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1615,7 +1635,7 @@
         "reversals": []
       },
       "probes": [],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-CACHE-002",
@@ -1641,8 +1661,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Measure reconstruction driver calls for a nonempty cached page; use batched reads preserving row order, missing-row fallback and principal field checks; report before/after counts.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1660,7 +1680,7 @@
         "reversals": []
       },
       "probes": [],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-STRUCTURE-001",
@@ -1686,8 +1706,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Consolidate only equivalent listing hash/page logic with golden keys and both pagination paths; remove unreachable branches and obsolete cache-shape adapter after caller/export review; justify or remove the direct typed-data requirement. Preserve native float identity.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1705,7 +1725,7 @@
         "reversals": []
       },
       "probes": [],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-ACCESS-001",
@@ -1774,8 +1794,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Execute the maintained provider/controller/template example against current alpha source; verify property access, supported scalar dates, constructor flags, real policy declaration and host-provided cache. Correct spec discovery/manifest claims without adding compatibility shims.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/framework",
       "co_owners": [],
@@ -1795,7 +1815,7 @@
       "probes": [
         "behavior"
       ],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-FILTER-001",
@@ -1821,8 +1841,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Settle one date representation across coercion, construction, hashing, query planning and comparisons; prove valid/invalid date overrides in permissive/strict modes and supported memory/SQLite paths.",
-      "residual_risk": "Installed-consumer qualification remains separately owned.",
-      "next_action": "Maintainer sequences the bounded destination after audit acceptance.",
+      "residual_risk": "Supported controlled installed profiles qualified; external existing applications and live exposure were not inspected.",
+      "next_action": "Retain the landed regression controls; no further implementation in this slice.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1842,7 +1862,7 @@
       "probes": [
         "behavior"
       ],
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     },
     {
       "id": "LST-SEC-001",
@@ -1869,7 +1889,7 @@
       "dependencies": "none",
       "acceptance": "Current authority and refusal transitions are discriminated through supported composition, with installed exposure separately qualified.",
       "residual_risk": "Private triage and durable custody pending.",
-      "next_action": "Independent behavioral verification and bounded private reach review complete; maintainer-designated durable private custody pending.",
+      "next_action": "Bounded implementation landed; durable private evidence custody remains unchosen. No assessment/convergence claim.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1884,7 +1904,7 @@
         "reversals": []
       },
       "probes": 1,
-      "notes": ""
+      "notes": "Bounded repair landed on main at 10bfd868e740c754d123b06dfb7f1df8abfc200e; PR #3196."
     }
   ],
   "refuted": [
@@ -1953,16 +1973,16 @@
       ],
       "what_would_settle_it": "Compare supported Symfony Validator constraints with current failure/shape policy, preserve hash identities, and route generic composition work to foundation without introducing a second container.",
       "who_decides": "Framework maintainer",
-      "status": "open",
-      "resolution": null
+      "status": "settled",
+      "resolution": "Bounded disposition landed: foundation public capability discovery; listing retains operator-aware coercion and registered-field policy. Installed Symfony Validator v7.4.10 Type/Choice/DateTime validators report constraint violations, not typed URL conversion or boot field/operator relations. Substitution needs domain adapters and is outside this repair. Hash equivalence is pinned with float/numeric/list goldens. Revisit when generic validation or composition obligations materially grow."
     }
   ],
   "uncertainties": [
     {
       "id": "U1",
-      "uncertainty": "Installed-profile and actual external-consumer exposure have not been qualified.",
+      "uncertainty": "Supported installed profiles are now qualified; actual exposure in external existing applications remains uncharacterized.",
       "findings": [],
-      "what_would_settle_it": "Exact-base sealed no-dev split/framework install and generated app exercise through its composition root, plus privately held consumer evidence where applicable.",
+      "what_would_settle_it": "Privately held evidence from affected external consumers, if exposure characterization is requested. No live incident or deployment is inferred.",
       "status": "open",
       "resolution": null
     }
@@ -1971,44 +1991,44 @@
     {
       "issue": "#3118",
       "claim": "Package coverage program; listing not assessed.",
-      "status": "open at audit read",
+      "status": "open at landing reconciliation",
       "evidence": "coverage-index row; cached issue-3118"
     },
     {
       "issue": "#2996",
       "claim": "Deletion delivery and commit timing.",
-      "status": "open at audit read",
-      "evidence": "composition reproduction; issue-2996 scope exact"
+      "status": "closed at landing reconciliation",
+      "evidence": "PR #3196; landed 10bfd868e740c754d123b06dfb7f1df8abfc200e; hosted full 37850251513; split job 113561101751"
     },
     {
       "issue": "#3016",
       "claim": "Batch cached reconstruction with intact access.",
-      "status": "open at audit read",
-      "evidence": "source find loop; issue-3016"
+      "status": "closed at landing reconciliation",
+      "evidence": "PR #3196; landed 10bfd868e740c754d123b06dfb7f1df8abfc200e; hosted full 37850251513; split job 113561101751"
     },
     {
       "issue": "#3005",
       "claim": "Qualify production fast-path capability.",
-      "status": "open at audit read",
+      "status": "open at landing reconciliation",
       "evidence": "real provider gate probe; issue-3005"
     },
     {
       "issue": "#3006",
       "claim": "Deep-page hydration across listing/publishing.",
-      "status": "open at audit read",
+      "status": "open at landing reconciliation",
       "evidence": "resolver offset+pageSize fetch; needs measured consumer qualification"
     },
     {
       "issue": "#2859",
       "claim": "Provider lifecycle and readiness are cross-package concerns.",
-      "status": "open at audit read",
+      "status": "open at landing reconciliation",
       "evidence": "ServiceProvider singleton timing; cached issue-2859"
     },
     {
       "issue": "#3195",
       "claim": "Bounded listing repair, maintainability supplement and installed qualification umbrella.",
-      "status": "open; implementation in progress",
-      "evidence": "FW-LISTING-CONVERGENCE-01; issue acceptance"
+      "status": "closed at landing reconciliation",
+      "evidence": "PR #3196; landed 10bfd868e740c754d123b06dfb7f1df8abfc200e; hosted full 37850251513; split job 113561101751"
     }
   ],
   "remediation_plan": [
@@ -2075,44 +2095,44 @@
     {
       "profile": "primitive-only",
       "supported": "yes",
-      "evidence_class": "source",
-      "evidence": "reproduced: constructor/parser/resolver suites in exact monorepo scratch clone; not qualified.",
-      "gap_owner": "S4 standalone split qualification"
+      "evidence_class": "standalone split",
+      "evidence": "qualified: standalone no-dev parsed query, Unicode text, equality conjunction and refusal. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "gap_owner": null
     },
     {
       "profile": "standalone split",
       "supported": "yes",
-      "evidence_class": "none",
-      "evidence": "No sealed standalone --no-dev install/boot executed.",
-      "gap_owner": "S4"
+      "evidence_class": "standalone split",
+      "evidence": "qualified: isolated listing-only no-dev install and real provider boot, with cache absent/present. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "gap_owner": null
     },
     {
       "profile": "kernel composition",
       "supported": "yes",
-      "evidence_class": "source",
-      "evidence": "reproduced: actual ProviderRegistry/default bus and nonempty synthetic app; not full installed kernel/HTTP boot.",
-      "gap_owner": "S4 and ci/split-artifact-acceptance"
+      "evidence_class": "generated application",
+      "evidence": "qualified: installed HttpKernel with generated nonempty published-content provider and HTTP listing. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "gap_owner": null
     },
     {
       "profile": "metapackage",
       "supported": "conditional via cli",
-      "evidence_class": "none",
-      "evidence": "No direct core-only listing claim; full expansion via CLI must be qualified.",
-      "gap_owner": "S4"
+      "evidence_class": "metapackage",
+      "evidence": "qualified: additive full metapackage in the installed skeleton, no-dev provider/kernel boot; no core-only listing claim. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "gap_owner": null
     },
     {
       "profile": "framework closure",
       "supported": "yes",
-      "evidence_class": "none",
-      "evidence": "Source Composer closure inspected; no exact-base hosted archive evidence reused.",
-      "gap_owner": "ci/split-artifact-acceptance"
+      "evidence_class": "closure artifact",
+      "evidence": "qualified: sealed framework closure composition/export/no-dev kernel boot. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "gap_owner": null
     },
     {
       "profile": "generated application",
       "supported": "yes",
-      "evidence_class": "none",
-      "evidence": "Real PublishedContentRecipe source reviewed; no newly installed app journey executed.",
-      "gap_owner": "S4 and skeleton generated-app CI"
+      "evidence_class": "generated application",
+      "evidence": "qualified: installed recipe compile, literal provider registration, dump-autoload, schema sync and HTTP published row/draft exclusion. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "gap_owner": null
     }
   ],
   "probes": [
@@ -2201,25 +2221,70 @@
       "host": "Windows",
       "proves": "Existing architecture authority.",
       "result": "exit0; 73 packages scanned; no violations."
+    },
+    {
+      "command": "Focused disjoint listing, Phase14 pipeline/cache, Phase29, CLI recipe and transactional hook PHPUnit suites",
+      "base": "2a5206ed14854c0fd5384543f4679addec08a5c0",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "Native Windows PHP 8.5.5; package runtime/test bytes unchanged at final repair head",
+      "host": "Windows",
+      "proves": "Source query/coercion/cache/discovery/lifecycle contracts; source evidence, not installed qualification.",
+      "result": "426 tests, 1069 assertions pass. Additional index/ledger suites: 134 tests, 1091 assertions pass."
+    },
+    {
+      "command": "php bin/check-pr-preflight --allow-hosted-required (required pre-push hook)",
+      "base": "10bfd868e740c754d123b06dfb7f1df8abfc200e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "Native Windows; governed runner",
+      "host": "Windows",
+      "proves": "Default local repository gates; equivalent-input reuse retains prior tested identity.",
+      "result": "41 gates executed, 2 reused from 2a5206ed with equivalent inputs, zero failures, 3 not applicable."
+    },
+    {
+      "command": "bash tests/PackagedForm/check-split-artifact-acceptance",
+      "base": "f88a3f97f564aa6e9bd444128885beefd4f39a1a",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc; installed own Composer graphs from 79 sealed artifacts at version 0.1.0-alpha.305",
+      "runner": "GitHub Actions run 37850251513, job 113561101751; https://github.com/waaseyaa/framework/actions/runs/37850251513",
+      "host": "Hosted Ubuntu 24.04 PHP 8.5",
+      "proves": "Standalone no-dev listing-only provider composition and parsed/refusal controls; full/closure composition; installed generated recipe/provider/schema/HTTP journey. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "result": "success; all three retained listing witness messages present; no linked source package or donor vendor."
+    },
+    {
+      "command": "Hosted .github/workflows/ci.yml pull_request full qualification",
+      "base": "10bfd868e740c754d123b06dfb7f1df8abfc200e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "GitHub Actions run 37850251513; ci/full-qualification job 113564692468",
+      "host": "Hosted Linux/Windows owning jobs",
+      "proves": "All nine full-qualification aggregate decisions, including ordinary/random-order suites, source policy, consumers, browser and runtime acceptance. PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.",
+      "result": "success; expected main-feedback skip is not a pass claim."
+    },
+    {
+      "command": "php vendor/bin/deptrac --config-file=repair-deptrac.yaml --no-cache --no-progress --fail-on-uncovered --report-uncovered --formatter=json",
+      "base": "10bfd868e740c754d123b06dfb7f1df8abfc200e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "Native Windows PHP 8.5.5; current 26 production PHP files; audited source-layer policy",
+      "host": "Windows",
+      "proves": "Current source layer relationships after context-hash delegation; not installed qualification.",
+      "result": "306 allowed edges; zero violations, uncovered edges, warnings or errors."
     }
   ],
   "not_reviewed": [
-    "External installed applications, live services and complete rendered HTTP journey.",
-    "Sealed standalone/no-dev exported package and exact-base hosted closure/generated-app qualification.",
-    "Private routed briefs from prior audits were not supplied. Exact committed ledger owner/co-owner/handoff intake is zero; all older record cross-package tables reviewed."
+    "External existing applications and live services; actual deployed exposure and incidents were not characterized.",
+    "Private routed briefs from earlier audits were not supplied; durable private custody remains unchosen."
   ],
   "host_limits": [
     "Native Windows cannot replace hosted Linux POSIX/symlink/permission evidence. ci/split-artifact-acceptance and relevant generated-app jobs own missing qualification.",
-    "Original checkout has no vendor. Dependencies installed only in an immutable scratch clone with the exact lock. No source mutation or unqualified donor vendor reuse."
+    "Original checkout has no vendor. Dependencies installed only in an immutable scratch clone with the exact lock. No source mutation or unqualified donor vendor reuse.",
+    "Supported hosted installed/full evidence now recorded at run 37850251513; native installed runs remain diagnostics."
   ],
   "scorecard": {
     "elapsed": "Full-session elapsed unavailable. First retained install log began 14:24 America/Toronto; focused suites took 7.268s, 0.858s and 0.662s.",
     "agent_count": 4,
     "subagent_tokens": "unavailable",
-    "source_files": 25,
+    "source_files": 26,
     "source_lines": 3517,
-    "production_files": 27,
-    "consumers": "Root framework closure, CLI generator and synthetic/reference source consumers; no installed external root qualified.",
+    "production_files": 29,
+    "consumers": "Supported controlled standalone split, framework/full installed skeleton and generated application qualified; external live applications not inspected.",
     "intake_items": 0,
     "profiles": [
       "domain-contracts",
@@ -2237,19 +2302,12 @@
     "probes_written": 2,
     "probes_retained": 2,
     "open": {
-      "decisions": 2,
+      "decisions": 1,
       "uncertainties": 1
     },
     "unfiled_findings": [
-      "LST-QUERY-001",
-      "LST-QUERY-002",
-      "LST-DISCOVERY-001",
-      "LST-SURFACE-001",
-      "LST-STRUCTURE-001",
-      "LST-DOCS-001",
-      "LST-FILTER-001",
       "LST-SEC-001"
     ],
-    "critic": "Independent verification A and B complete; final critic correction recheck passed with no remaining blockers"
+    "critic": "Independent immutable review approved 2a5206ed and metadata-only delta 10bfd868e740c754d123b06dfb7f1df8abfc200e; integrity verified after each review."
   }
 }

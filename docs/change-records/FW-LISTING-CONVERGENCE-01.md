@@ -3,8 +3,9 @@
 ## Authority and custody
 
 Russell authorized saving the listing audit and implementing its repairs on
-2026-10-08. Scope is repository changes and verification. No external issue,
-PR, merge or release mutation is authorized by this work package.
+2026-10-08. The initial phase covered repository changes and verification. Russell later
+authorized bounded issue/PR publication, qualification and main landing. Release
+and deployment are outside this work package.
 
 Candidate: `C:/dev/waaseyaa/framework-worktrees/listing-convergence`, branch
 `codex/listing-convergence`, base `f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc`.
@@ -128,7 +129,7 @@ Total focused source qualification: 426 tests, 1,069 assertions. Fresh disjoint
 suite runs correct the previous total, which counted overlapping aggregate runs.
 The listing count includes the supplementary context-hash golden test. The two retained
 public probes still reproduce their historical defects against the original
-base checkout. Current source dependency analysis passes with 305 allowed edges
+base checkout. Original repair dependency analysis passed with 305 allowed edges
 and zero violations, uncovered edges, warnings or errors. Default governed
 preflight passed all 43 executed gates, with three not applicable; this is
 native source evidence, not hosted or installed-package qualification.
@@ -195,3 +196,25 @@ Both S1 installed-artifact scripts pass as native Git Bash diagnostics after
 canonical authority regeneration. Hosted Linux remains their acceptance owner;
 the metadata repair leaves all production, package and external dependency bytes
 unchanged from the reviewed candidate.
+
+
+## Landed qualification and reconciliation
+
+Repair commit `10bfd868e740c754d123b06dfb7f1df8abfc200e` is published on main; PR #3196 and
+owning #3195/#2996/#3016 are reconciled. Full hosted run [37850251513](https://github.com/waaseyaa/framework/actions/runs/37850251513)
+passes. Split-artifact job `113561101751` observes all retained listing witness messages.
+PR head 10bfd868e740c754d123b06dfb7f1df8abfc200e; tested merge f88a3f97f564aa6e9bd444128885beefd4f39a1a; identical tree 8a9e3b2d68d95809f868522949b6dd8ebba1ebfb; run 37850251513, job 113561101751.
+
+Runtime/test bytes remain those independently approved at 2a5206ed; the final
+metadata delta was separately approved. Integrity checks passed after review.
+The final local hook executed 41 gates, reused two from equivalent inputs and
+reported zero failures with three not applicable. Focused source and metadata
+counts remain 426/1,069 and 134/1,091 respectively. Supported hosted full proof
+includes ordinary/random-order coverage, Windows/Linux runtime, consumer and
+browser acceptance. Native installed diagnostics are not substituted for it.
+
+The audit, ledger and coverage index now mark bounded remediation resolved while
+retaining the original audit base. Private custody and external exposure limits
+remain explicit; the assessed/converged milestones are not claimed. Separately
+owned access/foundation fast-path work remains #3005/#2859. No release or
+deployment occurred.
