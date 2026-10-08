@@ -6,6 +6,9 @@ description: Use for user-authorized delivery work in Waaseyaa repositories when
 # Waaseyaa Delivery
 
 Use this workflow only within the established user-authorized scope for Waaseyaa work.
+Load the repository-owned skill; source/discovery guidance is in
+`.agents/skills/README.md` in Framework. Edit that source, never a global client
+copy. Outside Framework, locate its checkout and read the skill there.
 
 ## Establish the contract
 
@@ -62,6 +65,14 @@ Record the candidate identity, last verified activity, review handoff, landing, 
 - Native implementation briefs must explicitly forbid borrowing another worktree's `vendor`, symlinking a donor dependency tree, or adding bootstrap/autoload overrides to make tests pass. If dependencies are unavailable or donor-bound, request the coordinated candidate-local install slot. Verify representative changed classes resolve into the owned candidate before accepting test results; record any rejected donor-bound result separately. Provision dependencies before a focused recovery when missing dependencies caused the previous attempt to spend its budget without executing tests.
 
 ## Implement and review
+
+For package structure and documentation changes, use the convergence
+maintainability checklist at
+`.agents/skills/waaseyaa-package-convergence/references/package-audit-checklist.md`,
+including its PHPDoc and human-comment section. It owns these shared criteria;
+delivery applies them to the authorized delta without restarting an audit.
+Include justified file moves and their affected consumers in the design, then
+verify imports/autoload, exports, generated references, docs and focused tests.
 
 For alpha Waaseyaa Framework work, do not retain obsolete code solely for
 backward compatibility. When replacing a path, remove superseded callbacks,

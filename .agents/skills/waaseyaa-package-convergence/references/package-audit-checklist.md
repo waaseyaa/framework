@@ -57,6 +57,11 @@ For PHP, prefer a scoped Deptrac configuration with uncovered dependencies repor
 
 ## Code quality and cohesion
 
+- Separation of concerns and single responsibility: group code by coherent ownership and reasons to change; identify policy, orchestration and infrastructure mixed in one host without requiring one class per method
+- DRY at the contract and mechanism level: consolidate repeated knowledge around its canonical owner; retain similar-looking code when different domain rules or change lifecycles justify it
+- Human navigation: consistent file, namespace and symbol names; related responsibilities easy to locate; directory depth and grouping proportional to package size; avoid vague dumping grounds and needless nesting
+- Trace a maintainer task from package entrypoint to implementation, contract, tests and usage docs; record concrete navigation friction and a justified retain/move/split/merge disposition
+- For proposed moves, name the responsibility and destination, affected imports/autoload, dynamic names, exports, generated consumers, docs and tests; keep ownership and behavior intact and give the repair bounded acceptance
 - Unused locals, fields, parameters, callbacks, imports, flags, configuration and branches, including leftovers excluded from static-tool findings
 - Deprecated no-ops, old/new implementations, aliases, fallbacks and compatibility shims; apply the skill's alpha Framework policy instead of assuming retention
 - Concentrated hosts, providers, controllers, or managers with multiple policy roles
@@ -78,6 +83,28 @@ consumer is a repair-impact input, not an automatic compatibility exception.
 Every retained adapter needs a current boundary obligation; every competing
 authority needs a canonical-contract disposition. Do not defer this review
 until after implementing the first behavioral repair.
+
+## PHPDoc and human comments
+
+- Prefer native types where expressive; use PHPDoc for missing precision such as collection element types, array shapes, generics and callable signatures. Check annotations against actual producers, consumers and refusal paths
+- Public and extension contracts explain purpose, meaningful input/output semantics, relevant exceptions, side effects and lifecycle or ownership constraints; internal contracts document non-obvious obligations where their callers need them
+- Keep PHPDoc, native signatures, public-surface metadata, specs and behavior consistent. Remove stale promises, future-state descriptions and redundant tags that add no type or semantic information
+- Explain non-obvious intent, invariants, ordering, security decisions, transaction/cache boundaries and tradeoffs near the affected code. Describe why the rule exists and what would break if it changed; link a stable spec or change record when useful
+- Refactor confusing names or flow before adding explanatory prose. Remove narration of obvious statements, commented-out implementations and misleading comments; bounded workarounds identify their owner and removal condition
+- Treat inline `@var`, suppressions and `@api` as claims requiring evidence, not shortcuts to a green gate. Fix the producer's type where possible; annotations must not manufacture runtime guarantees or conceal dead code
+- Check the installed PHPStan and Deptrac versions and configuration before relying on a tag. PHPStan consumes richer PHPDoc types; Deptrac checks dependency rules and supports documentation-tag classification when configured. Prove the claimed enforcement with relevant controls
+
+Sample the important public seams and complex internal boundaries explicitly;
+record missing or misleading documentation as findings or bounded gaps. Do not
+use comment density, blanket docblocks, file counts or a generic "enterprise
+grade" label as acceptance. The evidence is accurate contracts, understandable
+ownership, safe behavior and maintainable change paths.
+
+Tool semantics: [PHPStan PHPDocs](https://phpstan.org/writing-php-code/phpdocs-basics),
+[PHPDoc types](https://phpstan.org/writing-php-code/phpdoc-types), and
+[Deptrac configuration](https://deptrac.github.io/deptrac/configuration/).
+Verify against the installed versions; these links are references, not a
+requirement to upgrade tools or enable every annotation feature.
 
 ## Custom infrastructure versus Symfony
 

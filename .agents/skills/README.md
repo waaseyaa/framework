@@ -16,28 +16,39 @@ published `waaseyaa/framework` archive.
 
 ## Changing a skill
 
-1. Edit the files here on a branch and open a pull request like any other
-   change. `tests/Architecture/MaintainerSkillsTest.php` and
-   `php bin/maintainer-skills validate` check the structure.
-2. After it merges, refresh your local copies from an up-to-date `main`:
+1. Edit the files here in an isolated reviewed batch. A pull request is optional
+   under repository governance. `tests/Architecture/MaintainerSkillsTest.php`
+   and `php bin/maintainer-skills validate` check the structure.
+2. Commit the change in this repository. Share and land it through the authorized
+   repository workflow so every maintainer uses the same version.
+3. Load the repository source directly. Do not edit or routinely install global
+   client copies; they can shadow the source and diverge between computers.
 
-   ```bash
-   php bin/maintainer-skills install
-   php bin/maintainer-skills verify
-   ```
+## Repository discovery
 
-Do not edit the installed copies. They are generated.
+Codex discovers this directory when its working directory is inside Framework.
+Outside Framework, or in a client without repository skill discovery, locate
+an available Framework checkout and read the relevant `SKILL.md` and referenced
+resources there. Use repository-relative paths in maintained guidance, never a
+particular computer's checkout path. If no checkout is available, obtain the
+repository through the normal authorized setup rather than inventing a local
+variant. A session started above Framework may need to enter the checkout or
+explicitly load these files; an already-loaded session may retain old guidance
+until a new session.
 
-## Where the skills are installed
+Before removing an old global copy, compare every file with the source and
+recover useful local edits into a repository change. Then remove the specific
+obsolete skill directories from client discovery, preserving unrelated skills.
+Do not use the installer to overwrite drift before recovering it.
 
-Codex finds this directory by itself when it runs inside the Framework
-checkout. For every other repository, and for Claude Code, `install` copies each
-skill into:
+## Optional client export
 
-- `$CODEX_HOME/skills` (default `~/.codex/skills`)
-- `$CLAUDE_CONFIG_DIR/skills` (default `~/.claude/skills`)
-
-Pass `--target=DIR` (repeatable) to choose other directories.
+`php bin/maintainer-skills install` remains available only for an explicitly
+requested client export. It is not part of the normal edit or setup workflow.
+Without `--target`, it exports to `$CODEX_HOME/skills` (default
+`~/.codex/skills`) and `$CLAUDE_CONFIG_DIR/skills` (default `~/.claude/skills`).
+Use `--target=DIR` (repeatable) to choose another directory, then `verify` with
+the same targets. These are generated copies, never authoring locations.
 
 Each installed skill gets a `.waaseyaa-skill.json` manifest with the source
 commit and a SHA-256 for every file. `verify` reports each copy as `current` (same bytes and same source commit),

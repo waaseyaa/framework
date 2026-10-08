@@ -243,7 +243,7 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 
 - **Constitution (this file):** Session-hot rules — orchestration table, layer graph, checklists, gotchas.
 - **Specialist skills:** `packages/bimaaji/resources/skills/*` — load on demand for a subsystem; each skill lists related specs. They ship as `waaseyaa/bimaaji` package resources so `bimaaji:install` can push them to a consumer project (#2656).
-- **Maintainer skills:** `.agents/skills/*` (package convergence audits, delivery workflow) — repository source for work on Waaseyaa itself, installed into Claude Code and Codex by `php bin/maintainer-skills install`. Edit the source, never the installed copies. See `.agents/skills/README.md`.
+- **Maintainer skills:** `.agents/skills/*` (package convergence audits, delivery workflow) — repository source for work on Waaseyaa itself. Load and edit these repository files; global client installation is an explicit optional export, not the normal workflow. See `.agents/skills/README.md`.
 - **Cold specs:** `docs/specs/*.md` — read directly from disk when you need contracts, file maps, and edge cases (no spec MCP server).
 
 **Workflow precedence:** **Anchor issues** own effort scope and work-package sequencing. **GitHub** owns merge mechanics, CI, releases, and issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.
@@ -479,5 +479,7 @@ one integration qualification; retain all required hooks and hosted gates.
 
 `.agents/skills/` holds the reviewed source for the Waaseyaa maintainer skills.
 Edit them there in an isolated reviewed batch; a pull request is optional.
-Refresh local copies with `php bin/maintainer-skills install`. See
+Load these repository files directly. Outside Framework, locate its checkout
+and read the relevant skill there; do not maintain a computer-only variant.
+Global client exports are optional and must be explicitly requested. See
 `.agents/skills/README.md`.

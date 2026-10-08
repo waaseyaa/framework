@@ -136,8 +136,10 @@ classes are defined in the [distribution profile](profiles/distribution.md).*
 items that don't apply (one reason each), and gaps with destinations. Every
 item's full answer is in the ledger.*
 
-*Include explicit structural answers for unused paths/state, repeated logic,
-competing authorities and adapter necessity. Cite current callers and the
+*Include explicit structural answers for SoC/SRP, DRY, human file navigation,
+PHPDoc/comment accuracy, unused paths/state, repeated logic, competing
+authorities and adapter necessity. Cite a representative maintainer task,
+current callers and the
 canonical producer/consumer contracts; distinguish removable leftovers from
 necessary boundaries and intentional repetition. Public/deprecated annotations
 do not establish alpha retention obligations. Static-tool success does not

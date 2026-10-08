@@ -18,6 +18,10 @@ repository paths, and aim for the assessed milestone in draft; the audit-only
 change is a separately authorized step. For authorized implementation or
 landing, also use `waaseyaa-delivery`.
 
+Load the repository-owned skill; source/discovery guidance is in
+`.agents/skills/README.md` in Framework. Edit that source, never a global client
+copy. Outside Framework, locate its checkout and read the skill there.
+
 ## Milestones
 
 Three milestones, each a stronger claim about the package. Report which one it
@@ -163,7 +167,9 @@ domain behavior or beginning repairs. Use the checklist's "Code quality and
 cohesion" section to disposition unused paths and state, repeated mechanisms,
 competing authorities and adapters that reconcile conflicting contracts. A
 file roster, green static checks or dependency graph alone does not answer
-these questions. Existing audits missing this evidence need a bounded
+these questions. Also apply its human-navigation and PHPDoc/comment criteria;
+justify file organization from maintainer tasks and coherent ownership.
+Existing audits missing this evidence need a bounded
 structural supplement, not a restarted package audit.
 
 ### 4. Pick the profiles
@@ -381,8 +387,9 @@ from verified evidence, and the public record carries a safe summary only.
 A package is **assessed** when:
 
 - every production file appears in the roster with a classification;
-- structural review explicitly dispositions unused paths/state, duplicated
-  logic/authorities and adapter necessity with evidence or named gaps;
+- structural review explicitly dispositions cohesion, human navigation,
+  PHPDoc/comments, unused paths/state, duplicated logic/authorities and adapter
+  necessity with evidence or named gaps;
 - the charter is written and every question is answered or recorded as a finding;
 - each selected profile's checklist is answered with evidence, marked "does not
   apply" with a reason, or recorded as a gap with a destination;
