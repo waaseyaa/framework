@@ -653,18 +653,22 @@
             "audit_base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
             "audit_date": "2026-10-08",
             "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
-            "owner_issue": "https://github.com/waaseyaa/framework/issues/3195",
+            "owner_issue": "#3195",
             "evidence": [
                 {
+                    "kind": "repository-path",
                     "path": "docs/audits/packages/listing.md"
                 },
                 {
+                    "kind": "repository-path",
                     "path": "docs/audits/packages/listing.ledger.json"
                 },
                 {
+                    "kind": "repository-path",
                     "path": "tests/Fixtures/Audits/Listing/LST-QUERY-001-base-filter-reproduction.php"
                 },
                 {
+                    "kind": "repository-path",
                     "path": "tests/Fixtures/Audits/Listing/LST-CACHE-001-base-lifecycle-reproduction.php"
                 }
             ],

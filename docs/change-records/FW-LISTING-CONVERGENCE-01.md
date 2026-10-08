@@ -179,3 +179,19 @@ standalone diagnostic passes both cache configurations. Preflight also required
 coverage-bearing companions: backend contract wrappers now own resolver coverage,
 the capability unit test owns provider coverage, and a real dispatcher unit
 control exercises the canonical delete notification. No coverage gate is waived.
+
+Hosted full qualification run 37848480839 reached the new installed listing
+journeys successfully, but both ordinary/random-order shards exposed the same
+three metadata failures: coverage-index issue shorthand and two S1 artifact
+contracts sharing a stale Composer-lock binding. The canonical dependency-byte
+generator refreshed that binding; all four dependency versions, references and
+byte digests remain identical. Correct the index to #3195 and requalify the new
+head. This run is failed evidence, not a green full-qualification verdict.
+
+The focused index test exposed the next malformed field after the issue format
+was fixed: listing's evidence entries also needed their repository-path kind.
+The complete index and ledger suites now pass (134 tests, 1,091 assertions).
+Both S1 installed-artifact scripts pass as native Git Bash diagnostics after
+canonical authority regeneration. Hosted Linux remains their acceptance owner;
+the metadata repair leaves all production, package and external dependency bytes
+unchanged from the reviewed candidate.
