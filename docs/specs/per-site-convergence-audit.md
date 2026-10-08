@@ -1,6 +1,6 @@
 # Per-site convergence audit (Waaseyaa ecosystem)
 
-<!-- Spec reviewed 2026-05-01 - Canonical architecture topology refresh: README.md and AGENTS.md reflect current 62 active packages + 3 meta-packages (core, cms, full); layer table in AGENTS.md is exhaustive across all L0-L6 packages including engagement, geo, mercure, messaging, oauth-provider; all 65 active packages now ship a README per the WP09 surface C skeleton (mission #824 WP09 surface D, closes #848) -->
+<!-- Spec reviewed 2026-05-01 - Canonical architecture topology refresh: README.md and CLAUDE.md reflect current 62 active packages + 3 meta-packages (core, cms, full); layer table in CLAUDE.md is exhaustive across all L0-L6 packages including engagement, geo, mercure, messaging, oauth-provider; all 65 active packages now ship a README per the WP09 surface C skeleton (mission #824 WP09 surface D, closes #848) -->
 
 ## Purpose
 
@@ -9,7 +9,7 @@ Provide a **repeatable, adversarial, invariant-driven** checklist for each Waase
 ## Audience
 
 - Human maintainers running periodic or pre-release reviews.
-- Agents executing structured passes; pair with each app’s `AGENTS.md` / `AGENTS.md` for local gotchas.
+- Agents executing structured passes; pair with each app’s `AGENTS.md` for local gotchas.
 
 ## Related specs
 

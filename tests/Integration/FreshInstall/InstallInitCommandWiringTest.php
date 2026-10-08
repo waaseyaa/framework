@@ -29,7 +29,7 @@ use Waaseyaa\Foundation\Kernel\ConsoleKernel;
  *
  * ## Why this test carries CoversClass and not CoversNothing
  *
- * CLAUDE.md's convention is CoversNothing for integration tests, and this is
+ * AGENTS.md's convention is CoversNothing for integration tests, and this is
  * a deliberate, narrow exception rather than a drift from it.
  *
  * `ci/coverage` runs `bin/check-changed-php-coverage --threshold=80`: at least

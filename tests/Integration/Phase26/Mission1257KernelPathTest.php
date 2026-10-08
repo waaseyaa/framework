@@ -746,7 +746,7 @@ final class Mission1257KernelPathTest extends TestCase
      * `NoKernelSubclassesInTestsTest` while still letting the C1 tests
      * exercise the production wiring decision in `bootEntityTypeManager()`.
      *
-     * The kernel-bootstrap exemption documented in the project CLAUDE.md
+     * The kernel-bootstrap exemption documented in the project AGENTS.md
      * (kernels intentionally import from all layers) applies here: this
      * fixture mirrors the same wiring surface as `ConsoleKernel` /
      * `HttpKernel`, just without the boot orchestration.

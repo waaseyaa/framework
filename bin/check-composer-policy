@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-// Composer policy gate. See CLAUDE.md "CI Gates".
+// Composer policy gate. See AGENTS.md "CI Gates".
 
 $repoRoot = dirname(__DIR__);
 $root = getenv('ROOT_DIR');

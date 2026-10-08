@@ -10,7 +10,7 @@ set -euo pipefail
 # OUT of the monorepo working tree.
 #
 # A consumer that requires waaseyaa/framework receives the entire repository
-# (no .gitattributes export-ignore filters it -- see CLAUDE.md
+# (no .gitattributes export-ignore filters it -- see AGENTS.md
 # "self.version"), so "what a published package ships" is not narrower than
 # this set. What this proof narrows to is the set the CHECKER ITSELF reads:
 # its own require_once dependency (resolved from the SCRIPT'S OWN location,

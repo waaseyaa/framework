@@ -106,7 +106,7 @@ if ($newOffenders !== []) {
     $count = count($newOffenders);
     $emit("{$count} new unbound callsite(s) found.\n");
     $emit("Fix the callsite or add it to {$baselineFile} with a mandatory exemption comment.\n");
-    $emit("See CLAUDE.md § CI gates for details.\n");
+    $emit("See AGENTS.md § CI gates for details.\n");
     exit(1);
 }
 
