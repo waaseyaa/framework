@@ -1476,7 +1476,6 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             // this event with commit-only POST/AFTER notifications.
             $this->eventDispatcher->dispatch(
                 new EntityPersistedEvent($entity, $isNew, $this->database),
-                EntityPersistedEvent::class,
             );
         } catch (\Throwable $e) {
             $transaction?->rollBack();

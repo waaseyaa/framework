@@ -67,3 +67,13 @@ implementation. Remaining audit findings retain their existing dispositions.
   introduce a production schema bypass.
 - Immutable review and final default preflight evidence are retained with the
   candidate outside the repository. Full hosted qualification remains pending.
+
+## Exact-head delivery followup
+
+The maintainer authorized proceeding beyond the local checkpoint. The reviewed
+branch was published and exact-head hosted qualification dispatched. The first
+run found a PSR-14 two-argument dispatch typing regression and missing public
+compatibility metadata on the retained legacy callback. The repair uses the
+event-class default dispatch name and marks only the compatibility callback
+`@api`; no baseline is widened and no atomicity or access contract changes.
+The focused 70-test suite remains green. Hosted qualification binds the new head.
