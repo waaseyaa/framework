@@ -73,6 +73,14 @@ a security ID to a file here.*
 
 ## Package findings
 
+*Before the findings, summarize repository reconciliation: issue/PR search
+scope and date, document inventory, requirement/spec/implementation/test
+traceability, and proposed or completed cleanup. Use existing
+`issue_reconciliation`, `checklists`, `evidence_runs` and `not_reviewed` fields
+for exhaustive details. Name missing searches and pending GitHub mutations;
+do not describe proposed closure as completed. Framework program records also
+link the owned cross-package journey evidence and Project reconciliation.*
+
 *Findings this package owns. Group test and documentation gaps into one
 finding per coherent repair slice.*
 

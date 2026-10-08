@@ -19,6 +19,22 @@ shared method, every finding has a disposition and an owner, and remaining
 repairs are bounded issues. Audit coverage and remediation progress are
 tracked separately. The program does not block ordinary Framework delivery.
 
+### Framework remediation finish line (2026-10-08)
+
+The maintainer's full-program goal extends beyond the assessment checkpoint
+above: resolve confirmed framework defects and required convergence repairs,
+qualify the supported cross-package journeys, and reconcile live specs,
+documentation and the GitHub board with the landed evidence. Intentional future
+features remain in a separately triaged backlog. Deferring a defect does not
+resolve it; accepted residuals require an explicit decision and rationale.
+
+The shared method's `references/repository-reconciliation.md` owns complete
+existing-issue/document intake, SDD traceability, superseded-document pruning
+and framework journey closeout. Reuse existing ledger fields and acceptance
+programs. Supplement earlier audits without resetting their evidence or
+automatically advancing their milestones. No GitHub mutations or full-framework
+remediation are implied by this method amendment.
+
 ## States
 
 - **Audit:** not assessed, inventory only, in progress, assessed, needs delta review.

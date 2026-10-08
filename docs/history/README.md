@@ -4,6 +4,12 @@ These trees are **point-in-time records of how the framework was built**. They a
 *not* current documentation and are not kept in sync with the code. For enduring,
 maintained knowledge, use `docs/specs/` (canonical living specs) instead.
 
+Frozen means do not rewrite old evidence as current guidance. It does not
+require permanent retention: authorized cleanup should delete superseded
+material after reconciling live obligations, references and evidence consumers.
+Git history is the default historical record. See the
+[repository hygiene policy](../governance/agent-contract.md#specification-convergence-and-repository-hygiene).
+
 | Tree | What it is | Status |
 |------|-----------|--------|
 | `plans/` | Dated design & implementation plans (session artifacts). Includes the Aurora-era → Waaseyaa rename design docs. | Frozen (last activity 2026-05-21) |

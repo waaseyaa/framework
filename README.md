@@ -1,228 +1,165 @@
 # Waaseyaa
 
 [![CI](https://github.com/waaseyaa/framework/actions/workflows/ci.yml/badge.svg)](https://github.com/waaseyaa/framework/actions/workflows/ci.yml)
-[![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE.txt)
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 [![PHP 8.5](https://img.shields.io/badge/PHP-8.5-8892BF.svg)](https://www.php.net/)
 
-> Governance: see [MAINTAINERS.md](MAINTAINERS.md) for the current maintainer roster and [SUCCESSION.md](SUCCESSION.md) for the framework's continuity plan across Tiers 0–4.
+**A PHP framework for content-driven websites and applications, built around
+entities, explicit access policies, and reusable Symfony components.**
 
-A modern, entity-first, AI-native content management framework built on PHP 8.5 and Symfony 7.
+Define your content model once, then compose storage, validation, APIs,
+editorial workflows and presentation around it. Waaseyaa brings a Drupal-inspired
+entity and field model to Composer packages without a Drupal runtime dependency.
+Applications own their domain, branding and deployment.
 
-Framework supplies the reusable engine for Waaseyaa Studio, the open-source
-builder distribution, and independently branded products built on that base.
-See [builder product boundaries](docs/specs/builder-product-boundaries.md) for
-ownership, shared-editor reuse and the extension acceptance target. This
-direction does not imply that the complete builder journey is qualified.
+**Status: alpha.** Contracts can change, and package convergence is ongoing.
+The candidate production profile is a single application node with local SQLite.
+S1 consumer certification is still pending. Start with the
+[support contract](docs/specs/s1-support-lifecycle.md) and
+[stability policy](docs/specs/stability-charter.md) when evaluating adoption.
 
-Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture organized as independent Composer packages. Every subsystem — entities, fields, config, caching, routing, access control — is a standalone package with explicit interfaces, no global state, and no hidden coupling.
+[Get started](#start-an-application) · [Documentation](docs/README.md) ·
+[Releases](https://github.com/waaseyaa/framework/releases) ·
+[Roadmap](https://github.com/orgs/waaseyaa/projects/4) ·
+[Report a bug](https://github.com/waaseyaa/framework/issues)
 
-## Features
+## What you can build
 
-- **Entity-first architecture** — Content types, users, config, and taxonomy are all entities with a unified persistence pipeline
-- **JSON:API + GraphQL** — Dual API layer auto-generated from entity type definitions
-- **AI-native** — Entity schemas automatically generate MCP tools, enabling AI agents to create, query, and manage content
-- **Modular monorepo** — 62 active packages (plus 3 meta-packages: `core`, `cms`, `full`) organized in 7 architectural layers; see [AGENTS.md](AGENTS.md#layer-architecture) for the full layer table
-- **Nuxt 3 admin SPA** — Vue 3 + TypeScript admin interface with i18n support
-- **In-memory testable** — Every subsystem has in-memory implementations for fast, isolated testing
-- **Zero Drupal dependency** — Clean-room implementation inspired by Drupal's entity model, built on Symfony components
+Waaseyaa is intended for websites and applications that need structured content,
+application accounts, access rules and editorial workflows, with a custom user
+experience. It supplies the reusable framework beneath Waaseyaa Studio and can
+also be used independently of a builder or hosted service.
 
-## Requirements
+| Capability | Where to start |
+| --- | --- |
+| Content entities, typed fields and persistence | [Entity system](docs/specs/entity-system.md) |
+| Entity and field access policies | [Access control](docs/specs/access-control.md) |
+| Content lifecycle and editorial transitions | [Workflows](docs/specs/content-workflow.md) |
+| JSON:API, with optional GraphQL integration | [JSON:API](docs/specs/jsonapi.md), [GraphQL](packages/graphql/README.md) |
+| Declarative listings and server-rendered pages | [Listing recipe](docs/cookbook/listing-first-cut.md), [SSR](packages/ssr/README.md) |
+| Page documents and a shared editor contract | [Page builder](docs/specs/page-builder.md) |
+| Agent tools and local development integrations | [MCP](docs/specs/mcp-endpoint.md), [Bimaaji](docs/specs/bimaaji.md) |
 
-- PHP `>=8.5 <8.6` (latest available 8.5 patch)
-- `ext-sodium` (required transitively by `waaseyaa/oidc` → `lcobucci/jwt` for JWT signing)
-- exact Composer 2.x feature line recorded in the S1 contract (currently 2.10)
-- SQLite `>=3.40 <4` for the S1 profile
+These are composable capabilities with their own contracts and qualification
+limits. A package's presence does not certify every combination or application
+journey. [Package audit coverage](docs/audits/packages/coverage-index.json) tracks
+assessment separately from remediation.
 
-S1 is one application node with one authoritative SQLite database on a local,
-non-network filesystem. An optional second SQLite file may hold only a
-non-authoritative, rebuildable search projection. File connections verify WAL,
-foreign keys, and a 5000 ms busy timeout. Invalid DSN, URI, UNC, and device
-paths fail with `S1-DB001`; production refuses `:memory:`.
+## Start an application
 
-The complete boundaries are [S1 support and lifecycle](docs/specs/s1-support-lifecycle.md)
-and the [S1 SQLite topology](docs/specs/s1-sqlite-topology.md). S1 consumer certification is still pending its named downstream evidence. H1,
-MySQL/PostgreSQL, remote/shared filesystems, WebKit/Safari, and unlisted web
-runtimes are not supported claims.
+Use the application skeleton, `waaseyaa/waaseyaa`. This repository contains the
+framework and its packages; it is not the application template.
 
-The native developer and verification entrypoints are classified in the
-[native host support contract](docs/specs/native-host-support.md). It
-distinguishes verified native behavior and normative targets from POSIX-only
-maintainer automation, and keeps WSL/Git Bash optional rather than treating
-them as native Windows proof.
-
-## Quick Start
-
-The `composer create-project` target below installs the published Waaseyaa project skeleton package (`waaseyaa/waaseyaa`). This repository is the `waaseyaa/framework` monorepo that supplies the underlying framework packages.
-
-```bash
-composer create-project waaseyaa/waaseyaa my-site
-cd my-site
-./vendor/bin/phpunit
-bin/waaseyaa serve
-```
-
-The scaffold now creates `tests/Unit` and `tests/Integration`, so the default PHPUnit command is usable immediately. For static or marketing-style sites, you can start from the clean scaffold, add a `SiteServiceProvider`, `PageController`, Twig templates, and a small regression test before wiring deploy infrastructure.
-
-Create your first content:
-
-```bash
-curl -X POST http://localhost:8080/api/note \
-  -H "Content-Type: application/vnd.api+json" \
-  -d '{
-    "data": {
-      "type": "note",
-      "attributes": {
-        "title": "Hello, Waaseyaa",
-        "body": "My first note."
-      }
-    }
-  }'
-```
-
-Waaseyaa ships with a built-in `core.note` content type that is always available at boot. To define custom content types, see the [`waaseyaa/node`](packages/node) package as a reference.
-
-## Fresh App Workflow
-
-Use this minimal sequence for a new public-facing site:
+You need PHP 8.5 with `pdo_sqlite`, `sqlite3` and `sodium`, Composer on the
+feature line in the [support contract](docs/specs/s1-support-lifecycle.md), and
+SQLite 3.40 or newer within the 3.x line. Composer checks the installed package
+requirements. Node.js 24 is needed when building or testing the Admin SPA.
 
 ```bash
 composer create-project waaseyaa/waaseyaa my-site --stability=dev
 cd my-site
-./vendor/bin/phpunit
-php bin/waaseyaa optimize:manifest
-bin/waaseyaa serve
+php vendor/bin/waaseyaa site:init
+php vendor/bin/waaseyaa install:init
+composer site-verify
+composer run dev
 ```
 
-When turning the scaffold into a site:
+Follow the initialization prompts, then open <http://127.0.0.1:8080>.
+`site:init` generates the site contract; `install:init` materializes schema and
+activates configuration. Verification checks the generated contract and
+acceptance tests. The development command serves with FrankenPHP; its setup
+and platform requirements are covered in the
+[skeleton guide](skeleton/README.md#serving-with-frankenphp-composer-run-dev).
 
-1. Add a failing integration test for your public routes and rendered HTML.
-2. Register your site provider in `composer.json` under `extra.waaseyaa.providers`.
-3. Add your `PageController`, `SiteServiceProvider`, shared Twig layout, and site templates.
-4. Re-run PHPUnit and `php bin/waaseyaa optimize:manifest`.
-5. Add repo-local deployment files (`deploy.php`, `.github/workflows/*`) only after the site passes locally.
+Next, read [application anatomy and ownership](skeleton/docs/application-anatomy.md)
+to find where providers, routes, entities, templates and application policies
+belong. The [skeleton guide](skeleton/README.md) covers the full lifecycle and
+[site contract](docs/specs/site-golden-path.md) explains generated ownership.
+For native Windows and Linux entrypoints, see
+[native host support](docs/specs/native-host-support.md).
 
-## Architecture
+## Choose your package set
 
-Waaseyaa is structured as 7 architectural layers with strict downward-only dependencies:
+For an existing Composer project, the curated metapackages provide different
+starting points. Follow their manifests for the exact dependency closure.
 
-```
-Layer 6  Interfaces      cli, admin, admin-surface, graphql, mcp, ssr,
-                         telescope, deployer, inertia
-Layer 5  AI              ai-schema, ai-agent, ai-vector, ai-pipeline
-Layer 4  API             api, routing
-Layer 3  Services        workflows, search, notification, billing, github
-Layer 2  Content Types   node, taxonomy, media, path, menu, note, relationship
-Layer 1  Core Data       entity, entity-storage, access, user, config, field, auth
-Layer 0  Foundation      foundation, cache, plugin, typed-data, database-legacy,
-                         testing, i18n, queue, scheduler, state, validation,
-                         mail, http-client, ingestion
-```
+| Package | Scope |
+| --- | --- |
+| [`waaseyaa/core`](packages/core/composer.json) | Entity, field, storage, configuration, access and foundational services |
+| [`waaseyaa/cms`](packages/cms/composer.json) | Core plus content types, page building, workflows, JSON:API, SSR and CLI |
+| [`waaseyaa/full`](packages/full/composer.json) | CMS plus search, relationships, attachments, structured import and selected AI tooling |
+| [`waaseyaa/ai-development`](packages/ai-development/composer.json) | Local AI development and testing tools; install under `require-dev` only |
 
-Three meta-packages provide convenient installation:
+`full` does not mean every package. Opt-in domains such as messaging and groups
+are separate choices. The skeleton requires the root `waaseyaa/framework`
+aggregate; its production closure also keeps opt-in domains separate. See the
+[package architecture decision](docs/adr/004-framework-package-collapse.md) and
+[development-plane boundary](docs/adr/022-ai-development-package-and-local-operator-trust-boundary.md).
 
-| Meta-package | Includes |
-|---|---|
-| `waaseyaa/core` | Foundation + Core Data |
-| `waaseyaa/cms` | Core + Content Types + API + CLI |
-| `waaseyaa/full` | CMS + AI + GraphQL + SSR + Admin |
+## How the framework fits together
 
-## Entity Persistence Pipeline
+Packages are organized into seven layers: Foundation, Core Data, Content Types,
+Services, API, AI and Interfaces. Layer checks constrain dependencies, with
+explicitly tracked exceptions and existing cycles. The current
+[architecture map](AGENTS.md#layer-architecture) lists ownership and enforcement.
 
-All content follows a single, consistent pipeline:
+Symfony supplies maintained infrastructure such as HTTP messages, routing,
+console commands, events and validation. Waaseyaa owns its content model,
+authorization policy and lifecycle contracts. The
+[infrastructure reuse policy](docs/governance/agent-contract.md#maintained-infrastructure-before-custom-mechanisms)
+requires evaluating Symfony before maintaining a custom equivalent.
 
-```
-Entity (extends EntityBase or ContentEntityBase)
-  -> EntityType registered via EntityTypeManager
-  -> EntityStorageDriverInterface (SqlStorageDriver)
-  -> EntityRepository (hydration, events, validation)
-  -> DatabaseInterface (Doctrine DBAL)
-```
+Application behavior is composed through providers and the framework's entity
+repository pipeline. Use those extension points rather than copying framework
+internals into an application. Start with
+[package discovery](docs/specs/package-discovery.md) and the
+[extension SDK](docs/specs/external-extension-sdk.md).
 
-## CLI
+Studio composes these capabilities into a builder experience. Framework remains
+usable independently; [product boundaries](docs/specs/builder-product-boundaries.md)
+explain that division and the acceptance work still outstanding.
 
-Waaseyaa includes a comprehensive CLI built on Symfony Console:
+## Support and upgrades
+
+The [S1 support contract](docs/specs/s1-support-lifecycle.md) defines the candidate
+production topology, tested toolchain and limits. S1 uses one application node
+and one authoritative SQLite database on a local filesystem. Invalid database
+DSN, URI, UNC and device paths are refused with `S1-DB001`; production also
+refuses in-memory databases. See the [SQLite topology](docs/specs/s1-sqlite-topology.md).
+
+H1 (multi-node serving), MySQL/PostgreSQL, shared/network database filesystems,
+WebKit/Safari and unlisted web runtimes are unsupported. Development-runtime
+availability is not production certification.
+
+Alpha fixes ship forward in new releases. Review the [changelog](CHANGELOG.md),
+[upgrade guidance](docs/upgrades/README.md) and
+[stability charter](docs/specs/stability-charter.md) before changing versions.
+
+## Contribute
+
+Start with [AGENTS.md](AGENTS.md), the
+[operating contract](docs/governance/agent-contract.md) and
+[design-first workflow](docs/specs/workflow.md). Substantive changes use a portable
+change record, an explicit intended contract, focused acceptance evidence and
+review. Search existing issues and specs before opening overlapping work.
 
 ```bash
-bin/waaseyaa install              # Set up database and initial config
-bin/waaseyaa serve                # Start the dev server
-bin/waaseyaa migrate              # Run pending migrations
-bin/waaseyaa entity-type:list     # List registered entity types
-bin/waaseyaa entity:create node   # Create an entity interactively
-bin/waaseyaa schema:check         # Detect schema drift
-bin/waaseyaa health:check         # Run diagnostic health checks
-bin/waaseyaa optimize:manifest    # Rebuild attribute-discovery manifest
-bin/waaseyaa config:export        # Export config to sync directory
-bin/waaseyaa config:import        # Import config from sync directory
-```
-
-Code generation scaffolding:
-
-```bash
-bin/waaseyaa make:entity          # Generate a content entity class
-bin/waaseyaa make:entity-type     # Generate an entity type class
-bin/waaseyaa make:policy          # Generate an access policy class
-bin/waaseyaa make:provider        # Generate a service provider class
-bin/waaseyaa make:migration       # Generate a migration file
-bin/waaseyaa make:plugin          # Generate a plugin class
-bin/waaseyaa make:listener        # Generate an event listener class
-bin/waaseyaa make:job             # Generate a queue job class
-```
-
-## Testing
-
-```bash
-# All tests
-./vendor/bin/phpunit
-
-# Unit tests only
-./vendor/bin/phpunit --testsuite Unit
-
-# Integration tests only
-./vendor/bin/phpunit --testsuite Integration
-
-# Single package
-./vendor/bin/phpunit packages/entity/tests/
-
-# Pattern matching
-./vendor/bin/phpunit --filter EntityRepository
-```
-
-Code quality:
-
-```bash
-composer cs-check    # Check code style (PHP-CS-Fixer dry-run)
-composer cs-fix      # Auto-fix code style
-composer phpstan     # Static analysis (level 5, PHPStan 2)
-```
-
-## Key Design Principles
-
-- **No global state.** Every service receives its dependencies through constructor injection.
-- **Interface-first.** Public APIs are defined as interfaces. Implementations are swappable.
-- **In-memory testable.** Every subsystem has in-memory implementations for fast, isolated testing.
-- **Layered architecture.** Each layer only depends on layers below it. No circular dependencies.
-- **AI-native.** Entity schemas automatically generate MCP tools, enabling AI agents to interact with content through structured tool calls.
-
-## Contributing
-
-Contributions and **AI coding agents** should follow the **[anchor-issue + design-first workflow](docs/specs/workflow.md)**: multi-PR efforts open a GitHub anchor issue, and design/specs land in `docs/specs/` before implementation. Agent entrypoint: [`AGENTS.md`](AGENTS.md).
-
-- **PRs:** Fill [`.github/pull_request_template.md`](.github/pull_request_template.md) — `Closes #N` or `Part of #N`, with `#N` in the title.
-- **GitHub issues:** Lightweight — no enforced milestone or taxonomy. **M11 governed** work still uses the [governed-change template](.github/ISSUE_TEMPLATE/m11-governed-change.md) as the filing front door.
-
-```bash
-# Clone the repository
 git clone https://github.com/waaseyaa/framework.git
 cd framework
 composer install
-
-# Run the full test suite
-./vendor/bin/phpunit
-
-# Check code style
+php vendor/bin/phpunit packages/entity/tests/
 composer cs-check
 ```
 
+That test command is a focused starting point, not whole-framework
+qualification. Follow the [local testing policy](docs/local-testing-policy.md)
+for checks appropriate to your change and host. Repository maintainer skills
+live in [`.agents/skills/`](.agents/skills/README.md).
+
+Report vulnerabilities through [SECURITY.md](SECURITY.md). Project stewardship
+and continuity are described in [MAINTAINERS.md](MAINTAINERS.md) and
+[SUCCESSION.md](SUCCESSION.md).
+
 ## License
 
-GPL-2.0-or-later. See [LICENSE.txt](LICENSE.txt).
+[GPL-2.0-or-later](LICENSE).

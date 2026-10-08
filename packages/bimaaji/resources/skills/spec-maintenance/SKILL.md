@@ -1,37 +1,59 @@
 ---
 name: waaseyaa-spec-maintenance
-description: Use when editing docs/specs/, AGENTS.md orchestration, or agent rules — keep subsystem specs aligned with code, run drift checks, and follow the anchor-issue + design-first workflow (GitHub as integration surface).
+description: Audit and maintain Waaseyaa specifications and agent guidance against intended requirements, code, consumers and acceptance evidence. Use for SDD contract changes, drift repair and scoped retirement of superseded documents.
 ---
 
-# Waaseyaa spec maintenance
+# Specification maintenance
 
-## When to use
+Follow the current repository's guidance. For Framework, `AGENTS.md` routes
+subsystems, `docs/governance/agent-contract.md` owns operating rules, and
+`docs/specs/workflow.md` owns the design-first workflow. In a consumer project,
+its own governance applies; Framework policy does not grant authority there.
 
-- Touching `docs/specs/**/*.md`, root `AGENTS.md`, skeleton `CLAUDE.md`, or `.claude/rules/`
-- Refactoring a subsystem and updating its enduring spec
-- Auditing whether architecture docs match implementation
+## Establish intended behavior
 
-## Retrieving specs (no MCP)
+Find the relevant live specs, ADRs, existing issues, tests and consumers before
+editing. Use `rg` on capabilities and symbols as well as package names. For
+installed applications, match Framework documentation to the locked release.
 
-Subsystem specs live in `docs/specs/`. Load them with the Read tool or search with ripgrep from the repo root, for example:
+Trace each changed requirement to one canonical spec section, its real
+implementation/consumers and discriminating acceptance evidence. Include
+missing implementations, undocumented behavior and contradictory specs. A
+canonical label does not prove that prose is current. Resolve intended
+behavior before changing code, and never rewrite a requirement solely to
+make a defect look compliant.
 
-- `docs/specs/entity-system.md` — full file for the entity stack
-- `rg -n "YourSymbol" docs/specs/` — find mentions across specs
+Substantive Framework work is anchored by a portable change record. GitHub
+issues and PRs mirror coordination and evidence; they are not a replacement
+for that record. Design and acceptance precede implementation; keep the spec,
+caller changes and tests together in the bounded repair.
 
-The orchestration table in `AGENTS.md` maps file patterns to spec paths — prefer that table over guessing filenames.
+## Keep the working tree useful
 
-## Drift
+During authorized cleanup, delete superseded specs, duplicate plans and stale
+examples after reconciling current obligations. Preserve still-valid
+requirements or decision rationale in the live authority and update inbound
+links, routing, corpus manifests, generators and tests in the same change.
+Git history normally preserves the old text; another archive or redirect stub
+is not the default.
 
-After code changes that affect documented behaviour, update the relevant spec in the same PR when practical. Run:
+Retain historical material only for a named current obligation, such as
+supported upgrade guidance or exact audit evidence. Do not rewrite frozen
+evidence to suggest it was checked against current code. Migrate the consuming
+evidence contract before deleting files it still validates. Record unresolved
+retention work with its owner and removal condition.
+
+## Verify the change
+
+Check changed document links, symbols, commands, lifecycle and authority claims.
+Run the owning corpus/manifest validators when their inputs change. For code
+changes, use the relevant focused acceptance tests and Framework's local
+testing policy. The drift detector checks coupling, not semantic truth:
 
 ```bash
 bash tools/drift-detector.sh 5
 ```
 
-Session hooks may run a shorter threshold; CI runs drift detection on pushes and PRs.
-
-## Workflow governance
-
-This repo uses the **anchor-issue + design-first workflow** for structured delivery (see `docs/specs/workflow.md`).
-
-**Precedence:** **Anchor issues** are the primary ledger for multi-PR efforts (scope, work packages, descope decisions in the comment trail). **GitHub** is for PRs, CI, releases, security, and issues (including M11 filings); no enforced milestone taxonomy (`docs/specs/workflow.md`).
+This command is a POSIX entrypoint. On other hosts, follow the native-host
+contract and name the supported runner that owns missing evidence. Do not
+claim an unavailable gate passed.

@@ -1,7 +1,7 @@
 # Running an audit with agents
 
-How to run one package audit with parallel agents and still produce a record
-people can review. The method is in the skill; this is the execution model.
+How to size and verify a package audit without duplicating investigation.
+The method is in the skill; this is the execution model.
 
 Parallel agents need authorized multi-agent scope (see the agent contract).
 Review and verification roles are always delegated to subagents, whether they
@@ -16,24 +16,27 @@ Size by source lines of code, inbound consumer packages and applications,
 and intake items (see the skill's step 1), not only by file count. Write the
 lanes and budget in the scorecard before any agent starts.
 
-| Package | Guide | Lanes | Agents | Time | Human record |
-| --- | --- | --- | --- | --- | --- |
-| Small | up to about 1,500 source lines, few consumers, little intake | 3 or 4 | about 50 | about 2 hours | about 400 lines |
-| Medium | up to about 6,000 source lines, or many consumers, or security intake | 4 or 5 | about 75 | about 4 hours | about 400 lines |
-| Large | beyond that | bounded passes by sub-area, each sized as above | per pass | per pass | one index record under 150 lines, plus one record per pass |
+Start with one investigator for a bounded package. The topics below are
+coverage responsibilities, not a mandatory agent roster. Split investigation
+only when independent boundaries, risk or volume justify it and parallel scope
+is authorized. Size large packages as bounded sub-area passes with one index
+record, rather than repeating whole-package intake in each lane.
 
-These budgets are provisional. They come from one calibration run and are to
-be revised from the scorecards of the next audits (FW-PACKAGE-CONVERGENCE-01).
+Record a run-specific time/token budget when those measurements are available,
+the required verification roles and the uncertainties that could expand work.
+Do not use the historical 50/75-agent estimates as targets or evidence of
+quality. Reuse investigators and batch related evidence; preserve independent
+verification where the tier requires it.
 
-**Checkpoint after consolidation.** Project the run:
-`lanes + 1 + 2 × tier-A findings + ceil(tier-B findings ÷ 3) + tier-C groups + leads + intake re-verifications + tie-breaks (estimate) + 3`
-(writer, critic, one repair). When the projection is more than twice the
-budget, stop and report it to the maintainer with the scorecard before
-continuing. An overrun is a calibration result, not a failure to hide.
+**Checkpoint after consolidation.** Estimate remaining boundary batches,
+verifier work, probes and open decisions against the run's budget. Report a
+material projected overrun before expanding the run. Narrow or sequence passes
+without silently dropping coverage or lowering verification tiers. Record
+unfinished coverage honestly when the agreed limit cannot accommodate it.
 
 ## Lanes
 
-Default lanes for a small package:
+Coverage responsibilities, which one investigator may cover:
 
 1. **Charter, consumers and history.** The charter questions, inbound
    consumers (framework packages and downstream applications, read-only),
@@ -47,8 +50,8 @@ Default lanes for a small package:
    important assertions (mutation or preloaded-copy runs), and the mechanical
    gates.
 
-For a medium package, split lane 2 or lane 3 by profile, up to five lanes.
-Every lane is read-only on the repository and on consumer checkouts, writes
+When splitting work, prefer boundaries within topic 2 or 3 over overlapping
+whole-package passes. Every lane is read-only on the repository and on consumer checkouts, writes
 probes only to scratch, labels synthetic evidence as synthetic, and returns
 structured output with the finding fields from the template, including
 attribution.
@@ -111,6 +114,12 @@ One agent merges the lane outputs into the ledger's findings:
 ## Verify by tier
 
 Severity and security decide the tier first.
+
+Batch findings that share a contract, composition root or reproduction setup.
+Two independent tier-A verifiers may each cover the same bounded batch; each
+finding still needs both verdicts and its own evidence/refutation. Do not
+dispatch a fresh pair for every finding merely to increase agent count. Keep
+security custody and genuinely different expertise boundaries separate.
 
 | Tier | Applies to | Verification |
 | --- | --- | --- |

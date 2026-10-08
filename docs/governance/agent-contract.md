@@ -121,6 +121,25 @@ competing authorities and adapter necessity. A file roster, dependency graph
 or green static gate is insufficient structural evidence. Supplement existing
 audits where this evidence is missing; do not restart unaffected audit work.
 
+### Specification convergence and repository hygiene
+
+Audit the specifications as well as the implementation. Trace current
+requirements through their canonical spec, real consumers and discriminating
+acceptance evidence. Resolve conflicting or missing intended behavior before
+repairing it; do not silently change the spec to match a defect. Reconcile
+existing issues and related documents before creating new work.
+
+During authorized documentation cleanup, prefer deleting superseded specs,
+plans and examples over accumulating historical copies. Preserve still-valid
+requirements and decision rationale in the current authority, update inbound
+references and generated/corpus inputs, and validate their consumers. Git
+history normally supplies the historical record. Retention needs a named
+current obligation and owner, such as supported upgrade guidance or verified
+audit evidence. Frozen evidence must not be rewritten to imply fresh proof;
+migrate its consuming contract before deletion when required. Historical/read-
+only labels prevent accidental use or revision, not deliberate reviewed
+retirement. Age alone is not a deletion criterion.
+
 - Anchor substantive work to a stable, repository-portable change record.
   Forge issue and PR numbers may mirror that identity but are not the authority.
 - When the user has authorized an end-to-end delivery boundary, design and

@@ -99,6 +99,13 @@ Revalidate current code and consumers instead of trusting an old roadmap or
 issue text. Leave neighbouring packages and separately owned issues with their
 owners.
 
+Apply [repository reconciliation](references/repository-reconciliation.md)
+at intake and closeout. Enumerate the existing issue/PR backlog and relevant
+repo documents, audit live specifications against requirements, code and
+tests, and record every relevant item's disposition. For framework-wide work,
+also reconcile Project coverage and cross-package acceptance journeys. A
+package-name search or a list of newly found defects is not complete intake.
+
 Collect the **intake**: findings and handed-off leads other audits routed to
 this package. Read every committed ledger's `findings` and `handoffs` whose
 owner or co-owners name this package, every committed record's cross-package
@@ -401,6 +408,8 @@ A package is **assessed** when:
 - no finding or handed-off lead that blocks this assessment is open: each is
   settled, or is a maintainer decision;
 - every intake item is dispositioned;
+- relevant existing issues and documents are inventoried and dispositioned,
+  with SDD traceability and any search/access gaps explicitly recorded;
 - every security finding is verified at tier A and has a private brief in
   durable custody, a named owning package and the advisory route;
 - open decisions, unresolved uncertainties and lane conflicts are listed with
@@ -498,10 +507,19 @@ Claim a package is **converged** only with:
 - discriminating behavior and refusal evidence at real boundaries;
 - verified source and relevant distributed forms;
 - residual work linked to bounded issues;
+- current specs, examples and skills reconciled, superseded documentation
+  removed or retained for a named obligation, and issue/board closeout verified
+  or explicitly pending publication;
 - exact-candidate and hosted qualification evidence.
 
 Report partial slices as partial. A green dependency graph alone proves
 nothing about correctness, usability or distribution.
+
+For the whole framework, apply the reconciliation reference's clean-board
+standard: resolve confirmed defects and required convergence repairs, qualify
+cross-package journeys, and separate intentional future features. Assessment
+completion with bounded repair issues is an intermediate checkpoint, not that
+finish line.
 
 ## Host limits
 

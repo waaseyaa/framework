@@ -13,6 +13,19 @@ not just counts.
 - Source, generated-application, runtime, and distributed-package composition roots
 - Supported installation profiles and the dependency closure each promises; distinguish primitive-only use from kernel/metapackage composition
 
+## Existing work, specifications and repository hygiene
+
+Apply [repository reconciliation](repository-reconciliation.md):
+
+- Complete issue/PR inventory with search scope, pagination and observation time; relevant closed/merged decisions and discussions
+- Every relevant existing issue dispositioned against current acceptance evidence; reuse existing owners and IDs
+- Related specs, ADRs, records, READMEs, recipes, examples and shipped/maintainer skills inventoried outside the package as well as inside it
+- Requirement-to-spec-to-code-to-test traceability, including undocumented behavior, unimplemented promises and conflicting authorities
+- Intended behavior settled before repairing code or revising a spec; no spec rewrite merely to bless a defect
+- Superseded documents/passages deleted after preserving current obligations and updating links, manifests, routing and evidence consumers; explicit retention rationale otherwise
+- Framework-level composition journeys and cross-package dead-chain/consumer coverage, with owners and installation evidence
+- Refreshed issue/Project reconciliation at closeout; future features separated from unresolved defects and required repairs
+
 ## Entrypoints and runtime wiring
 
 - Service providers, container bindings, factories, registries, and feature discovery

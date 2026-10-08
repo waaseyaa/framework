@@ -1,7 +1,15 @@
 # Waaseyaa docs
 
 Map of the `docs/` tree. The most important distinction: **`specs/` is canonical
-and kept current; `history/` is frozen.** Edit specs; read history.
+and kept current; `history/` is historical evidence.** Build against live specs.
+Audit those specs against intended requirements, code and tests rather than
+assuming a canonical label proves accuracy.
+
+During authorized cleanup, remove superseded documents and stale passages once
+current obligations and inbound references are reconciled. Prefer Git history
+to another archive. Retain historical files only for a named current obligation;
+preserve exact evidence identities where a validator or audit still needs them.
+See [repository hygiene policy](governance/agent-contract.md#specification-convergence-and-repository-hygiene).
 
 ## Canonical — living knowledge (edit these)
 

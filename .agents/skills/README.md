@@ -6,7 +6,7 @@ Waaseyaa repositories.
 
 | Skill | Purpose |
 | --- | --- |
-| `waaseyaa-package-convergence` | Audit one package and turn the findings into a governed cleanup plan |
+| `waaseyaa-package-convergence` | Audit packages and framework composition, reconcile existing issues/specs/docs, and bound convergence repairs |
 | `waaseyaa-delivery` | Run authorized implementation, review, CI repair, and landing work |
 
 This directory is the only authority for them. They are **not** the consumer
