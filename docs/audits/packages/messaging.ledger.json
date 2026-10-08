@@ -147,6 +147,26 @@
       "findings": [
         "MSG-STRUCT-002"
       ]
+    },
+    {
+      "file": "packages/messaging/src/MessagingProtectedEntityReadPolicy.php",
+      "role": "Current immutable-principal Protected-read adapter",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Moved from containing policy file in bounded repair candidate, not yet landed; exact semantics preserved.",
+      "findings": [
+        "MSG-SURFACE-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/MessagingProtectedFieldReadPolicy.php",
+      "role": "Current immutable-principal Protected-read adapter",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Moved from containing policy file in bounded repair candidate, not yet landed; exact semantics preserved.",
+      "findings": [
+        "MSG-SURFACE-001"
+      ]
     }
   ],
   "checklists": [
@@ -481,7 +501,7 @@
       "dependencies": "none",
       "acceptance": "Use generic synthetic consumers; document opt-in install, canonical provider/policy wiring, actual schema authority, supported storage, and errors. Distinguish implemented entity primitives from future chat-service capabilities and correct the stale provider schema-backfill note.",
       "residual_risk": "Installation qualification remains separate.",
-      "next_action": "Independent verification complete; ratify the named contract and authorize the bounded existing-owner slice.",
+      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -603,7 +623,7 @@
       "dependencies": "none",
       "acceptance": "Express active Protected-read adapter contracts intentionally: independently autoload any public concrete symbols, or make implementation-only adapters internal with current factory consumers preserved. Alpha compatibility is not a retention reason. Preserve exact principal, subject and entity/field refusal semantics.",
       "residual_risk": "Installation qualification remains separate.",
-      "next_action": "Include public-symbol intent in S7 structural repair; active interface factories must remain functional.",
+      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -763,7 +783,7 @@
       "dependencies": "none",
       "acceptance": "Remove obsolete callback and unused local; use one decode rule with malformed/empty/scalar and valid-row controls. Preserve atomic creation, migration state and required Protected-read integration.",
       "residual_risk": "No external installed consumer is qualified; this does not create an alpha compatibility obligation.",
-      "next_action": "Incorporate verified S7 acceptance into existing #3188 before implementation; independent checks are complete.",
+      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -805,7 +825,7 @@
       "dependencies": "none",
       "acceptance": "Remove obsolete callback and unused local; use one decode rule with malformed/empty/scalar and valid-row controls. Preserve atomic creation, migration state and required Protected-read integration.",
       "residual_risk": "No external installed consumer is qualified; this does not create an alpha compatibility obligation.",
-      "next_action": "Incorporate verified S7 acceptance into existing #3188 before implementation; independent checks are complete.",
+      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -1137,7 +1157,7 @@
     "subagent_tokens": "unavailable",
     "source_files": 7,
     "source_lines": 825,
-    "production_files": 9,
+    "production_files": 11,
     "consumers": "Generic manifest/API composition; no downstream installed consumer verified.",
     "intake_items": 2,
     "profiles": [
@@ -1153,8 +1173,8 @@
       "Documentation wording narrowed to actual promises.",
       "Unqualified optional profiles distinguished from broken mandatory boot."
     ],
-    "record_lines": 251,
-    "record_words": 4644,
+    "record_lines": 276,
+    "record_words": 4837,
     "ledger_bytes": 58572,
     "probes_written": "Orchestrator and independent role probes plus 3 mechanical seeded controls; see role inventories.",
     "probes_retained": 2,

@@ -13,7 +13,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Messaging\Schema\ThreadParticipantSchema;
 use Waaseyaa\Messaging\ThreadParticipant;
@@ -21,6 +20,54 @@ use Waaseyaa\Messaging\ThreadParticipant;
 #[CoversClass(ThreadParticipantSchema::class)]
 final class ThreadParticipantSchemaTest extends TestCase
 {
+    #[Test]
+    public function repeated_transition_preserves_invalid_blobs_and_backfills_only_valid_identity(): void
+    {
+        EntityType::clearFromClassCache();
+        $database = DBALDatabase::createSqlite();
+        $type = EntityType::fromClass(ThreadParticipant::class, group: 'messaging');
+        $legacyType = new EntityType(
+            id: $type->id(),
+            label: $type->getLabel(),
+            class: $type->getClass(),
+            keys: $type->getKeys(),
+            group: $type->getGroup(),
+            _fieldDefinitions: $type->getFieldDefinitions(),
+        );
+        new SqlSchemaHandler($legacyType, $database)->ensureTable();
+
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+            $type,
+            new SqlStorageDriver(new SingleConnectionResolver($database), 'tpid'),
+            new EventDispatcher(),
+            database: $database,
+        );
+        $blobs = ['broken-json', '42', 'null', '{}', '{"thread_id":42,"user_id":7}'];
+        $ids = [];
+        foreach ($blobs as $blob) {
+            $participant = $repository->create([
+                'thread_id' => 42, 'user_id' => 7, 'thread_creator_id' => 7,
+            ]);
+            $repository->save($participant, validate: false);
+            $ids[] = $participant->id();
+            $database->update('thread_participant')->fields(['_data' => $blob])
+                ->condition('tpid', (string) $participant->id())->execute();
+        }
+        $transition = new ThreadParticipantSchema($database);
+        $transition->ensureTable();
+        $transition->ensureTable();
+        foreach ($ids as $index => $id) {
+            $rows = iterator_to_array($database->query(
+                'SELECT thread_id, user_id, _data FROM thread_participant WHERE tpid = ?',
+                [(string) $id],
+            ));
+            $row = (array) $rows[0];
+            self::assertSame($blobs[$index], $row['_data']);
+            self::assertSame($index === 4 ? 42 : 0, (int) $row['thread_id']);
+            self::assertSame($index === 4 ? 7 : 0, (int) $row['user_id']);
+        }
+    }
+
     #[Test]
     public function generic_table_is_healed_and_thread_user_pair_is_unique(): void
     {
@@ -35,7 +82,7 @@ final class ThreadParticipantSchemaTest extends TestCase
             group: $type->getGroup(),
             _fieldDefinitions: $type->getFieldDefinitions(),
         );
-        (new SqlSchemaHandler($legacyType, $database))->ensureTable();
+        new SqlSchemaHandler($legacyType, $database)->ensureTable();
 
         $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
@@ -90,7 +137,7 @@ final class ThreadParticipantSchemaTest extends TestCase
             group: $type->getGroup(),
             _fieldDefinitions: $type->getFieldDefinitions(),
         );
-        (new SqlSchemaHandler($legacyType, $database))->ensureTable();
+        new SqlSchemaHandler($legacyType, $database)->ensureTable();
 
         $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
@@ -117,7 +164,7 @@ final class ThreadParticipantSchemaTest extends TestCase
         ]);
         $repository->save($newer, validate: false);
 
-        (new SqlSchemaHandler($type, $database))->ensureTable();
+        new SqlSchemaHandler($type, $database)->ensureTable();
 
         $rows = iterator_to_array($database->query(
             'SELECT tpid, role, _data FROM thread_participant WHERE thread_id = ? AND user_id = ?',

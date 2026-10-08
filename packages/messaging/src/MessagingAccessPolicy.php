@@ -201,35 +201,3 @@ final class MessagingAccessPolicy implements AccessPolicyInterface, FieldAccessP
         }
     }
 }
-
-/** Participant-only Protected entity visibility. @api */
-final readonly class MessagingProtectedEntityReadPolicy implements ProtectedEntityReadPolicyInterface
-{
-    public function __construct(private MessagingAccessPolicy $policy) {}
-
-    public function access(
-        AuthorizationPrincipalInterface $principal,
-        EntityStructure $structure,
-        PolicySubjectViewInterface $subject,
-        string $operation,
-    ): AccessResult {
-        return $operation === 'view'
-            ? $this->policy->protectedViewAccess($principal, $structure, $subject)
-            : AccessResult::neutral();
-    }
-}
-
-/** Releases messaging fields only to a participant of their containing thread. @api */
-final readonly class MessagingProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInterface
-{
-    public function __construct(private MessagingAccessPolicy $policy) {}
-
-    public function access(
-        AuthorizationPrincipalInterface $principal,
-        EntityStructure $structure,
-        PolicySubjectViewInterface $subject,
-        string $fieldName,
-    ): AccessResult {
-        return $this->policy->protectedViewAccess($principal, $structure, $subject);
-    }
-}

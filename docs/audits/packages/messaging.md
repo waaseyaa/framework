@@ -256,3 +256,21 @@ This candidate records the assessment under #3118, including verified structural
 findings and landed S1 evidence. Historical local-draft statements above describe
 their original evidence checkpoints. The candidate index is assessed, remediation
 planned under #3188; public disclosure contains no private reproduction details.
+
+## Bounded repair candidate, FW-MESSAGING-PUBLIC-CONTRACT-01
+
+S7 and S3 are implemented in this candidate, not yet landed. The deprecated
+callback and unused state are removed, stored JSON normalization is shared,
+public Protected adapters have canonical PSR-4 files, and README/spec describe
+current generic capability. D2/D3, API intake and private findings remain open.
+
+New production roster entries:
+
+| File | Role | Classification | Evidence | Findings |
+| --- | --- | --- | --- | --- |
+| `packages/messaging/src/MessagingProtectedEntityReadPolicy.php` | Immutable-principal entity-read adapter | owned and coherent | reviewed; fresh-process source test | MSG-SURFACE-001 |
+| `packages/messaging/src/MessagingProtectedFieldReadPolicy.php` | Immutable-principal field-read adapter | owned and coherent | reviewed; fresh-process source test | MSG-SURFACE-001 |
+
+The original nine-file roster remains frozen-base evidence. Existing adapter
+responsibilities were moved, not expanded. Source messaging tests: 34 tests /
+100 assertions; no installed profile is qualified by that run.

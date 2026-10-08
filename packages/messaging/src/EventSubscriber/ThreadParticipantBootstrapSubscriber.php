@@ -112,11 +112,4 @@ final class ThreadParticipantBootstrapSubscriber implements EventSubscriberInter
             throw $failure;
         }
     }
-
-    /**
-     * Retained compatibility callback; never seeds membership after commit.
-     * @api
-     * @deprecated Creation invariants are enforced by onPersisted(), before commit.
-     */
-    public function onPostSave(EntityEvent $event): void {}
 }

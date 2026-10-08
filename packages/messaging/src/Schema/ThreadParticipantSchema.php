@@ -30,8 +30,6 @@ final class ThreadParticipantSchema implements EntityStorageSchemaTransitionInte
             return;
         }
 
-        $needsColumns = !$schema->fieldExists(self::TABLE, 'thread_id')
-            || !$schema->fieldExists(self::TABLE, 'user_id');
         $transaction = $this->database->transaction();
         try {
             foreach (['thread_id', 'user_id'] as $field) {
@@ -57,12 +55,8 @@ final class ThreadParticipantSchema implements EntityStorageSchemaTransitionInte
     private function backfillIdentityColumns(): void
     {
         foreach ($this->database->select(self::TABLE)->fields(self::TABLE, ['tpid', '_data'])->execute() as $row) {
-            try {
-                $data = \json_decode((string) ($row['_data'] ?? ''), true, flags: \JSON_THROW_ON_ERROR);
-            } catch (\JsonException) {
-                continue;
-            }
-            if (!\is_array($data) || !isset($data['thread_id'], $data['user_id'])) {
+            $data = $this->decodeData($row['_data'] ?? null);
+            if (!isset($data['thread_id'], $data['user_id'])) {
                 continue;
             }
 

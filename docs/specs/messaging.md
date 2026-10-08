@@ -1,61 +1,49 @@
-# Messaging — L3 Chat Substrate
-
-<!-- Spec reviewed 2026-09-02 - #2786: ThreadMessage.body is declared with the registered `text_long` field-type plugin instead of `text` + `settings.subtype = text_long`. The `text_long` id is the behavioural signal every consumer (rich-text sanitizer, GraphQL String adapter, storage TEXT column) keys on, and registry admission now rejects a `subtype`-only spelling because it is not a plugin-owned vocabulary. Storage shape (TEXT), Protected read level, and the participant-only access policy are unchanged. -->
-<!-- Spec reviewed 2026-08-24 - #1856: ThreadParticipantBootstrapSubscriber keys PRE_SAVE isNew() on the MessageThread object (WeakMap) and consumes that entry on POST_SAVE. Mixed saveMany([existing, new]) / saveMany([new, existing]) still seeds only the new thread's owner. Event order is unchanged; canonical pairing contract lives in docs/specs/entity-system.md. -->
-<!-- Spec reviewed 2026-07-18 - #2064 WP4 classifies thread, message, and participant content as Protected; thread selectors are exact authorization inputs and immutable-principal V2 policies release fields only to participants/admins. -->
-<!-- Spec reviewed 2026-07-14 - R21 #2010: thread_participant identity is now a persistence invariant. MessagingServiceProvider materializes/backfills dedicated thread_id and user_id columns after the generic sql-blob table exists, deterministically heals legacy duplicate pairs, then installs a composite UNIQUE key on (thread_id, user_id). The lowest tpid survives; owner role wins, earliest joined_at and greatest last_read_at are retained. Duplicate membership is rejected by the database on every subsequent write surface. -->
-<!-- Spec reviewed 2026-07-06 - #1915 R16 (audit L3-messaging.md): closed the participant-bootstrap deadlock. Nothing previously seeded the first thread_participant row, so MessagingAccessPolicy::fieldAccess()'s "must already be a participant to create the first row" gate made messaging unusable for non-admins. Fix: ThreadParticipantBootstrapSubscriber (packages/messaging/src/EventSubscriber/) subscribes to EntityEvents::PRE_SAVE/POST_SAVE for MessageThread and, on genuine creation, seeds the acting account (from AccountContextInterface, never the entity's own created_by field) as a thread_participant with role 'owner'. Wired in MessagingServiceProvider::boot(). Acceptance: ThreadParticipantBootstrapSubscriberTest (real EntityRepository + real EventDispatcher, no mocked persistence). -->
-<!-- Spec reviewed 2026-06-22 - WP14 (alpha245 security, audit #31): the participant-only access guarantee (only participants can read or post) is now BACKED BY CODE. MessagingAccessPolicy (implements AccessPolicyInterface + FieldAccessPolicyInterface, #[PolicyAttribute(['message_thread','thread_message','thread_participant'])], EntityTypeManager injected by the policy dependency resolver) enforces: read via access('view') participant-only; post/modify via fieldAccess('edit') Forbidden-unless-participant (store() runs the field-edit check on the constructed message, which carries thread_id — the only create-time hook that sees the target thread; createAccess() does not); thread creation via createAccess() for any authenticated account. Admins (administer content) bypass. Participation is checked with an accessCheck(false) system query against thread_participant. Spec text was already accurate; this records that the enforcing code now exists. Acceptance: MessagingAccessPolicyTest. -->
-<!-- Spec reviewed 2026-05-25 - l2-content-types-consolidation-01KSEFTX - WP03 - messaging L3 graduation -->
+# Messaging package contract
 
 **Package:** `waaseyaa/messaging`  
-**Layer:** 3 — Services  
-**Spec status:** Initial (L3 graduation baseline)
+**Layer:** 3, Services
 
----
+Messaging owns generic thread, membership and message entity primitives,
+participant access integration, transactional creator membership and participant
+schema integrity. It does not own a product chat UI, consent/moderation policy,
+presence, live push, federated delivery or a complete send/read-state service.
 
-## Why L3
+## Entity and authority boundaries
 
-`waaseyaa/messaging` provides a direct-messaging substrate (threads, messages, participants) that is the foundation for the **Anokii Chat** surface (gap-matrix capability C-1). Chat is a service abstraction, not a content type:
+`MessageThread` is conversation metadata, `ThreadParticipant` stores membership
+and read-position metadata, and `ThreadMessage` stores message content and sender
+metadata. Constructor defaults are not a live lifecycle engine. The package does
+not maintain thread activity on every message mutation or automatically advance
+read positions. A stored `last_read_at` can be an input to consumer calculations;
+there is no package unread-count implementation.
 
-- Per-thread access policies (only participants can read or post).
-- Read-receipt semantics derived from per-participant `last_read_at`.
-- Future: real-time broadcast via the broadcasting infrastructure, presence, federated delivery.
+Current access policy uses membership for view/update/delete decisions and
+requires authentication for creation, with the administrative bypass. Generic
+API field-edit decisions inspect a child entity's target thread. Role-specific
+membership grants/revocation, sender attribution, edit/delete authority, parent
+lifetime, last-owner behavior and retention are unsettled D2 convergence
+contracts; current permissive behavior must not be mistaken for a completed
+contract. Consumer consent/moderation is separate.
 
-Placing messaging at L2 (Content Types) was an initial approximation. The L3 graduation aligns the package with its service role, unblocks the future Anokii Chat surface mission, and keeps the content-type layer (L2) focused on entity shapes that admin SPA pages list and edit directly.
+Protected read factories implement the access package's immutable-principal,
+structural-identity and compiled-subject interfaces. Entity and field adapters
+serve that current authority boundary and independently autoload at their PSR-4
+paths. Ordinary mutable-entity access and Protected decisions have different
+refusal semantics; adapter layout changes must not merge these authorities.
 
-The graduation was introduced in mission `l2-content-types-consolidation-01KSEFTX` WP03 (2026-05-25).
+## Composition and storage
 
----
+Messaging is an explicit Composer opt-in and is absent from the default
+core/cms/full runtime closures. The manifest declares the provider and policy.
+The canonical kernel supplies entity manager, Framework Symfony dispatcher,
+account context and read guard. Provider registration declares entity metadata;
+boot attaches the creator subscriber. Missing manager/dispatcher currently
+returns without wiring: this is an unqualified profile, not successful proof.
 
-## Data Model
-
-| Class | Role |
-|---|---|
-| `MessageThread` | Conversation container. Holds metadata: subject (optional), created\_at, participant set. |
-| `ThreadParticipant` | Per-account membership record. Stores `last_read_at` for unread-count derivation. |
-| `ThreadMessage` | Individual message. References `MessageThread` as parent; stores sender, body, created\_at. |
-
-All three are entity types registered via `MessagingServiceProvider` and discoverable through `EntityTypeManager`.
-
----
-
-## Access Policy Model
-
-Access is enforced at the entity level by an access policy (registered via `#[PolicyAttribute]`):
-
-- Only participants in a `MessageThread` can read messages in that thread.
-- Only participants can post new `ThreadMessage` entities.
-- Thread creation is open to any authenticated account.
-- Unread counts are derived from `ThreadParticipant::last_read_at` — no separate read-status table exists.
-
-Field-level access follows the open-by-default rule (`FieldAccessPolicyInterface`: Neutral = accessible, only Forbidden restricts).
-
----
-
-## Service Provider
-
-`MessagingServiceProvider` is auto-discovered via `extra.waaseyaa.providers` in `composer.json`. It registers the three entity types with `EntityTypeManager` (`register()`) and, in `boot()`, subscribes `ThreadParticipantBootstrapSubscriber` to the entity event dispatcher.
+Supported storage is default sql-blob on S1 SQLite. Memory compositions are
+refused. The intended kernel profile and no-dev split, HTTP and non-HTTP actor
+journeys still need explicit D3 qualification. Source tests or synthetic supplied
+services do not count as installed profile evidence.
 
 ### Participant bootstrap (`ThreadParticipantBootstrapSubscriber`)
 
@@ -69,21 +57,22 @@ Provider boot resolves the thread and membership repositories before creation an
 
 After generic repository resolution materializes the sql-blob base table, `ThreadParticipantSchema` additively creates and backfills dedicated `thread_id` and `user_id` columns. Before installing the composite unique key, an upgrade deterministically collapses any legacy duplicate pair into the lowest-`tpid` row while retaining the strongest membership state: `owner` wins over `member`, the earliest `joined_at` survives, and `last_read_at` takes the greatest value. The normal storage driver routes subsequent values to the dedicated columns, so API, subscriber, CLI, and direct repository writes all share the same database-enforced membership invariant.
 
----
+## Structural repair
 
-## Out of Scope (follow-up missions)
+The empty deprecated post-save callback is removed in alpha; PRE_SAVE and the
+transactional persisted event remain canonical. No compatibility shim is kept.
+Participant decoding uses one stored-blob normalization rule. Missing or invalid
+identity data remains untouched, and persisted duplicate repair remains necessary.
+Schema authority belongs to entity declarations and SqlSchemaHandler, not a
+parallel provider backfill implementation.
 
-The following capabilities are **not** in scope for this package in its current state. Each is a separate follow-up mission:
+## Evidence and outstanding decisions
 
-- **Real-time presence** — tracking online/typing status per thread.
-- **Read-receipt UI** — surfacing `last_read_at` in the Anokii Chat SPA.
-- **Federated XMPP/Matrix bridge** — cross-protocol delivery.
-- **Push notifications for new messages** — integration with `waaseyaa/notification`.
-- **Admin SPA chat management pages** — thread moderation, participant management UI. (Tracked by `l2-harden-messaging-01KSEW82`.)
-- **Anokii Chat surface** — the full real-time chat UI for the Anokii distribution. (Separate post-WP03 mission.)
+FW-MESSAGING-ATOMIC-CREATE-01 / #2753 records landed creator atomicity.
+The package assessment under #3118 records D2 lifecycle/authority and D3
+installation decisions, API-owned content-identity intake and remaining gaps.
+FW-MESSAGING-PUBLIC-CONTRACT-01 / #3188 owns the bounded structural/public
+contract reconciliation. This repair does not settle D2 or qualify every profile.
 
----
-
-## Layer Gate
-
-`bin/check-package-layers` assigns `"messaging": 3`. Its access, database, entity, and foundation dependencies are all lower-layer edges. No L2 package may require `waaseyaa/messaging`.
+`bin/check-package-layers` assigns messaging to L3. Required access, database,
+entity, entity-storage and foundation dependencies remain lower-layer edges.
