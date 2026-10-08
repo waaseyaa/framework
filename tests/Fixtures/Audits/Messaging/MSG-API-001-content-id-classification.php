@@ -47,7 +47,7 @@ $provider->setKernelServices(new class ($manager, $dispatcher, $context)implemen
     public function __construct(private $m, private $d, private $c) {}public function get(string $name): ?object
     {
         return match ($name) {
-            EntityTypeManager::class => $this->m,\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $this->d,AccountContextInterface::class => $this->c,default => null
+            EntityTypeManager::class => $this->m,\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $this->d,AccountContextInterface::class => $this->c,default => null,
         };
     }
 });
