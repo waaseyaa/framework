@@ -39,6 +39,8 @@ use Waaseyaa\Listing\ListingDefinitionRegistry;
 use Waaseyaa\Listing\ListingResolver;
 use Waaseyaa\Listing\ServiceProvider;
 
+#[Waaseyaa\Entity\Attribute\ContentEntityType(id: 'article', label: 'Article')]
+#[Waaseyaa\Entity\Attribute\ContentEntityKeys(label: 'title')]
 final class ListingInstalledArticle extends ContentEntityBase
 {
     #[Field(required: false, read: FieldReadLevel::Public)]
@@ -50,7 +52,7 @@ final class ListingInstalledProvider extends Waaseyaa\Foundation\ServiceProvider
     public static ?MemoryBackend $cache = null;
     public function register(): void
     {
-        $this->entityType(new EntityType(id: 'article', label: 'Article', class: ListingInstalledArticle::class, keys: ['id' => 'id', 'label' => 'title']));
+        $this->entityType(EntityType::fromClass(ListingInstalledArticle::class));
         if (self::$cache !== null) {
             $this->singleton(TaggedCacheInterface::class, static fn() => self::$cache);
         }
@@ -140,12 +142,13 @@ if ($mode === 'generated') {
 
 listingCheck($mode === 'standalone', 'Unknown listing acceptance mode.');
 $driver = new InMemoryStorageDriver();
-$driver->write('article', '1', ['id' => '1', 'title' => 'CAFÃ‰ one']);
+$driver->write('article', '1', ['id' => '1', 'title' => 'CAFÉ one']);
 $driver->write('article', '2', ['id' => '2', 'title' => 'Other']);
 foreach ([null, new MemoryBackend()] as $cache) {
     ListingInstalledProvider::$cache = $cache;
     $dispatcher = new EventDispatcher();
     $fields = new FieldDefinitionRegistry();
+    $fields->registerCoreFields('article', Waaseyaa\Entity\Attribute\EntityMetadataReader::resolveFields(ListingInstalledArticle::class, 'article'));
     $manager = new EntityTypeManager(
         eventDispatcher: $dispatcher,
         fieldRegistry: $fields,
@@ -183,7 +186,7 @@ foreach ([null, new MemoryBackend()] as $cache) {
     $listing = $providers[0];
     $definition = $listing->resolve(ListingDefinitionRegistry::class)->get('installed');
     $resolver = $listing->resolve(ListingResolver::class);
-    $values = ExposedFilterParser::create()->parse(['q' => 'cafÃ©'], $definition);
+    $values = ExposedFilterParser::create()->parse(['q' => 'café'], $definition);
     $result = $resolver->resolve($definition, $values);
     listingCheck(count($result->rows) === 1 && (string) $result->rows[0]->id() === '1', 'Installed parsed text contract failed.');
     listingCheck($result->pagination->totalRows === 1, 'Installed total contract failed.');

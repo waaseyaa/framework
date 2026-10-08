@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Listing\Tests\Unit\Discovery;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
@@ -14,7 +14,8 @@ use Waaseyaa\Listing\ListingDefinition;
 use Waaseyaa\Listing\ListingDefinitionRegistry;
 use Waaseyaa\Listing\ServiceProvider;
 
-#[CoversNothing]
+#[CoversClass(ServiceProvider::class)]
+#[CoversClass(ListingDefinition::class)]
 final class ProviderCapabilityDiscoveryTest extends TestCase
 {
     private function app(): \Waaseyaa\Foundation\ServiceProvider\ServiceProvider

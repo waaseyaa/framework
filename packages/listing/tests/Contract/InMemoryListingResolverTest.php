@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Listing\Tests\Contract;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\Listing\ListingResolver;
 
 /**
  * Concrete realisation of {@see ListingResolverContract} backed by
  * {@see InMemoryStorageDriver} (no database — pure PHP arrays).
  */
-#[CoversNothing]
+#[CoversClass(ListingResolver::class)]
 final class InMemoryListingResolverTest extends ListingResolverContract
 {
     protected function createDriver(): EntityStorageDriverInterface

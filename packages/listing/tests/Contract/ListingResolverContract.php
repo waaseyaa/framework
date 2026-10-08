@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Listing\Tests\Contract;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -70,7 +69,6 @@ use Waaseyaa\Listing\Tests\Contract\Fixtures\TranslatableArticleEntity;
  *  - NFR-002             : approximateTotalReturnsNullTotal
  *  - NFR-001 (sentinel)  : accessFastPathBenchmark
  */
-#[CoversNothing]
 abstract class ListingResolverContract extends TestCase
 {
     /**

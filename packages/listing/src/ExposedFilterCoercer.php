@@ -13,21 +13,21 @@ use Waaseyaa\Listing\Exception\ListingCoercionException;
  * {@see FilterDefinition}, applying the operator-aware matrix declared in
  * `docs/specs/listing-pipeline-v1.md`.
  *
- * INTERNAL â€” not part of the stable charter Â§5.X surface. The public
+ * Internal coercion policy. The public
  * entry point is {@see ExposedFilterParser}.
  *
  * The coercer is operator-aware:
  *
- *   - Scalar operators (`EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`) â€” coerce
+ *   - Scalar operators (`EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`): coerce
  *     the raw string per typed-data type (string / int / float / bool /
  *     validated date string).
- *   - `IN` / `NOT_IN` â€” split on `,`, coerce each element per type, return
+ *   - `IN` / `NOT_IN`: split on `,`, coerce each element per type, return
  *     `list<scalar>`. An empty element or whole-empty list is an error.
- *   - `BETWEEN` â€” split on `~`, expect exactly 2 parts, coerce each per
+ *   - `BETWEEN`: split on `~`, expect exactly 2 parts, coerce each per
  *     type, return `[low, high]`.
- *   - `IS_NULL` / `IS_NOT_NULL` â€” the presence of the param is the
+ *   - `IS_NULL` / `IS_NOT_NULL`: the presence of the param is the
  *     signal; return `null`.
- *   - `STARTS_WITH` / `CONTAINS` â€” return the raw string verbatim.
+ *   - `STARTS_WITH` / `CONTAINS`: return the raw string verbatim.
  *     The resolver performs literal Unicode case-folded comparisons; no
  *     SQL LIKE wildcard syntax is introduced.
  */

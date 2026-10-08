@@ -12,11 +12,9 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Listing\Filter;
-use Waaseyaa\Listing\FilterDefinition;
 use Waaseyaa\Listing\ListingDefinition;
 use Waaseyaa\Listing\Operator;
 use Waaseyaa\Listing\Sort;
-use Waaseyaa\Listing\SortDefinition;
 use Waaseyaa\Listing\SortDirection;
 
 #[CoversClass(ListingDefinition::class)]
@@ -287,6 +285,11 @@ final class ListingDefinitionTest extends TestCase
         $hash = $def->cacheKeyHash();
         self::assertSame(16, strlen($hash));
         self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $hash);
+        self::assertNotSame(
+            new ListingDefinition(id: 'ok', entityType: 'node', filters: [Filter::eq('weight', 1)])->cacheKeyHash(),
+            new ListingDefinition(id: 'ok', entityType: 'node', filters: [Filter::eq('weight', 1.0)])->cacheKeyHash(),
+            'Definition hashes preserve integer versus float identity.',
+        );
     }
 
     #[Test]
@@ -314,15 +317,15 @@ final class ListingDefinitionTest extends TestCase
 
         self::assertNotSame(
             $base->cacheKeyHash(),
-            (new ListingDefinition(id: 'ok2', entityType: 'node'))->cacheKeyHash(),
+            new ListingDefinition(id: 'ok2', entityType: 'node')->cacheKeyHash(),
         );
         self::assertNotSame(
             $base->cacheKeyHash(),
-            (new ListingDefinition(id: 'ok', entityType: 'taxonomy_term'))->cacheKeyHash(),
+            new ListingDefinition(id: 'ok', entityType: 'taxonomy_term')->cacheKeyHash(),
         );
         self::assertNotSame(
             $base->cacheKeyHash(),
-            (new ListingDefinition(id: 'ok', entityType: 'node', pageSize: 50))->cacheKeyHash(),
+            new ListingDefinition(id: 'ok', entityType: 'node', pageSize: 50)->cacheKeyHash(),
         );
         self::assertNotSame(
             $base->cacheKeyHash(),

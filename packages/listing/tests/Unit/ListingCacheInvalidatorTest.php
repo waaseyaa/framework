@@ -33,6 +33,19 @@ use Waaseyaa\Listing\ListingCacheInvalidator;
 final class ListingCacheInvalidatorTest extends TestCase
 {
     #[Test]
+    public function canonicalDeleteNotificationEvictsEntityTags(): void
+    {
+        $cache = new RecordingTaggedCache();
+        $invalidator = new ListingCacheInvalidator($cache);
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(\Waaseyaa\Entity\Event\EntityEvents::POST_DELETE->value, $invalidator->onPostDelete(...));
+
+        $dispatcher->dispatch(new \Waaseyaa\Entity\Event\EntityEvent($this->makeEntity(entityTypeId: 'node', id: 42)), \Waaseyaa\Entity\Event\EntityEvents::POST_DELETE->value);
+
+        self::assertSame(['entity:node', 'entity:node:42'], $cache->invalidatedTags);
+    }
+
+    #[Test]
     public function emitsBaseTagsOnSaveForNonTranslatableEntity(): void
     {
         $cache = new RecordingTaggedCache();
@@ -221,7 +234,7 @@ final class ListingCacheInvalidatorTest extends TestCase
 
     private function makeEntity(string $entityTypeId, int|string|null $id): EntityInterface
     {
-        return new class($entityTypeId, $id) implements EntityInterface {
+        return new class ($entityTypeId, $id) implements EntityInterface {
             public function __construct(private readonly string $typeId, private readonly int|string|null $idValue) {}
 
             public function id(): int|string|null
@@ -281,7 +294,7 @@ final class ListingCacheInvalidatorTest extends TestCase
         int|string $id,
         string $activeLangcode,
     ): EntityInterface&TranslatableInterface {
-        return new class($entityTypeId, $id, $activeLangcode) implements EntityInterface, TranslatableInterface {
+        return new class ($entityTypeId, $id, $activeLangcode) implements EntityInterface, TranslatableInterface {
             public function __construct(
                 private readonly string $typeId,
                 private readonly int|string $idValue,

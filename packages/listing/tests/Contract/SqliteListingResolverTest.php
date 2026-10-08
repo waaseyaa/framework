@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Listing\Tests\Contract;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\Listing\ListingResolver;
 
 /**
  * Concrete realisation of {@see ListingResolverContract} backed by
  * {@see SqlStorageDriver} on an in-memory SQLite database via
  * {@see DBALDatabase::createSqlite()}.
  */
-#[CoversNothing]
+#[CoversClass(ListingResolver::class)]
 final class SqliteListingResolverTest extends ListingResolverContract
 {
     protected function createDriver(): EntityStorageDriverInterface

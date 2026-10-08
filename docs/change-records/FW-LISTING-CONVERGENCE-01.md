@@ -116,7 +116,7 @@ The reviewer independently executed 15 cache/lifecycle tests, 56 assertions.
 
 Final candidate-local PHPUnit runs passed:
 
-- Listing package: 355 tests, 696 assertions.
+- Listing package: 356 tests, 698 assertions.
 - Phase14 listing pipeline: 6 tests, 19 assertions.
 - Phase14 cache invalidation: 3 tests, 6 assertions.
 - Phase29: 43 tests, 146 assertions.
@@ -124,7 +124,7 @@ Final candidate-local PHPUnit runs passed:
 - EntityRepositoryTransactionalHooks owner boundary: 12 tests, 140 assertions,
   including enclosing commit/rollback and delete refusal controls.
 
-Total focused source qualification: 425 tests, 1,067 assertions. Fresh disjoint
+Total focused source qualification: 426 tests, 1,069 assertions. Fresh disjoint
 suite runs correct the previous total, which counted overlapping aggregate runs.
 The listing count includes the supplementary context-hash golden test. The two retained
 public probes still reproduce their historical defects against the original
@@ -170,3 +170,12 @@ conjunction and refusal with optional cache absent/present. It also compiles
 the published-content recipe into the installed skeleton, syncs its schema
 and exercises the generated public listing through HttpKernel. Qualification
 results remain pending until these consumers execute from sealed commit bytes.
+
+The supplemental review requested correction of installed-fixture field
+composition and Unicode literals, plus corrupted comment punctuation. Integrity
+verification passed before repair. The fixture now constructs EntityType through
+the canonical attribute factory and compiles its declared fields. An installed
+standalone diagnostic passes both cache configurations. Preflight also required
+coverage-bearing companions: backend contract wrappers now own resolver coverage,
+the capability unit test owns provider coverage, and a real dispatcher unit
+control exercises the canonical delete notification. No coverage gate is waived.
