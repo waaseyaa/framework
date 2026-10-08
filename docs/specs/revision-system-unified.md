@@ -12,7 +12,7 @@
 <!-- Spec reviewed 2026-07-14 - R21 #2010 / #1968: under default-revision discipline, setPublishedRevision() now partitions the target revision snapshot through BundleSubtableGateway and upserts column-stored bundle values in the same transaction as the base-row/pointer promotion. Draft saves remain revision-only and do not leak into the served subtable. -->
 
 **Status:** Design (2026-06-09). Supersedes the parallel two-axis storage stack
-described in [`entity-storage-two-axis.md`](entity-storage-two-axis.md): that
+introduced by M-004 (its superseded specification is available in Git history): that
 mission (M-004) built a *separate* `vid`-based storage stack
 (`RevisionableSqlBlobStorage` / `RevisionableSqlColumnStorage` /
 `RevisionRowHydrator` / `RevisionableEntityStorageInterface`) that was never

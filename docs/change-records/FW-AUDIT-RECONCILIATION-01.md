@@ -1,11 +1,13 @@
 # FW-AUDIT-RECONCILIATION-01
 
-Status: local documentation and skill candidate, 2026-10-08.
+Status: method/README landed; backlog and document-retirement follow-up, 2026-10-08.
 Base: `a09e9f9c0276490c05e393b74b1a8b18f9a68562`, matching live main at intake.
 Program: [FW-PACKAGE-CONVERGENCE-01](FW-PACKAGE-CONVERGENCE-01.md), #3118.
-Owner: Codex root. Scope: audit method, documentation policy, README and two
-confirmed stale shipped skills. No runtime repair, package reassessment,
-GitHub mutation, release or deployment is part of this candidate.
+Owner: Codex root. Initial scope: audit method, documentation policy, README and
+two confirmed stale shipped skills. The maintainer subsequently authorized
+landing, backlog/document reconciliation and listing/messaging closeout.
+This follow-up retires obsolete documents and reconciles coordination records;
+it does not claim runtime repairs, release or deployment.
 
 ## Intended outcome
 
@@ -88,5 +90,44 @@ document-tree retirement is complete.
   prose changes. Hosted/release qualification is not claimed. Actual results
   belong in the final handoff.
 
-The live #3118 description and #2667/Project state still need reconciliation
-when publication is authorized. This local candidate does not claim it occurred.
+## Authorized follow-up: backlog and document retirement
+
+The first batch landed at `f099100ceedb5160a9ccc78b6ee2e365a096ecae`.
+[Main feedback CI](https://github.com/waaseyaa/framework/actions/runs/37859608040)
+passed. Independent review approved the source; governed preflight recorded
+41 executed passes, two reused passes, no failures, and three not applicable.
+
+The [backlog work map](../audits/packages/backlog-reconciliation.md) routes all
+196 open issues and ten dependency PRs. It preserves existing acceptance owners
+and distinguishes eight clear future-feature proposals from repair, decision,
+qualification and program work. Intake is not a fresh defect-verification claim.
+The live #3118 outcome now reflects the maintainer's finish line and links to the
+versioned coverage index instead of a stale all-not-assessed inline roster.
+
+Retire 14 files: three superseded specs, the M-004 planning spec, its obsolete
+cookbook and upgrade guide, and eight frozen mission-filing metadata files.
+The live config, migration and unified revision specs retain current contracts.
+Update active routing, corpus manifest, tests and live references together.
+No runtime behavior changes. Frozen audit rosters and historical prose retain
+original path identities as evidence, not claims that those files still exist.
+The charter pointer amendment removes obsolete companion links without changing
+DIR-005's required revision/translation invariants or amendment authority.
+
+The pilot corpus now compiles five live specs and one draft. Lifecycle behavior
+for superseded/historical material remains covered by purpose-built fixtures.
+A native run of all 29 corpus tests hit the two already-governed Windows symlink
+permission failures; this is incomplete host evidence, not a candidate regression.
+The supported focused run excludes those two unchanged symlink fixtures and
+passes 27 tests / 114 assertions. Hosted Linux owns the symlink proof.
+
+Listing custody and messaging lifecycle/profile choices are pending maintainer
+answers. Their existing ledgers keep those decisions open. Neither package is
+promoted to converged merely because this documentation batch lands.
+
+
+Board publication used independently reviewed plan
+`bfc971120969b2f1daf5d2b58bfd9e8bcb7352beacdb66fb05245485d6177e77`:
+16 operations / 22 writes, no failure. #3163's extra acceptance was incorporated
+into #3116 before duplicate closure; its closed readiness was then cleared.
+79 missing priorities and 15 ambiguous readiness labels remain explicit under
+#2667. No stage, milestone, release label or priority was inferred or changed.

@@ -47,7 +47,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 |---|---|---|
 | `packages/entity/*`, `packages/entity-storage/*`, `packages/field/*` | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/field/src/Classification/*`, `packages/field/src/Entity/{ClassificationLabelDefinition,RetentionPolicy}.php`, `packages/admin/app/pages/classification/*` (classification labels, inheritance, clearance/hold access, retention jobs) | — | `docs/specs/classification-and-retention.md` |
-| `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/revision-system-unified.md` (LIVE canonical — read first), `docs/specs/entity-storage-two-axis.md` (SUPERSEDED — M-004 `vid` model, retired alpha.196), `docs/cookbook/translatable-revisionable-entities.md`, `docs/upgrade-notes/two-axis-storage.md` |
+| `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/revision-system-unified.md`, `docs/specs/entity-storage-translations-v1.md` |
 | `packages/config/*` (active store, runtime read API) | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/config/src/{Sync,Dependency,Audit,Backend}/*`, `packages/cli/src/Command/Config/*` (CMI: sync store, `config:*` CLI, `config.audit`) | — | `docs/specs/config-management.md`, `docs/cookbook/config-sync.md`, `docs/adr/018-configuration-management-sync.md` |
 | `packages/access/*`, `packages/user/src/Middleware/*` | `waaseyaa:access-control` | `docs/specs/access-control.md`, `docs/specs/field-access.md` |
@@ -70,7 +70,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php` | `waaseyaa:middleware-pipeline` | `docs/specs/http-entry-point.md` |
 | `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
-| `packages/media/*`, `packages/media/src/Version/*` | — | `docs/specs/entity-storage-two-axis.md` (cross-ref: DIR-005 versioned blob) |
+| `packages/media/*`, `packages/media/src/Version/*` | — | `packages/media/README.md`, `docs/governance/charter.md` (DIR-005; dormant versioning remains tracked by #1742) |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
 | `packages/relationship/*` | — | `docs/specs/relationship-modeling.md`, `docs/specs/relationship-inference-contract.md` |
 | `packages/genealogy/*` | — (distribution-extension) | `docs/specs/genealogy.md`, `docs/specs/relationship-modeling.md` |

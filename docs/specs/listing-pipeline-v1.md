@@ -26,9 +26,9 @@
 **Sibling missions:**
 - [`entity-storage-v2.md`](entity-storage-v2.md) (M-001) — **shipped 2026-05-11**. Provides `EntityQuery::supportsQuery()` and `UnsupportedQueryException` that listing pipeline consumes for definition validation.
 - [`entity-storage-translations-v1.md`](entity-storage-translations-v1.md) (M-006) — **shipped 2026-05-13**. C-002 explicitly assigns per-langcode filters and langcode-in-cache-tags to this mission's surface. M-006 ships `TranslatableInterface` + `SaveContext::langcode`; this mission ships the listing-layer integration.
-- [`entity-storage-translatable-revisions.md`](entity-storage-translatable-revisions.md) (M-004) — **BLOCKED on this mission.** Composes single-axis translation with single-axis revisions. M-004 WP07 (per-langcode listing filters, langcode cache tags) is the downstream consumer of FR-019..FR-022 below.
-- [`migration-platform-v1.md`](migration-platform-v1.md) (M-002) — independent. Migrations do not write listings; listings are read paths.
-- [`config-management-v1.md`](config-management-v1.md) (M-003) — independent. Config entities are not listing subjects.
+- [`revision-system-unified.md`](revision-system-unified.md) is the current revision/translation contract. The M-004 planning and storage stack have been retired.
+- [`migration-platform.md`](migration-platform.md) (M-002) — independent. Migrations do not write listings; listings are read paths.
+- [`config-management.md`](config-management.md) (M-003) — independent. Config entities are not listing subjects.
 
 **Comparable mission:** [`entity-storage-translations-v1.md`](entity-storage-translations-v1.md) — shape and rigor template (14 WPs, contract-suite + backend-conformance + integration tests, charter amendment, beta-gate).
 
@@ -431,7 +431,7 @@ After WP11, run the contract suite + backend conformance + integration tests. WP
 4. M-004's WP07 prerequisite is satisfied: per-langcode filters (FR-046), langcode in cache tags (FR-023 translatable case), langcode context (FR-048).
 5. Charter §3.2 gains criterion 10; §5.X (listing) and §5.Y (cache) sections are filed.
 6. `composer cs-check` + `composer phpstan` + `bin/check-composer-policy` + `bin/check-package-layers` + the full PHPUnit suite are green.
-7. M-004 BLOCKED stamps in `kitty-specs/entity-storage-translatable-revisions-01KRCDEE/spec.md` and `docs/specs/entity-storage-translatable-revisions.md` are updated at this mission's close to remove the second-prerequisite line — M-004 becomes plannable.
+7. Historical M-004 prerequisite bookkeeping is complete and no longer a live acceptance gate. Revision/translation integration follows `revision-system-unified.md`.
 
 ---
 
@@ -455,7 +455,7 @@ These items are deliberately not pinned in §3; they're for the `plan` phase to 
 - [ADR 010](../adr/010-storage-backends-gate-query-support.md), [ADR 011](../adr/011-lifecycle-events.md), [ADR 013](../adr/013-display-stays-in-app-land.md), [ADR 014](../adr/014-themes-can-ship-listing-templates.md).
 - [`entity-storage-v2.md`](entity-storage-v2.md) — M-001, provides `supportsQuery()` and `EntityQuery` substrate.
 - [`entity-storage-translations-v1.md`](entity-storage-translations-v1.md) — M-006, provides `TranslatableInterface` + `SaveContext::langcode`; C-002 carved langcode-in-listing-pipeline as this mission's surface.
-- [`entity-storage-translatable-revisions.md`](entity-storage-translatable-revisions.md) — M-004, the downstream consumer (WP07 specifically) that unblocks fully when this mission ships.
+- [`revision-system-unified.md`](revision-system-unified.md) is the current revision/translation contract. The M-004 planning and storage stack have been retired.
 - [`stability-charter.md`](stability-charter.md) §3.2 (beta entry criteria — to be amended), §5 (stable surface — new §5.X + §5.Y).
 - [`drupal-comparison-matrix.md`](drupal-comparison-matrix.md) §1.4, §3.4, §6.6 — origin of the gap.
 - [`public-surface-map.md`](public-surface-map.md) — adds `Waaseyaa\Listing\*` + new `Waaseyaa\Cache\TaggedCacheInterface` + `ContextResolver` + `ContextRegistry` at mission close.

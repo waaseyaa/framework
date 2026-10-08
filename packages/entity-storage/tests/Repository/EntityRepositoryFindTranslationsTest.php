@@ -250,7 +250,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             // translatable trait mechanics (addTranslation()/removeTranslation()
             // diffed by a generic save()) — that pattern only ever existed on the
             // retired SqlEntityStorage engine (superseded M-004 stack, see
-            // docs/specs/entity-storage-two-axis.md). Raw inserts exercise the
+            // docs/specs/revision-system-unified.md). Raw inserts exercise the
             // same on-disk shape without depending on that removed API.
             $entityId = '1';
             foreach (

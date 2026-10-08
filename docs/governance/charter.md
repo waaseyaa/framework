@@ -431,11 +431,9 @@ directive comes from its text.
    drivers that drop either axis are charter violations regardless of
    perceived simplification benefit. The canonical specification is
    `docs/specs/revision-system-unified.md` (the live unified `revision_id`
-   model; companion specs: `entity-storage-translatable-revisions.md`,
-   `entity-storage-translations-v1.md`). NOTE:
-   `docs/specs/entity-storage-two-axis.md` described the earlier M-004 `vid`
-   model and was SUPERSEDED at alpha.196 — it is retained for
-   historical/audit context only and is NOT canonical. These canonical specs
+   model; companion spec: `entity-storage-translations-v1.md`). The earlier
+   M-004 `vid` model was superseded at alpha.196; its obsolete specification
+   and operator guidance are retained in Git history only. These canonical specs
    are themselves constitutional artifacts and changes to them require an
    amendment.
 

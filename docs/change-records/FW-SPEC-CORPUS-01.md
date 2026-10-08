@@ -36,8 +36,12 @@ version-matched corpus exists (#2661 → #2662).
 
 ## Pilot scope (this slice)
 
-Manifest `tools/spec-corpus-pilot-manifest.json` lists eight real specs covering
-all four lifecycle values. Residual acceptance: migrate remaining ~102 specs via
+The original pilot listed eight real specs across all four lifecycle values.
+FW-AUDIT-RECONCILIATION-01 retires its three obsolete source documents and adds
+the live migration-platform successor. The pilot now compiles five live specs
+and one draft. Purpose-built fixtures still prove all four lifecycle values;
+obsolete repository documents are not permanent test data.
+Residual acceptance: migrate remaining specs via
 incremental frontmatter as they are materially touched (#2229 rule); wire compiled
 output into `bimaaji_search_specs` / FTS (#2662); optional preflight gate once
 pilot stabilizes (proposed separately — not in this slice).

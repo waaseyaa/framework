@@ -684,14 +684,13 @@ final class SpecCorpusCompilerTest extends TestCase
             SpecCorpusCompiler::loadManifest($manifest),
         );
 
-        self::assertGreaterThanOrEqual(4, count($compiled['index']['entries']));
-        self::assertArrayHasKey('entity-storage-two-axis', $compiled['documents']);
-        self::assertSame('superseded', $compiled['documents']['entity-storage-two-axis']['lifecycle']);
-        self::assertSame(
-            'revision-system-unified',
-            $compiled['documents']['entity-storage-two-axis']['superseded_by'],
-        );
-        self::assertArrayNotHasKey('entity-storage-two-axis', array_column($compiled['index']['entries'], 'id', 'id'));
+        self::assertGreaterThanOrEqual(5, count($compiled['index']['entries']));
+        foreach (['entity-storage-two-axis', 'config-management-v1', 'migration-platform-v1'] as $retired) {
+            self::assertArrayNotHasKey($retired, $compiled['documents']);
+        }
+        foreach (['revision-system-unified', 'config-management', 'migration-platform'] as $current) {
+            self::assertArrayHasKey($current, array_column($compiled['index']['entries'], 'id', 'id'));
+        }
         self::assertArrayHasKey('spec-corpus', $compiled['documents']);
         self::assertSame('draft', $compiled['documents']['spec-corpus']['lifecycle']);
         self::assertSame(

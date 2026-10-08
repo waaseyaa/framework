@@ -23,9 +23,9 @@
 
 **Sibling missions:**
 - [`entity-storage-v2.md`](entity-storage-v2.md) (M-001) — **shipped 2026-05-11**. Provides the multi-backend coordinator and revision substrate this mission extends with translation.
-- [`entity-storage-translatable-revisions.md`](entity-storage-translatable-revisions.md) (M-004) — **BLOCKED, gated on this mission.** Composes single-axis translation with single-axis revisions; cannot be planned until this mission ships AND the ADR 015 listing-pipeline mission ships.
-- [`migration-platform-v1.md`](migration-platform-v1.md) (M-002) — independent. `EntityDestination` writes per-language when target is translatable.
-- [`config-management-v1.md`](config-management-v1.md) (M-003) — independent. Config entities are not translatable.
+- [`revision-system-unified.md`](revision-system-unified.md) owns the current optional revision axis; the original M-004 planning spec is retired.
+- [`migration-platform.md`](migration-platform.md) (M-002) — independent. `EntityDestination` writes per-language when target is translatable.
+- [`config-management.md`](config-management.md) (M-003) — independent. Config entities are not translatable.
 
 **Comparable mission:** [`entity-storage-v2.md`](entity-storage-v2.md) — shape and rigor template.
 
@@ -223,7 +223,7 @@ Normative requirements use **MUST / SHOULD / MAY** per RFC 2119. Status legend: 
 |---|---|---|
 | FR-062 | NEW | A cookbook recipe `docs/cookbook/translating-an-entity-type.md` MUST be authored covering: declaring `translatable: true`, marking fields, writing a migration, save/load examples. |
 | FR-063 | NEW | The stability charter §5.3 stable surface table MUST be updated to list `TranslatableEntityInterface`, `FieldDefinition::translatable()`, `EntityType::translatable` constructor parameter, `default_langcode` entity key. |
-| FR-064 | NEW | `docs/specs/entity-storage-translatable-revisions.md` and `kitty-specs/entity-storage-translatable-revisions-01KRCDEE/spec.md` MUST have their single-axis-translation BLOCKED bullet removed in the mission-close commit (the ADR 015 listing-pipeline bullet remains; M-004 stays BLOCKED on that prerequisite). |
+| FR-064 | Historical closure | M-006 mission prerequisite bookkeeping is complete. The retired M-004 planning record is available in Git history; current two-axis integration follows `revision-system-unified.md`. |
 
 ## 4. Non-functional requirements
 
@@ -503,7 +503,7 @@ None at draft time — all decisions resolved during discovery (D1–D4 below). 
 - [ADR 011](../adr/011-entity-lifecycle-events.md) — lifecycle event contract, extended with translation events.
 - [`stability-charter.md`](stability-charter.md) §3.2 criterion 9 — beta gate this mission clears.
 - [`entity-storage-v2.md`](entity-storage-v2.md) — shipped sibling mission (M-001); structural template for this spec.
-- [`entity-storage-translatable-revisions.md`](entity-storage-translatable-revisions.md) — M-004, BLOCKED on this mission's substrate.
+- [`revision-system-unified.md`](revision-system-unified.md) owns the current optional revision axis; the original M-004 planning spec is retired.
 - [`public-surface-map.md`](public-surface-map.md) — updated by this mission per §6.
 - [`packages/i18n/README.md`](../../packages/i18n/README.md) — language negotiation surface this mission wires into the read path.
 

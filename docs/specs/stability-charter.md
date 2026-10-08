@@ -988,9 +988,9 @@ These are explicitly named exit points so they're not lost. Items with named fol
 These are the implementation missions that operationalize the accepted ADRs. The charter does not own these; they live as separate mission specs in `docs/specs/`.
 
 - **`entity-storage-v2.md`** — drafted (2026-05-11). Implements [ADRs 010 / 011 / 016](../adr/) as one coordinated mission. Validates with Minoo `teaching` entity migration.
-- **`migration-platform-v1.md`** — pending draft. Implements [ADR 012a](../adr/012a-migration-substrate-in-core.md) substrate. First-party source readers (WordPress, Drupal 7) follow as separate package-mission specs.
-- **`config-management-v1.md`** — pending draft. Implements [ADR 018](../adr/018-configuration-management-sync.md).
-- **`entity-storage-translatable-revisions.md`** — pending draft. Implements [ADR 017](../adr/017-per-field-translation.md)'s revisionable+translatable interaction. Lands after `entity-storage-v2.md`.
+- **`migration-platform.md`**: shipped substrate contract. Implements [ADR 012a](../adr/012a-migration-substrate-in-core.md) substrate. First-party source readers (WordPress, Drupal 7) follow as separate package-mission specs.
+- **`config-management.md`**: shipped configuration contract. Implements [ADR 018](../adr/018-configuration-management-sync.md).
+- **`revision-system-unified.md`**: current revisionable/translatable interaction under [ADR 017](../adr/017-per-field-translation.md); supersedes the retired M-004 stack.
 
 ---
 

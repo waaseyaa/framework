@@ -9,10 +9,8 @@
 > per-field translation model from M-006. Canonical doctrine for the two-axis
 > interaction — schema shapes, atomic multi-language save, listing integration —
 > lives in [`revision-system-unified.md`](revision-system-unified.md). The operator
-> cookbook is [`../cookbook/translatable-revisionable-entities.md`](../cookbook/translatable-revisionable-entities.md).
-> (The earlier M-004 `vid`-based stack described in
-> [`entity-storage-two-axis.md`](entity-storage-two-axis.md) was retired in
-> alpha.196 and is superseded historical context only.)
+> guide is the live unified spec. The earlier M-004 `vid` stack was retired
+> in alpha.196; its obsolete cookbook and upgrade instructions have been removed.
 
 **Status:** Draft mission spec (target: ratify with the stability charter and ADRs 010–016)
 **Audience:** framework maintainers; input for Spec Kitty `specify` → `plan` → `tasks` flow

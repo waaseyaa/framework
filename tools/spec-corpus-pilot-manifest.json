@@ -24,21 +24,9 @@
       "lifecycle": "live"
     },
     {
-      "id": "entity-storage-two-axis",
-      "path": "docs/specs/entity-storage-two-axis.md",
-      "lifecycle": "superseded",
-      "superseded_by": "revision-system-unified"
-    },
-    {
-      "id": "config-management-v1",
-      "path": "docs/specs/config-management-v1.md",
-      "lifecycle": "superseded",
-      "superseded_by": "config-management"
-    },
-    {
-      "id": "migration-platform-v1",
-      "path": "docs/specs/migration-platform-v1.md",
-      "lifecycle": "historical"
+      "id": "migration-platform",
+      "path": "docs/specs/migration-platform.md",
+      "lifecycle": "live"
     },
     {
       "id": "spec-corpus",

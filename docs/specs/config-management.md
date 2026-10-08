@@ -8,9 +8,8 @@
 **Charter linkage:** [`stability-charter.md`](stability-charter.md) §5.5 enumerates the stable surface ratified by this mission; beta-gate criterion 9 (§3.2) is **SATISFIED** by this mission's landing.
 **Mission archive:** [`kitty-specs/config-management-v1-01KRCDEC/`](../../kitty-specs/config-management-v1-01KRCDEC/) — original spec, plan, work packages, review history.
 
-This is the canonical doctrine spec. The original mission spec
-[`config-management-v1.md`](config-management-v1.md) is retained as a historical artifact;
-this file is the single source of truth post-mission.
+This is the canonical configuration-management contract. The superseded mission
+spec was retired from the working tree; Git history preserves its original text.
 
 > **S1 authority amendment (2026-08-12).** The command and YAML surfaces below
 > remain stable, but active production configuration is now one versioned
@@ -439,7 +438,6 @@ in an environment overlay.
 - Conventions [`docs/conventions/cmi-sync-format.md`](../conventions/cmi-sync-format.md) — sync-store format invariants.
 - Upgrade guide entry for the introducing alpha train — [`docs/upgrades/`](../upgrades/).
 - Mission archive [`kitty-specs/config-management-v1-01KRCDEC/`](../../kitty-specs/config-management-v1-01KRCDEC/) — original spec, plan, work packages.
-- Mission spec history [`config-management-v1.md`](config-management-v1.md) — pre-implementation working document (preserved for context).
 
 ---
 
@@ -453,7 +451,8 @@ Mission `config-management-v1-01KRCDEC` (M-003, 2026-05-16) shipped FR-001..FR-0
 - Backend restriction landed independently on lane-b (WP08), unblocking the `sql-blob` / `sql-column` invariant claim that ADR 018 made on entity-storage-v2's behalf.
 - Minoo round-trip (WP10) validates the substrate end-to-end: export → modify-in-sync → import → diff = 0.
 
-Acceptance criteria §9 of [`config-management-v1.md`](config-management-v1.md) are satisfied; mission complete.
+The M-003 closeout recorded the original mission acceptance as satisfied.
+Current acceptance follows the live contract and its S1 authority amendment.
 ## Fresh-project signed activation
 
 `project:config:authorize` is the supported authoring-side composition for

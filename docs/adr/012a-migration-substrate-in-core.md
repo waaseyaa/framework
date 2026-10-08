@@ -150,6 +150,6 @@ Total to "viable platform with WP + D7": ~10–12 months. A Year-1 V1 priority, 
 - Charter: `docs/specs/stability-charter.md` §10 (cross-refs to be updated to point at this ADR).
 - Superseded: [ADR 012](012-migration-platform-out-of-scope.md).
 - Related: [ADR 010](010-multi-backend-field-storage.md) (storage coordinator is the destination's substrate), [ADR 011](011-entity-lifecycle-events.md) (import events ride the lifecycle surface), [ADR 016](016-revisions-first-class.md) (revision creation on import).
-- Future: implementation mission spec at `docs/specs/migration-platform-v1.md` (TBD); first-party reader packages tracked separately.
+- Current substrate contract: `docs/specs/migration-platform.md`; first-party reader packages are tracked separately.
 - Prior art: Drupal core Migrate API, Drupal contrib Migrate Plus, Drupal Migrate Source CSV.
 - Parity reference: Drupal 12 Migrate, Laravel 14 (Eloquent factories + Scout; no migration platform per se — parity here is asymmetric, with Drupal as the higher bar).

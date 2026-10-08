@@ -281,3 +281,11 @@ path, an applicable refusal or failure path, the terminal effect or returned
 state, and a discriminator that fails for a fake or no-op delegate. An adapter
 that only relocates coupling, hides a defective implementation, or advertises
 an unavailable capability is a finding.
+
+## 2026-10-08 backlog intake
+
+The [backlog reconciliation](../audits/packages/backlog-reconciliation.md) routes
+the complete open-issue snapshot to existing owners and separates intentional
+future features. It is a dated intake view; issue acceptance, audit ledgers and
+the coverage index retain their respective authority. Refresh it for program
+closeout rather than maintaining a second live backlog.

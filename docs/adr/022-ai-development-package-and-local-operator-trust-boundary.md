@@ -439,9 +439,11 @@ Skills — a different artefact that does not make this tool return anything.
 requires the default index to carry live material only, with superseded and
 historical states behind an explicit labelled filter. Until it lands, a search
 over the raw directory would surface retired designs as if current —
-`docs/specs/entity-storage-two-axis.md` is Superseded (M-004 `vid` model, retired
-alpha.196) while `revision-system-unified.md` is live canonical. Those documents
-do carry supersession banners in prose, but the tool's result shape is *matching
+the former `docs/specs/entity-storage-two-axis.md` described the superseded M-004
+`vid` model while `revision-system-unified.md` was live canonical. The obsolete
+file was removed in FW-AUDIT-RECONCILIATION-01; removing it does not eliminate
+the corpus lifecycle requirement. A prose banner was insufficient because the
+tool's result shape is *matching
 file, line number, nearest `##`/`###` heading, and a snippet*
 (`packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php:46`), which does not
 carry a top-of-file status banner to the caller. The allowlist therefore ships

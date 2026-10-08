@@ -11,7 +11,7 @@
 **Charter linkage:** none directly. This mission ships a consumer of the migration platform substrate (M-002). It does not amend the framework charter.
 
 **Sibling missions:**
-- [`migration-platform-v1.md`](migration-platform-v1.md) — **hard prerequisite.** Substrate must be shipped and acceptance criterion 8 ("substrate ready for the WordPress source reader mission to start") must be satisfied before WP01 of this mission begins.
+- [`migration-platform.md`](migration-platform.md) — **hard prerequisite.** The substrate has shipped; current integration follows the live migration contract and its supported source/destination plugin boundaries.
 - Independent of M-001, M-003, M-004 (they don't gate this).
 
 ---
@@ -260,7 +260,7 @@ Mission-specific.
 ## 8. References
 
 - [ADR 012a](../adr/012a-migration-substrate-in-core.md) — governing decision; WordPress reader named as first first-party source.
-- [`migration-platform-v1.md`](migration-platform-v1.md) — substrate mission; hard prerequisite.
+- [`migration-platform.md`](migration-platform.md) — substrate mission; hard prerequisite.
 - WXR specification — https://wordpress.org/documentation/article/wxr-files/ (and WordPress codex).
 - Drupal contrib `migrate_source_wordpress` — prior art; this mission's design is heavily influenced.
 - 2026-05-11 framework/app audit (`waaseyaa/minoo/docs/audits/2026-05-11-framework-app-audit.md`) — strategic context.
