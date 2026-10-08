@@ -614,6 +614,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Event\BeforeSaveEvent` | final class | public | Dispatched before any backend write; listeners may abort via `AbortOperationException` (M-001, WP04) |
 | `Event\EntityLifecycleEventInterface` | interface | public | Marker for all four coordinator lifecycle events (M-001, WP04) |
 | `Event\EntityMutationAuthorityBackfilledEvent` | final readonly class | public | — |
+| `Event\EntityPersistedEvent` | final readonly class | public | Required entity invariants after writes and hooks, before transaction commit (#2753) |
 | `Event\EntitySourceChangedEvent` | final readonly class | public | Immediate source projection notification inside the mutation transaction; identifies its database connection |
 | `Exception\BundleAmbiguousFieldException` | final class | public | — |
 | `Exception\BundleUniqueKeyConflictException` | final class | public | Stable repository conflict for a database-enforced bundle key (`BUNDLE_UNIQUE_KEY_CONFLICT`) (#2603) |

@@ -8,6 +8,7 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -37,6 +38,15 @@ final class MessagingServiceProvider extends ServiceProvider
 
         if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
             return;
+        }
+
+        // Resolve schemas before creation starts and reject unsupported memory
+        // compositions before they can report a misleading successful boot.
+        foreach (['message_thread', 'thread_participant'] as $type) {
+            $repository = $entityTypeManager->getRepository($type);
+            if (!$repository instanceof EntityRepository || !$repository->supportsAtomicSqlWrites()) {
+                throw new \LogicException('Messaging requires SQL-backed thread and participant repositories; memory-only composition is unsupported.');
+            }
         }
 
         $accountContext = $this->resolveOptional(AccountContextInterface::class);

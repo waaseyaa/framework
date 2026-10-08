@@ -16,6 +16,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent;
+use Waaseyaa\EntityStorage\Event\EntityPersistedEvent;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TransactionalHookEntity;
@@ -25,13 +26,14 @@ final class EntityRepositoryTransactionalHooksTest extends TestCase
 {
     private DBALDatabase $database;
     private EntityRepository $repository;
+    private EventDispatcher $dispatcher;
     /** @var list<string> */
     private array $notifications = [];
 
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
-        $dispatcher = new EventDispatcher();
+        $dispatcher = $this->dispatcher = new EventDispatcher();
         $type = new EntityType(id: 'test_entity', label: 'Hooks', class: TransactionalHookEntity::class, keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'label']);
         new SqlSchemaHandler($type, $this->database)->ensureTable();
         $this->repository = V2EntityRepositoryFactory::createFromSqlStorageDriver(
@@ -95,6 +97,48 @@ final class EntityRepositoryTransactionalHooksTest extends TestCase
         } catch (\RuntimeException $error) {
             self::assertSame('host hook refused', $error->getMessage());
         }
+    }
+
+    #[Test]
+    public function persisted_invariant_refusal_rolls_back_source_authority_and_hook_writes(): void
+    {
+        $entity = $this->entity('1');
+        $this->dispatcher->addListener(EntityPersistedEvent::class, function (EntityPersistedEvent $event): never {
+            self::assertTrue($event->isNew);
+            self::assertSame($this->database, $event->database);
+            self::assertSame('1', (string) $event->entity->id());
+            self::assertTrue($this->repository->sharesTransactionWith($event->database));
+            self::assertTrue($this->database->getConnection()->isTransactionActive());
+            self::assertSame(1, $this->rows('test_entity'));
+            self::assertSame(1, $this->rows('hook_related'));
+            throw new \RuntimeException('host hook refused');
+        });
+        $this->refuse(fn() => $this->repository->save($entity));
+        self::assertSame(0, $this->rows('test_entity'));
+        self::assertSame(0, $this->rows('hook_related'));
+        self::assertSame([], $this->authority());
+        self::assertSame([], $this->notifications);
+    }
+
+    #[Test]
+    public function persisted_invariant_is_immediate_and_marks_create_then_update(): void
+    {
+        $seen = [];
+        $this->dispatcher->addListener(EntityPersistedEvent::class, function (EntityPersistedEvent $event) use (&$seen): void {
+            self::assertTrue($this->database->getConnection()->isTransactionActive());
+            self::assertSame([], $this->notifications);
+            $seen[] = $event->isNew;
+        });
+        $outer = $this->database->transaction();
+        $entity = $this->entity('1');
+        $this->repository->save($entity);
+        // The first save has not committed its successor token yet; reloading
+        // obtains the current in-transaction token for the update.
+        $this->repository->save($this->repository->find('1'));
+        self::assertSame([true, false], $seen);
+        $outer->rollBack();
+        self::assertSame(0, $this->rows('test_entity'));
+        self::assertSame([], $this->notifications);
     }
 
     #[Test]

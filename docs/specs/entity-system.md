@@ -1891,7 +1891,7 @@ public function postDelete(): void {}
 Called by `EntityRepository` (not `SqlEntityStorage`). Execution order within `save()`:
 
 ```
-preSave($isNew) → PRE_SAVE event → persist → postSave($isNew)
+preSave($isNew) → PRE_SAVE event → persist → postSave($isNew) → EntityPersistedEvent
     → true commit → POST_SAVE / revision / after-save notifications
 ```
 
@@ -1912,6 +1912,16 @@ an enclosing managed transaction, successful hooks run before the repository
 returns, while notification events wait for the enclosing commit and disappear
 if it rolls back. Provider calls belong to those after-commit notifications;
 moving networking out of the transaction does not move the hooks (#3142).
+
+`Waaseyaa\EntityStorage\Event\EntityPersistedEvent` is an immediate required-invariant
+extension point after source writes, assigned identity and entity hooks, before
+commit. Its payload carries the entity, the original create/update flag and the
+repository database (null for nontransactional storage). It is not stoppable and
+is never buffered by `UnitOfWork`. A refusing listener rolls back SQL writes and
+suppresses commit notifications; related repositories must use the same managed
+transaction connection (`EntityRepository::sharesTransactionWith()`). Memory
+storage cannot promise rollback. Messaging uses this hook to establish creator
+membership atomically; networking remains in commit notifications (#2753).
 
 ## Configuration Entities
 

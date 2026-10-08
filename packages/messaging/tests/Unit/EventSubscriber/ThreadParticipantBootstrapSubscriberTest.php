@@ -7,7 +7,9 @@ namespace Waaseyaa\Messaging\Tests\Unit\EventSubscriber;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Messaging\MessagingServiceProvider;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -213,30 +215,147 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
         );
     }
 
+    #[Test]
+    public function participant_failure_rolls_back_creation_and_suppresses_notifications(): void
+    {
+        [$manager, $database, $dispatcher] = $this->makeManagerAndSubscriber(self::CREATOR_UID);
+        $manager->getRepository('thread_participant');
+        $manager->getRepository('message_thread');
+        $database->query("CREATE TRIGGER fail_owner BEFORE INSERT ON thread_participant BEGIN SELECT RAISE(ABORT, 'owner failure'); END");
+        $notifications = [];
+        $dispatcher->addListener(\Waaseyaa\Entity\Event\EntityEvents::POST_SAVE->value,
+            static function ($event) use (&$notifications): void { $notifications[] = $event->entity->getEntityTypeId(); });
+        $threads = $manager->getRepository('message_thread');
+        try {
+            $threads->save($threads->create(['created_by' => self::CREATOR_UID]), validate: false);
+            self::fail('Owner insertion failure must refuse thread creation.');
+        } catch (\Doctrine\DBAL\Exception $failure) {
+            self::assertStringContainsString('owner failure', $failure->getMessage());
+        }
+        self::assertSame([], $threads->findBy([]));
+        self::assertSame([], $manager->getRepository('thread_participant')->findBy([]));
+        self::assertSame([], $notifications);
+        $database->query('DROP TRIGGER fail_owner');
+        $retry = $threads->create(['created_by' => self::CREATOR_UID]);
+        $threads->save($retry, validate: false);
+        $threads->save($retry, validate: false);
+        self::assertCount(1, $threads->findBy([]));
+        self::assertCount(1, $manager->getRepository('thread_participant')->findBy([]));
+    }
+
+    #[Test]
+    public function second_owner_failure_rolls_back_the_entire_batch(): void
+    {
+        [$manager, $database] = $this->makeManagerAndSubscriber(self::CREATOR_UID);
+        $manager->getRepository('thread_participant');
+        $manager->getRepository('message_thread');
+        $database->query("CREATE TRIGGER fail_second_owner BEFORE INSERT ON thread_participant WHEN (SELECT COUNT(*) FROM thread_participant) = 1 BEGIN SELECT RAISE(ABORT, 'second owner failure'); END");
+        $threads = $manager->getRepository('message_thread');
+        try {
+            $threads->saveMany([
+                $threads->create(['created_by' => self::CREATOR_UID]),
+                $threads->create(['created_by' => self::CREATOR_UID]),
+            ], validate: false);
+            self::fail('A failed batch must not report success.');
+        } catch (\Doctrine\DBAL\Exception $failure) {
+            self::assertStringContainsString('second owner failure', $failure->getMessage());
+        }
+        self::assertSame([], $threads->findBy([]));
+        self::assertSame([], $manager->getRepository('thread_participant')->findBy([]));
+    }
+
+    #[Test]
+    public function outer_rollback_discards_both_rows_and_commit_notifications(): void
+    {
+        [$manager, $database, $dispatcher] = $this->makeManagerAndSubscriber(self::CREATOR_UID);
+        $notifications = [];
+        $dispatcher->addListener(\Waaseyaa\Entity\Event\EntityEvents::POST_SAVE->value,
+            static function ($event) use (&$notifications): void { $notifications[] = $event->entity->getEntityTypeId(); });
+        $transaction = $database->transaction();
+        $threads = $manager->getRepository('message_thread');
+        $threads->save($threads->create(['created_by' => self::OUTSIDER_UID]), validate: false);
+        self::assertCount(1, $threads->findBy([]));
+        self::assertCount(1, $manager->getRepository('thread_participant')->findBy(['user_id' => self::CREATOR_UID]));
+        self::assertSame([], $notifications);
+        $transaction->rollBack();
+        self::assertSame([], $threads->findBy([]));
+        self::assertSame([], $manager->getRepository('thread_participant')->findBy([]));
+        self::assertSame([], $notifications);
+    }
+
+    #[Test]
+    public function memory_composition_is_refused_at_canonical_provider_boot(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('memory-only composition is unsupported');
+        $this->makeManagerAndSubscriber(self::CREATOR_UID, memory: true);
+    }
+
+    #[Test]
+    public function memory_driver_with_a_database_cannot_claim_atomic_sql_support(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('memory-only composition is unsupported');
+        $this->makeManagerAndSubscriber(self::CREATOR_UID, memory: true, memoryDatabase: true);
+    }
+
+    #[Test]
+    public function repeated_provider_boot_still_creates_exactly_one_owner(): void
+    {
+        [$manager] = $this->makeManagerAndSubscriber(self::CREATOR_UID, repeatedBoot: true);
+        $threads = $manager->getRepository('message_thread');
+        $thread = $threads->create(['created_by' => self::OUTSIDER_UID]);
+        $threads->save($thread, validate: false);
+        $members = $manager->getRepository('thread_participant');
+        self::assertCount(1, $members->findBy(['thread_id' => (int) $thread->id(), 'user_id' => self::CREATOR_UID]));
+        self::assertSame([], $members->findBy(['user_id' => self::OUTSIDER_UID]));
+    }
+
+    #[Test]
+    public function owner_repository_on_another_connection_refuses_creation(): void
+    {
+        [$manager] = $this->makeManagerAndSubscriber(self::CREATOR_UID, participantDatabase: DBALDatabase::createSqlite());
+        $threads = $manager->getRepository('message_thread');
+        try {
+            $threads->save($threads->create(['created_by' => self::CREATOR_UID]), validate: false);
+            self::fail('Related writes on another connection cannot establish atomic creation.');
+        } catch (\LogicException $failure) {
+            self::assertStringContainsString('thread transaction connection', $failure->getMessage());
+        }
+        self::assertSame([], $threads->findBy([]));
+        self::assertSame([], $manager->getRepository('thread_participant')->findBy([]));
+    }
+
     /**
-     * @return array{0: EntityTypeManager}
+     * @return array{EntityTypeManager, DBALDatabase, SymfonyEventDispatcherAdapter}
      */
-    private function makeManagerAndSubscriber(?int $actingAccountId): array
+    private function makeManagerAndSubscriber(?int $actingAccountId, bool $memory = false, ?DBALDatabase $participantDatabase = null, bool $memoryDatabase = false, bool $repeatedBoot = false): array
     {
         EntityType::clearFromClassCache();
         $database = DBALDatabase::createSqlite();
-        $dispatcher = new EventDispatcher();
+        $dispatcher = new SymfonyEventDispatcherAdapter();
         $registry = new FieldDefinitionRegistry();
 
-        $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
             null,
-            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
-                new SqlSchemaHandler($definition, $database, $registry)->ensureTable();
+            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $database, $registry, $memory, $participantDatabase, $memoryDatabase): EntityRepository {
+                if ($memory) {
+                    return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                        $definition, new \Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver(), $dispatcher,
+                        database: $memoryDatabase ? $database : null,
+                    );
+                }
+                $connection = $entityTypeId === 'thread_participant' ? ($participantDatabase ?? $database) : $database;
+                new SqlSchemaHandler($definition, $connection, $registry)->ensureTable();
 
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
                 return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
-                    new SqlStorageDriver($resolver, $idKey),
+                    new SqlStorageDriver(new SingleConnectionResolver($connection), $idKey),
                     $dispatcher,
-                    database: $database,
+                    database: $connection,
                     fieldRegistry: $registry,
                 );
             },
@@ -250,9 +369,25 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
         $manager->registerEntityType(EntityType::fromClass(ThreadMessage::class, group: 'messaging'));
 
         $accountContext = $this->accountContext($actingAccountId);
-        $dispatcher->addSubscriber(new ThreadParticipantBootstrapSubscriber($manager, $accountContext));
+        $provider = new MessagingServiceProvider();
+        $provider->setKernelServices(new class($manager, $dispatcher, $accountContext) implements KernelServicesInterface {
+            public function __construct(private object $manager, private object $dispatcher, private ?object $context) {}
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    EntityTypeManager::class => $this->manager,
+                    \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $this->dispatcher,
+                    AccountContextInterface::class => $this->context,
+                    default => null,
+                };
+            }
+        });
+        $provider->boot();
+        if ($repeatedBoot) {
+            $provider->boot();
+        }
 
-        return [$manager];
+        return [$manager, $database, $dispatcher];
     }
 
     private function accountContext(?int $actingAccountId): ?AccountContextInterface

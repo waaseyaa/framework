@@ -363,6 +363,7 @@ return [
     'Waaseyaa\EntityStorage\Event\BeforeSaveEvent' => 'public',
     'Waaseyaa\EntityStorage\Event\EntityLifecycleEventInterface' => 'public',
     'Waaseyaa\EntityStorage\Event\EntityMutationAuthorityBackfilledEvent' => 'public',
+    'Waaseyaa\EntityStorage\Event\EntityPersistedEvent' => 'public',
     'Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent' => 'public',
     'Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException' => 'public',
     'Waaseyaa\EntityStorage\Exception\BundleUniqueKeyConflictException' => 'public',

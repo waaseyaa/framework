@@ -53,6 +53,7 @@ use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\EntityMutationAuthorityBackfilledEvent;
+use Waaseyaa\EntityStorage\Event\EntityPersistedEvent;
 use Waaseyaa\EntityStorage\Event\EntitySourceChangedEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedException;
@@ -572,6 +573,29 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         }
 
         return $entities;
+    }
+
+    /** Whether related writes can join the same managed transaction connection. */
+    public function sharesTransactionWith(?DatabaseInterface $database): bool
+    {
+        if ($database === null || $this->database === null) {
+            return false;
+        }
+
+        if (!$this->driver instanceof \Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2
+            || !$this->driver->sharesTransactionWith($database)) {
+            return false;
+        }
+
+        return $this->database === $database
+            || ($this->database instanceof DBALDatabase && $database instanceof DBALDatabase
+                && $this->database->getConnection() === $database->getConnection());
+    }
+
+    /** First-party SQL driver and repository transaction authority agree. */
+    public function supportsAtomicSqlWrites(): bool
+    {
+        return $this->sharesTransactionWith($this->database);
     }
 
     /**
@@ -1448,6 +1472,12 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             if ($entity instanceof EntityBase) {
                 $entity->postSave($isNew);
             }
+            // Required invariants run inside this write transaction. Never buffer
+            // this event with commit-only POST/AFTER notifications.
+            $this->eventDispatcher->dispatch(
+                new EntityPersistedEvent($entity, $isNew, $this->database),
+                EntityPersistedEvent::class,
+            );
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;

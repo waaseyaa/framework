@@ -39,6 +39,16 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
     ) {}
 
+    /** Whether SQL writes resolve to the supplied managed transaction connection. */
+    public function sharesTransactionWith(DatabaseInterface $database): bool
+    {
+        $resolved = $this->getDatabase();
+
+        return $resolved === $database
+            || ($resolved instanceof DBALDatabase && $database instanceof DBALDatabase
+                && $resolved->getConnection() === $database->getConnection());
+    }
+
     public function read(string $entityType, string $id, ?string $langcode = null): ?array
     {
         $db = $this->getDatabase();

@@ -17,6 +17,11 @@ final readonly class SqlStorageDriverV2 implements EntityStorageDriverV2Interfac
         private StorageSnapshotReader $snapshotReader,
     ) {}
 
+    public function sharesTransactionWith(\Waaseyaa\Database\DatabaseInterface $database): bool
+    {
+        return $this->backend->sharesTransactionWith($database);
+    }
+
     public function read(string $entityType, string $id, ?string $langcode = null): ?StorageRow
     {
         $row = $this->backend->read($entityType, $id, $langcode);

@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\EntityPersistedEvent', 'disposition' => 'public', 'purpose' => 'Required entity invariants after writes and hooks, before transaction commit (#2753)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\AggregateMutationRepositoryInterface', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\BackendResolver', 'disposition' => 'public', 'purpose' => 'Resolves which backend handles a given `FieldDefinition` (M-001, WP02)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\BackendRegistrar', 'disposition' => 'public', 'purpose' => 'Registers field storage backends by id for an entity type (M-001, WP01)'],
