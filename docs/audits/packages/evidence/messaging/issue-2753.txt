@@ -1,0 +1,65 @@
+source: issue waaseyaa/framework#2753
+captured: 2026-10-07
+body-sha256: c5d721b3090b15c7ffb90395af45228808f19ef86b0b00a312894e684b6d9ae5
+---
+## Summary
+
+> **Terminology correction (audit follow-up):** `InMemoryStorageDriver` is the first-party testing driver, not one of the production field-storage backends (`sql-blob` / `sql-column`). The production defect below is the non-atomic SQL path. The in-memory result proves the framework's test composition cannot model messaging faithfully; it is not evidence of a second production backend outage.
+
+Messaging's creator membership is implemented as a best-effort POST_SAVE side effect even though it is the required invariant that makes a thread usable. The production SQL path is non-atomic, and the first-party in-memory test composition cannot model it:
+
+- **First-party in-memory testing driver:** bootstrap always fails because its dedupe calls `EntityRepository::getQuery()` without a database; the exception is swallowed. `MessagingAccessPolicy` uses the same SQL-only query, so even a manually seeded participant cannot access the thread. This makes the test backend an invalid substitute for this package.
+- **SQL:** any participant INSERT failure is swallowed after the thread commits, leaving an orphaned thread that its creator cannot view or post to.
+
+## Invariant
+
+A successful authenticated `message_thread` creation must leave exactly one owner membership for the acting creator, and the access authority must recognize it on every supported backend. If the membership cannot be established, thread creation must not report success or leave an inaccessible durable row.
+
+## Evidence
+
+Frozen audit baseline `50750231a8036ae7afc68416fed8ea271e47159f`, clean, PHP 8.5.9. Current main `6f789ed333aa6c778b76c55f8a6e5338db9769bd` has no messaging changes.
+
+Two controlled runs were identical:
+
+```json
+{
+  "memory_success_participants": 0,
+  "memory_bootstrap_error": "EntityRepository for thread_participant was constructed without a database; getQuery() requires one.",
+  "memory_participants_after_manual_seed": 1,
+  "memory_creator_can_view_after_manual_seed": false,
+  "sql_failure_was_propagated": null,
+  "sql_thread_rows_after_participant_failure": 1,
+  "sql_participant_rows_after_failure": 0,
+  "creator_can_view_orphaned_thread": false
+}
+```
+
+The SQL failure was injected with a `BEFORE INSERT` trigger on `thread_participant`; no fake repository was involved. The in-memory path used `InMemoryStorageDriver` through `V2EntityRepositoryFactory`.
+
+All five entity-package suites are green (243 tests / 469 assertions). Messaging's "end-to-end" bootstrap test builds only a SQLite manager and exercises only successful insertion. No test crosses the failure boundary or runs the complete lifecycle on the in-memory backend.
+
+This follows closed #1915: that issue correctly identified the original bootstrap deadlock, but the fix classified mandatory membership as a best-effort side effect.
+
+## Disposition
+
+**REWRITE**, not a catch tweak. Move creator membership into the authoritative thread-creation transaction/use case and give policies a backend-capable membership lookup. Do not preserve an inaccessible thread as graceful degradation.
+
+## Acceptance criteria
+
+- [ ] Ratify the thread-creation authority and transaction boundary; creator membership is part of its success contract.
+- [ ] Authenticated thread creation either persists thread + exactly one owner together or persists neither.
+- [ ] Participant insertion failure is surfaced and does not leave an inaccessible thread.
+- [ ] Membership lookup works in production SQL composition and in the framework's in-memory test composition, or the in-memory composition explicitly refuses unsupported packages before tests can mistake it for parity.
+- [ ] A manually present membership is recognized by access policy in every supported composition named above.
+- [ ] Verify the package's declared `sql-blob` schema transition; do not imply `sql-column` support unless the entity definitions are deliberately widened to it.
+- [ ] Concurrent/retried creation cannot create duplicate owner memberships.
+- [ ] Canonical `MessagingServiceProvider` boot is exercised, rather than registering the subscriber directly in every test.
+- [ ] Failure-injection covers production SQL; success/parity coverage includes the in-memory testing driver under its ratified support contract.
+
+## Audit linkage
+
+- Architecture umbrella: #2723
+- A4 runtime/effectiveness: #2724
+- A7 root-cause synthesis: #2727
+- Original remediation: #1915
+- Related transaction-boundary concern: #2734

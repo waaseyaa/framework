@@ -1,0 +1,1177 @@
+{
+  "schema_version": 1,
+  "package": "waaseyaa/messaging",
+  "base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
+  "audit_date": "2026-10-08",
+  "dependency_identity": {
+    "composer_lock_sha256": "f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+    "php": "8.5.5",
+    "host": "Native Windows",
+    "evidence_freshness": "Frozen audit base retained; S1 delta reconciled at fdfedcb3a5b2ef0d817f92adcbcd7e81abbf15e8. Unaffected findings retain historical evidence; audit remains unpublished local draft. Structural delta is checked at 9945603c10a75036307ae371140840b332013790 (messaging bytes match landed S1); no old runtime result is promoted to fresh qualification.",
+    "consumers": []
+  },
+  "milestone": {
+    "assessed": true,
+    "repair_ready": false,
+    "converged": null,
+    "reasons": [
+      "Complete roster, charter, checklist dispositions, independent evidence/refutation and critic citation checks; bounded generic entrypoint trace completed.",
+      "Assessment record is committed by this audit-only candidate. Repair readiness and convergence are not claimed; candidate index records assessed.",
+      "Alpha-context user custody waiver accepted; detailed notes stay in scratch and durable private custody is not claimed.",
+      "2026-10-08 structural supplement independently verified/refuted; original frozen runtime evidence and custody waiver retained. Final immutable-record review approved; isolation verification passed."
+    ]
+  },
+  "charter": [
+    {
+      "question": "Owns",
+      "answer": "Thread/message/membership entities, participant-based access, creator bootstrap, uniqueness schema transition.",
+      "evidence": "packages/messaging/src"
+    },
+    {
+      "question": "Excludes",
+      "answer": "Application consent, moderation, product UI, AI grounding, live push, notifications, attachment and media contracts.",
+      "evidence": "docs/specs/messaging.md; #2054 remains a proposal."
+    },
+    {
+      "question": "Consumers",
+      "answer": "Provider/policy manifest discovery, generic JSON:API entity routes and repository users. No concrete downstream production messaging consumer was established in the scoped local source search; product proposals are historical context.",
+      "evidence": "composer.json extra.waaseyaa; JsonApiController; local anokii/src and studio/src search."
+    },
+    {
+      "question": "Dependencies",
+      "answer": "Required access, database-legacy, entity, entity-storage and foundation; field is locally dev-declared but transitively runtime through entity-storage. Symfony event-dispatcher is the existing maintained mechanism.",
+      "evidence": "packages/messaging/composer.json; packages/entity-storage/composer.json; Symfony 7.4 EventDispatcher docs."
+    },
+    {
+      "question": "Public surface",
+      "answer": "MessageThread, ThreadMessage, ThreadParticipant, MessagingServiceProvider, MessagingAccessPolicy, its two Protected policy adapters, subscriber and schema transition. PSR-4 and manifest entries are public seams; no public-surface declaration exists. No removal authorized.",
+      "evidence": "Nine production files; source annotations and Composer manifest."
+    },
+    {
+      "question": "Installation profiles",
+      "answer": "Default entity storage is sql-blob on supported S1 SQLite. Opt-in kernel composition is intended. Standalone split and primitive-only qualification remain open. Root no-dev framework and curated metapackages omit messaging by design. Memory is a testing composition, not another production backend.",
+      "evidence": "ContentEntityType default; root require-dev; #2753 terminology correction."
+    },
+    {
+      "question": "Observable evidence",
+      "answer": "25 source tests pass. Synthetic source provider composition confirms ordinary SQL creator membership and the known failure boundary. No installed-profile qualification is claimed.",
+      "evidence": "source fixture and package PHPUnit run."
+    }
+  ],
+  "roster": [
+    {
+      "file": "packages/messaging/README.md",
+      "role": "Package description",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": [
+        "MSG-DOC-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/composer.json",
+      "role": "Identity, dependency closure, autoload and provider/policy discovery",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": [
+        "MSG-QUAL-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/MessageThread.php",
+      "role": "Conversation entity and defaults",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": [
+        "MSG-CONTRACT-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/ThreadMessage.php",
+      "role": "Message entity and constructor constraints",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": [
+        "MSG-CONTRACT-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/ThreadParticipant.php",
+      "role": "Membership, read state and schema declarations",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": [
+        "MSG-CONTRACT-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/MessagingAccessPolicy.php",
+      "role": "Entity, field and Protected read policies",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": []
+    },
+    {
+      "file": "packages/messaging/src/MessagingServiceProvider.php",
+      "role": "Entity registration and subscriber boot",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "reviewed",
+      "notes": "No removal proposed.",
+      "findings": [
+        "MSG-QUAL-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/EventSubscriber/ThreadParticipantBootstrapSubscriber.php",
+      "role": "Creator bootstrap lifecycle effect",
+      "classification": "unwired or obsolete",
+      "evidence_level": "reviewed",
+      "notes": "Only the empty legacy callback is obsolete; active atomic-creation responsibility is coherent after S1.",
+      "findings": [
+        "MSG-CREATE-001",
+        "MSG-STRUCT-001"
+      ]
+    },
+    {
+      "file": "packages/messaging/src/Schema/ThreadParticipantSchema.php",
+      "role": "Identity-column backfill and deterministic duplicate migration",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Persisted-state repair remains necessary; unused local and decode duplication are bounded cleanup.",
+      "findings": [
+        "MSG-STRUCT-002"
+      ]
+    }
+  ],
+  "checklists": [
+    {
+      "profile": "identity",
+      "item": "Identity, version, split, exports",
+      "status": "answered",
+      "answer": "waaseyaa/messaging is an opt-in L3 Composer library, PHP >=8.5, version cohort alpha.305. Split target exists; production roster has 9 files.",
+      "evidence": "composer.json; VERSION; split.yml; git archive base.",
+      "findings": []
+    },
+    {
+      "profile": "identity",
+      "item": "Charter and product ownership",
+      "status": "finding",
+      "answer": "Current descriptions conflate primitives, planned services and product names.",
+      "evidence": "README; messaging spec",
+      "findings": [
+        "MSG-DOC-001"
+      ]
+    },
+    {
+      "profile": "domain",
+      "item": "Invariants and lifecycle",
+      "status": "finding",
+      "answer": "Creator ownership has failure evidence; remaining lifecycle choices need a package-level contract.",
+      "evidence": "Source and #2753",
+      "findings": [
+        "MSG-CREATE-001",
+        "MSG-CONTRACT-001"
+      ]
+    },
+    {
+      "profile": "domain",
+      "item": "Events, payload, order, veto",
+      "status": "finding",
+      "answer": "WeakMap pairs PRE_SAVE to POST_SAVE by entity. Repository emits POST_SAVE after transaction commit, so required bootstrap cannot veto durable creation.",
+      "evidence": "Subscriber and EntityRepository",
+      "findings": [
+        "MSG-CREATE-001"
+      ]
+    },
+    {
+      "profile": "domain",
+      "item": "Extension seams and real callers",
+      "status": "answered",
+      "answer": "Schema attributes invoke transition through SqlSchemaHandler; manifest invokes provider and policy. No custom route, command, queue job, app event or cache provider exists.",
+      "evidence": "Package source; SqlSchemaHandler; manifest discovery.",
+      "findings": []
+    },
+    {
+      "profile": "kernel",
+      "item": "Discovery and boot dependency chain",
+      "status": "gap",
+      "answer": "Kernel service bus supplies manager, Symfony adapter and account holder. Provider returns early when mandatory services are unavailable. Synthetic supplied-service fixture works, but full kernel proof is unrun.",
+      "evidence": "ProviderRegistryKernelServices; MessagingServiceProvider; source fixture",
+      "findings": [
+        "MSG-QUAL-001"
+      ]
+    },
+    {
+      "profile": "kernel",
+      "item": "Request context and repeated boot",
+      "status": "gap",
+      "answer": "Subscriber reads the current holder at notification time, not constructor time. SessionMiddleware sets it. Repeated boot/retry and non-HTTP actor scope need real entrypoint coverage.",
+      "evidence": "AccountContextInterface; SessionMiddleware; destination S4.",
+      "findings": []
+    },
+    {
+      "profile": "http",
+      "item": "Authentication, entity/field/Protected access",
+      "status": "gap",
+      "answer": "Policies are declared and component read/outsider tests pass. Authority review and complete HTTP refusal stack remain separate verification work.",
+      "evidence": "MessagingAccessPolicyTest; generic API route and controller; destination S2/S4.",
+      "findings": []
+    },
+    {
+      "profile": "http",
+      "item": "Canonical wire contract and mechanical consumer checks",
+      "status": "answered",
+      "answer": "The package emits no dedicated wire protocol or frontend build; generic JSON:API is API-owned. Entity field declarations remain the package-owned inputs.",
+      "evidence": "ContentEntityType api=true; generic API definitions.",
+      "findings": []
+    },
+    {
+      "profile": "http",
+      "item": "CSRF and malformed request refusal",
+      "status": "gap",
+      "answer": "Owned by the shared HTTP/API composition, no independent messaging middleware. Complete messaging HTTP journey is not executed here.",
+      "evidence": "Destination S4; no dedicated route in package.",
+      "findings": []
+    },
+    {
+      "profile": "persistence",
+      "item": "Backend and storage authority",
+      "status": "answered",
+      "answer": "No package raw PDO. Default sql-blob entity schema, declared transition and unique key go through SqlSchemaHandler. sql-column and non-S1 databases are not claimed.",
+      "evidence": "ContentEntityType; ThreadParticipant declarations; SqlSchemaHandler.",
+      "findings": []
+    },
+    {
+      "profile": "persistence",
+      "item": "Schema upgrade and repeated application",
+      "status": "answered",
+      "answer": "Existing real SQLite tests backfill identity columns, merge legacy duplicate roles/read positions and reject later duplicate writes; transition is applied before declared unique keys.",
+      "evidence": "ThreadParticipantSchemaTest; SqlSchemaHandler.",
+      "findings": []
+    },
+    {
+      "profile": "persistence",
+      "item": "Transaction, durable outcome, failure",
+      "status": "finding",
+      "answer": "Creator membership remains outside thread commit and failures are swallowed.",
+      "evidence": "Source fixture",
+      "findings": [
+        "MSG-CREATE-001"
+      ]
+    },
+    {
+      "profile": "persistence",
+      "item": "Concurrency, retries and recovery",
+      "status": "finding",
+      "answer": "Composite database key fences duplicate pairs. Creation idempotency and crash recovery across thread/owner are not a settled package contract.",
+      "evidence": "Schema tests; #2753",
+      "findings": [
+        "MSG-CREATE-001"
+      ]
+    },
+    {
+      "profile": "dependencies",
+      "item": "Import layers and temporal coupling",
+      "status": "answered",
+      "answer": "Scoped diagnostic Deptrac classifies all messaging source responsibilities and dependencies: 139 allowed edges, 0 violations, 0 uncovered. Allowed, forbidden and uncovered seeded controls return the expected JSON counters and exit statuses. This scratch model is not a new committed architecture authority; coordinate adoption under #3075. Temporal bootstrap coupling remains in D1/S1.",
+      "evidence": "Pinned Deptrac 4.7.2; diagnostic JSON reports and controls in audit output area.",
+      "findings": []
+    },
+    {
+      "profile": "dependencies",
+      "item": "Adapter truthfulness",
+      "status": "finding",
+      "answer": "Provider-to-subscriber-to-real-SQL positive and failure effects observed with synthetic service bus. Full canonical kernel and installed-profile controls remain absent.",
+      "evidence": "Source fixture; direct-registration tests",
+      "findings": [
+        "MSG-QUAL-001"
+      ]
+    },
+    {
+      "profile": "infrastructure",
+      "item": "Custom mechanisms and Symfony fit",
+      "status": "answered",
+      "answer": "The only generic event mechanism already uses Symfony subscriber/dispatcher contracts. WeakMap pairing and participant merging encode entity/domain lifecycle, not an asynchronous message bus. Symfony Messenger does not supply conversation membership or an entity cross-write transaction. Retain current component reuse; decide bootstrap transaction authority in D1.",
+      "evidence": "symfony/event-dispatcher v7.4.9 and messenger v7.4.12 source; https://symfony.com/doc/7.4/event_dispatcher.html; https://symfony.com/doc/7.4/messenger.html.",
+      "findings": []
+    },
+    {
+      "profile": "quality",
+      "item": "Cohesion, alternate authorities, dead seams",
+      "status": "answered",
+      "answer": "Confirmed empty legacy callback, unused schema local and repeated JSON normalization; active Protected-read adapters bridge current immutable-principal contracts. Boot, PRE_SAVE and transaction-connection refusals guard distinct boundaries. Metadata lifecycle and measured query cost are named D2/S4 gaps, not invented dead-code findings.",
+      "evidence": "Source fdfedcb3a..9945603c1 unchanged package bytes; independent verify.md/refute.md 2026-10-08.",
+      "findings": [
+        "MSG-STRUCT-001",
+        "MSG-STRUCT-002",
+        "MSG-SURFACE-001",
+        "MSG-CONTRACT-001"
+      ]
+    },
+    {
+      "profile": "tests",
+      "item": "Unit, integration and refusal coverage",
+      "status": "finding",
+      "answer": "25 tests / 56 assertions pass, with SQLite happy paths and stubbed membership policy. Missing canonical boot, failure and installation discriminators.",
+      "evidence": "Package PHPUnit",
+      "findings": [
+        "MSG-QUAL-001"
+      ]
+    },
+    {
+      "profile": "distribution",
+      "item": "No-dev install and optional closure",
+      "status": "gap",
+      "answer": "Root runtime and core/cms/full omit messaging. Split opt-in must be installed explicitly; no no-dev boot evidence is borrowed from the default closure.",
+      "evidence": "Root Composer; metapackages; destination S4.",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Exported runtime bytes and resources",
+      "status": "answered",
+      "answer": "9 production files under package, no frontend, generated artifact or package-local resources. Split matrix includes messaging; artifact byte comparison and independent installed boot remain a qualification gap.",
+      "evidence": "Git inventory and split.yml.",
+      "findings": []
+    },
+    {
+      "profile": "documentation",
+      "item": "Composition, errors, upgrades and public contract",
+      "status": "finding",
+      "answer": "README lacks install/composition/failure/upgrade examples and blurs present primitives with future capability rationale; the historical spec assigns schema backfill to the provider although declarations and SqlSchemaHandler now own it.",
+      "evidence": "README and spec",
+      "findings": [
+        "MSG-DOC-001"
+      ]
+    },
+    {
+      "profile": "generation",
+      "item": "Generation, build and introspection/CLI",
+      "status": "does not apply",
+      "answer": "Package owns no generator, command, CLI parser, build output or dedicated introspection service. Generic discovery and JSON:API are consuming authorities.",
+      "evidence": "Production roster.",
+      "findings": []
+    }
+  ],
+  "intake": [
+    {
+      "item": "#2753",
+      "from": "FW-ARCH-2026-08 / #2724 / #2727",
+      "disposition": "confirmed",
+      "local_finding": "MSG-CREATE-001",
+      "notes": "Reuse public issue acceptance and current reproduction; do not reframe testing driver as production backend."
+    },
+    {
+      "item": "2026-05 L2 package audit messaging section",
+      "from": "docs/audits/2026-05-l2-content-types-audit.md",
+      "disposition": "merged",
+      "local_finding": "MSG-DOC-001",
+      "notes": "Historical L3 graduation and limited tests/UI only, not full convergence evidence."
+    }
+  ],
+  "findings": [
+    {
+      "id": "MSG-CREATE-001",
+      "title": "Required creator membership is a post-commit best-effort effect",
+      "area": "CREATE",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "Existing #2753 revalidated at the base. Synthetic SQL source composition boots MessagingServiceProvider, creates one owner normally, then an injected participant insert failure leaves one thread and zero memberships without propagating failure. The memory testing composition creates no owner and rejects a manually seeded membership.",
+      "expected_contract": "Authenticated thread creation persists a thread and exactly one creator owner together, or neither.",
+      "consequence": "Success can leave an inaccessible durable conversation. The memory testing driver cannot model the package contract.",
+      "refutation": "Independent reviews confirmed the bounded observation; source composition is synthetic and no deployed consumer is established.",
+      "disposition": "resolved",
+      "destination": [
+        {
+          "kind": "issue",
+          "ref": "#2753"
+        }
+      ],
+      "dependencies": "D1",
+      "acceptance": "Exercise canonical provider boot with real SQLite success and insertion failure; assert both rows or neither, actor recognition, retries and unique owner. Decide memory support explicitly.",
+      "residual_risk": "Installation qualification remains separate.",
+      "next_action": "No remaining S1 repair. Consume landed regression evidence; split-package qualification remains MSG-QUAL-001.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": "D1",
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Two independent evidence and refutation reviews completed at the frozen base; see role verdicts in the local audit work area.",
+        "reversals": []
+      },
+      "probes": [
+        "creator-membership-source"
+      ],
+      "notes": "Landed fdfedcb3a5b2ef0d817f92adcbcd7e81abbf15e8; #2753 closed. Canonical real-SQL provider success/refusal/failure controls and independent reviews approved. Exact-head hosted full qualification37725122998 green; no release/deployment."
+    },
+    {
+      "id": "MSG-CONTRACT-001",
+      "title": "Membership and message lifecycle lacks a complete package contract",
+      "area": "CONTRACT",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "Entity fields expose lifecycle state, but no complete transition/authority/retention matrix defines how generic CRUD should update it. Both independent reviews confirmed the contract gap. An absent conversation service is not itself a defect.",
+      "expected_contract": "Name the owners and allowed transitions for membership, read position, edit, deletion and parent removal. Keep application consent and moderation separate.",
+      "consequence": "Consumers can choose conflicting lifecycle semantics. This is a bounded contract decision, with no implied owner-only or sender-only product rule.",
+      "refutation": "The package may intentionally remain an entity substrate. Current documentation permits participant modifications. Owner-only management, sender-only edits and cascading deletion are not current promises and must not be imposed without D2.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S2"
+        }
+      ],
+      "dependencies": "D2",
+      "acceptance": "Ratify transition matrix; cover owner loss/transfer, joins/leaves, read-position monotonicity, edits, parent deletion and retention, with positive and refusal cases.",
+      "residual_risk": "Installation qualification remains separate.",
+      "next_action": "Independent verification complete; ratify the named contract and authorize the bounded existing-owner slice.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": "D2",
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Two independent evidence and refutation reviews completed at the frozen base; see role verdicts in the local audit work area.",
+        "reversals": [
+          "Reduced medium to low: missing lifecycle service is not a defect for an entity substrate; ratified contract decisions remain necessary."
+        ]
+      },
+      "probes": [],
+      "notes": "Draft assessment; no repository or GitHub mutation."
+    },
+    {
+      "id": "MSG-DOC-001",
+      "title": "Documentation blurs current capability, schema authority and generic package ownership",
+      "area": "DOC",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "README mixes named product requirements with generic package purpose and describes real-time/presence semantics ambiguously; the spec explicitly puts these future capabilities out of scope. It lacks opt-in installation, composition and failure guidance. Schema transition now runs through SqlSchemaHandler attributes, not provider boot.",
+      "expected_contract": "Document generic messaging primitives and observed composition; distinguish current fields from implemented services and future optional integrations.",
+      "consequence": "Consumers may treat stored metadata and planned integrations as a ready service contract.",
+      "refutation": "The README does not promise a named nonexistent service class. Finding is specific ambiguity, incorrect schema wiring prose and missing composition guidance.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S3"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Use generic synthetic consumers; document opt-in install, canonical provider/policy wiring, actual schema authority, supported storage, and errors. Distinguish implemented entity primitives from future chat-service capabilities and correct the stale provider schema-backfill note.",
+      "residual_risk": "Installation qualification remains separate.",
+      "next_action": "Independent verification complete; ratify the named contract and authorize the bounded existing-owner slice.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Two independent evidence and refutation reviews completed at the frozen base; see role verdicts in the local audit work area.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": "Draft assessment; no repository or GitHub mutation."
+    },
+    {
+      "id": "MSG-QUAL-001",
+      "title": "Tests and distribution evidence do not qualify canonical composition",
+      "area": "QUAL",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "Package tests pass 25 tests / 56 assertions. Bootstrap tests directly register a subscriber using real SQLite repositories; access tests use a QueryOnlyStubRepository. No package suite test boots the provider through the kernel or exercises a no-dev split consumer. Messaging is root require-dev, absent from core/cms/full runtime closures.",
+      "expected_contract": "Installation and composition claims have a real positive, refusal and terminal-effect discriminator at each supported boundary.",
+      "consequence": "A green source suite can conceal provider, dependency or installation failures.",
+      "refutation": "Kernel service wiring is statically coherent and the provider runs with supplied services. Missing qualification is not proof that the provider is broken. Default runtime omission is intentional; undecided profiles need decisions, not invented failures.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S4"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Boot an explicitly installed messaging split without dev dependencies and through the kernel; prove durable owner, member read/write and outsider refusal; run schema upgrade twice, duplicate rejection and failure injection. Record hosted owner for unavailable profiles.",
+      "residual_risk": "Installation qualification remains separate.",
+      "next_action": "Independent verification complete; ratify the named contract and authorize the bounded existing-owner slice.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Two independent evidence and refutation reviews completed at the frozen base; see role verdicts in the local audit work area.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": "Draft assessment; no repository or GitHub mutation."
+    },
+    {
+      "id": "MSG-API-001",
+      "title": "Generic API misclassifies messaging identities as config machine IDs",
+      "area": "API",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "Both independent reviewers reproduced ordinary thread label POST failure with real SQLite. JsonApiController identifies a non-default identity key without a bundle as config-style and generates a string identity from title/body/role. Messaging declares numeric content identities with UUID and no bundle. Label omission or a numeric diagnostic label succeeds in the same composition.",
+      "expected_contract": "Content entity storage identity must be allocated by its declared storage model; real config entities retain machine-name generation.",
+      "consequence": "Ordinary messaging labels fail at persistence before a usable generic API result. This defect is owned by API, with messaging as affected consumer.",
+      "refutation": "Numeric or absent labels succeed, isolating the API identity heuristic from provider/repository failure. Numeric client identities are a diagnostic control, not a consumer workaround.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "owner-audit",
+          "ref": "waaseyaa/api convergence audit under #3118"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Create thread, message and membership through generic API with normal labels and no client identity; prove durable numeric storage identities and correct UUID representation; preserve real config machine names and refusal of content identity injection.",
+      "residual_risk": "Installation qualification remains separate.",
+      "next_action": "API owner reviews and files a bounded regression slice; do not add it to messaging repairs.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/api",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Two independent source composition reproductions and contrary controls.",
+        "reversals": []
+      },
+      "probes": [
+        "api-content-identity-source"
+      ],
+      "notes": "Draft assessment; no repository or GitHub mutation."
+    },
+    {
+      "id": "MSG-SURFACE-001",
+      "title": "Public adapter symbols require another class to be loaded first",
+      "area": "SURFACE",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "In a fresh PHP process, each public Protected policy adapter fails direct PSR-4 class lookup. Both are declared alongside MessagingAccessPolicy rather than at their own PSR-4 path. Loading the policy first makes them available.",
+      "expected_contract": "Retained public symbols independently autoload in the declared Composer profile.",
+      "consequence": "Direct consumers can fail before policy construction even though factory-produced adapters work.",
+      "refutation": "Factories load the containing policy, so ordinary discovery/factory paths remain reachable. This is a public autoloadability mismatch, not broken provider boot.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S7"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Express active Protected-read adapter contracts intentionally: independently autoload any public concrete symbols, or make implementation-only adapters internal with current factory consumers preserved. Alpha compatibility is not a retention reason. Preserve exact principal, subject and entity/field refusal semantics.",
+      "residual_risk": "Installation qualification remains separate.",
+      "next_action": "Include public-symbol intent in S7 structural repair; active interface factories must remain functional.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Both independent reviewers reproduced fresh-process failure and factory-path contrary control; orchestrator reproduced the lookup sequence.",
+        "reversals": []
+      },
+      "probes": [
+        "public-adapter-autoload"
+      ],
+      "notes": "Draft assessment; no repository or GitHub mutation."
+    },
+    {
+      "id": "MSG-SEC-001",
+      "title": "Actor attribution lacks a settled authority contract",
+      "area": "SEC",
+      "severity": "withheld",
+      "confidence": "likely",
+      "evidence_level": "reproduced",
+      "observed": "Verified authority-sensitive behavior; details are held in the local private audit brief.",
+      "expected_contract": "Messaging integrity and authority must agree with its ratified public contract.",
+      "consequence": "Integrity or mutation authority can diverge from the declared contract; deployed exposure is unproven.",
+      "refutation": "Two independent reviews applied contrary controls and calibrated the claim to an alpha framework with no sensitive production deployment identified.",
+      "disposition": "decision",
+      "destination": [
+        {
+          "kind": "decision",
+          "ref": "D2"
+        },
+        {
+          "kind": "private-report",
+          "ref": "private report (framework advisory; owner waaseyaa/messaging)"
+        }
+      ],
+      "dependencies": "D2",
+      "acceptance": "Independent positive and refusal controls prove the selected authority contract before any durable side effect. Detailed discrimination remains in the private brief.",
+      "residual_risk": "No deployed consumer or complete production principal journey was qualified.",
+      "next_action": "Maintainer settles D2 before choosing the attribution repair.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": "withheld",
+      "blocks_assessment": false,
+      "decision": "D2",
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent re-derivation and refutation completed with real persistence and synthetic principals; production registration and principal paths traced, full middleware journey unqualified.",
+        "reversals": []
+      },
+      "probes": 2,
+      "notes": "Safe summary only. Alpha context affects impact and exposure claims, not observed behavior."
+    },
+    {
+      "id": "MSG-SEC-002",
+      "title": "A mutation can persist without a valid authorization target",
+      "area": "SEC",
+      "severity": "withheld",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "Verified authority-sensitive behavior; details are held in the local private audit brief.",
+      "expected_contract": "Messaging integrity and authority must agree with its ratified public contract.",
+      "consequence": "Integrity or mutation authority can diverge from the declared contract; deployed exposure is unproven.",
+      "refutation": "Two independent reviews applied contrary controls and calibrated the claim to an alpha framework with no sensitive production deployment identified.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "private-report",
+          "ref": "private report (framework advisory; owner waaseyaa/messaging)"
+        }
+      ],
+      "dependencies": "Ratified messaging contract and an API-owned composition prerequisite.",
+      "acceptance": "Independent positive and refusal controls prove the selected authority contract before any durable side effect. Detailed discrimination remains in the private brief.",
+      "residual_risk": "No deployed consumer or complete production principal journey was qualified.",
+      "next_action": "Retain private handling and file only when publication is authorized.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": "withheld",
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent re-derivation and refutation completed with real persistence and synthetic principals; production registration and principal paths traced, full middleware journey unqualified.",
+        "reversals": []
+      },
+      "probes": 2,
+      "notes": "Safe summary only. Alpha context affects impact and exposure claims, not observed behavior."
+    },
+    {
+      "id": "MSG-SEC-003",
+      "title": "A mutation can cross its authorized conversation boundary",
+      "area": "SEC",
+      "severity": "withheld",
+      "confidence": "confirmed",
+      "evidence_level": "reproduced",
+      "observed": "Verified authority-sensitive behavior; details are held in the local private audit brief.",
+      "expected_contract": "Messaging integrity and authority must agree with its ratified public contract.",
+      "consequence": "Integrity or mutation authority can diverge from the declared contract; deployed exposure is unproven.",
+      "refutation": "Two independent reviews applied contrary controls and calibrated the claim to an alpha framework with no sensitive production deployment identified.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "private-report",
+          "ref": "private report (framework advisory; owner waaseyaa/messaging)"
+        }
+      ],
+      "dependencies": "Ratified messaging contract and an API-owned composition prerequisite.",
+      "acceptance": "Independent positive and refusal controls prove the selected authority contract before any durable side effect. Detailed discrimination remains in the private brief.",
+      "residual_risk": "No deployed consumer or complete production principal journey was qualified.",
+      "next_action": "Retain private handling and file only when publication is authorized.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": "withheld",
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent re-derivation and refutation completed with real persistence and synthetic principals; production registration and principal paths traced, full middleware journey unqualified.",
+        "reversals": []
+      },
+      "probes": 2,
+      "notes": "Safe summary only. Alpha context affects impact and exposure claims, not observed behavior."
+    },
+    {
+      "id": "MSG-STRUCT-001",
+      "title": "Obsolete empty post-save callback remains in alpha public surface",
+      "area": "STRUCT",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "onPostSave is empty and deprecated; current registration uses PRE_SAVE and EntityPersistedEvent. No current package caller establishes a retained boundary.",
+      "expected_contract": "One intentional current contract without obsolete compatibility paths or redundant mechanisms.",
+      "consequence": "Unnecessary public seam or repeated maintenance logic obscures the canonical path.",
+      "refutation": "Dynamic registration and current consumers must be checked; persisted schema backfill and duplicate merging remain necessary data integrity work.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S7"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Remove obsolete callback and unused local; use one decode rule with malformed/empty/scalar and valid-row controls. Preserve atomic creation, migration state and required Protected-read integration.",
+      "residual_risk": "No external installed consumer is qualified; this does not create an alpha compatibility obligation.",
+      "next_action": "Incorporate verified S7 acceptance into existing #3188 before implementation; independent checks are complete.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "A",
+        "performed": "Independent verify and refute roles completed 2026-10-08; both confirm callback/unused state and bounded decode simplification with input-shape limits.",
+        "reversals": [
+          "Decode consolidation is a maintenance simplification, not a correctness or measured performance defect."
+        ]
+      },
+      "probes": [],
+      "notes": "No runtime edit; source-reviewed supplement at 9945603c1, independently verified and challenged. JSON decoding equivalence is limited to actual stored string/null blobs; preserve existing backfill identity checks and malformed/scalar behavior."
+    },
+    {
+      "id": "MSG-STRUCT-002",
+      "title": "Schema transition contains unused state and repeated decoding",
+      "area": "STRUCT",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "ensureTable computes unused $needsColumns; backfillIdentityColumns repeats malformed/scalar JSON normalization already expressed by decodeData.",
+      "expected_contract": "One intentional current contract without obsolete compatibility paths or redundant mechanisms.",
+      "consequence": "Unnecessary public seam or repeated maintenance logic obscures the canonical path.",
+      "refutation": "Dynamic registration and current consumers must be checked; persisted schema backfill and duplicate merging remain necessary data integrity work.",
+      "disposition": "repair",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S7"
+        }
+      ],
+      "dependencies": "none",
+      "acceptance": "Remove obsolete callback and unused local; use one decode rule with malformed/empty/scalar and valid-row controls. Preserve atomic creation, migration state and required Protected-read integration.",
+      "residual_risk": "No external installed consumer is qualified; this does not create an alpha compatibility obligation.",
+      "next_action": "Incorporate verified S7 acceptance into existing #3188 before implementation; independent checks are complete.",
+      "discovered_in": "waaseyaa/messaging",
+      "owned_by": "waaseyaa/messaging",
+      "co_owners": [],
+      "affected_consumers": [
+        "Opt-in generic messaging consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": null,
+      "merged_into": null,
+      "verification": {
+        "tier": "B",
+        "performed": "Independent verify and refute roles completed 2026-10-08; both confirm callback/unused state and bounded decode simplification with input-shape limits.",
+        "reversals": [
+          "Decode consolidation is a maintenance simplification, not a correctness or measured performance defect."
+        ]
+      },
+      "probes": [],
+      "notes": "No runtime edit; source-reviewed supplement at 9945603c1, independently verified and challenged. JSON decoding equivalence is limited to actual stored string/null blobs; preserve existing backfill identity checks and malformed/scalar behavior."
+    }
+  ],
+  "refuted": [],
+  "handoffs": [
+    {
+      "id": "H1",
+      "lead": "One reviewer observed a Protected-selector representation failure with the real field-read guard. Reconcile layout self-input omission with policy dependencies and independently determine ownership; no confirmed defect or security disclosure is assigned here.",
+      "owner": "waaseyaa/entity",
+      "co_owners": [
+        "waaseyaa/access",
+        "waaseyaa/messaging"
+      ],
+      "affected_consumers": [
+        "Messaging Protected field representation"
+      ],
+      "issue": null,
+      "blocks_assessment": false
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "decision": "Ratify authoritative creation operation and transaction boundary, actorless creation behavior, retry identity and explicit memory-test support.",
+      "findings": [
+        "MSG-CREATE-001"
+      ],
+      "what_would_settle_it": "Maintainer-approved creation success/failure matrix consumed by S1.",
+      "who_decides": "Framework maintainer with messaging and entity-storage ownership.",
+      "status": "settled",
+      "resolution": "Ratified in landed FW-MESSAGING-ATOMIC-CREATE-01: repository save plus transactional persisted event; actual actor owner, actorless supported, failed objects discarded on retry, memory composition refused."
+    },
+    {
+      "id": "D2",
+      "decision": "Ratify membership authority, sender attribution, editing/deletion, last-owner handling, parent lifecycle, read state and retention; keep product consent/moderation outside package.",
+      "findings": [
+        "MSG-CONTRACT-001",
+        "MSG-SEC-001"
+      ],
+      "what_would_settle_it": "Generic transition matrix and synthetic consumer contract; privately triaged authority review informs safe choices.",
+      "who_decides": "Framework maintainer.",
+      "status": "open",
+      "resolution": null
+    },
+    {
+      "id": "D3",
+      "decision": "Select primitive-only and standalone split support plus kernel/HTTP/CLI/system profiles to qualify.",
+      "findings": [
+        "MSG-QUAL-001"
+      ],
+      "what_would_settle_it": "Explicit support matrix and qualification owner.",
+      "who_decides": "Framework maintainer.",
+      "status": "open",
+      "resolution": null
+    },
+    {
+      "id": "D4",
+      "decision": "Choose durable private custody or explicitly waive that method requirement for the alpha-only local audit.",
+      "findings": [
+        "MSG-SEC-001",
+        "MSG-SEC-002",
+        "MSG-SEC-003"
+      ],
+      "what_would_settle_it": "Settled by user instruction; local retention limitation disclosed.",
+      "who_decides": "Russell.",
+      "status": "settled",
+      "resolution": "User alpha-framework/no-sensitive-production response accepted as waiver of durable private custody for this local audit. Detailed notes remain in scratch; no durable custody or deployed exposure is claimed."
+    }
+  ],
+  "uncertainties": [
+    {
+      "id": "U1",
+      "uncertainty": "No real downstream messaging installation or production request exposure was established in this scoped local search.",
+      "findings": [
+        "MSG-QUAL-001"
+      ],
+      "what_would_settle_it": "Named read-only consumer commit/lock and composition-root evidence, or maintainer disposition as a synthetic library-only assessment.",
+      "status": "open",
+      "resolution": null
+    }
+  ],
+  "issue_reconciliation": [
+    {
+      "issue": "#2753",
+      "claim": "Creator bootstrap atomicity and memory testing support",
+      "status": "closed; repaired on main at fdfedcb3a",
+      "evidence": "FW-MESSAGING-ATOMIC-CREATE-01, full hosted run37725122998 and main-feedback37726101081."
+    },
+    {
+      "issue": "#3118",
+      "claim": "Full package assessed status",
+      "status": "assessed in this candidate index",
+      "evidence": "Record and ledger are durable candidate files; convergence not claimed."
+    },
+    {
+      "issue": "#2054",
+      "claim": "First-class composed chat feature",
+      "status": "open proposal; excluded from audit implementation",
+      "evidence": "Live issue explicitly requires accepted design before implementation."
+    },
+    {
+      "issue": "#254",
+      "claim": "Historical config entity machine-name/datatype failure",
+      "status": "closed; regression reference, not current messaging issue owner",
+      "evidence": "Live issue covers intended config machine names. MSG-API-001 concerns numeric content entities misclassified as config; preserve that historical behavior in regression controls."
+    },
+    {
+      "issue": "#3188",
+      "claim": "S7 structural and S3 public/documentation repair",
+      "status": "open; scoped acceptance updated 2026-10-08",
+      "evidence": "Verified initial-audit structural supplement; no obsolete alpha compatibility retention."
+    }
+  ],
+  "remediation_plan": [
+    {
+      "slice": "S1",
+      "findings": [
+        "MSG-CREATE-001"
+      ],
+      "acceptance": "Exercise canonical provider boot with real SQLite success and insertion failure; assert both rows or neither, actor recognition, retries and unique owner. Decide memory support explicitly.",
+      "depends_on": [
+        "D1"
+      ]
+    },
+    {
+      "slice": "S2",
+      "findings": [
+        "MSG-CONTRACT-001"
+      ],
+      "acceptance": "Settle D2 first. Document and test chosen membership, attribution, read-state, edit/delete and retention semantics with synthetic consumers; do not infer owner-only, sender-only or cascade requirements from field names.",
+      "depends_on": [
+        "D2",
+        "S1"
+      ]
+    },
+    {
+      "slice": "S3",
+      "findings": [
+        "MSG-DOC-001"
+      ],
+      "acceptance": "Use generic synthetic consumers; document actual install, wiring, schema authority, storage support and failures. Separate existing primitives from future services. No compatibility retention requirement.",
+      "depends_on": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "slice": "S4",
+      "findings": [
+        "MSG-QUAL-001"
+      ],
+      "acceptance": "Boot an explicitly installed messaging split without dev dependencies and through the kernel; prove durable owner, member read/write and outsider refusal; run schema upgrade twice, duplicate rejection and failure injection. Record hosted owner for unavailable profiles.",
+      "depends_on": [
+        "D3",
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "slice": "S5",
+      "findings": [
+        "MSG-SEC-002"
+      ],
+      "acceptance": "Privately specified integrity controls establish a valid authorized target before every durable mutation.",
+      "depends_on": [
+        "D2",
+        "S1"
+      ]
+    },
+    {
+      "slice": "S6",
+      "findings": [
+        "MSG-SEC-003"
+      ],
+      "acceptance": "Privately specified positive/refusal controls preserve the authorized conversation boundary on mutation.",
+      "depends_on": [
+        "D2",
+        "S1"
+      ]
+    },
+    {
+      "slice": "S7",
+      "findings": [
+        "MSG-STRUCT-001",
+        "MSG-STRUCT-002",
+        "MSG-SURFACE-001"
+      ],
+      "acceptance": "Remove obsolete callback and unused state; consolidate JSON decode with discriminating controls; reconcile public Protected adapter intent/autoloading while preserving current immutable-principal factories and refusal semantics. No compatibility shim.",
+      "depends_on": [
+        "S1"
+      ]
+    }
+  ],
+  "qualification": [
+    {
+      "profile": "primitive-only",
+      "supported": "undecided",
+      "evidence_class": "none",
+      "evidence": "No installed-profile evidence reused. Source fixture is reproduced source evidence only.",
+      "gap_owner": "S4 / waaseyaa/messaging / D3"
+    },
+    {
+      "profile": "standalone split",
+      "supported": "undecided",
+      "evidence_class": "none",
+      "evidence": "No installed-profile evidence reused. Source fixture is reproduced source evidence only.",
+      "gap_owner": "S4 / waaseyaa/messaging / D3"
+    },
+    {
+      "profile": "kernel composition",
+      "supported": "yes intended; unqualified",
+      "evidence_class": "none",
+      "evidence": "No installed-profile evidence reused. Source fixture is reproduced source evidence only.",
+      "gap_owner": "S4 / waaseyaa/messaging / D3"
+    },
+    {
+      "profile": "metapackage",
+      "supported": "no by default; explicit opt-in is a separate composition",
+      "evidence_class": "none",
+      "evidence": "No installed-profile evidence reused. Source fixture is reproduced source evidence only.",
+      "gap_owner": null
+    },
+    {
+      "profile": "framework closure",
+      "supported": "no by default; explicit opt-in is a separate composition",
+      "evidence_class": "none",
+      "evidence": "No installed-profile evidence reused. Source fixture is reproduced source evidence only.",
+      "gap_owner": null
+    },
+    {
+      "profile": "generated application",
+      "supported": "undecided",
+      "evidence_class": "none",
+      "evidence": "No installed-profile evidence reused. Source fixture is reproduced source evidence only.",
+      "gap_owner": "S4 / waaseyaa/messaging / D3"
+    }
+  ],
+  "probes": [
+    {
+      "name": "creator-membership-source",
+      "purpose": "Revalidate #2753 via real messaging provider and SQL persistence, with synthetic service bus; separate memory testing proof.",
+      "result": "Normal SQL one owner; insertion failure leaves thread without owner and no propagated failure; memory fails membership.",
+      "retained_path": "tests/Fixtures/Audits/Messaging/MSG-CREATE-001-creator-atomicity.php",
+      "reproduce": "php tests/Fixtures/Audits/Messaging/MSG-CREATE-001-creator-atomicity.php <source-root> at frozen audit base 2ba3821a8224950b443fc5060e5541fb29e4962a; historical reproduction, not a current repair test."
+    },
+    {
+      "name": "api-content-identity-source",
+      "purpose": "Demonstrate API-owned messaging identity classification with normal-label and numeric/absent-label controls; real provider and SQL, synthetic principal.",
+      "result": "Normal title fails with SQLite datatype mismatch; contrary controls succeed. Exit 0 observes the defect.",
+      "retained_path": "tests/Fixtures/Audits/Messaging/MSG-API-001-content-id-classification.php",
+      "reproduce": "php tests/Fixtures/Audits/Messaging/MSG-API-001-content-id-classification.php <source-root> at frozen audit base 2ba3821a8224950b443fc5060e5541fb29e4962a; historical reproduction, not a current repair test."
+    },
+    {
+      "name": "public-adapter-autoload",
+      "purpose": "Fresh-process direct symbol lookup plus containing-policy load contrary control.",
+      "result": "false,true,true for adapter/policy/adapter; both reviewers confirmed the two adapters.",
+      "retained_path": null,
+      "reproduce": "In a fresh process require vendor autoload; class_exists each adapter, load MessagingAccessPolicy, repeat lookup."
+    }
+  ],
+  "evidence_runs": [
+    {
+      "command": "php -d memory_limit=1G vendor/bin/phpunit packages/messaging/tests --no-coverage --do-not-cache-result",
+      "base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
+      "dependency_identity": "sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5 / PHPUnit 13.1.14",
+      "host": "Windows",
+      "proves": "Existing source package assertions, not installed or kernel-profile qualification.",
+      "result": "Exit 0; 25 tests / 56 assertions; 6.924 seconds."
+    },
+    {
+      "command": "php run/probe.php",
+      "base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
+      "dependency_identity": "sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5",
+      "host": "Windows",
+      "proves": "Synthetic provider composition reaches terminal SQLite effects and memory testing behavior.",
+      "result": "Exit 0; observed known failure boundary."
+    },
+    {
+      "command": "Two independent verification roles: focused source PHP probes and static production registration/principal tracing",
+      "base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
+      "dependency_identity": "sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5; real SQLite; production provider service bus where named",
+      "host": "Windows",
+      "proves": "Independent evidence/refutation for public and privately held findings; source composition only.",
+      "result": "Both completed; lifetime contract severity reduced to low; normal-label API failure and public-symbol load mismatch added. Private controls retained outside public candidate. Independent followup dispositions for generic principal sources completed; source-level only."
+    },
+    {
+      "command": "Pinned Deptrac diagnostic analyse with JSON output and allowed/forbidden/uncovered controls",
+      "base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
+      "dependency_identity": "sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+      "runner": "Native Windows PHP 8.5.5 / Deptrac 4.7.2",
+      "host": "Windows",
+      "proves": "Observed dependency classification and nonvacuous mechanical detection, not runtime or distribution qualification.",
+      "result": "Production 139 allowed, 0 violations/uncovered. Controls: allowed exit0/1 allowed; forbidden exit1/1 violation; uncovered exit1/1 uncovered. A zero-byte scratch cache incidental write was detected and recorded before a new immutable review baseline."
+    }
+  ],
+  "not_reviewed": [
+    "Real external installed consumers, live services and full HTTP middleware journey.",
+    "No implementation, package migration, chat feature or adjacent package convergence."
+  ],
+  "host_limits": [
+    "Initial isolation scan cannot hash Composer Windows junctions. No agents ran under that failed scan. Scratch dependencies were mirrored as copies before the successful pre-review snapshot.",
+    "The first post-review isolation verification found a zero-byte Deptrac cache from the orchestrator diagnostic. It was preserved and a new immutable baseline taken. Critic and bounded followup integrity verifications subsequently passed; no repository or production-source change.",
+    "Hosted Linux owns POSIX gates and split-artifact qualification. No unavailable check is counted as a local pass."
+  ],
+  "scorecard": {
+    "elapsed": "At least 33 minutes of evidence work since retained probe creation 22:27 America/Toronto; full intake/setup start was not retained.",
+    "agent_count": 3,
+    "subagent_tokens": "unavailable",
+    "source_files": 7,
+    "source_lines": 825,
+    "production_files": 9,
+    "consumers": "Generic manifest/API composition; no downstream installed consumer verified.",
+    "intake_items": 2,
+    "profiles": [
+      "domain",
+      "persistence",
+      "kernel",
+      "http",
+      "distribution"
+    ],
+    "findings": "7 package-owned public findings (MSG-CREATE-001 resolved), 1 API-owned finding and 3 safe private rows; structural debt is low, not a new security claim.",
+    "verification_reversals": [
+      "Lifecycle medium to low; absent service refuted as a defect.",
+      "Documentation wording narrowed to actual promises.",
+      "Unqualified optional profiles distinguished from broken mandatory boot."
+    ],
+    "record_lines": 251,
+    "record_words": 4644,
+    "ledger_bytes": 58572,
+    "probes_written": "Orchestrator and independent role probes plus 3 mechanical seeded controls; see role inventories.",
+    "probes_retained": 2,
+    "open": {
+      "decisions": 2,
+      "uncertainties": 1
+    },
+    "unfiled_findings": [
+      "MSG-CONTRACT-001",
+      "MSG-DOC-001",
+      "MSG-QUAL-001",
+      "MSG-SURFACE-001",
+      "MSG-API-001",
+      "private findings held locally",
+      "MSG-STRUCT-001",
+      "MSG-STRUCT-002"
+    ],
+    "critic": "Original critic evidence preserved; 2026-10-08 bounded structural verification/refutation and final record review approved."
+  }
+}

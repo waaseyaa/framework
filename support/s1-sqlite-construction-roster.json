@@ -7677,6 +7677,20 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Fixtures/Audits/Messaging/MSG-API-001-content-id-classification.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Fixtures/Audits/Messaging/MSG-CREATE-001-creator-atomicity.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
             "path": "tests/Integration/AdminOperationsAdministratorSessionTest.php",
             "pattern": "dbal_factory",
             "class": "test",

@@ -726,14 +726,43 @@
             "package": "waaseyaa/messaging",
             "path": "packages/messaging",
             "form": "library",
-            "audit_state": "not assessed",
-            "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_state": "assessed",
+            "remediation_state": "planned",
+            "audit_base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
+            "audit_date": "2026-10-08",
+            "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/messaging.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/messaging.ledger.json"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/evidence/messaging/2026-05-l2-content-types-audit-at-2ba3821a8224.txt"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/evidence/messaging/issue-2753.txt"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/evidence/messaging/synthesis-at-2ba3821a8224.txt"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "tests/Fixtures/Audits/Messaging/MSG-API-001-content-id-classification.php"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "tests/Fixtures/Audits/Messaging/MSG-CREATE-001-creator-atomicity.php"
+                }
+            ],
+            "notes": "Reuses frozen audit and landed #2753 evidence, with verified structural supplement. #3188 owns bounded structural/public-contract repairs; lifecycle and installation decisions remain explicit."
         },
         {
             "package": "waaseyaa/migration",
