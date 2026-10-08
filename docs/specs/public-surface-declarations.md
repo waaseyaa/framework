@@ -134,6 +134,13 @@ existing `SurfaceChangeAuthorization` rules to the two composed maps:
 
 Charter §8.1's directive grammar is unchanged.
 
+Declarations and these directives record a governed public-surface change;
+they do not impose alpha compatibility shims or removal waiting periods.
+Apply stability-charter §3.1/§4.6 to obsolete alpha code. Continue to provide
+the required removal/rename/reclassification directive and update current
+callers and declarations; public classification alone does not justify
+retaining an obsolete implementation.
+
 ## 6. Generated views and the tracked/generated boundary
 
 `bin/generate-surface-map`:

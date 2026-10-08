@@ -63,6 +63,18 @@ Record the candidate identity, last verified activity, review handoff, landing, 
 
 ## Implement and review
 
+For alpha Waaseyaa Framework work, do not retain obsolete code solely for
+backward compatibility. When replacing a path, remove superseded callbacks,
+aliases, no-ops, fallbacks and parallel implementations within the authorized
+slice, and update current callers/tests to the canonical contract. `@api` or
+deprecation metadata does not establish a retention obligation. Preserve
+persisted-data integrity and real supported integration requirements; do not
+apply this Framework policy automatically to product repositories. An adapter
+that makes inconsistent internal paths agree needs a demonstrated current
+boundary obligation; otherwise repair the conflicting contracts rather than
+adding normalization, guessed defaults or success-shaped fallbacks. Review
+the actual replacement delta for leftovers, even when all tests pass.
+
 1. Turn acceptance criteria into discriminating tests or other concrete evidence before implementation.
 2. Make the smallest coherent change within the assigned files. Run focused checks in the lane.
 3. Dispatch a reviewer subagent for the actual immutable delta. Default to one risk-based review of the complete candidate. The subagent returns findings with file and line evidence, acceptance gaps, and a clear approve or changes-requested verdict. Add separate review lanes only for materially distinct high-risk boundaries that cannot be assessed efficiently in the primary pass, and only within authorized multi-agent scope. Never use a fixed reviewer count as a quality proxy.

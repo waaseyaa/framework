@@ -149,6 +149,23 @@ registration, provider manifests, generated code, reflection, serialization
 names, package exports, fixtures, documentation examples and downstream
 repositories first.
 
+**Alpha Framework policy.** The maintainer does not require backward
+compatibility for obsolete Waaseyaa Framework code during alpha. Public
+visibility, `@api`, deprecation, a historical example or a hypothetical external
+caller is not a reason to retain a legacy callback, alias, fallback or shim.
+Identify current callers and update them to the canonical contract in an
+authorized repair. Separate code compatibility from persisted-data integrity
+and actual supported integration obligations; this policy does not authorize
+data loss, external migrations or unscoped deletion.
+
+Complete the structural review in the initial assessment, before choosing new
+domain behavior or beginning repairs. Use the checklist's "Code quality and
+cohesion" section to disposition unused paths and state, repeated mechanisms,
+competing authorities and adapters that reconcile conflicting contracts. A
+file roster, green static checks or dependency graph alone does not answer
+these questions. Existing audits missing this evidence need a bounded
+structural supplement, not a restarted package audit.
+
 ### 4. Pick the profiles
 
 Profiles are focused checklists selected by what the package does. They
@@ -185,6 +202,16 @@ and one applicable refusal or failure path. Assert the terminal side effect or
 returned state, and include a discriminator showing that a no-op or fake
 delegate could not pass. Mocks can isolate a separate unit contract, but they
 do not prove adapter truthfulness.
+
+**Adapter necessity.** For each adapter chain, identify the canonical producer
+and consumer contracts, the real mismatch and the semantics each layer adds.
+An adapter that translates a required external or maintained-component boundary
+may be justified. An internal adapter that preserves obsolete shapes, fills in
+missing required data, silently coerces inconsistent values, catches contract
+failures or duplicates another authority is a convergence finding even when
+its terminal path works. Prefer fixing the producer and consumers around one
+contract, then removing the adapter in the authorized repair. Retention needs
+a current boundary obligation and evidence, not compatibility speculation.
 
 **Dependencies.** Look past imports: dependence on another package's
 internals, initialization order, shared mutable state, provider callbacks,
@@ -354,6 +381,8 @@ from verified evidence, and the public record carries a safe summary only.
 A package is **assessed** when:
 
 - every production file appears in the roster with a classification;
+- structural review explicitly dispositions unused paths/state, duplicated
+  logic/authorities and adapter necessity with evidence or named gaps;
 - the charter is written and every question is answered or recorded as a finding;
 - each selected profile's checklist is answered with evidence, marked "does not
   apply" with a reason, or recorded as a gap with a destination;

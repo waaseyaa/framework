@@ -137,13 +137,27 @@ Pre-v1 alpha trains (`0.x-alpha.N`).
 - Removal of provisional symbols.
 - Removal of internal symbols at any time, without notice.
 
-**Required for stable-surface breaks** (this is the change from past practice):
-- Deprecation cycle per §4, even if abbreviated.
-- A shim or compatibility adapter, unless infeasible (must be argued in the merge checklist).
+**Required for public-surface breaks:**
+- Replace the old contract and update current callers in the authorized slice.
+- Remove superseded implementations, callbacks, aliases, no-ops and fallbacks;
+  do not retain them solely for backward compatibility during alpha.
 - An upgrade-guide entry per §7.
 - Listed in the release's `## Breaking changes` section (§8.2).
+- Update public-surface declarations and supply the existing current-change
+  changelog directives when required by §8.1.
 
-**Implication:** alpha does *not* mean "break freely." It means "break with process." The audit's F3 finding was that recent alpha trains skipped the process, not that they shipped breaks.
+Alpha has no required compatibility shim, deprecation waiting period or
+technical-infeasibility argument for direct removal. Public classification,
+`@api` and deprecation annotations do not require retaining obsolete code.
+Adapters for real external or maintained-component boundaries need a current
+contract and demonstrated necessity; adapters that merely hide disagreement
+between internal paths are convergence findings. Preserve persisted-data
+integrity and explicit supported storage/integration obligations, and document
+actual consumer migration impact. This does not authorize external migrations
+or change consuming applications' own compatibility policy.
+
+This phase rule supersedes the earlier alpha shim/window instructions and
+alpha examples elsewhere in this charter. Beta and stable rules are unchanged.
 
 ### 3.2 Beta (future, gated)
 
@@ -152,7 +166,7 @@ Pre-v1 beta trains (`0.x-beta.N`).
 **Entry criteria** (all must hold; not date-driven). Waaseyaa is a **single-developer project moving fast**: the beta bar is **code health and enforced CI**, nothing else. There is no owner-approval artifact, no third-party / non-Waaseyaa-org consumer requirement, and no ratification vote — beta is entered when the engineering criteria below are objectively green on `main`. (See §3.4 for the transition mechanism, which is a code-health check, not a sign-off.)
 
 1. **Surface labeling complete.** Every package in the public-surface-map has every exported item tier-labeled. No unlabeled items.
-2. **Two clean alpha trains.** Two consecutive alpha trains have shipped without an undeprecated stable-surface break — *enforced by the surface-parity gate (§8.1), not asserted by hand*.
+2. **Two clean alpha trains.** Two consecutive alpha trains have shipped with public-surface changes declared and documented under §3.1. The surface-parity gate (§8.1) verifies current-change declaration directives; upgrade/release prose remains a review obligation. Alpha deprecation cycles are not required.
 3. **Deprecation budget under threshold.** Active deprecations carrying shim debt do not exceed 10. (Forcing function: if the list grows, the framework must spend a cycle paying it down before entering beta.)
 4. **CI enforcement live & green.** The checks in §8 are wired and green on `main`, and `composer verify` — the full gate set — passes on `main`.
 5. **No unresolved critical mission gaps.** No `❌` entries in [`drupal-comparison-matrix.md`](drupal-comparison-matrix.md) §3 ("Mission-critical gaps") remain in `unknown` or `unresolved` state. `intentional-gap` decisions documented via ADR are acceptable; undecided gaps are not. **Per-field translation (matrix §3.2) — SATISFIED** by M-006 (`entity-storage-translations-v1`) shipping the single-axis translation substrate per ADR 017; see §5.3 for the stable surface. **CMI config sync (matrix §3.5) — SATISFIED** by M-003 (`config-management-v1-01KRCDEC`) shipping the active/sync store split per ADR 018; see §5.5 for the stable surface (`ConfigDependencyInterface`, sync-store YAML format, seven `config:*` commands, `config.audit` log channel, backend restriction).
@@ -185,6 +199,10 @@ Governed by `VERSIONING.md` §4 ("Post-v1.0"). This charter binds the framework 
 ---
 
 ## 4. Deprecation policy
+
+The compatibility cycle below governs beta and stable. During alpha, §3.1 and
+§4.6 govern direct replacement/removal. Historical alpha examples illustrate
+past practice, not a requirement to keep old code.
 
 Any breaking change to a stable symbol — and any deliberate reshape of a provisional one — follows the cycle in this section.
 
@@ -252,24 +270,23 @@ A deprecation cannot be removed before its window expires.
 
 | Phase | Minimum window |
 |---|---|
-| Alpha | **3 alpha trains** from the train that introduced the deprecation |
+| Alpha | No minimum compatibility window; direct removal under §3.1 |
 | Beta | **2 beta trains** from the train that introduced the deprecation |
 | Stable (`v1.x`) | Next major (`v(N+1).0`); intra-major removal is forbidden |
 
-If the deprecating change ships in alpha train `N`, the earliest train that may remove the shim is `N+3`.
+The waiting-period and extension rules apply to beta/stable compatibility
+cycles, not alpha code retention.
 
 **Extension rule:** if the removal-target train arrives while a consumer-blocking issue against the new API is still open, the window extends by one train. This is the framework's contract that "the new way must actually work before the old way disappears."
 
-### 4.6 Abbreviated path (alpha only)
+### 4.6 Direct replacement (alpha only)
 
-For changes that materially cannot be shimmed (e.g. a fundamental contract shape change like the Symfony `Response` migration), the abbreviated path is:
-
-1. Open a tracking issue tagged `breaking-change` with the technical infeasibility argument.
-2. Land the change in a single PR alongside an upgrade-guide entry with a copy-pasteable migration recipe.
-3. Tag the release with `## Breaking changes (no-shim)` in the release notes.
-4. Maintainers must reply in the tracking issue to every "this broke my app" comment within 7 days for one alpha train.
-
-The abbreviated path is forbidden in beta. In beta, "we can't shim it" means "we don't ship it yet."
+Replace the obsolete path and update current callers in the bounded repair.
+Record the affected public contracts, migration instructions and removal
+directives as required by §3.1. No shim-feasibility exception or waiting period
+is required. A tracking issue or pull request may mirror the stable change
+record; neither is a new authorization boundary. Beta continues to require
+its compatibility cycle under §3.2 and §4.1.
 
 ---
 
@@ -732,6 +749,10 @@ The §4.5 extension rule only triggers on issues that are *open* against the new
 
 ## 7. Upgrade guide template
 
+Use the template's migration instructions for alpha replacements. Shim status,
+deprecation windows and deprecation-log checks apply only where the release
+phase actually requires a compatibility cycle; alpha uses §3.1/§4.6.
+
 Every release with a breaking change or deprecation ships an upgrade guide at:
 
 ```
@@ -872,8 +893,8 @@ Maintainers merging a PR labeled `breaking-change` must confirm each item:
 ```
 - [ ] The change is justified in the PR description; alternatives considered.
 - [ ] Affected surface tier identified (stable / provisional / internal).
-- [ ] If stable: deprecation cycle applied per §4 (shim, notice, doc, removal window).
-- [ ] If shim infeasible: §4.6 abbreviated path used; infeasibility argued.
+- [ ] Release phase identified: alpha direct replacement under §3.1/§4.6, or beta/stable compatibility cycle under §4.
+- [ ] For alpha: superseded paths removed within scope, current callers updated, persisted-data integrity and necessary integration boundaries preserved.
 - [ ] Upgrade-guide entry written (§7) under docs/upgrades/.
 - [ ] Tracking issue exists and is linked.
 - [ ] Owning `packages/<pkg>/public-surface.php` declaration updated.

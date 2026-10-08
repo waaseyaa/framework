@@ -97,6 +97,30 @@ authority beyond the user's task.
 
 ## Change workflow
 
+### Alpha Framework convergence
+
+During alpha, do not retain obsolete Framework code solely for backward
+compatibility. Replace superseded paths and update current callers in the
+authorized slice; remove legacy callbacks, aliases, no-ops, fallbacks and
+parallel implementations. Public visibility, `@api`, deprecation metadata or
+hypothetical consumers do not establish a retention obligation. The phase
+contract is [stability-charter.md](../specs/stability-charter.md) §3.1.
+Persisted-data integrity and required external integration contracts remain
+separate obligations. This rule does not authorize data loss, external
+migrations or deletion outside the assigned scope, and does not set product
+repositories' compatibility policies.
+
+An adapter must serve a current boundary with explicit producer and consumer
+contracts. If it exists to reconcile inconsistent internal shapes, guessed
+defaults, coercions or success-shaped fallbacks, prefer repairing one canonical
+contract and its callers. Retention requires evidence of a necessary boundary,
+not merely a passing test. Preserve real authorization and refusal semantics.
+
+Initial package audits must disposition unused paths/state, repeated logic,
+competing authorities and adapter necessity. A file roster, dependency graph
+or green static gate is insufficient structural evidence. Supplement existing
+audits where this evidence is missing; do not restart unaffected audit work.
+
 - Anchor substantive work to a stable, repository-portable change record.
   Forge issue and PR numbers may mirror that identity but are not the authority.
 - When the user has authorized an end-to-end delivery boundary, design and

@@ -57,14 +57,27 @@ For PHP, prefer a scoped Deptrac configuration with uncovered dependencies repor
 
 ## Code quality and cohesion
 
+- Unused locals, fields, parameters, callbacks, imports, flags, configuration and branches, including leftovers excluded from static-tool findings
+- Deprecated no-ops, old/new implementations, aliases, fallbacks and compatibility shims; apply the skill's alpha Framework policy instead of assuming retention
 - Concentrated hosts, providers, controllers, or managers with multiple policy roles
 - Repeated translation, validation, serialization, or authorization logic
+- Competing sources of truth and dual representations; identify the canonical authority and whether derived views are mechanically checked
 - Interfaces with no production implementation or consumer
 - Implementations reachable only from tests or obsolete examples
 - Abstractions that hide ownership rather than clarifying it
 - Adapters backed by test-only or fake delegates, effective no-ops, manufactured success, swallowed failures, lossy translation, or an unavailable terminal capability
+- Adapters introduced to make internal paths agree: identify the original producer/consumer mismatch, normalization/defaults/coercions and whether correcting one canonical contract removes the adapter
+- Repeated execution versus repeated implementation; measure query or translation cost before claiming a performance defect
 
 Do not remove a suspected dead surface until dynamic registration, reflection, serialization names, generated consumers, package exports, fixtures, and downstream repositories have been checked.
+
+Record these results during the initial audit, including concrete cleanup
+opportunities and intentional repetitions. Distinguish obsolete code from
+required integration boundaries and persisted-data migration. An active
+consumer is a repair-impact input, not an automatic compatibility exception.
+Every retained adapter needs a current boundary obligation; every competing
+authority needs a canonical-contract disposition. Do not defer this review
+until after implementing the first behavioral repair.
 
 ## Custom infrastructure versus Symfony
 

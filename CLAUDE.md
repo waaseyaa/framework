@@ -302,12 +302,16 @@ If you add a new discovery convention, extend that provider before relying on th
 
 ### Marking intentional scaffolding
 
-If you add code that is not yet referenced but is part of a planned extension point or feature, mark it with `@api` in PHPDoc. shipmonk's `ApiPhpDocUsageProvider` (enabled by default via `vendor/shipmonk/dead-code-detector/rules.neon`) treats `@api` as a "used by design" signal and will not report it as unused.
+Use `@api` for an established public extension contract or discovery seam, even
+when its callers are supplied by consumers. shipmonk's `ApiPhpDocUsageProvider`
+(enabled by default via `vendor/shipmonk/dead-code-detector/rules.neon`) treats
+it as a "used by design" signal. It does not establish architectural necessity;
+do not use it to keep obsolete code or unfinished runtime stubs past an audit.
 
 Use `@api` for:
 - Public extension points (interfaces, abstract classes, traits) intended for third-party or cross-package use.
 - Attribute classes and entity types discovered via reflection or configuration.
-- Forthcoming feature stubs expected to be wired up in a later PR.
+- Public DTOs or facades with a documented current consumer contract.
 
 ```php
 /**
@@ -323,10 +327,19 @@ Do **not** use `@api` for internal helpers, temporary spikes, or anything you wo
 
 ### Triage rule for findings
 
+Apply `docs/governance/agent-contract.md` "Alpha Framework convergence" and
+`docs/specs/stability-charter.md` §3.1. `@api` is a discovery/tooling signal,
+not an obligation to retain obsolete code. During an authorized alpha repair,
+remove superseded public as well as private paths and update current callers;
+do not keep deprecated no-ops or compatibility shims merely because they were
+once public. Check dynamic consumers and required integration/data contracts
+to establish repair impact, not to invent a compatibility exception.
+
 When acting on dead-code findings (separate from this CI gate):
-- **Public extension points / attributes / entities / reflection-discovered types / clearly-named forthcoming stubs** → either add `@api` and keep, or move into a feature branch until wired.
+- **Current public extension points / attributes / entities / reflection-discovered types** → retain with current ownership and wiring evidence; use `@api` only when it truthfully identifies that role.
+- **Unused forthcoming stubs** → keep outside the shipped runtime until their supported role is established.
 - **Private/internal helpers, unused methods/properties/constants with no callers** → safe candidates for deletion or refactor.
-- For automated passes: only propose deletions for private/internal symbols with no `@api` and no references; leave anything public or reflective-looking alone unless explicitly approved.
+- Audit-only passes record removal candidates; implementation authorization is required to delete code. Public visibility alone is not a retention decision.
 
 To regenerate the baseline after a triage sweep: `vendor/bin/phpstan analyse -c phpstan-dead-code.neon --generate-baseline=phpstan-dead-code-baseline.neon`. To inspect the historical backlog without running CI, grep `phpstan-dead-code-baseline.neon`.
 

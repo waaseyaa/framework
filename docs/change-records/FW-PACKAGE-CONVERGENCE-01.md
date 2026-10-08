@@ -27,7 +27,9 @@ tracked separately. The program does not block ordinary Framework delivery.
 The skill defines three milestones, each a stronger claim:
 
 1. **Assessed** (audit state "assessed"): every production file in the roster;
-   charter answered; each selected profile's checklist answered, marked not
+   charter answered; structural review dispositions unused paths/state,
+   duplicated logic/authorities and adapter necessity with evidence or named
+   gaps; each selected profile's checklist answered, marked not
    applicable, or recorded as a gap with a destination; every supported
    installation profile with qualifying evidence or a recorded qualification
    gap with an owner; every finding with severity, confidence, attribution, a
