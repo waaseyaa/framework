@@ -50,7 +50,7 @@ final readonly class FilterDefinition
 
     /**
      * Validate the operator-value matrix defined in
-     * `kitty-specs/listing-pipeline-v1-01KRMN0B/contracts/listing-definition.md`.
+     * `docs/specs/listing-pipeline-v1.md`.
      */
     private function validateOperatorValueShape(): void
     {

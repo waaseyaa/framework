@@ -186,6 +186,22 @@ grep -Fq 'split-artifact entity round-trip OK' "$work/boot-nodev.out"
 grep -Fq 'split-artifact ai-vector absence OK (search 501)' "$work/boot-nodev.out"
 test ! -e "$nodev/vendor/waaseyaa/ai-vector"
 
+echo "== Listing: sealed standalone no-dev package"
+listing_standalone="$work/listing-standalone"
+mkdir -p "$listing_standalone"
+php -r 'file_put_contents($argv[1]."/composer.json", json_encode(["name"=>"acceptance/listing", "require"=>["waaseyaa/listing"=>$argv[3]], "repositories"=>[json_decode($argv[2],true)], "minimum-stability"=>"dev", "prefer-stable"=>true], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n");' "$listing_standalone" "$repository" "$version"
+"$composer_bin" install --working-dir="$listing_standalone" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts >"$work/listing-standalone-install.out" 2>&1 \
+    || { tail -80 "$work/listing-standalone-install.out" >&2; exit 1; }
+php "$root/tests/SplitArtifactAcceptance/listing.php" "$listing_standalone" standalone
+
+echo "== Listing: generated installed application"
+php "$root/tests/SplitArtifactAcceptance/listing.php" "$nodev" generate
+"$composer_bin" dump-autoload --working-dir="$nodev" --no-dev --no-scripts >"$work/listing-autoload.out" 2>&1 \
+    || { cat "$work/listing-autoload.out" >&2; exit 1; }
+( cd "$nodev" && php vendor/bin/waaseyaa schema:sync ) >"$work/listing-schema.out" 2>&1 \
+    || { cat "$work/listing-schema.out" >&2; exit 1; }
+php "$root/tests/SplitArtifactAcceptance/listing.php" "$nodev" generated
+
 echo "== Surface: installed but disabled ai-vector"
 mkdir -p "$vector_nodev"
 ( cd "$full_consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./composer.lock' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \

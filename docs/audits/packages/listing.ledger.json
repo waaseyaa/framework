@@ -1284,6 +1284,102 @@
         "LST-DOCS-001",
         "LST-SURFACE-001"
       ]
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Separation of concerns and single responsibility",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Retain ordered resolver orchestration, provider composition and parser/coercer responsibilities; separate policy reasons to change are traced in the supplement.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "DRY at contract and mechanism level",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Context hash delegates to ListingHash with byte goldens. Distinct operator shape/coercion/field/evaluation switches remain intentional domain policy.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Human file and namespace navigation",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Retain descriptive flat class groups with Exception nesting; representative tasks reveal no justified move.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Trace maintainer tasks",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Declaration, operator and cache tasks traced from entrypoint through runtime contracts and focused tests; contradiction in docs was the concrete friction.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: Code quality and cohesion",
+      "item": "Move/split/merge impact and acceptance",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: No file move justified; keep ownership and identifiers. Bounded doc/hash repairs have existing caller controls and byte parity acceptance.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "Native types and PHPDoc precision",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Native signatures and list/map/callable PHPDoc inspected; no manufactured runtime guarantee or universal docblock requirement.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "Public and extension contract semantics",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Discovery contract corrected to runtime provider registry construction and producer list obligation. Existing field/access/paging refusal and lifecycle docs retained.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "PHPDoc and runtime/surface consistency",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Internal key-builder/validator/coercion exception annotations reconciled with public-surface.php; cache projection, queryability, unbounded condition and key-order docs corrected.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "Intent and invariant comments",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Retain meaningful finalization, no-OFFSET and access-order comments; current canonical delete/rehydration behavior replaces stale descriptions.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "Confusing flow versus prose",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Named resolver sections express the shared ordered algorithm. No broad extraction or extra folders justified. Obsolete spec links and future-state promises removed.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "Evidence for inline types, suppressions and api tags",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: Existing list-map inference annotations match producers; no new suppression. Classification follows canonical surface declarations rather than retaining internal api claims.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
+    },
+    {
+      "profile": "general: PHPDoc and human comments",
+      "item": "Installed analyzer configuration and enforcement",
+      "status": "answered",
+      "answer": "Supplement at 40df73a2425e96f019ad9af414bc68c5b1e974b1: PHPStan 2.1.54 level 5 with strict rules and Deptrac 4.7.2 inspected. Prose/api tags do not replace configured controls. Scoped Deptrac allowed/forbidden/uncovered discriminators retained.",
+      "evidence": "docs/audits/packages/listing.md#maintainability-supplement-2026-10-08; current packages/listing/src and tests",
+      "findings": []
     }
   ],
   "intake": [],
@@ -1304,6 +1400,10 @@
         {
           "kind": "slice",
           "ref": "S1"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1347,6 +1447,10 @@
         {
           "kind": "slice",
           "ref": "S1"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1390,6 +1494,10 @@
         {
           "kind": "issue",
           "ref": "#2996"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "Canonical deletion event and after-commit delivery decision with waaseyaa/entity-storage; listing owns its subscription.",
@@ -1433,6 +1541,10 @@
         {
           "kind": "slice",
           "ref": "S2"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1467,7 +1579,7 @@
       "severity": "info",
       "confidence": "confirmed",
       "evidence_level": "reviewed",
-      "observed": "public-surface.php has 23 entries for 25 source declarations. ServiceProvider and ListingCacheProjection are omitted. Multiple internal declarations carry conflicting stable/@api comments.",
+      "observed": "public-surface.php has 23 entries for 25 source declarations. ServiceProvider and ListingCacheProjection are omitted. Multiple internal declarations carry conflicting stable/@api comments. Maintainability supplement at 40df73a: additional stale documentation/internal annotations and repeated context hashing; candidate corrections recorded in the supplement.",
       "expected_contract": "Every shipped symbol receives an intentional disposition grounded in current callers, and public contract documentation agrees.",
       "consequence": "Governance metadata and contributor documentation cannot reliably distinguish supported composition from implementation detail.",
       "refutation": "An internal cache projection needs classification, not promotion. Alpha permits removing obsolete stability promises; public class existence alone does not establish retention obligation.",
@@ -1476,6 +1588,10 @@
         {
           "kind": "slice",
           "ref": "S3"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1495,7 +1611,7 @@
       "merged_into": null,
       "verification": {
         "tier": "C",
-        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently. Independent grouped structural pass inspected all current production files and refuted cosmetic directory/decomposition changes.",
         "reversals": []
       },
       "probes": [],
@@ -1517,6 +1633,10 @@
         {
           "kind": "issue",
           "ref": "#3016"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1549,7 +1669,7 @@
       "severity": "info",
       "confidence": "confirmed",
       "evidence_level": "reviewed",
-      "observed": "ListingDefinition and ExposedFilterValues duplicate canonicalization. Resolver duplicates page parsing/clamping, retains an unreachable empty-accessOps fast path, and accepts a cached ListingResult only to reject it immediately. Parser repeats an already enforced filter type check. typed-data is declared directly but source imports none of its symbols.",
+      "observed": "ListingDefinition and ExposedFilterValues duplicate canonicalization. Resolver duplicates page parsing/clamping, retains an unreachable empty-accessOps fast path, and accepts a cached ListingResult only to reject it immediately. Parser repeats an already enforced filter type check. typed-data is declared directly but source imports none of its symbols. Maintainability supplement at 40df73a: additional stale documentation/internal annotations and repeated context hashing; candidate corrections recorded in the supplement.",
       "expected_contract": "One intentional mechanism per contract; adapters bridge necessary current boundaries. Alpha annotations alone do not retain obsolete paths.",
       "consequence": "Maintenance drift risk without demonstrated current output corruption. Foundation Schema/Diff/CanonicalJson has DIFFERENT float flags and is not a byte-equivalent substitute.",
       "refutation": "Foundation CanonicalJson differs in zero-fraction preservation and string key sort order. Blind substitution changes cache identity. Internal duplication remains valid but must not become a generic refactor or an assertion that typed-data dependency is safe to remove without contract review.",
@@ -1558,6 +1678,10 @@
         {
           "kind": "slice",
           "ref": "S3"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1577,7 +1701,7 @@
       "merged_into": null,
       "verification": {
         "tier": "C",
-        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently.",
+        "performed": "Independent rederivation A and refutation B completed; public verdict files retained. Cross-package caller and documentation claims checked independently. Independent grouped structural pass inspected all current production files and refuted cosmetic directory/decomposition changes.",
         "reversals": []
       },
       "probes": [],
@@ -1642,6 +1766,10 @@
         {
           "kind": "owner-audit",
           "ref": "waaseyaa/framework documentation delta under #3118"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1685,6 +1813,10 @@
         {
           "kind": "slice",
           "ref": "S1"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1728,6 +1860,10 @@
         {
           "kind": "private-report",
           "ref": "framework advisory; owner waaseyaa/listing"
+        },
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/3195"
         }
       ],
       "dependencies": "none",
@@ -1867,6 +2003,12 @@
       "claim": "Provider lifecycle and readiness are cross-package concerns.",
       "status": "open at audit read",
       "evidence": "ServiceProvider singleton timing; cached issue-2859"
+    },
+    {
+      "issue": "#3195",
+      "claim": "Bounded listing repair, maintainability supplement and installed qualification umbrella.",
+      "status": "open; implementation in progress",
+      "evidence": "FW-LISTING-CONVERGENCE-01; issue acceptance"
     }
   ],
   "remediation_plan": [

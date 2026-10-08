@@ -52,7 +52,8 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as FoundationServiceProv
  * Discovered listings — gathered by {@see ListingDiscoverer} from every
  * registered service provider implementing {@see HasListingsInterface}.
  * Cache invalidation — {@see ListingCacheInvalidator} subscribes to
- * {@see AfterSaveEvent} and {@see AfterDeleteEvent} via explicit
+ * {@see AfterSaveEvent}, canonical repository POST_DELETE and standalone
+ * {@see AfterDeleteEvent} via explicit
  * {@code addListener()} calls on the framework dispatcher (no
  * `#[AsEventListener]` attribute discovery).
  *

@@ -53,7 +53,8 @@ final readonly class ExposedFilterValues
     /**
      * Deterministic 16-hex-char digest of the values map (FR-037).
      *
-     * Canonical JSON sorts object keys lexicographically so two PHP workers
+     * Canonical JSON uses PHP default key sorting for maps and preserves lists;
+     * two PHP workers
      * with the same value-map produce the same digest.
      */
     public function cacheKeyHash(): string

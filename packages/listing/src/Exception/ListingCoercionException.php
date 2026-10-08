@@ -18,16 +18,20 @@ use Throwable;
  * {@see \Waaseyaa\Listing\ExposedFilterParser::parse()} in strict mode;
  * silently caught (and logged at debug level) in permissive mode.
  *
- * INTERNAL: this exception type is not part of the stable charter §5.X
- * surface. Catch via {@see ExposedFilterParser::strict()} only.
+ * Internal refusal detail emitted by the public parser in strict mode.
+ * {@see \Waaseyaa\Listing\ExposedFilterParser::strict()} configures that mode;
+ * callers may catch this exception at their input boundary.
  *
- * @api
+ * @internal
  */
 final class ListingCoercionException extends RuntimeException
 {
     public function __construct(
+        /** @api Input-boundary diagnostic read by strict-mode callers. */
         public readonly string $param,
+        /** @api Input-boundary diagnostic read by strict-mode callers. */
         public readonly string $raw,
+        /** @api Input-boundary diagnostic read by strict-mode callers. */
         public readonly string $operatorName,
         public readonly string $expectedType,
         public readonly string $reason,

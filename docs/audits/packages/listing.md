@@ -1,13 +1,13 @@
 # `waaseyaa/listing` convergence audit
 
 - **Milestone:** in progress. Repair ready: no. Converged: not claimed.
-- **Audit state:** in progress. **Remediation state:** not triaged.
+- **Audit state:** in progress. **Remediation state:** in progress.
 - **Base:** `f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc`, audited `2026-10-08`.
 - **Dependency identity:** `composer.lock` SHA-256 `f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036`; PHP `8.5.5`; native Windows.
 - **Evidence freshness:** current at the base; original checkout clean. Scratch source clone binds the same source and lock.
-- **Owner:** `waaseyaa/framework#3118`. Retained audit history at the original base; see FW-LISTING-CONVERGENCE-01 for the repair candidate.
+- **Owner:** `waaseyaa/framework#3195` (program #3118). Retained audit history at the original base; see FW-LISTING-CONVERGENCE-01 for the repair candidate.
 - **Profiles applied:** domain contracts, kernel/runtime, HTTP/query input and distribution. Persistence/execution and generation/build do not apply: listing owns reads and cache eviction, no writes/schema/jobs/generation.
-- **Structured ledger:** `docs/audits/packages/listing.ledger.json`: 11 findings, 6 refuted leads, 110 checklist answers, 0 handoffs, 2 decisions (2 open), 1 uncertainties (1 open), 3 probe entries, 7 evidence runs.
+- **Structured ledger:** `docs/audits/packages/listing.ledger.json`: 11 findings, 6 refuted leads, 122 checklist answers, 0 handoffs, 2 decisions (2 open), 1 uncertainties (1 open), 3 probe entries, 7 evidence runs.
 
 ## Summary
 
@@ -208,3 +208,43 @@ Every run binds the full base and lock above. Original-base public probes are re
 - **Probes:** 2 public root probes plus independent role controls. Two original-base probes retained in governed fixture paths. Dependency controls cover allowed, forbidden and unclassified edges.
 - **Open:** 2 open decisions; 1 open uncertainties; new S1-S4 findings and private triage lack filed destinations. Existing issue destinations were scope-checked.
 - **Authority:** Audit history. Repository repair work is authorized under FW-LISTING-CONVERGENCE-01; no external mutation or release is authorized.
+
+
+## Maintainability supplement, 2026-10-08
+
+This bounded supplement reviews the repaired source at
+`40df73a2425e96f019ad9af414bc68c5b1e974b1`, on top of the new repository skill
+criteria. It preserves the original-base audit and probes above. All 26 current
+production PHP files, manifest, surface declaration and README were reviewed.
+Independent grouped verification found documentation drift and one equivalent
+hash implementation; these extend LST-SURFACE-001 and LST-STRUCTURE-001 under #3195.
+The repair does not claim the private-custody or converged milestones.
+
+| Concern | Disposition and evidence |
+| --- | --- |
+| SoC/SRP | Retain resolver orchestration: query, current access, pagination and cache eligibility share correctness ordering. Named private sections expose those paths; tiny extracted services would widen state interfaces without demonstrated benefit. |
+| DRY | Delegate context identity to ListingHash; preserve established hashes with empty, reordered, Unicode/slash, numeric-looking-map and list goldens. Operator switches serve distinct shape, coercion, field-compatibility and evaluation policies. |
+| File navigation | Retain flat named discovery/declaration/input/cache/resolution groups and proportional Exception directory. No traced task justified a move, split or merge. |
+| Discovery | Retain provider capability/discoverer/registry separation; correct the interface's false manifest-time and defensive-validation promises to current runtime ownership. |
+| Input and validation | Retain parser/coercer and shallow/boot validation: URL presence/refusal mode, scalar conversion, input shapes and registered field relationships have different reasons to change. |
+| Cache responsibilities | Retain projection/hash/invalidator boundaries for payload, identity and lifecycle. Correct canonical-delete listener docs and resolve summary to match rehydration and bounded pagination. |
+| Factories and results | Retain Filter/Sort factories and DTOs/enums; forwarding adds declaration ergonomics. Pagination owns metadata invariants, ListingResult composes rows and metadata. Three exceptions carry distinct refusal contexts. |
+| PHPDoc | Correct internal @api claims, exception links, key-sort semantics, validator queryability and unbounded-rule conditions. Native types plus existing list/map/callable shapes remain the contract; no invented extension seam or analyzer suppression. |
+| Human comments | Preserve explanations of boot finalization, no-OFFSET windows and access-before-pagination. Remove stale future-work promises, obsolete spec paths and misleading cache/SQL-column descriptions. |
+| Tool enforcement | Installed PHPStan 2.1.54 (level 5/strict rules), Deptrac 4.7.2. Public-surface.php owns classification; @api/prose alone supplies no mechanical enforcement. Scoped dependency controls remain source evidence. |
+
+Representative maintainer tasks:
+
+- Declare a listing: README -> HasListingsInterface -> provider capability source
+  -> ListingDiscoverer -> registry -> finalizer/validator -> capability and boot
+  tests -> cookbook/current spec.
+- Add an operator: Operator -> Filter/FilterDefinition -> coercer -> field
+  validator -> resolver refinement -> unit/contract/backend controls. Similar
+  switches represent separate obligations, not one interchangeable mechanism.
+- Change caching: provider bindings -> resolver eligibility/rehydration -> key
+  builder/hash -> projection -> invalidator wiring -> cache/lifecycle tests.
+
+The observed human-navigation defect was contradictory documentation. Folder
+moves and wider resolver decomposition are not supported by this review.
+Installed and hosted qualification evidence is reconciled separately after the
+exact candidate runs; original source results remain historical evidence.

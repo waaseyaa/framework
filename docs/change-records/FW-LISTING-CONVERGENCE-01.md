@@ -116,15 +116,17 @@ The reviewer independently executed 15 cache/lifecycle tests, 56 assertions.
 
 Final candidate-local PHPUnit runs passed:
 
-- Listing package: 400 tests, 842 assertions.
-- Phase14 listing pipeline: 12 tests, 79 assertions.
+- Listing package: 355 tests, 696 assertions.
+- Phase14 listing pipeline: 6 tests, 19 assertions.
 - Phase14 cache invalidation: 3 tests, 6 assertions.
 - Phase29: 43 tests, 146 assertions.
 - PublishedContentRecipe direct caller: 6 tests, 60 assertions.
 - EntityRepositoryTransactionalHooks owner boundary: 12 tests, 140 assertions,
   including enclosing commit/rollback and delete refusal controls.
 
-Total focused source qualification: 476 tests, 1,273 assertions. The two retained
+Total focused source qualification: 425 tests, 1,067 assertions. Fresh disjoint
+suite runs correct the previous total, which counted overlapping aggregate runs.
+The listing count includes the supplementary context-hash golden test. The two retained
 public probes still reproduce their historical defects against the original
 base checkout. Current source dependency analysis passes with 305 allowed edges
 and zero violations, uncovered edges, warnings or errors. Default governed
@@ -134,3 +136,37 @@ native source evidence, not hosted or installed-package qualification.
 Candidate lock SHA-256:
 `8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc`.
 Only listing's path-package metadata changed from the audited lock.
+
+
+## Authorized supplement and delivery
+
+Russell authorized maintainability supplementation, justified repairs, installed
+qualification and landing on 2026-10-08. The prior no-publication boundary above
+records the earlier phase; this instruction authorizes bounded candidate push,
+qualification dispatch and governed main landing. Umbrella #3195 owns the slices,
+with #3118 remaining the wider program. Repository main now includes the shared
+skill criteria; the listing candidate rebases onto that unchanged skill commit.
+
+The independent supplement inspected all current production files and the three
+maintainer navigation tasks. Retain flat layout and ordered resolver orchestration;
+repair inaccurate docs/internal tags and delegate the remaining context hash to
+ListingHash. Existing hash bytes are pinned before and after delegation. No
+constructor/runtime behavior, public name, storage schema or file placement changes
+are introduced by the supplement. Read the audit supplement for per-concern
+retentions and source evidence. Private custody remains explicitly unclaimed.
+
+Supplementary static qualification removes the unused internal repository
+presence probe and the redundant unknown-context check at cache storage.
+Strict parser callers read exception diagnostics, so only those properties
+retain entrypoint annotations; the exception class remains internal. The
+listing dead-code findings are cleared. Seven findings in config/scheduler
+also reproduce unchanged on clean main 7b29be87e; no baseline suppression or
+unrelated production repair is introduced. Hosted qualification owns the
+supported full verdict. Surface parity against 7b29be87e passes.
+
+The retained split-artifact acceptance now installs listing alone without
+development dependencies and exercises provider boot, parsed text, equality
+conjunction and refusal with optional cache absent/present. It also compiles
+the published-content recipe into the installed skeleton, syncs its schema
+and exercises the generated public listing through HttpKernel. Qualification
+results remain pending until these consumers execute from sealed commit bytes.

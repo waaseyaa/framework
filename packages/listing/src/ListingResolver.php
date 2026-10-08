@@ -29,15 +29,15 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * 2. Resolve effective langcode for translatable types (FR-047).
  * 3. Resolve effective cache contexts (FR-024 + FR-048) into a value map.
  * 4. Build a cache key via {@see ListingCacheKeyBuilder} (when caching enabled).
- * 5. Cache lookup — on hit, return the cached {@see ListingResult}.
+ * 5. Eligible cache lookup; hydrate identifier projections through the repository.
  * 6. Build the query by translating filters → criteria + in-process refinement.
- * 7. Execute query (full result set; pagination clamps + slices post-access).
+ * 7. Execute query; push a bounded window only when no row refinement applies.
  * 8. Per-row access policy application (FR-029) + FR-032 fast-path opt-in.
  * 9. Pagination metadata (FR-025/FR-027 page clamp; FR-030 dense pages;
  *    FR-031 total-rows reflects access-filtered count).
  * 10. Compute cache tags (FR-023) + contexts (FR-024 + FR-048).
  * 11. Build {@see ListingResult}.
- * 12. Cache store (when caching enabled + no unknown contexts).
+ * 12. Store an identifier projection when the result is cache eligible.
  *
  * Caching is **fully optional** — when `?TaggedCacheInterface $cache` and
  * `?ListingCacheKeyBuilder $keyBuilder` are both `null`, resolution skips
@@ -60,8 +60,8 @@ final class ListingResolver
 {
     /**
      * Logical operators that are evaluable in-process against entity field
-     * values. EQ is delegated to the storage driver's native criteria match
-     * for performance; the rest are evaluated in-PHP after the broader
+     * values. The first scalar EQ per field uses native criteria; additional
+     * equalities and the other operators refine in-PHP after the broader
      * driver-side fetch (FR-018, FR-019).
      */
     private const STORAGE_NATIVE_OPS = [Operator::EQ];
@@ -163,7 +163,7 @@ final class ListingResolver
         $result = new ListingResult($pagedRows, $pagination, $cacheTags, $cacheContexts);
 
         // §7.1 step 12 — cache store (best-effort; FR-058 absorbs failures)
-        if ($cachingEnabled && $cacheKey !== null && !$this->hasUnknownContexts($contextValues, $cacheContexts)) {
+        if ($cachingEnabled && $cacheKey !== null) {
             $this->safeCacheStore($cacheKey, $result, $cacheTags, $def->cacheTtl);
         }
 
@@ -187,16 +187,9 @@ final class ListingResolver
             $contexts[] = ContextNames::LANGUAGE_CONTENT;
         }
 
-        // Cross-user cache safety: whenever the per-row access gate actually
-        // runs (i.e. the fast path is NOT taken), the result is filtered to the
-        // acting account and therefore varies per user. `effectiveContexts()`
-        // only adds `user.roles` for non-default access ops, so the default
-        // `view` path — which still runs the gate unless a policy opted into
-        // the listing fast path — would otherwise cache one user's filtered
-        // result under a key shared by everyone (role/owner data leak). Bind
-        // the key to both the acting account id (covers owner-dependent access)
-        // and its roles (covers role-dependent access). Policies that are truly
-        // user-independent opt out via SUPPORTS_LISTING_FAST_PATH.
+        // Current per-row access varies by principal. Preserve that variation
+        // in returned metadata even though these results bypass projection
+        // caching. Only the explicit independent-view capability avoids it.
         if (!$this->canUseAccessFastPath($def)) {
             if (!in_array(ContextNames::USER_ID, $contexts, true)) {
                 $contexts[] = ContextNames::USER_ID;
@@ -309,7 +302,7 @@ final class ListingResolver
             return null;
         }
 
-        // CacheItem wraps the stored value; unwrap if necessary.
+        // The cache contract always wraps stored data in CacheItem.
         $value = $item->data;
 
         if (!$value instanceof ListingCacheProjection) {

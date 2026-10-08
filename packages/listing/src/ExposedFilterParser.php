@@ -69,8 +69,8 @@ final class ExposedFilterParser
     }
 
     /**
-     * Return a clone with a different coercer (e.g. one wrapping the
-     * typed-data manager).
+     * Return a clone configured with the supplied concrete coercer.
+     * Custom field type selection belongs in withTypeResolver().
      */
     public function withCoercer(ExposedFilterCoercer $coercer): self
     {

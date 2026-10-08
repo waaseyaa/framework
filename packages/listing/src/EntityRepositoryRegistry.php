@@ -67,11 +67,4 @@ final class EntityRepositoryRegistry
         return $this->repositories[$entityTypeId];
     }
 
-    /**
-     * Whether a repository is registered for the given entity type ID.
-     */
-    public function has(string $entityTypeId): bool
-    {
-        return isset($this->repositories[$entityTypeId]);
-    }
 }

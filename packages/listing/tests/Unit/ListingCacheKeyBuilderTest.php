@@ -191,4 +191,21 @@ final class ListingCacheKeyBuilderTest extends TestCase
             'Empty context-map should still produce a valid cache key.',
         );
     }
+    #[Test]
+    public function contextHashPreservesEstablishedBytes(): void
+    {
+        $def = new ListingDefinition(id: 'golden', entityType: 'node');
+        $exposed = new ExposedFilterValues();
+        foreach ([
+            [[], '4f53cda18c2baa0c'],
+            [['language.content' => 'fr', 'url.query.q' => 'café/a'], '0dea13b41973db21'],
+            [['url.query.q' => 'café/a', 'language.content' => 'fr'], '0dea13b41973db21'],
+            [['10' => 'ten', '2' => 'two'], 'd7d8369c8035a81d'],
+            [['2' => 'two', '10' => 'ten'], 'd7d8369c8035a81d'],
+            [['0' => 'zero', '1' => 'one'], '4c80b4a57a85f3a4'],
+        ] as [$contexts, $expected]) {
+            self::assertSame($expected, substr($this->builder->build($def, $exposed, $contexts), -16));
+        }
+    }
+
 }

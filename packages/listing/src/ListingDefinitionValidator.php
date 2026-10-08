@@ -25,7 +25,7 @@ use Waaseyaa\Listing\Exception\UnsupportedListingException;
  *
  *  - **A** `pageSize > 1000` without {@code allowUnbounded()}
  *  - **B** `pageSize === null` without {@code allowUnbounded()}
- *  - **C** `approximateTotal === true` with {@code allowUnbounded()} (no useful semantics)
+ *  - **C** `approximateTotal === true` with unbounded `pageSize === null`
  *  - **D** Entity type must exist in the {@see EntityTypeManager}
  *  - **E** Bundle (if set) must be a registered bundle for the entity type
  *  - **F** Every filter/sort field must exist on the entity type
@@ -67,7 +67,7 @@ use Waaseyaa\Listing\Exception\UnsupportedListingException;
  * operators whose semantics make no sense on a given type
  * (e.g. {@code STARTS_WITH} on an integer field).
  *
- * @api
+ * @internal
  */
 final class ListingDefinitionValidator
 {
@@ -242,9 +242,9 @@ final class ListingDefinitionValidator
     private function requireSupportsQuery(ListingDefinition $def, FieldDefinitionInterface $fieldDef): void
     {
         // Definition-level proxy for the storage-backend `supportsQuery()`
-        // contract: `Column`-stored fields are queryable (live in their
-        // own SQL columns); `Data`-stored fields are not (opaque JSON
-        // blob in `_data`).
+        // contract: Column declarations permit querying; Data declarations
+        // do not. Physical columns depend on the entity storage backend,
+        // not this declaration-level check.
         if ($fieldDef->getStored() !== FieldStorage::Column) {
             throw new UnsupportedListingException(
                 $def->id,

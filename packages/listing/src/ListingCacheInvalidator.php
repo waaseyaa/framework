@@ -75,15 +75,15 @@ final class ListingCacheInvalidator
     }
 
     /**
-     * Compute the affected tag set for an entity + emit best-effort invalidations.
-     *
-     * @param list<string>|null $affectedLangcodes
+     * Evict listing tags after the canonical repository delete notification.
+     * The repository owns successful-commit delivery; no pre-delete eviction.
      */
     public function onPostDelete(EntityEvent $event): void
     {
         $this->invalidate($event->entity, null);
     }
 
+    /** @param list<string>|null $affectedLangcodes */
     private function invalidate(object $entity, ?array $affectedLangcodes): void
     {
         if ($this->cache === null) {

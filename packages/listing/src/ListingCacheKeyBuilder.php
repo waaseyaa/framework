@@ -10,15 +10,14 @@ namespace Waaseyaa\Listing;
  * FR-037 key format: `listing:<def-hash>:<exposed-hash>:<ctx-hash>` where
  * each hash is a 16-hex-char SHA-256 prefix over canonical JSON.
  *
- * Stable surface (charter §5.X). Single public method `build()` is
- * committed; WP06 may add internal hashing variants without changing
- * the signature.
+ * Internal identity composition; the definition, exposed values and context
+ * map share listing's canonical hash policy.
  *
  * Cross-worker determinism: this class is process-pure (no time, no
  * random, no filesystem access). Two PHP workers with the same inputs
  * MUST produce the same key.
  *
- * @api
+ * @internal
  */
 final class ListingCacheKeyBuilder
 {
@@ -38,21 +37,8 @@ final class ListingCacheKeyBuilder
             'listing:%s:%s:%s',
             $def->cacheKeyHash(),
             $exposed->cacheKeyHash(),
-            $this->hashContextValues($contextValues),
+            ListingHash::of($contextValues),
         );
     }
 
-    /**
-     * @param array<string, string> $contextValues
-     */
-    private function hashContextValues(array $contextValues): string
-    {
-        ksort($contextValues);
-        $json = json_encode(
-            $contextValues,
-            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION,
-        );
-
-        return substr(hash('sha256', $json), 0, 16);
-    }
 }
