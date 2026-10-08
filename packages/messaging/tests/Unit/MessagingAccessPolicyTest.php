@@ -30,6 +30,8 @@ use Waaseyaa\Messaging\ThreadMessage;
  * message, which already carries thread_id).
  */
 #[CoversClass(MessagingAccessPolicy::class)]
+#[CoversClass(\Waaseyaa\Messaging\MessagingProtectedEntityReadPolicy::class)]
+#[CoversClass(\Waaseyaa\Messaging\MessagingProtectedFieldReadPolicy::class)]
 final class MessagingAccessPolicyTest extends TestCase
 {
     private const THREAD_ID = 1;
@@ -97,6 +99,19 @@ final class MessagingAccessPolicyTest extends TestCase
         } finally {
             EntityReadRuntime::installGuard(null);
         }
+    }
+
+    #[Test]
+    public function protected_entity_read_adapter_keeps_participant_admin_and_outsider_decisions(): void
+    {
+        $handler = $this->handler();
+        $message = new ThreadMessage(['thread_id' => self::THREAD_ID, 'sender_id' => 2, 'body' => 'Private body']);
+        $participant = new AuthorizationPrincipal(self::PARTICIPANT_UID, true, [], [], 'messaging-policy-test');
+        $outsider = new AuthorizationPrincipal(self::OUTSIDER_UID, true, [], [], 'messaging-policy-test');
+        $admin = new AuthorizationPrincipal(self::OUTSIDER_UID, true, [], ['administer content'], 'messaging-policy-test');
+        self::assertTrue($handler->check($message, 'view', $participant)->isAllowed());
+        self::assertTrue($handler->check($message, 'view', $admin)->isAllowed());
+        self::assertTrue($handler->check($message, 'view', $outsider)->isForbidden());
     }
 
     private function handler(): EntityAccessHandler

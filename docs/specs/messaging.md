@@ -51,7 +51,7 @@ Authenticated thread creation through the canonical repository must persist a th
 
 The account comes from `AccountContextInterface`, never submitted `created_by`. Actorless trusted CLI/system creation remains supported with no automatic membership. A failed mutation's in-memory entities must be discarded before a fresh retry; database rollback does not rewind hook calls or assigned identities. Successful repeated saves are updates and do not reseed membership. The database unique pair continues to fence duplicates; fresh requests do not acquire a new cross-request idempotency contract.
 
-Provider boot resolves the thread and membership repositories before creation and explicitly rejects memory-only composition. The supported package profile remains default `sql-blob` on SQLite; thread and participant writes must share the same managed transaction connection. A separate participant connection refuses authenticated creation. Existing historical bootstrap notes above describe the earlier post-commit implementation, superseded by FW-MESSAGING-ATOMIC-CREATE-01 / #2753.
+Provider boot resolves the thread and membership repositories before creation and explicitly rejects memory-only composition. The supported package profile remains default `sql-blob` on SQLite; thread and participant writes must share the same managed transaction connection. A separate participant connection refuses authenticated creation. FW-MESSAGING-ATOMIC-CREATE-01 / #2753 records the replacement of the earlier post-commit bootstrap.
 
 ### Participant uniqueness (`ThreadParticipantSchema`)
 
