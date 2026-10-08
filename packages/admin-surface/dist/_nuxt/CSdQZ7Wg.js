@@ -1,1 +1,0 @@
-import{t as e}from"./8KulRaMC.js";function t(){let t=e();function n(e,n){return t.catalog.find(t=>t.id===e)?.capabilities[n]??!1}function r(e){return t.capabilities?.[e]===!0}function i(e){return t.catalog.find(t=>t.id===e)}return{catalog:t.catalog,tenant:t.tenant,features:t.features,capabilities:t.capabilities,ui:t.ui,hasCapability:n,can:r,getEntity:i}}export{t};
