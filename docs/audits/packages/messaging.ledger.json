@@ -7,7 +7,7 @@
     "composer_lock_sha256": "f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
     "php": "8.5.5",
     "host": "Native Windows",
-    "evidence_freshness": "Frozen audit base retained; S1 delta reconciled at fdfedcb3a5b2ef0d817f92adcbcd7e81abbf15e8. Unaffected findings retain historical evidence; audit remains unpublished local draft. Structural delta is checked at 9945603c10a75036307ae371140840b332013790 (messaging bytes match landed S1); no old runtime result is promoted to fresh qualification.",
+    "evidence_freshness": "Frozen audit base retained; S1 delta reconciled at fdfedcb3a5b2ef0d817f92adcbcd7e81abbf15e8. Unaffected findings retain historical evidence; audit remains unpublished local draft. Structural delta is checked at 9945603c10a75036307ae371140840b332013790 (messaging bytes match landed S1); no old runtime result is promoted to fresh qualification. S3/S7 landed at 59bf986d7152805a6d156ab54cb30f2cccbad89c; full hosted CI37817226478 proves that exact repair head. Remaining discovery evidence retains historical identity.",
     "consumers": []
   },
   "milestone": {
@@ -18,7 +18,8 @@
       "Complete roster, charter, checklist dispositions, independent evidence/refutation and critic citation checks; bounded generic entrypoint trace completed.",
       "Assessment record is committed by this audit-only candidate. Repair readiness and convergence are not claimed; candidate index records assessed.",
       "Alpha-context user custody waiver accepted; detailed notes stay in scratch and durable private custody is not claimed.",
-      "2026-10-08 structural supplement independently verified/refuted; original frozen runtime evidence and custody waiver retained. Final immutable-record review approved; isolation verification passed."
+      "2026-10-08 structural supplement independently verified/refuted; original frozen runtime evidence and custody waiver retained. Final immutable-record review approved; isolation verification passed.",
+      "S3/S7 landed at 59bf986d7, resolving documentation, adapter autoload and structural debt. D2/D3, other findings and installation qualification remain; whole-package convergence not claimed."
     ]
   },
   "charter": [
@@ -62,9 +63,9 @@
     {
       "file": "packages/messaging/README.md",
       "role": "Package description",
-      "classification": "duplicated or drifting contract",
+      "classification": "owned and coherent",
       "evidence_level": "reviewed",
-      "notes": "No removal proposed.",
+      "notes": "Relevant S3/S7 defect resolved in landed repair; historical finding IDs retained for provenance.",
       "findings": [
         "MSG-DOC-001"
       ]
@@ -130,9 +131,9 @@
     {
       "file": "packages/messaging/src/EventSubscriber/ThreadParticipantBootstrapSubscriber.php",
       "role": "Creator bootstrap lifecycle effect",
-      "classification": "unwired or obsolete",
+      "classification": "owned and coherent",
       "evidence_level": "reviewed",
-      "notes": "Only the empty legacy callback is obsolete; active atomic-creation responsibility is coherent after S1.",
+      "notes": "Relevant S3/S7 defect resolved in landed repair; historical finding IDs retained for provenance.",
       "findings": [
         "MSG-CREATE-001",
         "MSG-STRUCT-001"
@@ -143,7 +144,7 @@
       "role": "Identity-column backfill and deterministic duplicate migration",
       "classification": "owned and coherent",
       "evidence_level": "reviewed",
-      "notes": "Persisted-state repair remains necessary; unused local and decode duplication are bounded cleanup.",
+      "notes": "Relevant S3/S7 defect resolved in landed repair; historical finding IDs retained for provenance.",
       "findings": [
         "MSG-STRUCT-002"
       ]
@@ -491,7 +492,7 @@
       "expected_contract": "Document generic messaging primitives and observed composition; distinguish current fields from implemented services and future optional integrations.",
       "consequence": "Consumers may treat stored metadata and planned integrations as a ready service contract.",
       "refutation": "The README does not promise a named nonexistent service class. Finding is specific ambiguity, incorrect schema wiring prose and missing composition guidance.",
-      "disposition": "repair",
+      "disposition": "resolved",
       "destination": [
         {
           "kind": "slice",
@@ -501,7 +502,7 @@
       "dependencies": "none",
       "acceptance": "Use generic synthetic consumers; document opt-in install, canonical provider/policy wiring, actual schema authority, supported storage, and errors. Distinguish implemented entity primitives from future chat-service capabilities and correct the stale provider schema-backfill note.",
       "residual_risk": "Installation qualification remains separate.",
-      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
+      "next_action": "No remaining S3/S7 repair. Preserve landed regression evidence; D2/D3 and installed-profile qualification remain separate.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -518,7 +519,7 @@
         "reversals": []
       },
       "probes": [],
-      "notes": "Draft assessment; no repository or GitHub mutation."
+      "notes": "Resolved by PR #3189 at 59bf986d7152805a6d156ab54cb30f2cccbad89c on main. Exact-head full hosted CI37817226478 passed; historical discovery and verification evidence remains bound to its original base."
     },
     {
       "id": "MSG-QUAL-001",
@@ -613,7 +614,7 @@
       "expected_contract": "Retained public symbols independently autoload in the declared Composer profile.",
       "consequence": "Direct consumers can fail before policy construction even though factory-produced adapters work.",
       "refutation": "Factories load the containing policy, so ordinary discovery/factory paths remain reachable. This is a public autoloadability mismatch, not broken provider boot.",
-      "disposition": "repair",
+      "disposition": "resolved",
       "destination": [
         {
           "kind": "slice",
@@ -623,7 +624,7 @@
       "dependencies": "none",
       "acceptance": "Express active Protected-read adapter contracts intentionally: independently autoload any public concrete symbols, or make implementation-only adapters internal with current factory consumers preserved. Alpha compatibility is not a retention reason. Preserve exact principal, subject and entity/field refusal semantics.",
       "residual_risk": "Installation qualification remains separate.",
-      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
+      "next_action": "No remaining S3/S7 repair. Preserve landed regression evidence; D2/D3 and installed-profile qualification remain separate.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -642,7 +643,7 @@
       "probes": [
         "public-adapter-autoload"
       ],
-      "notes": "Draft assessment; no repository or GitHub mutation."
+      "notes": "Resolved by PR #3189 at 59bf986d7152805a6d156ab54cb30f2cccbad89c on main. Exact-head full hosted CI37817226478 passed; historical discovery and verification evidence remains bound to its original base."
     },
     {
       "id": "MSG-SEC-001",
@@ -773,7 +774,7 @@
       "expected_contract": "One intentional current contract without obsolete compatibility paths or redundant mechanisms.",
       "consequence": "Unnecessary public seam or repeated maintenance logic obscures the canonical path.",
       "refutation": "Dynamic registration and current consumers must be checked; persisted schema backfill and duplicate merging remain necessary data integrity work.",
-      "disposition": "repair",
+      "disposition": "resolved",
       "destination": [
         {
           "kind": "slice",
@@ -783,7 +784,7 @@
       "dependencies": "none",
       "acceptance": "Remove obsolete callback and unused local; use one decode rule with malformed/empty/scalar and valid-row controls. Preserve atomic creation, migration state and required Protected-read integration.",
       "residual_risk": "No external installed consumer is qualified; this does not create an alpha compatibility obligation.",
-      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
+      "next_action": "No remaining S3/S7 repair. Preserve landed regression evidence; D2/D3 and installed-profile qualification remain separate.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -802,7 +803,7 @@
         ]
       },
       "probes": [],
-      "notes": "No runtime edit; source-reviewed supplement at 9945603c1, independently verified and challenged. JSON decoding equivalence is limited to actual stored string/null blobs; preserve existing backfill identity checks and malformed/scalar behavior."
+      "notes": "Resolved by PR #3189 at 59bf986d7152805a6d156ab54cb30f2cccbad89c on main. Exact-head full hosted CI37817226478 passed; historical discovery and verification evidence remains bound to its original base."
     },
     {
       "id": "MSG-STRUCT-002",
@@ -815,7 +816,7 @@
       "expected_contract": "One intentional current contract without obsolete compatibility paths or redundant mechanisms.",
       "consequence": "Unnecessary public seam or repeated maintenance logic obscures the canonical path.",
       "refutation": "Dynamic registration and current consumers must be checked; persisted schema backfill and duplicate merging remain necessary data integrity work.",
-      "disposition": "repair",
+      "disposition": "resolved",
       "destination": [
         {
           "kind": "slice",
@@ -825,7 +826,7 @@
       "dependencies": "none",
       "acceptance": "Remove obsolete callback and unused local; use one decode rule with malformed/empty/scalar and valid-row controls. Preserve atomic creation, migration state and required Protected-read integration.",
       "residual_risk": "No external installed consumer is qualified; this does not create an alpha compatibility obligation.",
-      "next_action": "Implemented in FW-MESSAGING-PUBLIC-CONTRACT-01 candidate; review and qualify exact head before landing and resolving.",
+      "next_action": "No remaining S3/S7 repair. Preserve landed regression evidence; D2/D3 and installed-profile qualification remain separate.",
       "discovered_in": "waaseyaa/messaging",
       "owned_by": "waaseyaa/messaging",
       "co_owners": [],
@@ -844,7 +845,7 @@
         ]
       },
       "probes": [],
-      "notes": "No runtime edit; source-reviewed supplement at 9945603c1, independently verified and challenged. JSON decoding equivalence is limited to actual stored string/null blobs; preserve existing backfill identity checks and malformed/scalar behavior."
+      "notes": "Resolved by PR #3189 at 59bf986d7152805a6d156ab54cb30f2cccbad89c on main. Exact-head full hosted CI37817226478 passed; historical discovery and verification evidence remains bound to its original base."
     }
   ],
   "refuted": [],
@@ -935,8 +936,8 @@
     {
       "issue": "#3118",
       "claim": "Full package assessed status",
-      "status": "assessed in this candidate index",
-      "evidence": "Record and ledger are durable candidate files; convergence not claimed."
+      "status": "assessed in committed main index; remaining package convergence unresolved",
+      "evidence": "Durable audit and verified structural supplement landed in PR #3189; D2/D3, API intake and private findings remain separate."
     },
     {
       "issue": "#2054",
@@ -953,8 +954,8 @@
     {
       "issue": "#3188",
       "claim": "S7 structural and S3 public/documentation repair",
-      "status": "open; scoped acceptance updated 2026-10-08",
-      "evidence": "Verified initial-audit structural supplement; no obsolete alpha compatibility retention."
+      "status": "bounded repair landed; ready for closure",
+      "evidence": "PR #3189 merged at exact qualified SHA59bf986d7; full CI37817226478 passed, 59 successful jobs."
     }
   ],
   "remediation_plan": [
@@ -1184,13 +1185,9 @@
     },
     "unfiled_findings": [
       "MSG-CONTRACT-001",
-      "MSG-DOC-001",
       "MSG-QUAL-001",
-      "MSG-SURFACE-001",
       "MSG-API-001",
-      "private findings held locally",
-      "MSG-STRUCT-001",
-      "MSG-STRUCT-002"
+      "private findings held locally"
     ],
     "critic": "Original critic evidence preserved; 2026-10-08 bounded structural verification/refutation and final record review approved."
   }

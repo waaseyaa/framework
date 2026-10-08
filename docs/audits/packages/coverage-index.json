@@ -727,7 +727,7 @@
             "path": "packages/messaging",
             "form": "library",
             "audit_state": "assessed",
-            "remediation_state": "in progress",
+            "remediation_state": "planned",
             "audit_base": "2ba3821a8224950b443fc5060e5541fb29e4962a",
             "audit_date": "2026-10-08",
             "dependency_identity": "composer.lock sha256:f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036",
@@ -762,7 +762,7 @@
                     "path": "tests/Fixtures/Audits/Messaging/MSG-CREATE-001-creator-atomicity.php"
                 }
             ],
-            "notes": "Reuses frozen audit and landed #2753 evidence, with verified structural supplement. #3188 owns bounded structural/public-contract repairs; lifecycle and installation decisions remain explicit."
+            "notes": "Assessed with verified structural supplement; #2753 and #3188 repairs landed. D2/D3, remaining findings and installed-profile qualification prevent whole-package convergence."
         },
         {
             "package": "waaseyaa/migration",

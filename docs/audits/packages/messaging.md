@@ -8,7 +8,7 @@
 - **Owner:** waaseyaa/framework#3118; incorporates existing #2753.
 - **Profiles applied:** domain, persistence/execution, kernel wiring, HTTP boundary and distribution. Introspection/CLI and generation/build do not apply: no package-owned command, generator or build artifact.
 - **Structured ledger:** `docs/audits/packages/messaging.ledger.json`: 11 findings, 0 refuted leads, 23 checklist answers, 1 handoffs, 4 decisions (2 open), 1 uncertainties (1 open), 3 probe entries, 4 evidence runs.
-- **Publication boundary:** this audit-only candidate makes the record durable and marks the candidate index assessed. #3188 contains the bounded repair acceptance. No runtime repair or convergence is claimed by this assessment.
+- **Publication boundary:** assessment and bounded S3/S7 repair landed in PR #3189. The index records assessed with remaining remediation planned. Whole-package convergence is not claimed.
 
 ## Summary
 
@@ -274,3 +274,24 @@ New production roster entries:
 The original nine-file roster remains frozen-base evidence. Existing adapter
 responsibilities were moved, not expanded. Source messaging tests: 34 tests /
 100 assertions; no installed profile is qualified by that run.
+
+## Landed structural/public-contract repair, 2026-10-08
+
+PR #3189 landed at `59bf986d7152805a6d156ab54cb30f2cccbad89c`, the identical
+head qualified by full hosted CI37817226478 (59 successful jobs, no failures).
+Changelog and surface-parity workflows also passed. The earlier hosted lint
+formatting failure was corrected before this final exact-head qualification.
+Independent implementation, companion-test and formatting reviews approved;
+169 focused tests / 1,170 assertions cover unchanged runtime/test inputs.
+Native preflight passed with 42 executed gates and one governed equivalent-input
+reuse; the main push reused 43 exact-identity gate results.
+
+MSG-DOC-001, MSG-SURFACE-001, MSG-STRUCT-001 and MSG-STRUCT-002 are resolved.
+The empty legacy callback and unused local are removed; stored-blob decoding is
+shared; required Protected adapters independently autoload; current generic
+documentation is reconciled. This supersedes the pre-landing candidate statements
+above without upgrading historical probes to fresh installed-profile evidence.
+
+The index remains assessed with remediation planned. D2 authority/lifecycle,
+D3 installation profiles, MSG-CONTRACT-001, MSG-QUAL-001, API-owned intake and
+private findings retain their dispositions. No release or deployment occurred.

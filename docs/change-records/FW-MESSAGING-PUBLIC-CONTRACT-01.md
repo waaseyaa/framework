@@ -36,3 +36,11 @@ is intentional, not to preserve obsolete alpha paths. Decoding equivalence is
 limited to actual stored string/null blobs; persisted data is preserved.
 Independent immutable-delta review and final native preflight are required.
 Exact-head full qualification belongs to hosted checks; no release/deployment.
+
+## Landing
+
+PR #3189 merged on 2026-10-08 at 59bf986d7152805a6d156ab54cb30f2cccbad89c,
+the identical fully qualified head (CI37817226478, 59 successful jobs). Native
+preflight and independent reviews passed. S3/S7 findings are resolved in the
+assessment ledger; D2/D3 and remaining convergence gaps are unchanged.
+No release or deployment. Post-landing reconciliation changes only records.
