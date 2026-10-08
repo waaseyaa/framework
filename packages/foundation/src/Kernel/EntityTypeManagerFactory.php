@@ -41,7 +41,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
  * the factory remains a pure construction helper with no upward coupling.
  *
  * Kernel exemption surface: this file lives under Kernel/ and may import
- * from any layer — see CLAUDE.md "Kernel/ exemption".
+ * from any layer — see AGENTS.md "Kernel/ exemption".
  */
 final class EntityTypeManagerFactory
 {

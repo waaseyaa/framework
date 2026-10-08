@@ -95,7 +95,7 @@ final class EntityCreateTool extends AbstractAgentTool
             }
             /** @var object $entity */
             $entity = new $class($values);
-            // Critical gotcha (CLAUDE.md): force INSERT path when ID is supplied.
+            // Critical gotcha (AGENTS.md): force INSERT path when ID is supplied.
             if (method_exists($entity, 'enforceIsNew')) {
                 $entity->enforceIsNew();
             }

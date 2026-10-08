@@ -23,7 +23,7 @@ use Waaseyaa\Entity\TranslatableInterface;
  * The base class is shipped under `packages/entity/testing/` and registered via
  * `autoload-dev` only — production installs (`composer install --no-dev`) must
  * NOT receive `PHPUnit\Framework\TestCase`. See R7 (research.md) and the
- * `graphql alpha.106→107` outage write-up in CLAUDE.md.
+ * `graphql alpha.106→107` outage write-up in AGENTS.md.
  *
  * @api
  */

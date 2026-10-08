@@ -21,7 +21,7 @@ Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture org
 - **Entity-first architecture** — Content types, users, config, and taxonomy are all entities with a unified persistence pipeline
 - **JSON:API + GraphQL** — Dual API layer auto-generated from entity type definitions
 - **AI-native** — Entity schemas automatically generate MCP tools, enabling AI agents to create, query, and manage content
-- **Modular monorepo** — 62 active packages (plus 3 meta-packages: `core`, `cms`, `full`) organized in 7 architectural layers; see [CLAUDE.md](CLAUDE.md#layer-architecture) for the full layer table
+- **Modular monorepo** — 62 active packages (plus 3 meta-packages: `core`, `cms`, `full`) organized in 7 architectural layers; see [AGENTS.md](AGENTS.md#layer-architecture) for the full layer table
 - **Nuxt 3 admin SPA** — Vue 3 + TypeScript admin interface with i18n support
 - **In-memory testable** — Every subsystem has in-memory implementations for fast, isolated testing
 - **Zero Drupal dependency** — Clean-room implementation inspired by Drupal's entity model, built on Symfony components
@@ -205,7 +205,7 @@ composer phpstan     # Static analysis (level 5, PHPStan 2)
 
 ## Contributing
 
-Contributions and **AI coding agents** should follow the **[anchor-issue + design-first workflow](docs/specs/workflow.md)**: multi-PR efforts open a GitHub anchor issue, and design/specs land in `docs/specs/` before implementation. Human-oriented entry points: [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md).
+Contributions and **AI coding agents** should follow the **[anchor-issue + design-first workflow](docs/specs/workflow.md)**: multi-PR efforts open a GitHub anchor issue, and design/specs land in `docs/specs/` before implementation. Agent entrypoint: [`AGENTS.md`](AGENTS.md).
 
 - **PRs:** Fill [`.github/pull_request_template.md`](.github/pull_request_template.md) — `Closes #N` or `Part of #N`, with `#N` in the title.
 - **GitHub issues:** Lightweight — no enforced milestone or taxonomy. **M11 governed** work still uses the [governed-change template](.github/ISSUE_TEMPLATE/m11-governed-change.md) as the filing front door.

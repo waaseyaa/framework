@@ -27,7 +27,7 @@
 
 ## Package Layer Table
 
-This is the canonical, package-level mirror of the seven-layer architecture enforced by `bin/check-package-layers`. The `LAYER_BY_SHORT` map in the script and the "Layer Architecture" row in `CLAUDE.md` mirror this table; when the three disagree, this matrix is authoritative. Mission #824 WP02 surfaces A–E ratify the contents below.
+This is the canonical, package-level mirror of the seven-layer architecture enforced by `bin/check-package-layers`. The `LAYER_BY_SHORT` map in the script and the "Layer Architecture" row in `AGENTS.md` mirror this table; when the three disagree, this matrix is authoritative. Mission #824 WP02 surfaces A–E ratify the contents below.
 
 | Package | Layer | Notes |
 |---|---|---|
@@ -120,6 +120,6 @@ When adding or reclassifying a first-party package, update **all three** sources
 |---|---|
 | `bin/check-package-layers` (`LAYER_BY_SHORT`) | Executable enforcement |
 | This table | Package-level source of truth |
-| `CLAUDE.md` "Layer Architecture" | Session-hot human-readable summary |
+| `AGENTS.md` "Layer Architecture" | Session-hot human-readable summary |
 
 The three must agree. The gate ratifies the agreement on every CI run: `PL002` fires on any directory whose `composer.json` declares a `waaseyaa/*` name missing from `LAYER_BY_SHORT`.

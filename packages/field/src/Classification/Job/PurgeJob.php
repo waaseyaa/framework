@@ -96,7 +96,7 @@ final class PurgeJob
     private function loadPurgePolicies(): array
     {
         // Reading policy rows for a system sweep; no user account in scope.
-        // accessCheck(false) is the intentional opt-out (CLAUDE.md §"Unbound getQuery() gate").
+        // accessCheck(false) is the intentional opt-out (AGENTS.md §"Unbound getQuery() gate").
         // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $repository = $this->entityTypeManager->getRepository('retention_policy');
         $ids = $repository->getQuery()

@@ -48,7 +48,7 @@ final class HealthChecker implements HealthCheckerInterface
         $this->logger = $logger ?? new NullLogger();
         // PHP 8.4 can't call `new IngestionLogger($projectRoot)` as a parameter
         // default (constructor promotion doesn't see the other params yet), so
-        // resolve the nullable default in the body — see CLAUDE.md "PHP 8.4
+        // resolve the nullable default in the body — see AGENTS.md "PHP 8.4
         // parameter defaults can't call static methods" gotcha (same shape).
         $this->ingestionLogger = $ingestionLogger ?? new IngestionLogger($projectRoot);
     }

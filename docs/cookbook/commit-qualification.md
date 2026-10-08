@@ -40,7 +40,7 @@ Adding them would cost runtime without proving every ancestor under squash.
 ## Canonical guidance
 
 The shared agent contract and workflow spec define this policy; this cookbook
-explains it. `CLAUDE.md` points to the same checkpoint/candidate distinction.
+explains it. `AGENTS.md` points to the same checkpoint/candidate distinction.
 The historical all-commits test requirement has been removed. Existing hooks
 still apply to checkpoints; the policy does not authorize bypassing them.
 

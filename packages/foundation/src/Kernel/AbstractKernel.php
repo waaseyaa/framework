@@ -644,7 +644,7 @@ abstract class AbstractKernel
      * boot() sees the injected providers).
      *
      * Layer note: AbstractKernel is the application bootstrapper and may wire
-     * across layers (CLAUDE.md "Kernel/ exemption"). String FQCNs are used so
+     * across layers (AGENTS.md "Kernel/ exemption"). String FQCNs are used so
      * Foundation carries no compile-time edge to the Layer-3 migration package;
      * if that package is absent the step is a no-op.
      */

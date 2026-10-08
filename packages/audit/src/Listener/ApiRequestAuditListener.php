@@ -27,7 +27,7 @@ use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
  * - Other responses are not audited at this layer.
  *
  * Anonymous traffic → account_uid = 0 (AnonymousUser sentinel).
- * Reads `_account` attribute (NEVER `account` per CLAUDE.md §Architecture-Gotchas).
+ * Reads `_account` attribute (NEVER `account` per AGENTS.md §Architecture-Gotchas).
  *
  * Best-effort: exceptions are caught and logged; the primary response is always
  * returned regardless of audit write failure (NFR-001).

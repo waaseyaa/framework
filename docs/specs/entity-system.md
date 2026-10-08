@@ -252,7 +252,7 @@ File: `packages/entity/src/EntityValues.php`
 | Served workflow visibility | `WorkflowVisibility::isEntityServedPublicForEntity(EntityInterface)` or `isEntityServedPublic()` with an array already built with `toCastAwareMap` | Comparing a literal workflow-state id, or calling `toArray()` for entities with enum/bool `status` casts |
 | Candidate workflow visibility | `WorkflowVisibility::isCandidateStatePublic(Workflow, stateId)` | Assuming a state named `published` is public |
 
-**Circular dependencies:** Package `composer.json` `require` must respect the Layer Architecture table in root `CLAUDE.md` (lower layers never depend on higher layers). `waaseyaa/entity` must not require `waaseyaa/api`; shared JSON shaping lives on `EntityValues` in `entity`.
+**Circular dependencies:** Package `composer.json` `require` must respect the Layer Architecture table in root `AGENTS.md` (lower layers never depend on higher layers). `waaseyaa/entity` must not require `waaseyaa/api`; shared JSON shaping lives on `EntityValues` in `entity`.
 
 ### Rules for `get()` / `set()`
 
@@ -568,7 +568,7 @@ The framework used to expose **two entry points that both persisted entities in 
 
 **`getStorage()`/`EntityStorageInterface` after WP4 — a dormant "bring your own engine" seam, not a supported path.** `EntityTypeManager::getStorage()` and `EntityTypeManagerInterface::getStorage()` are **kept** (removing them would break `EntityStorageInterface`'s other users — `RevisionableStorageInterface extends EntityStorageInterface` is dormant public API, and several test doubles implement it directly). But the kernel no longer supplies a `storageFactory` closure, and `EntityType::fromClass()`'s `$storageClass` default is now `''` (previously `Waaseyaa\EntityStorage\SqlEntityStorage`). Calling `getStorage($entityTypeId)` on any first-party entity type now throws `RuntimeException` ("No storage class configured…") unless the caller supplies their own `EntityStorageInterface` implementation via `$storageClass` or a custom `EntityTypeManager` `storageFactory`. This is intentional: `getStorage()` is no longer a supported persistence path for first-party code, only a residual extension point for a downstream consumer who genuinely wants their own storage engine alongside the canonical repository.
 
-**Canonical path for all code: `EntityRepository` (`getRepository()`)** — mandated by `.claude/rules/entity-storage-invariant.md`, and now the only path the framework itself wires up. There is **no** `StorageRepositoryAdapter` — earlier rule files named one; C-22 made it moot by deleting the second engine instead of adapting one to the other.
+**Canonical path for all code: `EntityRepository` (`getRepository()`)** — mandated by `AGENTS.md`, and now the only path the framework itself wires up. There is **no** `StorageRepositoryAdapter` — earlier rule files named one; C-22 made it moot by deleting the second engine instead of adapting one to the other.
 
 `registerEntityType()` and `registerCoreEntityType()` accept an optional registrant class so the registry can emit provenance-aware collision errors. When an entity type id is registered twice with the same class, the manager throws `EntityTypeRegistrationCollisionException` with the duplicate-registration message contract. When the same id is registered with a different class, the manager throws the shadow-collision variant naming the canonical and conflicting classes.
 

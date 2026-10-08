@@ -197,7 +197,7 @@ final class WorkflowServiceProvider extends ServiceProvider
      * foundation FQCN silently no-ops (the exact bug that left this
      * package's predecessor listener, `DomainValidationListener`, dead).
      *
-     * Degraded mode — SAFE but LOUD (CLAUDE.md "Best-effort side effects"):
+     * Degraded mode — SAFE but LOUD (AGENTS.md "Best-effort side effects"):
      * the engine services require `ConfigFactoryInterface`, which the kernel
      * container does not yet serve in a real production boot — tracked as
      * issue #1930 (the root fix: bind ConfigFactoryInterface in the kernel).
@@ -293,7 +293,7 @@ final class WorkflowServiceProvider extends ServiceProvider
     /**
      * Seeds the framework-default `editorial` workflow as config data (not
      * code — {@see DefaultWorkflows}), or additively tops it up if it already
-     * exists. Log-and-skip on validation failure, never boot-crash (CLAUDE.md
+     * exists. Log-and-skip on validation failure, never boot-crash (AGENTS.md
      * "seeding is log-and-skip on invalid, never boot-crash" — a known
      * judgment call the plan pins).
      *

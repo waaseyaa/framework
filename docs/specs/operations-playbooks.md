@@ -907,7 +907,7 @@ the framework prunes it automatically. What ships today:
   operators opt in explicitly per entity via `RevisionPruningPolicy::
   keepLastUniform(int $n)` or a per-langcode map, then call `pruneRevisions()`
   themselves (a one-off script, a custom `ScheduleEntriesInterface` class per
-  the "Adding a schedule-entries class" checklist in `CLAUDE.md`, or a bespoke
+  the "Adding a schedule-entries class" checklist in `AGENTS.md`, or a bespoke
   CLI command in the consuming application). The current revision is always
   excluded from deletion (`RevisionPruningPolicy::candidateExcluded()`,
   FR-038) regardless of policy — and, since WP-2 rework task 5 (review
@@ -1116,7 +1116,7 @@ php bin/waaseyaa search:reindex --batch-size=200
 
 ## Onboarding Path (Contributor Quick Path)
 
-1. Read `CLAUDE.md` for architecture and gotchas.
+1. Read `AGENTS.md` for architecture and gotchas.
 2. Read subsystem spec(s) in `docs/specs/` for the package being changed.
 3. Use v1.2 tooling for deterministic setup:
    - `scaffold:bundle`, `scaffold:relationship`, `scaffold:workflow`

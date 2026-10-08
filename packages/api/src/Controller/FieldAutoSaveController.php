@@ -51,7 +51,7 @@ final class FieldAutoSaveController
         private readonly int $maxBodyBytes = 65536,
         ?RichTextSanitizer $richTextSanitizer = null,
     ) {
-        // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve in the
+        // PHP 8.4 constructor-default gotcha (see AGENTS.md): resolve in the
         // body, not as a parameter default, so existing callsites keep working.
         $this->richTextSanitizer = $richTextSanitizer ?? new RichTextSanitizer();
     }

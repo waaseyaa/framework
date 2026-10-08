@@ -333,7 +333,7 @@ final class TransitionService
                 // move this line just made. Verified empirically: omitting
                 // this line reverts `published_revision_id` to its
                 // pre-transition value every time (dual-state bug pattern,
-                // CLAUDE.md "Architecture Gotchas").
+                // AGENTS.md "Architecture Gotchas").
                 $entity->set('published_revision_id', $newRevisionId);
 
                 // Pointer moved: now it is safe to make `status` agree with

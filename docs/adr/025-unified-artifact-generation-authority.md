@@ -86,7 +86,7 @@ names the single execution authority and the single generated-state
 authority, decides how that generated state is partitioned so more than one
 generator can own part of it, defines the typed contract all three queued
 issues must compile into, and proves — against the layer table in
-`CLAUDE.md` and the two enforcement surfaces `bin/check-package-layers`
+`AGENTS.md` and the two enforcement surfaces `bin/check-package-layers`
 reads — that naming that owner introduces no dependency cycle.
 
 ### Why the inventory lives here, not in `docs/audits/`
@@ -800,7 +800,7 @@ it introduces no cycle:
   `{php, symfony/yaml}` — zero `waaseyaa/*` entries.** Verified directly
   against the checked-out file. It cannot depend on anything this ADR
   concerns, by construction; it is the framework's structural floor for this
-  entire decision, matching its position in the `CLAUDE.md` Layer
+  entire decision, matching its position in the `AGENTS.md` Layer
   Architecture table (`Layer 0 | Foundation | ... site-contract ...`).
 - **`waaseyaa/cli`'s `composer.json` already requires
   `waaseyaa/site-contract`** (`"waaseyaa/site-contract":

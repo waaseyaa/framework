@@ -1,15 +1,15 @@
 # Cross-Agent Operating Contract
 
 This is the canonical operating contract for every automated agent working in
-the Waaseyaa Framework repository. Harness-specific files such as `AGENTS.md`,
-`CLAUDE.md`, and `.claude/rules/` may add routing or tool guidance, but they may
-not weaken or contradict this contract.
+the Waaseyaa Framework repository. `AGENTS.md` is the single maintainer-agent
+entrypoint. Applicable subsystem specs may add guidance within their scope,
+but may not weaken or contradict this contract.
 
 ## Precedence and transparency
 
 1. Platform safety, system, and user instructions remain highest authority.
 2. This contract governs shared repository workflow and authorization.
-3. `CLAUDE.md` owns the architecture map, subsystem routing, and repository
+3. `AGENTS.md` owns the architecture map, subsystem routing, and repository
    commands. Applicable `docs/specs/` files own enduring subsystem contracts.
 4. Harness- or path-specific rules may supplement the above within their
    scope. When instructions conflict, stop using the lower-precedence rule and
@@ -36,7 +36,7 @@ maintainer.
 
 ## Starting and isolating work
 
-- Read this contract, `CLAUDE.md`, the relevant `docs/specs/` contracts, and
+- Read this contract, `AGENTS.md`, the relevant `docs/specs/` contracts, and
   `docs/specs/workflow.md` before substantive work.
 - Inspect the working tree before editing. Preserve user and concurrent-agent
   changes. Use a separate worktree when the active checkout is dirty or serves
@@ -181,7 +181,7 @@ audits where this evidence is missing; do not restart unaffected audit work.
   baseline or a per-commit requirement. When the test plan requires the split
   Unit suite, run it with
   `php -d memory_limit=1G ./vendor/bin/phpunit --testsuite Unit --no-coverage`.
-  Follow `CLAUDE.md` and CI for additional scoped gates.
+  Follow `AGENTS.md` and CI for additional scoped gates.
 
 ## Publication and operations
 
@@ -202,10 +202,9 @@ audits where this evidence is missing; do not restart unaffected audit work.
 - Report what changed, what was verified, and any remaining authority boundary
   or uncertainty. Do not represent agent review as human approval.
 
-## Harness adapters
+## Agent entrypoint and consumer integrations
 
-- `AGENTS.md` is the Codex and generic-agent entrypoint.
-- `CLAUDE.md` is the Claude Code architecture and orchestration entrypoint.
-- Root `.claude/rules/` contains Claude-specific supplemental mechanics.
+- `AGENTS.md` owns Framework maintainer guidance for every agent harness.
 - `packages/foundation/.claude/rules/` is the canonical source distributed to
   consumer applications; `skeleton/.claude/rules/` must be an exact mirror.
+  These consumer integrations do not define Framework maintainer instructions.

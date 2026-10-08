@@ -10,7 +10,7 @@ into agreement. A converged package has one reviewable purpose, intentional
 dependencies, truthful public seams, exercised composition, and runtime,
 contract, test, documentation and distribution behavior that match.
 
-Read the repository guidance first (`AGENTS.md` or `CLAUDE.md`, then
+Read the repository guidance first (`AGENTS.md`, then
 `docs/governance/agent-contract.md`). This skill is an analysis method and
 grants no authority to edit, open PRs, file issues, merge or publish. Without
 edit authority, draft the audit in the session scratchpad, mirroring the

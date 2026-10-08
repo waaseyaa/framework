@@ -85,7 +85,7 @@ Created idempotently by `BroadcastStorage::ensureTable()`:
 | `created_at` | REAL NOT NULL | `microtime(true)` |
 
 This is a non-entity table (a message queue), so it lives outside the entity
-storage pipeline per `.claude/rules/entity-storage-invariant.md`. Pruning is
+storage pipeline per `docs/specs/entity-system.md`. Pruning is
 automatic via `BroadcastStorageScheduleEntries` (see "Scheduled Pruning" below).
 
 ## Scheduled Pruning

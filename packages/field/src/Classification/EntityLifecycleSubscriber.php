@@ -21,10 +21,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *   - Resolves the effective label via LabelInheritanceResolver.
  *   - Writes the resolved label + provenance columns back to the entity.
  *   - Detects label changes and dispatches a classification.change audit event
- *     via AuditWriterInterface (best-effort — never throws; see CLAUDE.md).
+ *     via AuditWriterInterface (best-effort — never throws; see AGENTS.md).
  *
  * Best-effort pattern: the entire handler body is wrapped in try-catch.
- * An audit-write failure must not crash the entity save. (DIR-004, CLAUDE.md
+ * An audit-write failure must not crash the entity save. (DIR-004, AGENTS.md
  * §Logging "best-effort side effects".)
  *
  * @api

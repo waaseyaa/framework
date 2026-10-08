@@ -39,7 +39,7 @@ $rows = $db->select('node', 'n')
     ->execute();
 ```
 
-Query-builder notes (empty `IN`, LIKE escaping, `fetchAssociative()`) live in the root `CLAUDE.md` under "Database / DBAL".
+Query-builder notes (empty `IN`, LIKE escaping, `fetchAssociative()`) live in the root `AGENTS.md` under "Database / DBAL".
 
 ## Status
 

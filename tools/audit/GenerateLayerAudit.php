@@ -173,13 +173,13 @@ file_put_contents(
 $checkLayersOutput = (string) shell_exec('cd ' . escapeshellarg($root) . ' && bin/check-package-layers 2>&1');
 $reqDevOutput = (string) shell_exec('cd ' . escapeshellarg($root) . ' && bin/audit-require-dev-layers 2>&1');
 
-$claudeDrift = buildClaudeMdDrift($root, $targetLayer, $packageShorts);
+$agentsDrift = buildAgentsMdDrift($root, $targetLayer, $packageShorts);
 $vKey = "l{$targetLayer}_waaseyaa_use_violations";
 $dedupedV = dedupeViolationRows($useViolations);
 $boundaryReport = [
     'generated_at' => gmdate('c'),
     "layer_{$targetLayer}_packages" => $packageShorts,
-    'claude_md_drift' => $claudeDrift,
+    'agents_md_drift' => $agentsDrift,
     'bin_check_package_layers' => [
         'exit_code' => 0,
         'output' => trim($checkLayersOutput),
@@ -520,9 +520,9 @@ function phpFallbackHygiene(string $root, array $packageShorts): array
 /**
  * @return list<string>|null
  */
-function parseClaudeMdLayerPackages(string $root, int $layer): ?array
+function parseAgentsMdLayerPackages(string $root, int $layer): ?array
 {
-    $md = (string) @file_get_contents($root . '/CLAUDE.md');
+    $md = (string) @file_get_contents($root . '/AGENTS.md');
     if (!preg_match('/^\|\s*' . $layer . '\s*\|[^|]+\|\s*([^|]+?)\s*\|/m', $md, $m)) {
         return null;
     }
@@ -536,26 +536,26 @@ function parseClaudeMdLayerPackages(string $root, int $layer): ?array
  * @param list<string> $scriptPackages
  * @return array<string, mixed>
  */
-function buildClaudeMdDrift(string $root, int $targetLayer, array $scriptPackages): array
+function buildAgentsMdDrift(string $root, int $targetLayer, array $scriptPackages): array
 {
-    $claude = parseClaudeMdLayerPackages($root, $targetLayer);
-    if ($claude === null) {
+    $agents = parseAgentsMdLayerPackages($root, $targetLayer);
+    if ($agents === null) {
         return [
-            'claude_parsed' => false,
-            'in_script_not_in_claude' => [],
-            'in_claude_not_in_script' => [],
+            'agents_parsed' => false,
+            'in_script_not_in_agents' => [],
+            'in_agents_not_in_script' => [],
         ];
     }
     $scriptSet = array_values(array_unique($scriptPackages));
-    sort($claude);
+    sort($agents);
     sort($scriptSet);
 
     return [
-        'claude_parsed' => true,
-        'claude_table_packages' => $claude,
+        'agents_parsed' => true,
+        'agents_table_packages' => $agents,
         'script_layer_packages' => $scriptSet,
-        'in_script_not_in_claude' => array_values(array_diff($scriptSet, $claude)),
-        'in_claude_not_in_script' => array_values(array_diff($claude, $scriptSet)),
+        'in_script_not_in_agents' => array_values(array_diff($scriptSet, $agents)),
+        'in_agents_not_in_script' => array_values(array_diff($agents, $scriptSet)),
     ];
 }
 
@@ -702,7 +702,7 @@ function staticScanUses(
 }
 
 /**
- * CLAUDE.md documents Kernel/ and composition-root HTTP routers in Foundation as intentional
+ * AGENTS.md documents Kernel/ and composition-root HTTP routers in Foundation as intentional
  * cross-layer wiring; exclude them from static `use` violation noise for Layer 0.
  */
 function isLayer0KernelOrRouterCompositionUseExempt(string $rel): bool
@@ -818,20 +818,20 @@ function buildPriorityFindings(
             ],
         ];
     }
-    $d = (array) ($boundary['claude_md_drift'] ?? []);
-    if (($d['claude_parsed'] ?? false) === true) {
-        $a = (array) ($d['in_script_not_in_claude'] ?? []);
-        $b = (array) ($d['in_claude_not_in_script'] ?? []);
+    $d = (array) ($boundary['agents_md_drift'] ?? []);
+    if (($d['agents_parsed'] ?? false) === true) {
+        $a = (array) ($d['in_script_not_in_agents'] ?? []);
+        $b = (array) ($d['in_agents_not_in_script'] ?? []);
         if ($a !== [] || $b !== []) {
             $f[] = [
-                'id' => "L{$targetLayer}-DOC-CLAUDE",
+                'id' => "L{$targetLayer}-DOC-AGENTS",
                 'priority' => 1,
                 'category' => 'public_api_documentation',
                 'severity' => 'low',
-                'message' => "CLAUDE.md Layer {$targetLayer} table and bin/check-package-layers disagree on package set.",
+                'message' => "AGENTS.md Layer {$targetLayer} table and bin/check-package-layers disagree on package set.",
                 'detail' => [
-                    'in_script_not_in_claude' => $a,
-                    'in_claude_not_in_script' => $b,
+                    'in_script_not_in_agents' => $a,
+                    'in_agents_not_in_script' => $b,
                 ],
             ];
         }
@@ -869,17 +869,17 @@ function buildMarkdownReport(
     $pk = (array) ($mainAudit['canonical_layer_packages'] ?? []);
     $lines[] = "Layer {$targetLayer} ({$layerName}) packages from `bin/check-package-layers` **LAYER_BY_SHORT**: " . implode(', ', $pk) . '.';
     $lines[] = '';
-    $dr = (array) ($boundary['claude_md_drift'] ?? []);
-    if (($dr['claude_parsed'] ?? false) === true) {
-        $a = (array) ($dr['in_script_not_in_claude'] ?? []);
-        $b = (array) ($dr['in_claude_not_in_script'] ?? []);
+    $dr = (array) ($boundary['agents_md_drift'] ?? []);
+    if (($dr['agents_parsed'] ?? false) === true) {
+        $a = (array) ($dr['in_script_not_in_agents'] ?? []);
+        $b = (array) ($dr['in_agents_not_in_script'] ?? []);
         if ($a === [] && $b === []) {
-            $lines[] = '**Drift vs CLAUDE.md:** none (package lists match the Layer Architecture table for this row).';
+            $lines[] = '**Drift vs AGENTS.md:** none (package lists match the Layer Architecture table for this row).';
         } else {
-            $lines[] = '**Drift vs CLAUDE.md:** `in_script_not_in_claude` = ' . json_encode($a) . ', `in_claude_not_in_script` = ' . json_encode($b) . '.';
+            $lines[] = '**Drift vs AGENTS.md:** `in_script_not_in_agents` = ' . json_encode($a) . ', `in_agents_not_in_script` = ' . json_encode($b) . '.';
         }
     } else {
-        $lines[] = '**Drift vs CLAUDE.md:** could not parse Layer Architecture row for this layer.';
+        $lines[] = '**Drift vs AGENTS.md:** could not parse Layer Architecture row for this layer.';
     }
     $lines[] = '';
     $lines[] = '## 2. Priority-ordered findings';

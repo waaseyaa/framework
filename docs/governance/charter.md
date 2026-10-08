@@ -55,7 +55,7 @@ merge):
     feature work but allowed for typos, infrastructure tweaks, and
     documentation-only changes.
   - `docs/specs/<subsystem>.md` updated in the same PR when a subsystem's
-    contract changes (the orchestration table in CLAUDE.md identifies
+    contract changes (the orchestration table in AGENTS.md identifies
     which spec each file pattern maps to).
   - Changelog fragment for any breaking change. New deprecations (post
     beta entry) use the `deprecated` type compiled into that release.
@@ -258,7 +258,7 @@ merge):
     feature work but allowed for typos, infrastructure tweaks, and
     documentation-only changes.
   - `docs/specs/<subsystem>.md` updated in the same PR when a subsystem's
-    contract changes (the orchestration table in CLAUDE.md identifies
+    contract changes (the orchestration table in AGENTS.md identifies
     which spec each file pattern maps to).
   - Changelog fragment for any breaking change. New deprecations (post
     beta entry) use the `deprecated` type compiled into that release.

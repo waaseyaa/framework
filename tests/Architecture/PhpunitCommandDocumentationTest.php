@@ -13,7 +13,7 @@ final class PhpunitCommandDocumentationTest extends TestCase
     public function active_split_suite_commands_disable_configured_coverage(): void
     {
         $root = dirname(__DIR__, 2);
-        foreach (['AGENTS.md', 'CLAUDE.md', 'docs/REPO_ADMIN_SETUP.md', 'docs/ci/README.md'] as $path) {
+        foreach (['AGENTS.md', 'docs/REPO_ADMIN_SETUP.md', 'docs/ci/README.md'] as $path) {
             $contents = file_get_contents($root . '/' . $path);
             self::assertIsString($contents);
             self::assertDoesNotMatchRegularExpression(

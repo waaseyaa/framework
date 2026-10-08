@@ -21,7 +21,7 @@ Renaming the Composer package to `waaseyaa/database` would:
 Canonical references:
 
 - Composer: `waaseyaa/database-legacy`
-- Namespace: `Waaseyaa\Database\` (see `CLAUDE.md` gotcha and `packages/database-legacy/composer.json` autoload).
+- Namespace: `Waaseyaa\Database\` (see `AGENTS.md` gotcha and `packages/database-legacy/composer.json` autoload).
 
 Public prose (READMEs, onboarding) should say **“Waaseyaa Database (package `waaseyaa/database-legacy`)"** once per doc where it matters, then use `Waaseyaa\Database` in code samples.
 
@@ -33,4 +33,4 @@ Public prose (READMEs, onboarding) should say **“Waaseyaa Database (package `w
 ## Links
 
 - [`docs/specs/infrastructure.md`](../specs/infrastructure.md) — package table
-- [`CLAUDE.md`](../../CLAUDE.md) — Architecture gotchas (`database-legacy` namespace)
+- [`AGENTS.md`](../../AGENTS.md) — Architecture gotchas (`database-legacy` namespace)

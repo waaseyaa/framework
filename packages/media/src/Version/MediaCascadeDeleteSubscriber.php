@@ -15,7 +15,7 @@ use Waaseyaa\Media\Media;
  * Sweeps all MediaVersion rows when a parent Media entity is deleted.
  *
  * Best-effort: exceptions are caught and logged; the parent delete is
- * never disrupted (per CLAUDE.md §Logging best-effort pattern).
+ * never disrupted (per AGENTS.md §Logging best-effort pattern).
  *
  * @internal Parked until #1742's byte-persistence criterion is met.
  */

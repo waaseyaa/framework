@@ -45,7 +45,7 @@ final class LayerDependencyTest extends TestCase
      * $namespacePrefixToShort / $layerByShort arrays (verified against every
      * package's actual `namespace Waaseyaa\...;` declaration on 2026-07-02).
      * Keep in sync by hand when a new Layer-1+ package is added — the same
-     * upkeep note as CLAUDE.md "Composer layer graph".
+     * upkeep note as AGENTS.md "Composer layer graph".
      */
     private const FORBIDDEN_NAMESPACE_PREFIXES = [
         // Layer 1 — Core Data
@@ -64,7 +64,7 @@ final class LayerDependencyTest extends TestCase
 
     /**
      * Per-file exemptions for legitimate cross-layer imports outside Kernel/
-     * (bulk-exempt below — CLAUDE.md "Exemption": entry-point orchestrators
+     * (bulk-exempt below — AGENTS.md "Exemption": entry-point orchestrators
      * that intentionally wire all layers) and outside Http/Router/, Http/Inbound/
      * (governed by bin/check-package-layers' allowlist scan — the HTTP-substrate
      * test above deliberately skips those two directories too, so NO
@@ -99,7 +99,7 @@ final class LayerDependencyTest extends TestCase
             'Binds L4 Api\\MercureMonitor interfaces to Foundation adapters; wired only by HttpKernel (mirrors bin/check-package-layers exemption).',
         // Capability marker interfaces: a ServiceProvider implements the
         // interface, Kernel/GraphQL bootstrap checks `instanceof` before
-        // calling it (CLAUDE.md "Layer discipline for imports" — the
+        // calling it (AGENTS.md "Layer discipline for imports" — the
         // event/capability-interface decoupling pattern permits the upward
         // *type* import the method signature carries). Also listed in
         // bin/check-package-layers $kernelExemptFiles.

@@ -58,7 +58,7 @@ final class ResourceSerializer
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
         ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {
-        // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve the
+        // PHP 8.4 constructor-default gotcha (see AGENTS.md): resolve the
         // default in the body rather than as a parameter default, so every
         // existing `new ResourceSerializer($manager)` callsite keeps working
         // and still gets sanitization for free.

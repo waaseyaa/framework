@@ -17,39 +17,17 @@ final class AgentGovernanceTest extends TestCase
     }
 
     #[Test]
-    public function every_agent_harness_points_to_the_shared_contract(): void
+    public function single_agent_entrypoint_points_to_the_shared_contract(): void
     {
-        foreach (['AGENTS.md', 'CLAUDE.md'] as $path) {
-            $contents = $this->read($path);
-            self::assertStringContainsString(
-                'docs/governance/agent-contract.md',
-                $contents,
-                "$path must delegate shared operating rules to the cross-agent contract.",
-            );
-        }
-
-        foreach (glob($this->root . '/.claude/rules/*.md') ?: [] as $path) {
-            $contents = file_get_contents($path);
-            self::assertIsString($contents);
-            self::assertStringContainsString(
-                'docs/governance/agent-contract.md',
-                $contents,
-                basename($path) . ' must declare the shared contract as higher authority.',
-            );
-        }
+        self::assertStringContainsString('docs/governance/agent-contract.md', $this->read('AGENTS.md'));
+        self::assertFileDoesNotExist($this->root . '/CLAUDE.md');
+        self::assertSame([], glob($this->root . '/.claude/rules/*.md') ?: []);
     }
 
     #[Test]
     public function shared_rules_do_not_hide_their_provenance_or_hard_code_forge_policy_counts(): void
     {
-        $paths = [
-            'AGENTS.md',
-            'CLAUDE.md',
-            ...array_map(
-                fn(string $path): string => substr($path, strlen($this->root) + 1),
-                glob($this->root . '/.claude/rules/*.md') ?: [],
-            ),
-        ];
+        $paths = ['AGENTS.md'];
 
         foreach ($paths as $path) {
             $contents = $this->read($path);
@@ -114,22 +92,22 @@ final class AgentGovernanceTest extends TestCase
             'agent-contract.md must document the exact accepted spec-reviewed grammar.',
         );
 
-        $claude = $this->read('CLAUDE.md');
+        $agents = $this->read('AGENTS.md');
 
         self::assertStringNotContainsString(
             'After design review, carry a `spec-reviewed:` trailer on the commit (lowercase',
-            $claude,
-            'CLAUDE.md must not imply a spec-reviewed trailer is always available.',
+            $agents,
+            'AGENTS.md must not imply a spec-reviewed trailer is always available.',
         );
         self::assertStringContainsString(
             'spec-reviewed: docs/specs/<name>.md - <reason>',
-            $claude,
-            'CLAUDE.md must document the exact accepted spec-reviewed grammar.',
+            $agents,
+            'AGENTS.md must document the exact accepted spec-reviewed grammar.',
         );
         self::assertStringContainsString(
             'not accepted as a spec acknowledgement',
-            $claude,
-            'CLAUDE.md must state that an unaffected-spec trailer is not accepted as a spec acknowledgement (warned and discarded, not rejected).',
+            $agents,
+            'AGENTS.md must state that an unaffected-spec trailer is not accepted as a spec acknowledgement (warned and discarded, not rejected).',
         );
     }
 

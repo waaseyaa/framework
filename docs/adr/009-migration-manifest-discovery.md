@@ -60,7 +60,7 @@ This is intentionally simple. Windows path separators (`\\` in JSON literal) wou
 
 v2 namespace discovery uses `Composer\Autoload\ClassLoader::getRegisteredLoaders()` and consults each loader's classmap. PSR-4 prefixes are NOT walked manually; only the optimized classmap is consulted.
 
-**Operators MUST run `composer dump-autoload --optimize`** for v2 manifest entries to discover their classes reliably. This matches existing project guidance documented in `CLAUDE.md`.
+**Operators MUST run `composer dump-autoload --optimize`** for v2 manifest entries to discover their classes reliably. This matches existing project guidance documented in `AGENTS.md`.
 
 ### Order semantics
 

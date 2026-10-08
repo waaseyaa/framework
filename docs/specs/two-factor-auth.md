@@ -55,7 +55,7 @@ final readonly class TwoFactorSetupResult
 
 ## HTTP contract
 
-All four routes register in `Waaseyaa\Routing\AuthOidcRouteServiceProvider` (the L4 host for L1 auth/oidc per CLAUDE.md), with `allowAll()` middleware — controllers gate themselves on `_account`.
+All four routes register in `Waaseyaa\Routing\AuthOidcRouteServiceProvider` (the L4 host for L1 auth/oidc per AGENTS.md), with `allowAll()` middleware — controllers gate themselves on `_account`.
 
 ### POST /api/auth/2fa/setup
 

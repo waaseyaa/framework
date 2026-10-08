@@ -152,7 +152,7 @@ the resolver can bind content. Boot never copies legacy flat files or writes an
 assignment implicitly. Binding requires the entity type to be revisionable —
 rejected at config-import validation otherwise and enforced again at runtime.
 
-The default `editorial` workflow ships as **config data, not code**. The retired machinery's preset-in-code (`EditorialWorkflowPreset` as canonical definition) is an explicit anti-pattern here: replacing a self-contained populated default with an empty generic silently broke consumers once already (CLAUDE.md gotcha).
+The default `editorial` workflow ships as **config data, not code**. The retired machinery's preset-in-code (`EditorialWorkflowPreset` as canonical definition) is an explicit anti-pattern here: replacing a self-contained populated default with an empty generic silently broke consumers once already (AGENTS.md gotcha).
 
 ## State lives on revisions
 

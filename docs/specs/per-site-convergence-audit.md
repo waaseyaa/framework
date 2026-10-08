@@ -1,6 +1,6 @@
 # Per-site convergence audit (Waaseyaa ecosystem)
 
-<!-- Spec reviewed 2026-05-01 - Canonical architecture topology refresh: README.md and CLAUDE.md reflect current 62 active packages + 3 meta-packages (core, cms, full); layer table in CLAUDE.md is exhaustive across all L0-L6 packages including engagement, geo, mercure, messaging, oauth-provider; all 65 active packages now ship a README per the WP09 surface C skeleton (mission #824 WP09 surface D, closes #848) -->
+<!-- Spec reviewed 2026-05-01 - Canonical architecture topology refresh: README.md and AGENTS.md reflect current 62 active packages + 3 meta-packages (core, cms, full); layer table in AGENTS.md is exhaustive across all L0-L6 packages including engagement, geo, mercure, messaging, oauth-provider; all 65 active packages now ship a README per the WP09 surface C skeleton (mission #824 WP09 surface D, closes #848) -->
 
 ## Purpose
 
@@ -9,7 +9,7 @@ Provide a **repeatable, adversarial, invariant-driven** checklist for each Waase
 ## Audience
 
 - Human maintainers running periodic or pre-release reviews.
-- Agents executing structured passes; pair with each app’s `CLAUDE.md` / `AGENTS.md` for local gotchas.
+- Agents executing structured passes; pair with each app’s `AGENTS.md` / `AGENTS.md` for local gotchas.
 
 ## Related specs
 
@@ -118,7 +118,7 @@ Manual / agent review (no single automated gate yet).
 |-------|------|
 | One `EntityType` per ID | No duplicate registrations for the same `entityTypeId` across providers |
 | `fieldDefinitions` | Present for every entity type exposed via GraphQL (empty definitions → no GraphQL fields) |
-| Provider registration | No duplicate `extra.waaseyaa.providers` entries; providers follow `ServiceProvider` API (`register()` / `boot()` boundaries per [skeleton CLAUDE.md](../skeleton/CLAUDE.md)) |
+| Provider registration | No duplicate `extra.waaseyaa.providers` entries; providers follow `ServiceProvider` API (`register()` / `boot()` boundaries per [skeleton CLAUDE.md](../../skeleton/CLAUDE.md)) |
 
 ---
 
@@ -242,4 +242,4 @@ For repositories that **do not** ship a Waaseyaa `composer.json` app root (e.g. 
 
 ## Orchestration index
 
-When adding this spec to `CLAUDE.md` orchestration tables, use specialist skill **`waaseyaa:spec-maintenance`** for edits to `docs/specs/**`.
+When adding this spec to `AGENTS.md` orchestration tables, use specialist skill **`waaseyaa:spec-maintenance`** for edits to `docs/specs/**`.

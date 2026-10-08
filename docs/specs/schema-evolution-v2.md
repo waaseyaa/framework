@@ -394,7 +394,7 @@ From GitHub epic: child issues **#522** (this document + refinements), **#521** 
 4. **Merge algorithm** for legacy + v2 in one batch: strict “legacy first” vs interleaved by explicit `(package, migration_id)` total order — affects reproducibility.
 5. **SQLite `AlterColumn`:** Support level (full rewrite vs subset); which alter shapes v1 refuses and surfaces as “manual intervention required.”
 6. **FK on SQLite:** Which referential actions are supported in v1 compiler vs explicitly unsupported.
-7. **EntityLevelDiff producer:** Lives in `entity-storage` vs `foundation` vs new package — layer graph must be respected ([CLAUDE.md](../CLAUDE.md) layer table).
+7. **EntityLevelDiff producer:** Lives in `entity-storage` vs `foundation` vs new package — layer graph must be respected ([AGENTS.md](../../AGENTS.md) layer table).
 8. **CLI UX:** Single `migrate --dry-run` for both legacy and v2 or separate subcommand — product preference.
 9. **Deprecation calendar** for directory-only `migrations` string paths — communicate in CHANGELOG and [workflow.md](./workflow.md).
 

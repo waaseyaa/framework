@@ -9,7 +9,7 @@
 # reference packages at a higher layer than the containing package. These are accepted
 # because the file is a discovery bootstrapper or kernel-level orchestrator that cannot
 # use `use` imports (which would be upward PL005 violations) and instead encodes FQCNs
-# as string constants per the CLAUDE.md "Layer discipline for imports" rule:
+# as string constants per the AGENTS.md "Layer discipline for imports" rule:
 #   "When cross-layer attribute scanning is needed, use string constants instead of
 #    ::class references. ReflectionClass::getAttributes() accepts string class names."
 #
@@ -30,8 +30,8 @@
 #
 # New PL008 violations NOT listed here fail CI (fail-on-new).
 #
-foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: uses private string constants (not 'use' imports) for cross-layer attribute FQCNs per CLAUDE.md layer-discipline rule — Waaseyaa\Access\Gate\PolicyAttribute (L1), Waaseyaa\AI\*\Attribute\* (L5), Waaseyaa\SSR\Attribute\* (L6), Waaseyaa\Entity\DefinesEntityType (L1); avoids upward 'use' imports that would violate PL005
-foundation/src/Http/ControllerDispatcher.php  # Optional-dependency probe: class_exists() check on Waaseyaa\SSR\SsrPageHandler (L6) to return a helpful 501 when waaseyaa/ssr is not installed; string constant per CLAUDE.md layer-discipline rule, no upward import
+foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: uses private string constants (not 'use' imports) for cross-layer attribute FQCNs per AGENTS.md layer-discipline rule — Waaseyaa\Access\Gate\PolicyAttribute (L1), Waaseyaa\AI\*\Attribute\* (L5), Waaseyaa\SSR\Attribute\* (L6), Waaseyaa\Entity\DefinesEntityType (L1); avoids upward 'use' imports that would violate PL005
+foundation/src/Http/ControllerDispatcher.php  # Optional-dependency probe: class_exists() check on Waaseyaa\SSR\SsrPageHandler (L6) to return a helpful 501 when waaseyaa/ssr is not installed; string constant per AGENTS.md layer-discipline rule, no upward import
 foundation/src/ServiceProvider/ServiceProvider.php  # Provider base class: the routes() hook and entityType()/getEntityTypes() use inline fully-qualified type hints (Waaseyaa\Routing\WaaseyaaRouter L4, Waaseyaa\Entity\EntityTypeManager/EntityTypeInterface L1) — the deliberate cross-layer provider extension seam (BuiltinRouteRegistrar invokes routes() at boot). Type hints resolve lazily (declaring them does not autoload) and cannot be converted to string constants; removing them would break every provider override (parameter contravariance). Pre-existing coupling surfaced by the WP7 tokenizer rewrite; follow-up: consider lifting the routes() signature to a routing-owned interface.
 foundation/src/ServiceProvider/ServiceProviderInterface.php  # Same routes() extension seam as ServiceProvider.php above: the interface declares routes(\Waaseyaa\Routing\WaaseyaaRouter, \Waaseyaa\Entity\EntityTypeManager) with inline fully-qualified type hints (L4/L1). Same lazy-resolution/type-hint constraints; same follow-up.
 audit/src/Listener/AgentToolAuditListener.php  # Event-decoupled listener subscribes to the L5 AgentRunToolCallObserved event by class-name string so the L1 audit package does not import or require ai-observability; deliberate Symfony dispatcher seam.

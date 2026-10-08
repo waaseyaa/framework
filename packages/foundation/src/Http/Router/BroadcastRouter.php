@@ -496,7 +496,7 @@ final class BroadcastRouter implements DomainRouterInterface
     /**
      * Atomic read-modify-write on subscribers.json.
      *
-     * Uses write-to-temp-then-rename per CLAUDE.md atomic-file-write rule.
+     * Uses write-to-temp-then-rename per AGENTS.md atomic-file-write rule.
      *
      * @param callable(array<int, array<string, mixed>>): array<int, array<string, mixed>> $mutate
      */

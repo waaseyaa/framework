@@ -465,14 +465,14 @@
             "id": "check-dead-code",
             "alias": "check-dead-code",
             "run": "php bin/check-dead-code",
-            "repair": "delete the dead code or mark an intentional extension point with @api (baseline regen per CLAUDE.md is a reviewed exception)",
+            "repair": "delete the dead code or mark an intentional extension point with @api (baseline regen per AGENTS.md is a reviewed exception)",
             "profile": "full",
             "cost": "slow",
             "relevant_paths": ["packages/**", "tools/PHPStan/**", "bin/check-dead-code", "phpstan.neon", "phpstan-baseline.neon", "phpstan-dead-code.neon", "phpstan-dead-code-baseline.neon", "composer.json", "composer.lock"],
             "enforced_by": "workflow:ci.yml#bin/check-dead-code",
             "refresh": {
                 "mode": "manual",
-                "instruction": "delete the dead code or mark intentional extension points with @api; baseline regeneration (phpstan-dead-code-baseline.neon) is a reviewed exception per CLAUDE.md"
+                "instruction": "delete the dead code or mark intentional extension points with @api; baseline regeneration (phpstan-dead-code-baseline.neon) is a reviewed exception per AGENTS.md"
             }
         },
         {

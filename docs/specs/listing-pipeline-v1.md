@@ -122,7 +122,7 @@ This mission ships the listing pipeline and the cache tag/context substrate it r
 ### 3.2 FilterDefinition + operators
 
 - **FR-006** `FilterDefinition` MUST be a `final readonly class` with constructor: `string $field`, `Operator $op`, `mixed $value`, `?string $exposedParam = null`. `$exposedParam` MUST match `[a-z][a-z0-9_]*` if set.
-- **FR-007** `Operator` MUST be a backed enum with values: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `IN`, `NOT_IN`, `IS_NULL`, `IS_NOT_NULL`, `BETWEEN`, `STARTS_WITH`, `CONTAINS`. `STARTS_WITH` and `CONTAINS` are case-insensitive LIKE-shape predicates with escaped `%`/`_` per the entity-storage gotcha in CLAUDE.md.
+- **FR-007** `Operator` MUST be a backed enum with values: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `IN`, `NOT_IN`, `IS_NULL`, `IS_NOT_NULL`, `BETWEEN`, `STARTS_WITH`, `CONTAINS`. `STARTS_WITH` and `CONTAINS` are case-insensitive LIKE-shape predicates with escaped `%`/`_` per the entity-storage gotcha in AGENTS.md.
 - **FR-008** Static factories on `Filter` (sibling sugar class) MUST exist for every operator: `Filter::eq('field', value)`, `Filter::gte('field', value)`, `Filter::in('field', [a, b])`, `Filter::isNull('field')`, `Filter::langcode('en')`, etc.
 - **FR-009** `Filter::exposed(FilterDefinition $base, string $param): FilterDefinition` MUST clone the base with `$exposedParam` set. This is the only path that creates an exposed filter; constructor parameter is package-private convention.
 - **FR-010** `IN` / `NOT_IN` with empty arrays MUST throw `InvalidArgumentException` at definition construction (consistent with the `DBALSelect` empty-IN gotcha).
@@ -245,7 +245,7 @@ A facet that must be *physically indexed* requires its entity type to declare `s
 - **FR-060** `docs/cookbook/listing-first-cut.md` MUST be authored: a fully-worked example app registering a single listing (e.g., "upcoming events"), declaring exposed filters, and rendering via a Twig partial. Includes a snippet of the controller, the service-provider registration, the partial, and a unit/integration test.
 - **FR-061** `docs/conventions/cache-tags-and-contexts.md` MUST be authored: documents the canonical tag vocabulary (entity:type, entity:type:id, entity:type:id:langcode), the context registry, and the resolver semantics. Stable surface — every consumer relies on these strings.
 - **FR-062** `docs/specs/stability-charter.md` §3.2 amendment MUST be authored as part of this mission's WP11 (charter amendment + docs WP). Adds: *"Criterion 10 (post-charter): `ListingDefinition` contract is stable and at least one consumer app uses it for production listings."*
-- **FR-063** `CLAUDE.md` orchestration table MUST be updated to add `packages/listing/*` → `docs/specs/listing-pipeline.md`. Layer 3 services row updated to include `listing`. `CHANGELOG.md` `[Unreleased]` Added bullet for M-007.
+- **FR-063** `AGENTS.md` orchestration table MUST be updated to add `packages/listing/*` → `docs/specs/listing-pipeline.md`. Layer 3 services row updated to include `listing`. `CHANGELOG.md` `[Unreleased]` Added bullet for M-007.
 
 ---
 
@@ -326,12 +326,12 @@ INTERNAL (NOT stable surface):
 
 ### 7.2 Cache lookup + miss
 
-`$cache->get($key)` returns `null` on miss. The resolver MUST handle `null` as "miss"; non-null but malformed values (e.g. wrong class after a deserialisation hiccup) MUST be discarded with a warning and a fresh miss-path resolution. Symmetrical with the foundation's atomic-file-write + corrupt-file-recovery patterns from CLAUDE.md.
+`$cache->get($key)` returns `null` on miss. The resolver MUST handle `null` as "miss"; non-null but malformed values (e.g. wrong class after a deserialisation hiccup) MUST be discarded with a warning and a fresh miss-path resolution. Symmetrical with the foundation's atomic-file-write + corrupt-file-recovery patterns from AGENTS.md.
 
 ### 7.3 Tag invalidation flow
 
 1. `AfterSaveEvent` or `AfterDeleteEvent` dispatched.
-2. `ListingCacheInvalidator::on*(EntityEvent $e)` reads `$e->entity` (public readonly per CLAUDE.md gotcha).
+2. `ListingCacheInvalidator::on*(EntityEvent $e)` reads `$e->entity` (public readonly per AGENTS.md gotcha).
 3. Compute `$tags = ["entity:{$e->entity->getEntityTypeId()}", "entity:{$e->entity->getEntityTypeId()}:{$e->entity->id()}"]`.
 4. If translatable: for each `$lc` in `$e->affectedLangcodes ?? [$e->entity->activeLangcode()]`, append `"entity:{$e->entity->getEntityTypeId()}:{$e->entity->id()}:{$lc}"`.
 5. For each `$tag`: `try { $cache->invalidateByTag($tag) } catch (\Throwable $t) { $logger->warning(...) }`.
@@ -408,7 +408,7 @@ Cases (`#[Test]`):
 | **WP09** | `ExposedFilterParser` + coercer | FR-042..FR-045 | WP05 |
 | **WP10** | Langcode-aware filters + langcode tags + implicit langcode context | FR-046..FR-049, FR-023 translatable case | WP07, M-006 (shipped) |
 | **WP11** | Boot-time definition validator + `UnsupportedListingException` raise path | FR-050..FR-053 | WP02, WP05 |
-| **WP12** | Charter §3.2 + §5.X + §5.Y amendments, cookbook, conventions doc, CLAUDE.md row, CHANGELOG entry, reference consumer fixture | FR-059..FR-063 | All prior |
+| **WP12** | Charter §3.2 + §5.X + §5.Y amendments, cookbook, conventions doc, AGENTS.md row, CHANGELOG entry, reference consumer fixture | FR-059..FR-063 | All prior |
 
 ### 9.1 Parallelizable lanes
 

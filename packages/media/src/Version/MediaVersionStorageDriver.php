@@ -25,7 +25,7 @@ use Waaseyaa\Media\Media;
  * MediaVersion row, and emits an audit event. Non-upload saves are a no-op (C-001).
  *
  * Best-effort: the entire body is wrapped in try-catch; upload-version failures
- * MUST NOT disrupt the parent save (per CLAUDE.md §Logging best-effort pattern).
+ * MUST NOT disrupt the parent save (per AGENTS.md §Logging best-effort pattern).
  *
  * Refs DIR-005 — extension of the media-entity surface, not a replacement.
  *

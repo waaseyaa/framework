@@ -734,7 +734,7 @@ final class EditorProjectionLosslessFlowTest extends TestCase
     private function articlePolicy(): AccessPolicyInterface&FieldAccessPolicyInterface
     {
         // Anonymous classes, not createMock(): PHPUnit cannot mock an
-        // intersection type (CLAUDE.md, Testing gotchas).
+        // intersection type (AGENTS.md, Testing gotchas).
         return new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {

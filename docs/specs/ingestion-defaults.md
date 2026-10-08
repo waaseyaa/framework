@@ -22,7 +22,7 @@ separable: the wire format and shipped PHP compatibility contracts must be asses
 **1. The canonical envelope schema — authoritative.**
 `defaults/ingestion.envelope.schema.json` (below) is the wire contract that
 external harvesters, including non-PHP ones, must satisfy. It is the framework
-promise referenced by `CLAUDE.md`.
+promise referenced by `AGENTS.md`.
 
 **2. The foundation validator implementation — present, not currently wired.**
 The classes in the table below implement that schema in PHP:

@@ -238,7 +238,7 @@ Local gate runs must see what the developer sees:
 `bin/project-hooks pre_push` runs `bin/check-pr-preflight` (default profile), **blocking**. The
 advisory-local/blocking-CI split for spec drift is removed: drift failure blocks the push exactly
 as a hosted diagnostic. The escape hatch for environmental failures (not real findings) remains
-`git push --no-verify`, documented in CLAUDE.md; the phpstan-engine gates live in `--full`/CI per
+`git push --no-verify`, documented in AGENTS.md; the phpstan-engine gates live in `--full`/CI per
 §1 and are the one intentional difference between the pre-push profile and CI's blocking set —
 recorded here, in the manifest, and in the hook's output, not implicit.
 

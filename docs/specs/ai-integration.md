@@ -756,7 +756,7 @@ Config entity (extends `ConfigEntityBase`) with entity type ID `'pipeline'` and 
 
 Constructor accepts `array $values` with optional `description` (string) and `steps` (array of step data or `PipelineStepConfig` objects).
 
-**Critical:** The Pipeline class uses `syncStepsToValues()` to prevent the dual-state bug pattern documented in CLAUDE.md. Step data is always kept in sync between the `$this->steps` array and `$this->values['steps']`. Any mutation (`addStep()`, `removeStep()`) calls `syncStepsToValues()` immediately.
+**Critical:** The Pipeline class uses `syncStepsToValues()` to prevent the dual-state bug pattern documented in AGENTS.md. Step data is always kept in sync between the `$this->steps` array and `$this->values['steps']`. Any mutation (`addStep()`, `removeStep()`) calls `syncStepsToValues()` immediately.
 
 ### PipelineStepConfig
 
@@ -1486,7 +1486,7 @@ time, treat `revision_conflict` as the feature (re-read, re-diff, re-approve)
 
 ## Dual-State Bug Pattern
 
-The Pipeline class explicitly guards against the dual-state bug pattern documented in CLAUDE.md. When entity data can exist in two locations (typed properties and the `$values` array), mutations must update both or use one canonical source.
+The Pipeline class explicitly guards against the dual-state bug pattern documented in AGENTS.md. When entity data can exist in two locations (typed properties and the `$values` array), mutations must update both or use one canonical source.
 
 Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called after every mutation (`addStep()`, `removeStep()`, and in the constructor). The `toConfig()` method reads from the `$this->steps` array (the canonical source) and serializes step configs inline.
 

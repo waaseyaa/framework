@@ -32,12 +32,12 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  * - The parent entity type or ID is empty (orphaned/incomplete data).
  * - The parent entity cannot be loaded (referential integrity gap).
  *
- * Per the access-result semantics in CLAUDE.md, entity-level uses isAllowed()
+ * Per the access-result semantics in AGENTS.md, entity-level uses isAllowed()
  * (deny unless granted), so Neutral on a missing parent effectively denies
  * access without encoding an explicit Forbidden decision.
  *
  * Auto-discovered at kernel boot via the #[PolicyAttribute] attribute.
- * See CLAUDE.md § "discoverAccessPolicies() constructor heuristic".
+ * See AGENTS.md § "discoverAccessPolicies() constructor heuristic".
  *
  * Spec: FR-011.
  */

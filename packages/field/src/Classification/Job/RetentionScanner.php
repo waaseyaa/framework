@@ -78,7 +78,7 @@ final class RetentionScanner
         do {
             try {
                 // System retention sweep: no user account in scope. accessCheck(false)
-                // is the intentional opt-out (see CLAUDE.md §"Unbound getQuery() gate").
+                // is the intentional opt-out (see AGENTS.md §"Unbound getQuery() gate").
                 $query = $repository->getQuery()
                     ->accessCheck(false)
                     ->exists('classification_label');
