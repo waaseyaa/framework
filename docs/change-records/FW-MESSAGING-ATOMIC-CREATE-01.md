@@ -77,3 +77,9 @@ compatibility metadata on the retained legacy callback. The repair uses the
 event-class default dispatch name and marks only the compatibility callback
 `@api`; no baseline is widened and no atomicity or access contract changes.
 The focused 70-test suite remains green. Hosted qualification binds the new head.
+
+The full shard also identified a database-interface composition violation. The
+shared-wrapper comparison now narrows an adapter-local receiver to DBALDatabase
+before using its concrete native-connection accessor; DatabaseInterface remains
+unchanged. A focused same-connection wrapper and different-connection refusal
+test preserve this boundary without widening the composition checker.

@@ -587,9 +587,18 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             return false;
         }
 
-        return $this->database === $database
-            || ($this->database instanceof DBALDatabase && $database instanceof DBALDatabase
-                && $this->database->getConnection() === $database->getConnection());
+        if ($this->database === $database) {
+            return true;
+        }
+
+        // The interface promises no native-connection accessor. Only the
+        // concrete DBAL adapter supports comparing distinct managed wrappers.
+        $authorityDatabase = $this->database;
+        if (!$authorityDatabase instanceof DBALDatabase || !$database instanceof DBALDatabase) {
+            return false;
+        }
+
+        return $authorityDatabase->getConnection() === $database->getConnection();
     }
 
     /** First-party SQL driver and repository transaction authority agree. */

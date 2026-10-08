@@ -142,6 +142,15 @@ final class EntityRepositoryTransactionalHooksTest extends TestCase
     }
 
     #[Test]
+    public function connection_identity_uses_the_guarded_concrete_dbal_adapter(): void
+    {
+        $sharedWrapper = new DBALDatabase($this->database->getConnection());
+        self::assertTrue($this->repository->sharesTransactionWith($sharedWrapper));
+        self::assertFalse($this->repository->sharesTransactionWith(DBALDatabase::createSqlite()));
+        self::assertFalse($this->repository->sharesTransactionWith(null));
+    }
+
+    #[Test]
     public function throwing_save_hook_rolls_back_source_projection_authority_and_related_writes(): void
     {
         $entity = $this->entity('1', refuse: true);
