@@ -487,3 +487,7 @@ Global client exports are optional and must be explicitly requested. See
 Social capability design spans packages: read `docs/specs/social-capabilities.md`
 and `docs/roadmap.md`. Keep Framework planning consumer-neutral; downstream
 repositories own product roadmaps and upstream dependency links.
+
+For whole-Framework audit planning and sprints, read `docs/specs/framework-audit-journeys.md`
+and the existing `FW-PACKAGE-CONVERGENCE-01` change record. Use the convergence
+skill program mode; keep package and journey coverage separate.

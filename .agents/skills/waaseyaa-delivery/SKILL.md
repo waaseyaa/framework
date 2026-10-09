@@ -67,6 +67,14 @@ Record the candidate identity, last verified activity, review handoff, landing, 
 - If a worktree, dependency install, permission channel, or execution environment causes serious correctness, security, evidence, or custody risk, stop the affected lane and remediate the cause immediately. Record factual elapsed time, symptom, remedy, and remaining risk.
 - Native implementation briefs must explicitly forbid borrowing another worktree's `vendor`, symlinking a donor dependency tree, or adding bootstrap/autoload overrides to make tests pass. If dependencies are unavailable or donor-bound, request the coordinated candidate-local install slot. Verify representative changed classes resolve into the owned candidate before accepting test results; record any rejected donor-bound result separately. Provision dependencies before a focused recovery when missing dependencies caused the previous attempt to spend its budget without executing tests.
 
+## Audit-to-sprint handoff
+
+For Framework audit sprints, consume the existing convergence program record and
+`docs/specs/framework-audit-journeys.md`. Preserve the distinction between an
+assessment-ready journey and implementation-ready repairs. Revalidate only the
+affected evidence, reuse owning issues, and reconcile the journey after landing;
+do not restart package discovery or close a journey on partial repair evidence.
+
 ## Implement and review
 
 For package structure and documentation changes, use the convergence

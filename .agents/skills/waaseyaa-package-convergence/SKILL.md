@@ -22,6 +22,12 @@ Load the repository-owned skill; source/discovery guidance is in
 `.agents/skills/README.md` in Framework. Edit that source, never a global client
 copy. Outside Framework, locate its checkout and read the skill there.
 
+## Framework-wide entrypoint
+
+For program planning or cross-package journey execution, first read
+[Framework program mode](references/framework-program.md). It coordinates this
+same method and existing evidence; it is not another package-audit workflow.
+
 ## Milestones
 
 Three milestones, each a stronger claim about the package. Report which one it

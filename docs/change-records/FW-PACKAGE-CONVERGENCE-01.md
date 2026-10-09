@@ -289,3 +289,52 @@ the complete open-issue snapshot to existing owners and separates intentional
 future features. It is a dated intake view; issue acceptance, audit ledgers and
 the coverage index retain their respective authority. Refresh it for program
 closeout rather than maintaining a second live backlog.
+
+## 2026-10-09 program consolidation and Sprint 1
+
+The maintainer authorized consolidation through sprint readiness, including repo
+planning, skills and GitHub. Runtime sprint execution is the next boundary.
+One umbrella remains #3118: Framework audit, remediation and qualification.
+#2719/#2727 remain closed historical assessments; their evidence is input, not a
+new current verdict. #2851 remains the separate beta gate. One active Framework
+Project (#4) mirrors work; the personal all-Done Project is historical.
+
+Native ownership: #3118 -> #2985 -> #3001 -> #3134; #3118 -> #3117,
+#3122 (retaining #3123/#3124/#3125), #3137, #3197 and #3199. Existing issue
+acceptance and identities remain. Other feature/host/generation programs retain
+their scopes and are linked dependencies rather than competing audit umbrellas.
+
+The [backlog reconciliation](../audits/packages/backlog-reconciliation.md) gives
+every intake issue an owner/kind and planning disposition. Priorities added in
+this pass order review, not newly confirmed severity. Missing readiness becomes
+Needs Triage; explicit decisions/deferred scope resolve conflicting carriers.
+No defect is closed or reclassified as a future feature to clean the board.
+The synchronizer remains #2667; a manual reconciliation is not automatic upkeep.
+
+### Sprint 1 contract
+
+- Outcome: [J1 installation-to-homepage](../specs/framework-audit-journeys.md), #3199.
+- Owner: Framework maintainer; one integration owner for the sprint. Runtime
+  baseline/repair owners are assigned when execution starts, with independent
+  immutable review under delivery guidance. Parallel agents are not implied.
+- First executable action: record published template/cohort and host, run the
+  documented empty-directory creation and minimal initialization without fixes,
+  then trace cold/warm homepage behavior and record the first failing boundary.
+- Profiles: current S1 production test point and native Windows development,
+  with exact installed and source evidence distinguished. No real application
+  upgrade, production mutation, release or deployment.
+- Intake: #3120/#3181/#3110/#2687/#2702/#3116/#3198/#2859 and existing CLI/
+  composition audits. A candidate issue is not automatically a proven blocker.
+- Ready queue: #3199 is ready for assessment. Repairs enter only after current
+  reproduction, settled intended behavior, existing-owner reconciliation and
+  bounded negative-control acceptance. Retain existing urgent repair priorities.
+- Verification: reuse the J1-mapped existing tests and add only missing boundary
+  witnesses; focused implementation checks, independent review, then one final
+  applicable installed/profile qualification. Do not start with a full-suite run.
+- Exit: J1-A through J1-F accepted, required repairs landed and evidence/docs/
+  issues/Project reconciled. A baseline report alone cannot close the sprint.
+- Remaining design: later social transitions and optional-package capabilities
+  stay under their owners; they do not block starting J1.
+
+Readiness preparation does not claim that J1 currently passes. Unknown runtime
+findings are the work of the sprint, not a reason to postpone its start.

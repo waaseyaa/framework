@@ -1,6 +1,6 @@
 # Waaseyaa roadmap
 
-Updated 8 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
+Updated 9 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
 released capability. [Specs](specs/workflow.md) own contracts, change records own
 durable scope/evidence, and [GitHub issues](https://github.com/waaseyaa/framework/issues)
 own execution status. Product roadmaps and adoption decisions belong downstream.
@@ -20,6 +20,15 @@ Listing's bounded repairs and messaging's completed repairs retain their proof;
 remaining messaging domain/profile decisions proceed through shared social design.
 Framework-wide convergence is not yet complete. New feature absence alone is not
 a defect, and this program does not block unrelated delivery.
+
+## Next sprint: installation to homepage
+
+[#3199](https://github.com/waaseyaa/framework/issues/3199) is ready for assessment:
+empty-directory Composer creation, initialization, cold/warm homepage, failure
+controls and production no-dev composition. Read the [journey contract](specs/framework-audit-journeys.md)
+and [Sprint 1 handoff](change-records/FW-PACKAGE-CONVERGENCE-01.md#sprint-1-contract).
+Runtime execution has not begun. Existing urgent repairs continue; later feature
+design does not block the baseline. Package coverage and journeys are complementary.
 
 ## Next design slice: reusable social capabilities
 
