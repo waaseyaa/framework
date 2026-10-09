@@ -194,6 +194,25 @@ All mutations require: (1) the descriptor's `publishCapability` on the acting pr
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
 
+**Stored mutation responses require current authority.** An idempotency replay
+does not repeat the mutation, but it releases content in the current request.
+With an entity access handler composed, update/publish/unpublish/rollback replay
+must pass update access on the current working copy (UNAUTHORIZED on refusal).
+Every mutation replay, including create, also requires current entity view and
+view_revision for the exact stored response revision, when revisioned; hidden,
+missing or unavailable content is NOT_FOUND. Rollback additionally rechecks its
+source revision. Resolve the result by its stored entity identity and UUID,
+never a reassigned slug. Capability/create checks still precede lookup. The
+explicit handler-free composition retains its capability-only authority.
+
+After request-fingerprint matching, IdempotencyStore invokes the publisher's
+replay authorization callback inside the existing transaction before returning
+stored bytes. A refusal retains the replay record. Authorized replay preserves
+the original response even after later revisions, without rechecking stale
+optimistic preconditions, payload validation or transitions, and without
+repeating saves, audit or completion work. Conflicting reuse and actor-scoped
+partitioning remain unchanged.
+
 `ContentPublisher` accepts an optional `ContentPublicationTransitionerInterface`. When the transitioner reports that an entity is workflow-bound, publication changes must pass through that transitioner after the publisher has asserted the caller's expected revision. The workflows package supplies the canonical adapter: it chooses exactly one currently permitted transition whose target state has the requested `published` value and is a default revision, invokes `TransitionService`, and reloads the working copy. No candidate or an ambiguous candidate set fails with the structured `WORKFLOW_TRANSITION_UNAVAILABLE` publishing error. Direct status-field writes remain the compatibility path only for content without a workflow binding.
 
 | Method | Semantics |

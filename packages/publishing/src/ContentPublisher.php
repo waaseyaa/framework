@@ -277,7 +277,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace($actor));
+        }, $this->idempotencyNamespace($actor), fn(array $response) => $this->authorizeReplay($actor, $response, false));
     }
 
     /**
@@ -320,7 +320,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace($actor));
+        }, $this->idempotencyNamespace($actor), fn(array $response) => $this->authorizeReplay($actor, $response, true));
     }
 
     /**
@@ -395,7 +395,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             ]);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace($actor));
+        }, $this->idempotencyNamespace($actor), fn(array $response) => $this->authorizeReplay($actor, $response, true, $targetRevisionId));
     }
 
     // ------------------------------------------------------------------
@@ -451,7 +451,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             $this->auditRecord($kind, $actor, $saved);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace($actor));
+        }, $this->idempotencyNamespace($actor), fn(array $response) => $this->authorizeReplay($actor, $response, true));
     }
 
     private function requireCapability(AuthorizationPrincipalInterface $actor): void
@@ -675,18 +675,46 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     /**
      * Fence a rollback target at the revision level.
      *
-     * Only the ACCESS decision is made here — an absent or otherwise
-     * unresolvable target is left to the repository, so this adds no new
-     * failure shape for a target that simply does not exist.
+     * Fresh rollback leaves an absent target to the repository. Replay also
+     * requires presence: a pruned revision cannot authorize stored content.
      */
-    private function requireTargetRevisionReadable(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId): void
+    private function requireTargetRevisionReadable(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId, bool $requirePresence = false): void
     {
         if ($this->accessHandler === null) {
             return;
         }
         $target = $this->repository->loadRevision($id, $targetRevisionId);
-        if ($target !== null && !$this->allowsRevisionView($actor, $target)) {
+        if (($target === null && $requirePresence)
+            || ($target !== null && (!$this->matchesBundle($target) || !$this->allowsRevisionView($actor, $target)))
+        ) {
             throw new ContentNotFoundException("Content revision {$targetRevisionId} was not found.");
+        }
+    }
+
+    /** @param array<string, mixed> $response */
+    private function authorizeReplay(AuthorizationPrincipalInterface $actor, array $response, bool $requireUpdate, ?int $rollbackTarget = null): void
+    {
+        if ($this->accessHandler === null) {
+            return;
+        }
+        $id = (string) $response['id'];
+        // A stored response names its original entity. Never let load()'s slug
+        // fallback authorize different content after deletion or reassignment.
+        $entity = $this->repository->loadWorkingCopy($id) ?? $this->repository->find($id);
+        if ($entity === null || !$this->matchesBundle($entity) || $entity->uuid() !== $response['uuid']) {
+            throw new ContentNotFoundException($id);
+        }
+        if ($requireUpdate) {
+            $this->requireEntityUpdateAccess($actor, $entity);
+        }
+        if (!$this->accessHandler->check($entity, GateInterface::VIEW, $actor)->isAllowed()) {
+            throw new ContentNotFoundException($id);
+        }
+        if ($response['revision_id'] !== null) {
+            $this->requireTargetRevisionReadable($actor, $id, $response['revision_id'], true);
+        }
+        if ($rollbackTarget !== null) {
+            $this->requireTargetRevisionReadable($actor, $id, $rollbackTarget, true);
         }
     }
 

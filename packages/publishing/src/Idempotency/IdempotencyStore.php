@@ -49,12 +49,13 @@ final class IdempotencyStore
      * @template T of array
      * @param array<string, mixed> $request The canonical request payload (hashed for comparison).
      * @param \Closure(): T $operation
+     * @param (\Closure(T): void)|null $authorizeReplay Current authority for a matching stored response; never repeats the operation.
      * @return T
      *
      * @throws IdempotencyConflictException Same key, different request payload.
      * @throws TransactionCompletionException The transaction committed but completion work failed.
      */
-    public function execute(string $idempotencyKey, string $operationName, array $request, \Closure $operation, string $namespace = ''): array
+    public function execute(string $idempotencyKey, string $operationName, array $request, \Closure $operation, string $namespace = '', ?\Closure $authorizeReplay = null): array
     {
         if (trim($idempotencyKey) === '') {
             throw new \InvalidArgumentException('Idempotency key must not be empty.');
@@ -77,6 +78,7 @@ final class IdempotencyStore
 
                 /** @var array<string, mixed> $response */
                 $response = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
+                $authorizeReplay?->__invoke($response);
             } else {
                 $response = $operation();
 

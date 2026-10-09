@@ -53,6 +53,43 @@ final class IdempotencyStoreTest extends TestCase
     }
 
     #[Test]
+    public function replay_authorization_runs_only_for_a_matching_cached_response_and_preserves_it_on_refusal(): void
+    {
+        $store = $this->store();
+        $runs = 0;
+        $checks = 0;
+        $allowed = false;
+        $operation = function () use (&$runs): array {
+            return ['run' => ++$runs];
+        };
+        $authorize = function (array $response) use (&$checks, &$allowed): void {
+            ++$checks;
+            self::assertSame(['run' => 1], $response);
+            if (!$allowed) {
+                throw new \RuntimeException('Current authority refuses replay.');
+            }
+        };
+        self::assertSame(['run' => 1], $store->execute('key', 'operation', ['a' => 1], $operation, '', $authorize));
+        self::assertSame(0, $checks, 'Fresh operations retain their own authorization.');
+        try {
+            $store->execute('key', 'operation', ['a' => 2], $operation, '', $authorize);
+            self::fail('Conflicting reuse must refuse before replay authorization.');
+        } catch (IdempotencyConflictException) {
+            self::assertSame(0, $checks);
+        }
+        try {
+            $store->execute('key', 'operation', ['a' => 1], $operation, '', $authorize);
+            self::fail('Stored responses must pass current authorization.');
+        } catch (\RuntimeException $error) {
+            self::assertSame('Current authority refuses replay.', $error->getMessage());
+        }
+        $allowed = true;
+        self::assertSame(['run' => 1], $store->execute('key', 'operation', ['a' => 1], $operation, '', $authorize));
+        self::assertSame(1, $runs);
+        self::assertSame(2, $checks);
+    }
+
+    #[Test]
     public function same_key_different_request_conflicts(): void
     {
         $store = $this->store();
