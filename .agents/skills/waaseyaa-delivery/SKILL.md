@@ -128,6 +128,11 @@ After governed landing, reconcile the pull-request state, exact candidate, merge
 
 ## Keep product ownership clear
 
+For authorized application integration against unreleased Framework changes,
+read [candidate consumer integration](references/candidate-consumer-integration.md).
+It separates development qualification from published-release qualification;
+neither a candidate pass nor an application schedule authorizes a release.
+
 Reusable domain semantics, compiler behavior, lifecycle rules, access rules, and materialization contracts belong in `waaseyaa/framework`. Studio consumes a published compatible Framework cohort and owns product presentation, browser flow, and integration. Do not create a private Studio interpretation to mask a Framework contract or dependency mismatch.
 
 Treat recurring delivery friction as bounded technical debt with an owner, reproduction, impact, and acceptance criteria. Prioritize correctness, security, evidence integrity, and workflow custody debt alongside feature work instead of normalizing manual workarounds.
