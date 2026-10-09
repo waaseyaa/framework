@@ -94,5 +94,69 @@ resolves into this worktree's packages/publishing/src. Lock SHA256:
   `php bin/changelog-fragments validate`: 11 existing fragments valid; this
   candidate uses the documented upgrade-guide alternative.
 
-Default preflight and independent immutable-candidate review remain in progress
-at this source checkpoint. This checkpoint is not release qualification.
+## Independent review and qualification disposition
+
+Source candidate: `cc7449ee8f73d2d698bd26d2bd8b59e72511ad67`. Independent
+reviewer `/root/publication_replay_review` approved the immutable code/test/spec/
+upgrade delta against the base; SHA256 of its review diff:
+`217dc1b7ff3f7301e0cf062780d49c29ae4b3020f73b8dcf2ae50a2e872bc6a3`.
+No surviving bypass or legitimate replay regression was found. Reviewer
+independently passed 145 publishing tests / 550 assertions and the 16 applicable
+ContentToolSet tests / 178 assertions.
+
+Its separate synthetic discriminator originally published through a slug,
+renamed and republished that entity, and assigned its old slug to another
+readable entity. Authorized retry returned the original response. After hiding
+the original, the candidate refused NOT_FOUND while the base implementation
+loaded under a distinct disposable class disclosed the original. Neither
+replay added revisions or audit. This supplies independent failure evidence
+for the identity/current-authority boundary.
+
+A wider reviewer diagnostic of the Content directory ran 28 tests / 217
+assertions and failed two unchanged MediaAssetStoreTest expectations:
+`upload_publishes_served_asset_at_portable_mode_0644` and
+`content_deduplication_does_not_remode_an_existing_asset`. Native Windows
+reported 0666 instead of 0644/0600. Media store source/tests, root bootstrap,
+PHPUnit configuration and lock are identical to the base; no separate base
+execution or Linux result is claimed. Owner: ai-tools media-store boundary and
+the supported Linux unit-check owner. This broader diagnostic is not a pass
+and does not justify expanding the publication repair.
+
+Scoped PHPStan was rerun on the committed source candidate and passed. Default
+preflight against `98189412dbd4055c22c9583a01b3adca736b5906` completed 42
+executed, zero reused, zero failed, zero hosted-required and four
+not-applicable in 265.0 seconds. The source checkpoint transitioned HEAD while
+that first dirty-candidate run was in progress; it is retained as diagnostic
+evidence rather than exact-head qualification. Final default preflight is run
+after this evidence-only commit, without concurrent Git/source mutations, and
+its exact candidate and four-state verdict are retained in final-preflight.json.
+Governed equivalent-input reuse preserves the originally tested identity.
+
+Retained evidence collection:
+`publication-replay-authorization/artifacts-9e0b144cdc92504e9aab7583e743ffd47bba928cbd7f8880b140422201884a75`.
+Relevant artifact names: `artifacts/alpha305/reproduction.log`,
+`artifacts/current-main-red.log`, `artifacts/affected-green.log`,
+`artifacts/phpstan.log`, `artifacts/preflight.json`, and final preflight log/JSON.
+The collection is target-owned managed security storage, separate from source.
+Review evidence and source qualification remain valid for the evidence-only
+follow-up because code, tests, enduring contract, dependencies and configuration
+are unchanged. Normal commit hooks remain active.
+
+## Candidate-consumer handoff and residuals
+
+Use the final local branch tip with the reviewed source above and
+`.agents/skills/waaseyaa-delivery/references/candidate-consumer-integration.md`.
+Archive the exact application and Framework commits, solve the full affected
+Waaseyaa dependency closure from one mirrored package export, preserve
+application requirements/autoload/plugin policy, and verify installed bytes.
+Repeat real application boot and the original retry/refusal controls, plus a
+separate fresh no-dev composition. Record both SHAs, export/lock digests and
+solver-version labels separately from published provenance. No original
+consumer evidence or installation is changed by this repair.
+
+Local repair is not consumer qualification or release qualification. Hosted
+full qualification, any applicable supported-host transport evidence and
+compatible published package adoption remain separate gates. No alpha,
+publication, push, merge, issue mutation or deployment is authorized here.
+Earlier alpha versions were not audited; the confirmed affected alpha.305
+cohort and unchanged main implementation are the bounded version claim.
