@@ -1,19 +1,19 @@
 # `waaseyaa/listing` convergence audit
 
-- **Milestone:** in progress. Repair ready: no. Converged: not claimed.
-- **Audit state:** in progress. **Remediation state:** resolved.
+- **Milestone:** assessed. Repair ready: no. Converged: not claimed.
+- **Audit state:** assessed. **Remediation state:** resolved.
 - **Base:** `f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc`, audited `2026-10-08`.
 - **Dependency identity:** `composer.lock` SHA-256 `f4b7a1f592d50e45f33a503391aedc9cc7a8f19dc478ba09b16c0a78bd75d036`; PHP `8.5.5`; native Windows.
 - **Evidence freshness:** current at the base; original checkout clean. Scratch source clone binds the same source and lock.
 - **Owner:** `waaseyaa/framework#3195` (program #3118). Retained audit history at the original base; see FW-LISTING-CONVERGENCE-01 for the repair candidate.
 - **Profiles applied:** domain contracts, kernel/runtime, HTTP/query input and distribution. Persistence/execution and generation/build do not apply: listing owns reads and cache eviction, no writes/schema/jobs/generation.
-- **Structured ledger:** `docs/audits/packages/listing.ledger.json`: 11 findings, 6 refuted leads, 122 checklist answers, 0 handoffs, 2 decisions (1 open), 1 uncertainties (1 open), 3 probe entries, 12 evidence runs.
+- **Structured ledger:** `docs/audits/packages/listing.ledger.json`: 11 findings, 6 refuted leads, 122 checklist answers, 0 handoffs, 2 decisions (0 open), 1 uncertainties (1 open), 3 probe entries, 12 evidence runs.
 
 ## Summary
 
 The package owns declarative access-filtered read listings with deterministic paging and optional tagged caching. All 27 production files were reviewed. The source tests pass: 399 tests and 859 assertions across the package, related integrations and generator caller checks.
 The passing suite misses lost equality conjunctions, case-sensitive text matching contrary to the spec, stale cached totals after ordinary repository deletion with a tagged cache bound, and rejection of successfully parsed typed date overrides. Production fast-path and cached reconstruction follow-ups already have issues. Documentation and public-surface metadata also drift.
-A security-sensitive authorization-lifecycle finding is handled privately. Independent verification is complete. Final critic review passed. Durable private custody remains required for the assessment milestone. Source evidence does not qualify installed packages.
+A security-sensitive authorization-lifecycle finding is handled privately. Independent verification is complete. Final critic review passed. Durable private custody was verified on 2026-10-08, settling the assessment blocker. Source evidence does not qualify installed packages.
 
 ## Charter
 
@@ -160,7 +160,7 @@ No installed form is marked qualified. Hosted closure boot must assert the listi
 
 | ID | Decision or uncertainty | What settles it | Owner |
 | --- | --- | --- | --- |
-| D1 | Choose durable private custody for the security brief. | Maintainer names a private directory outside repositories and session scratch; verified copy and access controls recorded privately. | Russell |
+| D1 (settled 2026-10-08) | Durable private custody for the security brief. | Maintainer-designated custody, SHA-256 copy verification and restricted ACLs verified; private receipt held by Russell Jones. | Russell |
 | D2 | Set a bounded generic-validation and provider-discovery infrastructure disposition. | Compare supported Symfony Validator constraints with current failure/shape policy, preserve hash identities, and route generic composition work to foundation without introducing a second container. | Framework maintainer |
 | U1 | Installed-profile and actual external-consumer exposure have not been qualified. | Exact-base sealed no-dev split/framework install and generated app exercise through its composition root, plus privately held consumer evidence where applicable. | Framework qualification owner |
 
@@ -206,7 +206,7 @@ Every run binds the full base and lock above. Original-base public probes are re
 - **Findings:** 9 package-owned IDs and 2 cross-package IDs. Severity follows reconciled verifier verdicts, with security details withheld.
 - **Verification:** Independent verification A and B complete; final critic correction recheck passed with no remaining blockers. Reversals are recorded in the ledger.
 - **Probes:** 2 public root probes plus independent role controls. Two original-base probes retained in governed fixture paths. Dependency controls cover allowed, forbidden and unclassified edges.
-- **Open:** 1 open decisions; 1 open uncertainties; private custody remains unchosen. Bounded repair destinations are complete; separately owned work retains its existing issues.
+- **Open:** 0 open decisions; 1 open uncertainties; durable private custody verified. Bounded repair destinations are complete; separately owned work retains its existing issues.
 - **Authority:** Audit history. Repository repair work is authorized under FW-LISTING-CONVERGENCE-01; no external mutation or release is authorized.
 
 
@@ -286,3 +286,18 @@ historical evidence. Their bounded repair slices are complete; #3005/#2859
 retain separately owned production fast-path work. D1 private custody remains
 open. External existing applications were not inspected and no live exposure,
 incident, release or deployment is claimed. Assessed/converged stays unclaimed.
+
+
+## 2026-10-08 assessment closeout
+
+The maintainer designated durable private custody. The original brief and both
+independent review/probe evidence sets were copied and verified by SHA-256 and
+restricted access controls; a private receipt is held by Russell Jones. Source
+files were retained. D1 is settled and the audit is assessed. Earlier checkpoint
+statements that custody was pending describe their original dates.
+
+No runtime evidence was rerun for this metadata-only closeout. The landed repair
+and installed qualification above retain their exact identities. U1 remains an
+explicit external-exposure limitation, not an unowned assessment blocker.
+#3005/#2859 retain the separately owned production-composition work. No new
+whole-package convergence, private advisory publication or deployment is claimed.

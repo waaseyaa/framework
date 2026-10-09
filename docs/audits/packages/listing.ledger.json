@@ -11,11 +11,11 @@
     "consumers": []
   },
   "milestone": {
-    "assessed": false,
+    "assessed": true,
     "repair_ready": false,
     "converged": null,
     "reasons": [
-      "Security-sensitive finding requires maintainer-designated durable private custody."
+      "Private evidence custody settled on 2026-10-08: maintainer-designated holder and destination; original brief and independent evidence copies verified by SHA-256 and restricted ACLs. Original runtime and installed evidence retained; whole-package convergence is not newly claimed."
     ]
   },
   "charter": [
@@ -1888,8 +1888,8 @@
       ],
       "dependencies": "none",
       "acceptance": "Current authority and refusal transitions are discriminated through supported composition, with installed exposure separately qualified.",
-      "residual_risk": "Private triage and durable custody pending.",
-      "next_action": "Bounded implementation landed; durable private evidence custody remains unchosen. No assessment/convergence claim.",
+      "residual_risk": "Durable private custody verified; live consumer exposure remains unknown and advisory publication remains separately authorized.",
+      "next_action": "Bounded repair landed and private custody verified. Retain private advisory route; file only when publication is authorized. No live consumer exposure claim.",
       "discovered_in": "waaseyaa/listing",
       "owned_by": "waaseyaa/listing",
       "co_owners": [],
@@ -1961,8 +1961,8 @@
       ],
       "what_would_settle_it": "Maintainer names a private directory outside repositories and session scratch; verified copy and access controls recorded privately.",
       "who_decides": "Russell",
-      "status": "open",
-      "resolution": null
+      "status": "settled",
+      "resolution": "Russell designated durable private custody outside repositories and session storage. Original brief plus independent verification/probe evidence copied with SHA-256 equality and restricted ACLs verified on 2026-10-08; private receipt held by Russell Jones. Original files retained. No advisory publication or live-consumer exposure claim."
     },
     {
       "id": "D2",
@@ -2302,7 +2302,7 @@
     "probes_written": 2,
     "probes_retained": 2,
     "open": {
-      "decisions": 1,
+      "decisions": 0,
       "uncertainties": 1
     },
     "unfiled_findings": [

@@ -648,7 +648,7 @@
             "package": "waaseyaa/listing",
             "path": "packages/listing",
             "form": "library",
-            "audit_state": "in progress",
+            "audit_state": "assessed",
             "remediation_state": "resolved",
             "audit_base": "f2b2da6dd58092d611ad52f5a2bf0fb95712ffbc",
             "audit_date": "2026-10-08",
@@ -672,7 +672,7 @@
                     "path": "tests/Fixtures/Audits/Listing/LST-CACHE-001-base-lifecycle-reproduction.php"
                 }
             ],
-            "notes": "Bounded package repairs landed at 10bfd868e740c754d123b06dfb7f1df8abfc200e; full run 37850251513 and installed split job 113561101751 pass. Original audit base retained; assessment remains in progress for private custody and external exposure limits."
+            "notes": "Bounded repairs landed at 10bfd868e740c754d123b06dfb7f1df8abfc200e; full run 37850251513 and installed split job 113561101751 pass. Original audit base retained; durable private custody verified 2026-10-08, with external exposure limits and #3005/#2859 retained."
         },
         {
             "package": "waaseyaa/mail",

@@ -20,69 +20,17 @@ Framework **revision identity** (monorepo Git SHA vs split `waaseyaa/*` packages
 
 **Per-site consumer audits** (repeatable convergence checklist, artifact location, roster order): [per-site-convergence-audit.md](./per-site-convergence-audit.md).
 
-The Waaseyaa Framework and Minoo (the flagship consumer app) version independently.
+Framework and application versions are independent. Framework release identity
+and stability follow [version provenance](version-provenance.md), the
+[stability charter](stability-charter.md) and the checked-in `VERSION` file.
+Applications select compatible published packages and prove their own adoption.
 
-- **Framework versions** represent platform contract stability (ingestion envelope, schema registry, ACL substrate, operator diagnostics, CI gates).
-- **App versions** (Minoo etc.) represent product feature maturity.
-- The framework is the platform; apps are consumers. App versioning is constrained by framework releases, not the reverse.
-- The framework passed v1.0 after platform contracts (ingestion envelope, schema registry, ACL, versioning, CI gates) were stabilized through v0.7–v0.12. Post-v1.0 milestones follow semantic intent: minor versions add capabilities (search, revisions, workspaces), v2.0 introduces breaking schema changes.
+## Planning authority
 
-## Framework Milestones
-
-| Milestone | Description | Status |
-|-----------|-------------|--------|
-| v0.7 | SSR path templates stabilized; Admin SPA critical bugs resolved; app developer experience unblocked | Closed |
-| v0.8 | Default content type (core.note), boot enforcement, ACL baseline, CI versioning gates — platform contracts begin | Closed |
-| v0.9 | Ingestion envelope, schema registry, namespace rules, RBAC, telemetry, operator diagnostics, onboarding guardrails | Closed |
-| v0.10 | Feature flags, tenant migration plan — contract evolution and rollout safety finalized before v1.0 lock | Closed |
-| v0.11 | Ingestion pipeline defaults — envelope schema, validation, error format, logging, CI enforcement | Closed |
-| v0.12 | Operator diagnostics & health — CLI health commands, runtime diagnostics, schema drift detection, ingestion health | Closed |
-| v1.0 | Platform contracts locked — ingestion, schema registry, ACL, versioning, CI stable | Closed |
-| v1.1 | Post-v1.0 stabilization and cleanup | Closed |
-| v1.2 | Continued stabilization | Closed |
-| v1.3 | GraphQL & cleanup | Closed |
-| v1.4 | Remove database-legacy & unify under DBAL | Closed |
-| v1.5 | Admin Surface Completion — complete admin-surface package: controllers, host contract, catalog API | Open |
-| v1.6 | Search Provider — implement concrete `SearchProviderInterface` (SQLite FTS5); independent with no milestone dependencies | Open |
-| v1.7 | Revision System — implement `RevisionableInterface` + `RevisionableStorageInterface`; depends on: v1.4 (DBAL unification) | Open |
-| v1.8 | Projects & Workspaces — framework-level project/workspace model and kernel isolation boundaries; depends on: v1.4 (DBAL unification) | Open |
-| v1.9 | Production Queue Backend — add Redis or database-backed queue driver for production async | Open |
-| v2.0 | Schema Evolution — auto-ALTER tables on field definition changes and generate migrations; depends on: v1.7 (Revision System) | Open |
-
-**Update this table whenever milestones are added, closed, or redescribed.**
-
-## GitHub issues (optional)
-
-GitHub issues are not organized into Track milestones. A standalone issue
-(community visibility, Dependabot, templates, or contributor preference) stands
-on its own. The **Framework Milestones** table is the semantic capability
-narrative; versioned change records are the execution map. Historical GitHub
-milestones remain useful context but are not load-bearing workflow authority.
-
-**Dependabot and dependency PRs:** **Pull requests** that only bump dependencies may omit `(#N)` in the title when there is no tracking issue; if there is a chore or security issue, link it per rule #3.
-
-## Milestone Narrative Arc
-
-**Pre-v1 (platform foundation):**
-- v0.7 — make the platform usable
-- v0.8 — define the platform contract
-- v0.9 — expand the platform contract (tenant onboarding, security)
-- v0.10 — polish the admin experience
-- v0.11 — ingestion pipeline foundation
-- v0.12 — operator diagnostics and health
-
-**v1.x (platform capabilities):**
-- v1.0 — lock the platform contract
-- v1.1–v1.3 — stabilization, GraphQL, cleanup
-- v1.4 — unify storage under DBAL
-- v1.5 — complete the admin surface
-- v1.6 — add search (SQLite FTS5)
-- v1.7 — add revision tracking
-- v1.8 — multi-project/workspace support
-- v1.9 — production-grade queue backend
-
-**v2.x (breaking changes):**
-- v2.0 — automatic schema evolution (field-definition diffing, migration generation)
+The [Framework roadmap](../roadmap.md) is the current sequence. It replaces the
+obsolete v1/v2 milestone narrative formerly maintained here, which was not a
+statement of current release maturity. Do not maintain a second milestone table.
+GitHub issues mirror execution; portable change records preserve scope/evidence.
 
 ## The 4 Workflow Rules
 

@@ -163,3 +163,7 @@ and continuity are described in [MAINTAINERS.md](MAINTAINERS.md) and
 ## License
 
 [GPL-2.0-or-later](LICENSE).
+
+See the [roadmap](docs/roadmap.md) for convergence priorities and planned shared
+social capabilities, including posts, comments and conversations. Planned scope
+is not a claim of released functionality.

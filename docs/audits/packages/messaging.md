@@ -147,7 +147,7 @@ Symfony reuse: the locked EventDispatcher 7.4.9 already supplies the generic dis
 | D4 | Choose durable private custody or explicitly waive that method requirement for the alpha-only local audit. | MSG-SEC-001, MSG-SEC-002, MSG-SEC-003 | Settled by user instruction; local retention limitation disclosed. | Russell. |
 | U1 | No real downstream messaging installation or production request exposure was established in this scoped local search. | MSG-QUAL-001 | Named read-only consumer commit/lock and composition-root evidence, or maintainer disposition as a synthetic library-only assessment. | Framework maintainer / qualification owner |
 
-Open contract choices are named decisions rather than invented product constraints. No private severity is published. D4 is settled by the user alpha-context waiver; private notes remain in local scratch and no durable custody is claimed.
+Open contract choices are named decisions rather than invented product constraints. No private severity is published. D4 is settled by verified durable private custody as of 2026-10-08; this supersedes the earlier alpha-only scratch waiver.
 
 ## Bounded repair plan
 
@@ -295,3 +295,23 @@ above without upgrading historical probes to fresh installed-profile evidence.
 The index remains assessed with remediation planned. D2 authority/lifecycle,
 D3 installation profiles, MSG-CONTRACT-001, MSG-QUAL-001, API-owned intake and
 private findings retain their dispositions. No release or deployment occurred.
+
+
+## 2026-10-08 shared social design and custody checkpoint
+
+The maintainer requested consumer-neutral shared social specifications before
+further messaging implementation. Historical app code is discovery input, not accepted requirements or current
+consumer qualification. [Shared social capabilities](../../specs/social-capabilities.md)
+is a draft cross-package contract, with normal kernel applications as the first
+proposed composition. It does not yet close D2/D3 or their qualification gaps.
+
+The maintainer accepted familiar chat behavior as the direction; exact consent,
+blocking, membership, history and retention transitions must be designed together.
+Existing confirmed findings and landed slices retain their dispositions. No
+runtime repair was attempted under an assumed complete social contract.
+
+D4 now records durable private custody: the original brief and independent
+verification/refutation evidence were copied, SHA-256 checked and restricted
+ACLs verified. Russell Jones holds the private receipt and originals remain.
+Historical waiver statements above describe earlier checkpoints only. Private
+advisory publication and deployed exposure are not claimed.

@@ -394,7 +394,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 **Layers, packages, namespaces:**
 - **Layer discipline for imports**: Foundation (layer 0) must never import from higher layers. When cross-layer attribute scanning is needed, use string constants instead of `::class` references (e.g., `private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute'`). `ReflectionClass::getAttributes()` accepts string class names.
 - **Avoid circular package deps**: Access owns `AccountInterface`; User owns `AnonymousUser`. Access must not depend on User. Middleware needing an account should type-hint `AccountInterface`, not concrete `AnonymousUser`. Five historical **same-layer** 2-cycles are accepted-but-bounded in `tools/package-layers-cycle-baseline.txt`: `access` ↔ `entity`, `ai-agent` ↔ `ai-observability`, `cache` ↔ `foundation`, `entity` ↔ `field`, and `foundation` ↔ `queue`. `bin/check-package-layers` emits those exact pairs as **`WARN [PL006] ... Accepted baseline`**; any new same-layer cycle is a hard `PL006` failure.
-- **Never put classes that extend dev-only deps under `autoload`**: Any class under `src/` is reachable via PSR-4 in production consumer installs (`composer install --no-dev`). If such a class `extends PHPUnit\Framework\TestCase` or any dev-only symbol, a consumer's `PackageManifestCompiler` class scan will Reflection-load it, fail to resolve the parent, and crash kernel boot with "Application failed to boot." Fix: put test-helper base classes in a top-level `testing/` directory (sibling to `src/` and `tests/`) and register `"Waaseyaa\\Foo\\Testing\\": "testing/"` under `autoload-dev` only. Caught in `waaseyaa/graphql` alpha.106 → alpha.107 via a production outage on minoo.
+- **Never put classes that extend dev-only deps under `autoload`**: Any class under `src/` is reachable via PSR-4 in production consumer installs (`composer install --no-dev`). If such a class `extends PHPUnit\Framework\TestCase` or any dev-only symbol, a consumer's `PackageManifestCompiler` class scan will Reflection-load it, fail to resolve the parent, and crash kernel boot with "Application failed to boot." Fix: put test-helper base classes in a top-level `testing/` directory (sibling to `src/` and `tests/`) and register `"Waaseyaa\\Foo\\Testing\\": "testing/"` under `autoload-dev` only. Caught in `waaseyaa/graphql` alpha.106 → alpha.107 via a consumer production outage.
 
 **HTTP, auth, request lifecycle:**
 - **Request attribute is `_account` not `account`**: SessionMiddleware sets `$request->attributes->set('_account', $account)`. Any code reading the authenticated account (controllers, surface hosts, middleware) must use `_account`. Reading `account` (no underscore) silently returns `null`.
@@ -445,12 +445,12 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 Waaseyaa is the **framework layer**. It owns the entity system, storage engine, field types, ingestion envelope contract, GraphQL/REST API, access control, and SSR rendering.
 
 **Waaseyaa does NOT own:**
-- Minoo-specific entity types (those belong in Minoo's src/Entity/)
+- Application-specific entity types (those belong in the consuming repository)
 - Content classification or routing (that's North Cloud)
-- Map UX, dialect logic, or community-specific features (that's Minoo)
+- Map UX, dialect logic, or community-specific product features
 
 **Import rules:**
-- Waaseyaa must not import from Minoo — the dependency flows one way (Minoo → Waaseyaa)
+ - Waaseyaa must not import from consumer applications; dependencies flow from applications to Framework
 - Waaseyaa must not reference North Cloud services or APIs
 - Waaseyaa defines the ingestion envelope contract that external tools (Python harvesters) must follow
 
@@ -483,3 +483,7 @@ Load these repository files directly. Outside Framework, locate its checkout
 and read the relevant skill there; do not maintain a computer-only variant.
 Global client exports are optional and must be explicitly requested. See
 `.agents/skills/README.md`.
+
+Social capability design spans packages: read `docs/specs/social-capabilities.md`
+and `docs/roadmap.md`. Keep Framework planning consumer-neutral; downstream
+repositories own product roadmaps and upstream dependency links.
