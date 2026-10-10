@@ -497,7 +497,7 @@ jobs:
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
 
       - name: Download the run-scoped dependency archive
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: vendor-archive
           path: build/ci
@@ -544,7 +544,7 @@ jobs:
           fi
 
       - name: Download exact shard plan
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: phpunit-shard-plan
           path: build/ci
@@ -668,7 +668,7 @@ jobs:
           coverage: none
 
       - name: Download the exact plan
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: random-order-plan
           path: build/ci
@@ -677,7 +677,7 @@ jobs:
       # — same artifact ci-test-shards consumes, so this job stops being an
       # independent codeload.github.com failure point.
       - name: Download the run-scoped dependency archive
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: vendor-archive
           path: build/ci
@@ -863,7 +863,7 @@ jobs:
           coverage: none
 
       - name: Download shard evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: php-test-shard-*
           path: build/logs/shards
@@ -1805,7 +1805,7 @@ jobs:
           tools: none
 
       - name: Download the per-host evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: native-host-evidence-*
           path: build/native-host-evidence
@@ -1848,13 +1848,13 @@ jobs:
       # One single-name download per lane: each lane's artifact is its own
       # producer's, so neither can stand in for the other.
       - name: Download the Linux consumer evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: native-host-consumer-evidence-linux
           path: build/native-host-consumer-evidence/native-host-consumer-evidence-linux
 
       - name: Download the Windows consumer evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: native-host-consumer-evidence-windows
           path: build/native-host-consumer-evidence/native-host-consumer-evidence-windows
