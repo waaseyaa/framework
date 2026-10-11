@@ -112,6 +112,37 @@ final class ContentPublisherTest extends TestCase
     }
 
     #[Test]
+    public function a_swept_create_retry_cannot_recreate_erased_content_or_repeat_audit(): void
+    {
+        $store = new IdempotencyStore($this->db);
+        $store->enableIssuedKeyAdmission();
+        $originalKey = $store->issueKey();
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), $originalKey);
+        $this->db->update('publishing_idempotency')->fields(['created_at' => time() - 172801])->execute();
+        $this->publisher->createDraft($this->actor, $this->draftValues(['slug' => 'sweep-trigger']), $store->issueKey());
+
+        $outer = $this->db->transaction('delete_swept_publication');
+        try {
+            $this->repo->delete($this->repo->find((string) $draft['id']));
+            $store->eraseContentResponses($draft['uuid']);
+            $outer->commit();
+        } catch (\Throwable $failure) {
+            $outer->rollBack();
+            throw $failure;
+        }
+
+        $auditCount = count($this->audit->records);
+        try {
+            $this->publisher->createDraft($this->actor, $this->draftValues(), $originalKey);
+            self::fail('Swept retry recreated erased content.');
+        } catch (ContentNotFoundException) {
+        }
+        self::assertNull($this->repo->find((string) $draft['id']));
+        self::assertSame($auditCount, count($this->audit->records));
+        self::assertCount(1, $this->repo->findBy([]));
+    }
+
+    #[Test]
     public function deletion_and_erasure_remove_five_snapshots_across_actors_without_retry_writes(): void
     {
         $store = new IdempotencyStore($this->db);
@@ -126,6 +157,7 @@ final class ContentPublisherTest extends TestCase
         $other = $this->publisher->createDraft($second, $otherValues, 'other-create');
         self::assertCount(6, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
         self::assertTrue($this->repo->sharesTransactionWith($this->db));
+        $store->enableIssuedKeyAdmission();
         $outer = $this->db->transaction('delete_and_erase');
         try {
             $this->repo->delete($this->repo->find($id));
@@ -168,6 +200,7 @@ final class ContentPublisherTest extends TestCase
     {
         $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'rollback-erasure');
         $store = new IdempotencyStore($this->db);
+        $store->enableIssuedKeyAdmission();
         $this->db->query('INSERT INTO publishing_idempotency VALUES (?, ?, ?, ?, ?)', ['broken', 'op', 'hash', '{', time()]);
         $outer = $this->db->transaction('failed_delete_and_erase');
         try {

@@ -54,6 +54,7 @@ final class IdempotencyStoreTest extends TestCase
         $unaffected = ['uuid' => '726803d2-8a38-4881-bb98-e0498c6a8d79', 'body' => 'keep'];
         $store->execute('other', 'createDraft', [], fn(): array => $unaffected, 'actor-one');
         $this->now += 101; // Expired rows still present must be erased before any sweep.
+        $store->enableIssuedKeyAdmission();
         self::assertSame(2, $store->eraseContentResponses($uuid));
         self::assertSame(0, $store->eraseContentResponses($uuid));
         $rows = iterator_to_array($this->db->select('publishing_idempotency')->execute());
@@ -84,6 +85,7 @@ final class IdempotencyStoreTest extends TestCase
         $response = ['uuid' => 'target', 'body' => 'secret'];
         $store->execute('first', 'createDraft', [], fn(): array => $response);
         $this->db->query('INSERT INTO publishing_idempotency VALUES (?, ?, ?, ?, ?)', ['broken', 'op', 'hash', '{', $this->now]);
+        $store->enableIssuedKeyAdmission();
         try {
             $store->eraseContentResponses('target');
             self::fail('Malformed retained JSON must prevent partial success.');
@@ -107,6 +109,7 @@ final class IdempotencyStoreTest extends TestCase
             $store->execute($key, 'op', [], fn(): array => $response);
         }
         $this->db->query("CREATE TRIGGER fail_erasure BEFORE UPDATE ON publishing_idempotency WHEN OLD.idem_key = 'second' BEGIN SELECT RAISE(ABORT, 'erasure failed'); END");
+        $store->enableIssuedKeyAdmission();
         try {
             $store->eraseContentResponses('target');
             self::fail('Expected database failure.');
@@ -124,6 +127,7 @@ final class IdempotencyStoreTest extends TestCase
     {
         $store = $this->store();
         $store->execute('key', 'op', [], fn(): array => ['uuid' => 'target', 'body' => 'secret']);
+        $store->enableIssuedKeyAdmission();
         $outer = $this->db->transaction('erase_completion');
         self::assertInstanceOf(TransactionCompletionInterface::class, $outer);
         $outer->afterCommit(static fn() => throw new \RuntimeException('completion failed'));
@@ -143,6 +147,52 @@ final class IdempotencyStoreTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->store()->eraseContentResponses('  ');
+    }
+
+    #[Test]
+    public function issued_admission_refuses_unrecoverable_legacy_keys_and_expired_new_keys(): void
+    {
+        $store = $this->store(ttl: 100);
+        try {
+            $store->issueKey();
+            self::fail('Issuance before cutover must refuse.');
+        } catch (\LogicException) {
+        }
+        $legacy = $store->execute('legacy', 'op', [], fn(): array => ['uuid' => 'lost']);
+        self::assertSame(['uuid' => 'lost'], $legacy);
+        $legacyIssuedShape = 'pub1.' . $this->now . '.' . str_repeat('a', 32) . '.' . str_repeat('b', 64);
+        $store->execute($legacyIssuedShape, 'op', [], fn(): array => ['uuid' => 'also-lost']);
+        $this->db->delete('publishing_idempotency')->condition('idem_key', 'legacy')->execute();
+        $this->db->delete('publishing_idempotency')->condition('idem_key', $legacyIssuedShape)->execute();
+        $store->enableIssuedKeyAdmission();
+        $store = $this->store(ttl: 100); // Admission survives a new store instance.
+        try {
+            $store->execute($legacyIssuedShape, 'op', [], fn(): array => throw new \LogicException('Forged legacy key executed'));
+            self::fail('A syntactically current legacy key must still be refused.');
+        } catch (ContentNotFoundException) {
+        }
+
+        try {
+            $store->execute('legacy', 'op', [], fn(): array => throw new \LogicException('Legacy retry executed'));
+            self::fail('An already-swept legacy key must be refused.');
+        } catch (ContentNotFoundException) {
+        }
+
+        $issued = $store->issueKey();
+        self::assertSame(['uuid' => 'new'], $store->execute($issued, 'op', [], fn(): array => ['uuid' => 'new']));
+        $this->now += 101;
+        $store->execute($store->issueKey(), 'op', [], fn(): array => ['uuid' => 'other']);
+        $this->expectException(ContentNotFoundException::class);
+        $store->execute($issued, 'op', [], fn(): array => throw new \LogicException('Expired retry executed'));
+    }
+
+    #[Test]
+    public function erasure_refuses_without_durable_admission_cutover(): void
+    {
+        $store = $this->store();
+        $store->execute('legacy', 'op', [], fn(): array => ['uuid' => 'target']);
+        $this->expectException(\LogicException::class);
+        $store->eraseContentResponses('target');
     }
 
     #[Test]
@@ -234,7 +284,7 @@ final class IdempotencyStoreTest extends TestCase
     }
 
     #[Test]
-    public function entries_expire_after_the_ttl(): void
+    public function entries_expire_into_content_free_refusal_markers(): void
     {
         $store = $this->store(ttl: 100);
         $runs = 0;
@@ -245,8 +295,10 @@ final class IdempotencyStoreTest extends TestCase
 
         $store->execute('k', 'op', ['a' => 1], $op);
         $this->now += 101;
-        self::assertSame(['run' => 2], $store->execute('k', 'op', ['a' => 1], $op));
+        self::assertSame(['run' => 2], $store->execute('new', 'op', ['a' => 1], $op));
         self::assertSame(2, $runs);
+        $this->expectException(ContentNotFoundException::class);
+        $store->execute('k', 'op', ['a' => 1], $op);
     }
 
     #[Test]

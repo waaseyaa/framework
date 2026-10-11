@@ -228,7 +228,7 @@ Sanitization is **lossy-at-input by design** for this surface (unlike the read-b
 
 ### IdempotencyStore
 
-Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type, bundle, **and acting principal** before storage, so neither independent bundle-scoped surfaces nor independent publishers can replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one partition, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; before commit, a projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`). A completion callback failure raised by the outer commit instead leaves the mutation and replay record durable and surfaces `TransactionCompletionException` without a fictional rollback. Same-key replay remains mutation-safe but does not re-run the failed completion work; a new-key retry can duplicate the committed write. The caller-visible HTTP, MCP, and CLI committed-outcome signal remains owned by #2999.
+Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type, bundle, **and acting principal** before storage, so neither independent bundle-scoped surfaces nor independent publishers can replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one partition, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; before commit, a projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. The default 48-hour TTL ends response retention: ordinary sweep clears the response, request hash, operation and creation time and keeps the opaque key as a permanent refusal marker. It never admits an expired retry as a new mutation. Self-creating table (portable schema builder, mirrors `rate_limits`). A completion callback failure raised by the outer commit instead leaves the mutation and replay record durable and surfaces `TransactionCompletionException` without a fictional rollback. Same-key replay remains mutation-safe but does not re-run the failed completion work; a new-key retry can duplicate the committed write. The caller-visible HTTP, MCP, and CLI committed-outcome signal remains owned by #2999.
 
 #### Targeted publication replay erasure
 
@@ -252,8 +252,9 @@ callback or operation execution. This refusal takes precedence over conflict
 comparison for erased keys; conflicts and current replay authorization remain
 unchanged for unaffected responses.
 
-Markers do not expire: accepting arbitrary old keys makes deletion of the marker
-unsafe. The existing TTL sweep excludes markers. Retention is limited to the
+Markers do not expire. The TTL sweep also converts ordinary expired responses
+to markers, so even a sweep before entity deletion cannot lose retry protection.
+Retention is limited to the
 opaque key and schema-required empty/sentinel values, with no UUID, actor,
 content, request fingerprint or response projection retained in the marker.
 This content-free marker guarantee applies to opaque ContentPublisher keys.
@@ -263,9 +264,23 @@ separate remediation before claiming complete erasure. The operation retains
 the key verbatim and does not establish its provenance.
 No schema migration is required. Existing/legacy response rows are scanned
 without decoding the opaque key namespace, including expired rows still present.
-Already-swept keys cannot be recovered or protected retrospectively; callers
-requiring that guarantee must not admit those retries. New keys remain ordinary
-new requests, so this is not a semantic duplicate-content prevention mechanism.
+Already-swept legacy keys cannot be recovered. Before the first erasure, the
+consumer must stop old ingress, call `IdempotencyStore::enableIssuedKeyAdmission()`
+on the same durable database, then resume ingress using keys from
+`IdempotencyStore::issueKey()`. This irreversible admission switch is stored in
+`publishing_idempotency`; erasure refuses before any write until it is enabled.
+The switch stores a random admission secret in a reserved, content-free policy
+row. `issueKey()` is unavailable before the switch and returns
+`pub1.<unix-seconds>.<32 hex nonce>.<64 hex HMAC>`. An unknown key must have
+a valid MAC under that secret and a timestamp within the store's TTL and no
+later than its clock. The secret is not a response snapshot or entity marker.
+Unknown legacy keys, including ones already swept by an older version, refuse
+before mutation. Retained legacy rows can replay under current authorization;
+their expiration converts them to markers. The issuer's timestamp is an
+admission bound for exact-key retries, not an authentication credential; normal
+publication authorization still applies. Consumers must keep the same key on
+retry and deliver newly issued keys to their clients through their own trusted
+integration. A new key remains a new request, not duplicate-content detection.
 
 Erasure itself never sweeps. Retries of erased keys never sweep or write any row. Ordinary
 requests sweep inside their transaction; a failed request rolls that cleanup

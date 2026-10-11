@@ -15,12 +15,13 @@ use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
  *
  * Contract (Stripe-shaped): the same key with the SAME canonicalized request
  * replays the stored response without re-executing; the same key with a
- * DIFFERENT request raises IDEMPOTENCY_CONFLICT; an unknown key executes the
- * operation and stores its response. Response entries expire after the TTL;
- * erased keys remain permanent content-free refusal markers.
+ * DIFFERENT request raises IDEMPOTENCY_CONFLICT; an admitted unknown key
+ * executes and stores its response. Expired responses and erased responses
+ * become permanent content-free refusal markers.
  *
  * Schema is migration-owned. Responses are stored as JSON. Publishing snapshots
- * require explicit erasure alongside entity deletion; never store credentials.
+ * require explicit erasure alongside entity deletion. The reserved admission
+ * row holds a random HMAC secret, never user credentials or response content.
  *
  * @api
  */
@@ -28,6 +29,7 @@ final class IdempotencyStore
 {
     private const string TABLE = 'publishing_idempotency';
     private const int DEFAULT_TTL_SECONDS = 172800; // 48 h
+    private const string ADMISSION_KEY = '__publishing_issued_key_admission_v1__';
 
     private bool $tableEnsured = false;
 
@@ -88,6 +90,9 @@ final class IdempotencyStore
                 $response = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
                 $authorizeReplay?->__invoke($response);
             } else {
+                if ($this->issuedKeyAdmissionEnabled() && !$this->isCurrentIssuedKey($idempotencyKey)) {
+                    throw new ContentNotFoundException('Publication replay key is no longer admitted.');
+                }
                 $response = $operation();
 
                 // The mutation and its replay record share one database
@@ -134,7 +139,8 @@ final class IdempotencyStore
      * ContentPublisher records have opaque hashed keys. Direct store callers
      * must ensure their keys contain no content; this operation retains keys.
      * Returns the number of newly erased rows; repeating erasure returns zero.
-     * Keys already swept before this operation cannot be recovered.
+     * Keys swept by older versions cannot be recovered. Enable issued-key
+     * admission before erasure to reject their unknown legacy retries.
      */
     public function eraseContentResponses(string $uuid): int
     {
@@ -142,6 +148,9 @@ final class IdempotencyStore
             throw new \InvalidArgumentException('Entity UUID must not be empty.');
         }
         $this->ensureTable();
+        if (!$this->issuedKeyAdmissionEnabled()) {
+            throw new \LogicException('Enable issued-key admission before publication replay erasure.');
+        }
         $transaction = $this->database->transaction('publishing_replay_erasure');
         $erased = 0;
         try {
@@ -176,6 +185,47 @@ final class IdempotencyStore
         return $erased;
     }
 
+    /** Issue an opaque client key whose admission ends after this store's TTL. */
+    public function issueKey(): string
+    {
+        $this->ensureTable();
+        $secret = $this->admissionSecret();
+        if ($secret === null) {
+            throw new \LogicException('Enable issued-key admission before issuing publication keys.');
+        }
+        $payload = ($this->clock)() . '.' . bin2hex(random_bytes(16));
+
+        return 'pub1.' . $payload . '.' . hash_hmac('sha256', $payload, $secret);
+    }
+
+    /**
+     * Irreversibly reject unknown legacy keys, including keys swept before this
+     * version. Existing retained responses can still replay until expiry.
+     * Coordinate this cutover with ingress so no old request is in flight.
+     */
+    public function enableIssuedKeyAdmission(): void
+    {
+        $this->ensureTable();
+        $transaction = $this->database->transaction('publishing_key_admission');
+        try {
+            $existing = $this->fetch(self::ADMISSION_KEY);
+            if ($existing === null) {
+                $this->database->query(
+                    'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
+                    [self::ADMISSION_KEY, '', bin2hex(random_bytes(32)), 'null', 0],
+                );
+            } elseif ($this->admissionSecret() === null) {
+                throw new \LogicException('Reserved publication admission row is invalid.');
+            }
+            $transaction->commit();
+        } catch (TransactionCompletionException $failure) {
+            throw $failure;
+        } catch (\Throwable $failure) {
+            $transaction->rollBack();
+            throw $failure;
+        }
+    }
+
     /** @param array<string, mixed> $request */
     private function hashRequest(string $operationName, array $request): string
     {
@@ -201,10 +251,41 @@ final class IdempotencyStore
 
     private function sweep(): void
     {
-        $this->database->delete(self::TABLE)
+        $this->database->update(self::TABLE)
+            ->fields(['response_json' => 'null', 'operation' => '', 'request_hash' => '', 'created_at' => 0])
             ->condition('created_at', ($this->clock)() - $this->ttlSeconds, '<')
             ->condition('response_json', 'null', '<>')
             ->execute();
+    }
+
+    private function issuedKeyAdmissionEnabled(): bool
+    {
+        return $this->admissionSecret() !== null;
+    }
+
+    private function admissionSecret(): ?string
+    {
+        $row = $this->fetch(self::ADMISSION_KEY);
+        if ($row === null || $row['response_json'] !== 'null' || preg_match('/^[a-f0-9]{64}$/D', $row['request_hash']) !== 1) {
+            return null;
+        }
+
+        return hex2bin($row['request_hash']);
+    }
+
+    private function isCurrentIssuedKey(string $key): bool
+    {
+        if (preg_match('/^pub1\.((0|[1-9][0-9]*)\.[a-f0-9]{32})\.([a-f0-9]{64})$/D', $key, $matches) !== 1) {
+            return false;
+        }
+        $secret = $this->admissionSecret();
+        if ($secret === null || !hash_equals(hash_hmac('sha256', $matches[1], $secret), $matches[3])) {
+            return false;
+        }
+        $issuedAt = filter_var($matches[2], FILTER_VALIDATE_INT);
+        $now = ($this->clock)();
+
+        return $issuedAt !== false && $issuedAt <= $now && $issuedAt >= $now - $this->ttlSeconds;
     }
 
     private function ensureTable(): void

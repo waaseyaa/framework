@@ -5,6 +5,18 @@ all retained publication snapshots for a canonical entity UUID. It leaves only
 permanent opaque retry-key markers, which refuse old requests with
 `ContentNotFoundException` without performing mutations or TTL cleanup.
 
+Before the first erasure, stop publication ingress and drain in-flight requests.
+On the same durable database, call `$idempotency->enableIssuedKeyAdmission()`;
+then resume ingress with keys from `$idempotency->issueKey()`. Deliver each key
+to the client before its first mutation and require the client to reuse that
+exact key on retry. The switch is durable and irreversible. Unknown old-format
+keys are refused, including legacy keys already deleted by an older TTL sweep.
+Existing retained old-format responses may replay until expiry. Keys issued
+more than the configured TTL ago are also refused. Issued keys carry an HMAC
+under a random secret stored at cutover, so an already-swept legacy key that
+merely resembles the new format cannot pass admission. The issuer is a supported
+admission operation; it does not replace publication authorization.
+
 Authorize erasure in the consuming application, capture the canonical UUID
 before deletion and use the same managed database for both operations:
 
@@ -31,9 +43,10 @@ legacy snapshots bearing that UUID. ContentPublisher always supplies opaque
 hashed keys. Direct IdempotencyStore callers that used content-bearing raw keys
 must remediate those keys separately before claiming complete content erasure;
 this operation clears responses and fingerprints but retains the key verbatim.
-Already-swept keys cannot be recovered. Reject historical retries lacking
-retained protection when that guarantee is required. Fresh keys remain ordinary
-requests. UUIDs must uniquely identify an aggregate across the store and must
+Already-swept keys cannot be recovered; the admission cutover rejects them.
+The ordinary sweep now removes expired response data but retains a content-free
+refusal marker, including for newly created records. Fresh issued keys remain
+ordinary new requests. UUIDs must uniquely identify an aggregate across the store and must
 never be reassigned. No new schema or migration is required.
 
 See [the contract](../specs/content-publishing.md#targeted-publication-replay-erasure)

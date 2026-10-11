@@ -23,6 +23,12 @@ Any use of that key refuses without executing or exposing a response. Unaffected
 records retain their conflict, TTL and current-authorization behavior.
 An erased retry refuses before sweep, so it cannot delete unrelated expired rows.
 Ordinary request sweeping now shares its transaction and rolls back on refusal.
+Review repair converts expired responses into the same content-free markers,
+so a sweep cannot remove protection before deletion. Erasure requires durable
+issued-key admission. `enableIssuedKeyAdmission()` is the cutover operation;
+`issueKey()` supplies time-bounded client keys afterward. Unknown legacy keys
+already swept by older versions are refused after cutover rather than guessed
+from absent data.
 No schema migration or additional content digest/UUID registry is needed.
 Historical rows are matched by exact top-level UUID, not text search or numeric
 IDs. Invalid JSON aborts atomically rather than claiming complete erasure.
@@ -43,9 +49,10 @@ snapshots include UUID; opaque actor namespaces cannot be reconstructed from
 stored keys. Existing mutation-authority tombstones protect aggregate writes,
 but cannot correlate a create retry's opaque publication key to an erased UUID.
 The 48-hour opportunistic sweep previously removed the only correlation.
-Keys already swept before erasure cannot be recovered; this operation protects
-all applicable records still present, including expired-but-unswept rows.
-Do not claim protection for already-swept keys or fresh keys recreating content.
+Keys already swept by older versions cannot be recovered; the admission
+cutover rejects unknown legacy retries. The operation protects all applicable
+records still present, including expired-but-unswept rows. A fresh issued key
+remains a new mutation and is not duplicate-content prevention.
 Consumers must fence publication during the deletion transaction and must not
 reuse erased aggregate UUIDs. Erasure failure rolls back that transaction;
 completion failure after commit is a committed outcome, not a rollback.
@@ -134,3 +141,29 @@ or consumer integration qualification is claimed. Consumer fencing is an
 explicit precondition. This local-only candidate is not release-qualified and
 does not alter the alpha hold. Application qualification is a separate consumer-owned
 step, not Framework publication authorization.
+
+## Blocking review repair (2026-10-11)
+
+Review of candidate `44ee0af703cf9d1a325b05e88407a752cbf866eb`
+reproduced a swept create key recreating an erased entity with one new audit
+effect. The supplied `swept-retry.php` produced `erased_rows=0` and
+`retry_created_new_entity=true` before repair. A new real-publisher regression
+failed with `Swept retry recreated erased content` before implementation.
+The repaired regression creates after admission cutover, ages and sweeps its
+response, deletes the entity and erases in one transaction, then proves the
+original issued key refuses without another audit effect. The store regression
+covers an already-swept legacy key whose syntax resembles the new format.
+
+The independent reviewer identified and then verified repair of an initial
+syntax-only admission gap. New issued keys carry an HMAC under the durable
+random cutover secret. Their independent no-configuration store and publisher
+tests passed (91 tests, 382 assertions), with no remaining blocking finding.
+The original reproduction now stops safely at the cutover precondition because
+its script does not enable admission. The post-cutover publisher regression is
+the repaired end-to-end discriminator.
+
+On the dirty repair diff, native PHP 8.5.5 publishing Unit passed (155 tests,
+596 assertions), adjacent repository/transaction tests passed (32 tests,
+388 assertions), and default `check-pr-preflight` passed 42 executed gates,
+0 failed, 0 hosted-required and 4 not-applicable in 158.6 seconds. Final
+commit identity and clean-tree gate equivalence must be recorded after commit.
