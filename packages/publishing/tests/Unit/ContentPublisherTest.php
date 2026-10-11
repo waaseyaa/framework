@@ -118,7 +118,10 @@ final class ContentPublisherTest extends TestCase
         $store->enableIssuedKeyAdmission();
         $originalKey = $store->issueKey();
         $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), $originalKey);
-        $this->db->update('publishing_idempotency')->fields(['created_at' => time() - 172801])->execute();
+        $this->db->update('publishing_idempotency')
+            ->fields(['created_at' => time() - 172801])
+            ->condition('response_json', 'null', '<>')
+            ->execute();
         $this->publisher->createDraft($this->actor, $this->draftValues(['slug' => 'sweep-trigger']), $store->issueKey());
 
         $outer = $this->db->transaction('delete_swept_publication');

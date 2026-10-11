@@ -71,6 +71,8 @@ final class IdempotencyStore
         $transaction = $this->database->transaction('publishing_idempotency');
 
         try {
+            // Validate persisted cutover state before replay or TTL cleanup.
+            $admissionSecret = $this->admissionSecret();
             $existing = $this->fetch($storageKey);
             if ($existing !== null && $existing['response_json'] === 'null') {
                 // An erased retry must not even sweep unrelated expired rows.
@@ -90,7 +92,7 @@ final class IdempotencyStore
                 $response = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
                 $authorizeReplay?->__invoke($response);
             } else {
-                if ($this->issuedKeyAdmissionEnabled() && !$this->isCurrentIssuedKey($idempotencyKey)) {
+                if ($admissionSecret !== null && !$this->isCurrentIssuedKey($idempotencyKey, $admissionSecret)) {
                     throw new ContentNotFoundException('Publication replay key is no longer admitted.');
                 }
                 $response = $operation();
@@ -214,8 +216,8 @@ final class IdempotencyStore
                     'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
                     [self::ADMISSION_KEY, '', bin2hex(random_bytes(32)), 'null', 0],
                 );
-            } elseif ($this->admissionSecret() === null) {
-                throw new \LogicException('Reserved publication admission row is invalid.');
+            } else {
+                $this->admissionSecret();
             }
             $transaction->commit();
         } catch (TransactionCompletionException $failure) {
@@ -235,15 +237,20 @@ final class IdempotencyStore
         ));
     }
 
-    /** @return ?array{request_hash: string, response_json: string} */
+    /** @return ?array{operation: string, request_hash: string, response_json: string, created_at: string} */
     private function fetch(string $idempotencyKey): ?array
     {
         $result = $this->database->select(self::TABLE)
-            ->fields(self::TABLE, ['request_hash', 'response_json'])
+            ->fields(self::TABLE, ['operation', 'request_hash', 'response_json', 'created_at'])
             ->condition('idem_key', $idempotencyKey)
             ->execute();
         foreach ($result as $row) {
-            return ['request_hash' => (string) $row['request_hash'], 'response_json' => (string) $row['response_json']];
+            return [
+                'operation' => (string) $row['operation'],
+                'request_hash' => (string) $row['request_hash'],
+                'response_json' => (string) $row['response_json'],
+                'created_at' => (string) $row['created_at'],
+            ];
         }
 
         return null;
@@ -266,20 +273,24 @@ final class IdempotencyStore
     private function admissionSecret(): ?string
     {
         $row = $this->fetch(self::ADMISSION_KEY);
-        if ($row === null || $row['response_json'] !== 'null' || preg_match('/^[a-f0-9]{64}$/D', $row['request_hash']) !== 1) {
+        if ($row === null) {
             return null;
+        }
+        if ($row['operation'] !== '' || $row['response_json'] !== 'null' || $row['created_at'] !== '0'
+            || preg_match('/^[a-f0-9]{64}$/D', $row['request_hash']) !== 1
+        ) {
+            throw new \LogicException('Publication key admission state is invalid.');
         }
 
         return hex2bin($row['request_hash']);
     }
 
-    private function isCurrentIssuedKey(string $key): bool
+    private function isCurrentIssuedKey(string $key, string $secret): bool
     {
         if (preg_match('/^pub1\.((0|[1-9][0-9]*)\.[a-f0-9]{32})\.([a-f0-9]{64})$/D', $key, $matches) !== 1) {
             return false;
         }
-        $secret = $this->admissionSecret();
-        if ($secret === null || !hash_equals(hash_hmac('sha256', $matches[1], $secret), $matches[3])) {
+        if (!hash_equals(hash_hmac('sha256', $matches[1], $secret), $matches[3])) {
             return false;
         }
         $issuedAt = filter_var($matches[2], FILTER_VALIDATE_INT);

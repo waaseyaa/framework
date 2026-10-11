@@ -11,6 +11,12 @@ then resume ingress with keys from `$idempotency->issueKey()`. Deliver each key
 to the client before its first mutation and require the client to reuse that
 exact key on retry. The switch is durable and irreversible. Unknown old-format
 keys are refused, including legacy keys already deleted by an older TTL sweep.
+If the persisted admission row exists but its marker, secret or sentinels are
+invalid, publication operations fail closed with a non-secret error before
+mutation or committed cleanup. Stop ingress and restore the original admission
+row and secret from a trusted backup. If the original secret cannot be
+recovered, keep ingress closed and arrange a separately reviewed recovery
+migration. Do not delete the row or generate a replacement secret in place.
 Existing retained old-format responses may replay until expiry. Keys issued
 more than the configured TTL ago are also refused. Issued keys carry an HMAC
 under a random secret stored at cutover, so an already-swept legacy key that

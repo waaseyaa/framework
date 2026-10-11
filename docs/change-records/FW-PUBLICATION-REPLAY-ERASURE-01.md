@@ -167,3 +167,18 @@ On the dirty repair diff, native PHP 8.5.5 publishing Unit passed (155 tests,
 388 assertions), and default `check-pr-preflight` passed 42 executed gates,
 0 failed, 0 hosted-required and 4 not-applicable in 158.6 seconds. Final
 commit identity and clean-tree gate equivalence must be recorded after commit.
+
+## Admission-state review repair (2026-10-11)
+
+Review of `da8a30760760aa477eb73300cf59d361c95b3e24` found that an
+existing admission row with a malformed marker or secret was treated as
+never-enabled admission. The supplied `admission-failure.php` showed one
+legacy callback execution after synthetic secret corruption. Four
+data-provider regressions cover the marker, secret, operation and creation
+sentinels. The marker and secret cases failed before implementation. The
+repair validates persisted state before replay and sweep and raises a stable
+non-secret error on corruption; rollback prevents cleanup writes from
+committing. Valid absence still permits pre-cutover operation. No secret is
+regenerated and the cutover row is retained. Recovery requires restoring the
+original row from trusted backup or a separately reviewed migration while
+ingress remains closed.

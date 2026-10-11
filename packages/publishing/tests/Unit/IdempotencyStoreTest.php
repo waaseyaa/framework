@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Publishing\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
@@ -193,6 +194,60 @@ final class IdempotencyStoreTest extends TestCase
         $store->execute('legacy', 'op', [], fn(): array => ['uuid' => 'target']);
         $this->expectException(\LogicException::class);
         $store->eraseContentResponses('target');
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function malformedAdmissionFields(): iterable
+    {
+        yield 'response marker' => ['response_json', '{}'];
+        yield 'secret' => ['request_hash', 'malformed'];
+        yield 'operation sentinel' => ['operation', 'createDraft'];
+        yield 'creation sentinel' => ['created_at', '1'];
+    }
+
+    #[Test]
+    #[DataProvider('malformedAdmissionFields')]
+    public function malformed_persisted_admission_refuses_without_mutation_or_committed_sweep(string $field, string $value): void
+    {
+        $store = $this->store(ttl: 100);
+        $store->enableIssuedKeyAdmission();
+        $issued = $store->issueKey();
+        $store->execute($issued, 'op', [], fn(): array => ['uuid' => 'old']);
+        $this->now += 101;
+        $this->db->update('publishing_idempotency')
+            ->fields([$field => $value])
+            ->condition('idem_key', '__publishing_issued_key_admission_v1__')
+            ->execute();
+        $rows = iterator_to_array($this->db->select('publishing_idempotency')->execute());
+        $restarted = $this->store(ttl: 100);
+        $runs = 0;
+
+        try {
+            $restarted->execute('lost-legacy-key', 'op', [], function () use (&$runs): array {
+                $runs++;
+                return ['uuid' => 'recreated'];
+            });
+            self::fail('Malformed admission state admitted a legacy mutation.');
+        } catch (\LogicException $failure) {
+            self::assertSame('Publication key admission state is invalid.', $failure->getMessage());
+        }
+
+        self::assertSame(0, $runs);
+        self::assertSame($rows, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        foreach ([
+            fn(): array => $restarted->execute($issued, 'op', [], fn(): array => throw new \LogicException('Replay executed')),
+            fn(): string => $restarted->issueKey(),
+            fn(): int => $restarted->eraseContentResponses('old'),
+            function () use ($restarted): void { $restarted->enableIssuedKeyAdmission(); },
+        ] as $operation) {
+            try {
+                $operation();
+                self::fail('Malformed admission state must remain closed.');
+            } catch (\LogicException $failure) {
+                self::assertSame('Publication key admission state is invalid.', $failure->getMessage());
+            }
+        }
+        self::assertSame($rows, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
     }
 
     #[Test]

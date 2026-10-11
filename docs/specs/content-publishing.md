@@ -274,6 +274,17 @@ row. `issueKey()` is unavailable before the switch and returns
 `pub1.<unix-seconds>.<32 hex nonce>.<64 hex HMAC>`. An unknown key must have
 a valid MAC under that secret and a timestamp within the store's TTL and no
 later than its clock. The secret is not a response snapshot or entity marker.
+An absent policy row means admission has never been enabled. An existing row
+with an invalid response marker, secret shape, operation sentinel or creation
+sentinel is a corrupt cutover, not an absent one. Execution validates this row
+before replay or TTL cleanup and fails with the non-secret
+`Publication key admission state is invalid.` error; transaction rollback
+prevents cleanup writes from committing. Key issuance, erasure and repeated
+cutover also refuse invalid state. Recovery requires stopping publication
+ingress and restoring the original policy row, including its secret, from a
+trusted backup before resuming. If that secret is unrecoverable, keep the
+surface closed and arrange a separately reviewed recovery migration; never
+delete the row or generate a replacement secret in place.
 Unknown legacy keys, including ones already swept by an older version, refuse
 before mutation. Retained legacy rows can replay under current authorization;
 their expiration converts them to markers. The issuer's timestamp is an
