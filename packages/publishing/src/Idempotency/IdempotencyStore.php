@@ -7,6 +7,7 @@ namespace Waaseyaa\Publishing\Idempotency;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\Schema\SchemaRequirement;
+use Waaseyaa\Publishing\Exception\ContentNotFoundException;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 
 /**
@@ -15,12 +16,11 @@ use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
  * Contract (Stripe-shaped): the same key with the SAME canonicalized request
  * replays the stored response without re-executing; the same key with a
  * DIFFERENT request raises IDEMPOTENCY_CONFLICT; an unknown key executes the
- * operation and stores its response. Entries expire after the TTL and are
- * swept opportunistically.
+ * operation and stores its response. Response entries expire after the TTL;
+ * erased keys remain permanent content-free refusal markers.
  *
- * Schema is migration-owned. Responses are stored as JSON and must never contain
- * credentials or personal data — callers store the same payload they return
- * to the agent.
+ * Schema is migration-owned. Responses are stored as JSON. Publishing snapshots
+ * require explicit erasure alongside entity deletion; never store credentials.
  *
  * @api
  */
@@ -72,6 +72,9 @@ final class IdempotencyStore
         try {
             $existing = $this->fetch($storageKey);
             if ($existing !== null) {
+                if ($existing['response_json'] === 'null') {
+                    throw new ContentNotFoundException('Erased publication replay.');
+                }
                 if (!hash_equals($existing['request_hash'], $requestHash)) {
                     throw new IdempotencyConflictException($idempotencyKey);
                 }
@@ -117,6 +120,55 @@ final class IdempotencyStore
         return $response;
     }
 
+    /**
+     * Erase every retained publication snapshot for one canonical entity UUID.
+     *
+     * This is a trusted lifecycle operation, not an authorization endpoint.
+     * Capture UUID before deletion and compose both operations in one outer
+     * transaction on this database. UUID must be unique across the store.
+     * Returns the number of newly erased rows; repeating erasure returns zero.
+     * Keys already swept before this operation cannot be recovered.
+     */
+    public function eraseContentResponses(string $uuid): int
+    {
+        if (trim($uuid) === '') {
+            throw new \InvalidArgumentException('Entity UUID must not be empty.');
+        }
+        $this->ensureTable();
+        $transaction = $this->database->transaction('publishing_replay_erasure');
+        $erased = 0;
+        try {
+            $rows = $this->database->select(self::TABLE)
+                ->fields(self::TABLE, ['idem_key', 'response_json'])
+                ->execute();
+            foreach ($rows as $row) {
+                $response = json_decode((string) $row['response_json'], true, 512, JSON_THROW_ON_ERROR);
+                if (!\is_array($response) || ($response['uuid'] ?? null) !== $uuid) {
+                    continue;
+                }
+                // Retain only the opaque key. Even the content-derived request
+                // fingerprint is removed; every subsequent use must refuse.
+                $erased += $this->database->update(self::TABLE)
+                    ->fields(['response_json' => 'null', 'operation' => '', 'request_hash' => '', 'created_at' => 0])
+                    ->condition('idem_key', (string) $row['idem_key'])
+                    ->execute();
+            }
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
+        }
+        try {
+            $transaction->commit();
+        } catch (TransactionCompletionException $failure) {
+            throw $failure;
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
+        }
+
+        return $erased;
+    }
+
     /** @param array<string, mixed> $request */
     private function hashRequest(string $operationName, array $request): string
     {
@@ -144,6 +196,7 @@ final class IdempotencyStore
     {
         $this->database->delete(self::TABLE)
             ->condition('created_at', ($this->clock)() - $this->ttlSeconds, '<')
+            ->condition('response_json', 'null', '<>')
             ->execute();
     }
 

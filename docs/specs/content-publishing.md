@@ -230,6 +230,53 @@ Sanitization is **lossy-at-input by design** for this surface (unlike the read-b
 
 Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type, bundle, **and acting principal** before storage, so neither independent bundle-scoped surfaces nor independent publishers can replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one partition, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; before commit, a projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`). A completion callback failure raised by the outer commit instead leaves the mutation and replay record durable and surfaces `TransactionCompletionException` without a fictional rollback. Same-key replay remains mutation-safe but does not re-run the failed completion work; a new-key retry can duplicate the committed write. The caller-visible HTTP, MCP, and CLI committed-outcome signal remains owned by #2999.
 
+#### Targeted publication replay erasure
+
+`IdempotencyStore::eraseContentResponses(string $uuid): int` removes every
+retained response whose top-level `uuid` exactly matches the canonical entity
+UUID, across all actors, descriptors and mutation verbs. It returns the count
+of newly erased records. This trusted storage lifecycle operation does not
+authorize erasure and must not be exposed directly to untrusted callers.
+Capture the UUID before supported repository deletion; compose deletion and
+erasure in one outer managed transaction on the same database object. Verify
+`EntityRepository::sharesTransactionWith($database)` before composing them.
+UUIDs must identify unique aggregates across this store and must never be
+reassigned. Numeric entity IDs, slugs and substring matches are insufficient.
+
+For every affected row, `response_json` becomes literal JSON `null`; operation,
+request hash and creation time are cleared. Only the existing opaque key has
+meaning in the retained marker. Clearing the request hash removes the digest
+derived from erased content. Any use of an erased key, with either the original
+or a changed payload, raises `ContentNotFoundException` before authorization
+callback or operation execution. This refusal takes precedence over conflict
+comparison for erased keys; conflicts and current replay authorization remain
+unchanged for unaffected responses.
+
+Markers do not expire: accepting arbitrary old keys makes deletion of the marker
+unsafe. The existing TTL sweep excludes markers. Retention is limited to the
+opaque key and schema-required empty/sentinel values, with no UUID, actor,
+content, request fingerprint or response projection retained in the marker.
+No schema migration is required. Existing/legacy response rows are scanned
+without decoding the opaque key namespace, including expired rows still present.
+Already-swept keys cannot be recovered or protected retrospectively; callers
+requiring that guarantee must not admit those retries. New keys remain ordinary
+new requests, so this is not a semantic duplicate-content prevention mechanism.
+
+Erasure itself never sweeps. Repeating successful erasure returns zero. Invalid
+retained JSON or a database failure aborts the transaction with no partial
+erasure. A rollback of the caller's outer transaction restores both deletion and
+snapshots; retry the whole coordinated operation. Process interruption before
+commit relies on database transaction rollback; after commit the markers persist.
+A completion callback failure after commit is a committed outcome and must not
+be reported as rolled back. Consumers must serialize/fence publication at the
+supported deletion transaction boundary; publishing mutations and response
+inserts already share that database transaction. No cross-database atomicity or
+external audit erasure is promised.
+
+Acceptance is pinned by the store erasure tests and the publisher's real SQLite
+deletion/erasure and rollback controls. The enduring decision and evidence owner
+is [FW-PUBLICATION-REPLAY-ERASURE-01](../change-records/FW-PUBLICATION-REPLAY-ERASURE-01.md).
+
 #### Actor-scoped partitioning (framework #2555)
 
 The replay partition is `(entityTypeId, bundle, principal)` — **not** the client key alone.

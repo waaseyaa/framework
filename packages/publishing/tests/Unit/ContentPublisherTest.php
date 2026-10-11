@@ -111,6 +111,77 @@ final class ContentPublisherTest extends TestCase
         EntityReadRuntime::installGuard($this->priorGuard);
     }
 
+    #[Test]
+    public function deletion_and_erasure_remove_five_snapshots_across_actors_without_retry_writes(): void
+    {
+        $store = new IdempotencyStore($this->db);
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'erase-create');
+        $id = (string) $draft['id'];
+        $second = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+        $updated = $this->publisher->updateDraft($second, $id, ['title' => 'Changed'], $draft['revision_id'], 'erase-update');
+        $published = $this->publisher->publish($this->actor, $id, $updated['revision_id'], 'erase-publish');
+        $this->publisher->unpublish($second, $id, $published['revision_id'], 'erase-unpublish');
+        $this->publisher->rollback($this->actor, $id, $draft['revision_id'], 'erase-rollback');
+        $otherValues = $this->draftValues(['slug' => 'unaffected']);
+        $other = $this->publisher->createDraft($second, $otherValues, 'other-create');
+        self::assertCount(6, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertTrue($this->repo->sharesTransactionWith($this->db));
+        $outer = $this->db->transaction('delete_and_erase');
+        try {
+            $this->repo->delete($this->repo->find($id));
+            // Reproduces the original separation: deletion leaves five snapshots.
+            $retained = array_filter(iterator_to_array($this->db->select('publishing_idempotency')->execute()),
+                static fn(array $row): bool => (json_decode($row['response_json'], true, 512, JSON_THROW_ON_ERROR)['uuid'] ?? null) === $draft['uuid']);
+            self::assertCount(5, $retained);
+            self::assertSame(5, $store->eraseContentResponses($draft['uuid']));
+            $outer->commit();
+        } catch (\Throwable $failure) {
+            $outer->rollBack();
+            throw $failure;
+        }
+        self::assertNull($this->repo->find($id));
+        self::assertSame([], $this->repo->listRevisions($id));
+        $auditCount = count($this->audit->records);
+        $rowsBefore = iterator_to_array($this->db->select('publishing_idempotency')->execute());
+        foreach ([
+            fn(): array => $this->publisher->createDraft($this->actor, $this->draftValues(), 'erase-create'),
+            fn(): array => $this->publisher->updateDraft($second, $id, ['title' => 'Changed'], $draft['revision_id'], 'erase-update'),
+            fn(): array => $this->publisher->publish($this->actor, $id, $updated['revision_id'], 'erase-publish'),
+            fn(): array => $this->publisher->unpublish($second, $id, $published['revision_id'], 'erase-unpublish'),
+            fn(): array => $this->publisher->rollback($this->actor, $id, $draft['revision_id'], 'erase-rollback'),
+        ] as $retry) {
+            try {
+                $retry();
+                self::fail('Erased retries must refuse.');
+            } catch (ContentNotFoundException) {
+            }
+        }
+        self::assertSame($auditCount, count($this->audit->records));
+        self::assertSame($rowsBefore, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertCount(1, $this->repo->findBy([]));
+        self::assertSame($other, $this->publisher->createDraft($second, $otherValues, 'other-create'));
+        self::assertSame(0, $store->eraseContentResponses($draft['uuid']));
+    }
+
+    #[Test]
+    public function erasure_failure_rolls_back_supported_entity_deletion_and_revisions(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'rollback-erasure');
+        $store = new IdempotencyStore($this->db);
+        $this->db->query('INSERT INTO publishing_idempotency VALUES (?, ?, ?, ?, ?)', ['broken', 'op', 'hash', '{', time()]);
+        $outer = $this->db->transaction('failed_delete_and_erase');
+        try {
+            $this->repo->delete($this->repo->find($draft['id']));
+            $store->eraseContentResponses($draft['uuid']);
+            self::fail('Corrupt replay JSON must abort erasure.');
+        } catch (\JsonException) {
+            $outer->rollBack();
+        }
+        self::assertNotNull($this->repo->find($draft['id']));
+        self::assertCount(1, $this->repo->listRevisions((string) $draft['id']));
+        self::assertSame($draft, $this->publisher->createDraft($this->actor, $this->draftValues(), 'rollback-erasure'));
+    }
+
     /** @return iterable<string, array{string, string}> */
     public static function replayRevocations(): iterable
     {

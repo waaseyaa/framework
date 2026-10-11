@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\TransactionCompletionInterface;
+use Waaseyaa\Publishing\Exception\ContentNotFoundException;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
@@ -35,6 +36,113 @@ final class IdempotencyStoreTest extends TestCase
     private function store(int $ttl = 3600): IdempotencyStore
     {
         return new IdempotencyStore($this->db, $ttl, fn(): int => $this->now);
+    }
+
+    #[Test]
+    public function erasure_removes_all_actor_snapshots_and_permanently_refuses_old_keys(): void
+    {
+        $store = $this->store(ttl: 100);
+        $uuid = 'c65b0500-b26e-4a69-9548-500ce19c8016';
+        $runs = 0;
+        $operation = function () use (&$runs, $uuid): array {
+            $runs++;
+            return ['uuid' => $uuid, 'body' => 'erased secret'];
+        };
+        foreach (['actor-one', 'actor-two'] as $namespace) {
+            $store->execute('old', 'createDraft', ['body' => 'erased secret'], $operation, $namespace);
+        }
+        $unaffected = ['uuid' => '726803d2-8a38-4881-bb98-e0498c6a8d79', 'body' => 'keep'];
+        $store->execute('other', 'createDraft', [], fn(): array => $unaffected, 'actor-one');
+        $this->now += 101; // Expired rows still present must be erased before any sweep.
+        self::assertSame(2, $store->eraseContentResponses($uuid));
+        self::assertSame(0, $store->eraseContentResponses($uuid));
+        $rows = iterator_to_array($this->db->select('publishing_idempotency')->execute());
+        foreach (array_slice($rows, 0, 2) as $row) {
+            self::assertSame('null', $row['response_json']);
+            self::assertSame('', $row['request_hash']);
+            self::assertSame('', $row['operation']);
+            self::assertSame(0, (int) $row['created_at']);
+        }
+        $this->now += 1_000_000;
+        foreach (['actor-one', 'actor-two'] as $namespace) {
+            foreach ([['body' => 'erased secret'], ['body' => 'different']] as $request) {
+                try {
+                    $store->execute('old', 'createDraft', $request, $operation, $namespace);
+                    self::fail('An erased key must refuse every request.');
+                } catch (ContentNotFoundException) {
+                }
+            }
+        }
+        self::assertSame(2, $runs);
+        self::assertCount(2, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+    }
+
+    #[Test]
+    public function failed_and_outer_rolled_back_erasure_leave_snapshots_intact(): void
+    {
+        $store = $this->store();
+        $response = ['uuid' => 'target', 'body' => 'secret'];
+        $store->execute('first', 'createDraft', [], fn(): array => $response);
+        $this->db->query('INSERT INTO publishing_idempotency VALUES (?, ?, ?, ?, ?)', ['broken', 'op', 'hash', '{', $this->now]);
+        try {
+            $store->eraseContentResponses('target');
+            self::fail('Malformed retained JSON must prevent partial success.');
+        } catch (\JsonException) {
+        }
+        self::assertSame($response, $store->execute('first', 'createDraft', [], fn(): array => throw new \LogicException('Must replay')));
+        $this->db->delete('publishing_idempotency')->condition('idem_key', 'broken')->execute();
+        $outer = $this->db->transaction('erasure_coordinator');
+        self::assertSame(1, $store->eraseContentResponses('target'));
+        $outer->rollBack();
+        self::assertSame($response, $store->execute('first', 'createDraft', [], fn(): array => throw new \LogicException('Must replay')));
+        self::assertSame(1, $store->eraseContentResponses('target'));
+    }
+
+    #[Test]
+    public function database_failure_mid_erasure_rolls_back_every_marker(): void
+    {
+        $store = $this->store();
+        $response = ['uuid' => 'target', 'body' => 'secret'];
+        foreach (['first', 'second'] as $key) {
+            $store->execute($key, 'op', [], fn(): array => $response);
+        }
+        $this->db->query("CREATE TRIGGER fail_erasure BEFORE UPDATE ON publishing_idempotency WHEN OLD.idem_key = 'second' BEGIN SELECT RAISE(ABORT, 'erasure failed'); END");
+        try {
+            $store->eraseContentResponses('target');
+            self::fail('Expected database failure.');
+        } catch (\Doctrine\DBAL\Exception) {
+        }
+        foreach (['first', 'second'] as $key) {
+            self::assertSame($response, $store->execute($key, 'op', [], fn(): array => throw new \LogicException('Must replay')));
+        }
+        $this->db->query('DROP TRIGGER fail_erasure');
+        self::assertSame(2, $store->eraseContentResponses('target'));
+    }
+
+    #[Test]
+    public function committed_erasure_survives_outer_completion_failure(): void
+    {
+        $store = $this->store();
+        $store->execute('key', 'op', [], fn(): array => ['uuid' => 'target', 'body' => 'secret']);
+        $outer = $this->db->transaction('erase_completion');
+        self::assertInstanceOf(TransactionCompletionInterface::class, $outer);
+        $outer->afterCommit(static fn() => throw new \RuntimeException('completion failed'));
+        self::assertSame(1, $store->eraseContentResponses('target'));
+        try {
+            $outer->commit();
+            self::fail('Expected completion failure.');
+        } catch (TransactionCompletionException) {
+        }
+        self::assertSame(0, $store->eraseContentResponses('target'));
+        $this->expectException(ContentNotFoundException::class);
+        $store->execute('key', 'op', [], fn(): array => throw new \LogicException('Must never execute'));
+    }
+
+    #[Test]
+    public function empty_erasure_identity_is_rejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->store()->eraseContentResponses('  ');
     }
 
     #[Test]
