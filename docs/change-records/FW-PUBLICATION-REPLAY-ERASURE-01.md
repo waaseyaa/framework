@@ -63,6 +63,9 @@ actor partition repair #2555, atomic projection repair #2141, and transaction
 outcome work #2999/#3035. Their protections remain required. Consumer handoff
 distinguishes retained storage from repaired response authorization. No issues
 were published. Alpha hold, release and deployment boundaries remain in force.
+Read-only bodies of #3008, #2555 and #3035 were reconciled: repository-composition
+qualification and CLI/MCP committed-outcome qualification remain separate open
+work; this slice preserves the closed actor-partition repair.
 
 ## Evidence
 
@@ -100,8 +103,34 @@ exact base; main does not yet contain it. No rebase or other-lane edits occurred
   (~2.0s). It used a synthetic effect table, not repository deletion. Native
   scratch evidence: `%TEMP%/erasure-independent-probe.php` and
   `%TEMP%/erasure-review-07980a92-e05d-4252-bae6-504a541ad682`.
-  Refusal-before-sweep source delta and final contract await proportional review.
+  Probe SHA-256:
+  `a54502f6d883bc6ccf04f29f5c358cd0b63656f47f806bfe39065e82c4a025b7`.
+- Final implementation candidate:
+  `ca47087aedb202df2672183fe8969bedd2aca028`.
+  Independent reviewer **APPROVE**, no blocking code findings. The proportional
+  review independently tested refusal-before-sweep using a DELETE-aborting
+  SQLite trigger; failed ordinary operations restored swept rows, successful
+  ordinary operations removed expired responses while preserving markers
+  (~0.55s). Probe `%TEMP%/erasure-ttl-delta-probe.php`, SHA-256
+  `d518fbcaa2f6f1992a7f8fd5e38c675039357ad34cd9b721827233be631f7a28`.
+  Reviewer-requested prose correction distinguishes erasure writes from
+  write-free retries. Prior crash evidence applies to the unchanged erasure
+  implementation. The adjacent suites do not call publishing/idempotency, so
+  their original evidence remains applicable to the unchanged repository,
+  transaction code, dependencies, configuration and runtime.
+- `php bin/check-pr-preflight --base=2c072dd09a37f2129fcea5d0ab4a5aed1ba9027b --report-json=<scratch>/publication-replay-erasure-final-preflight.json`:
+  **PASS** on the clean final implementation candidate, 42 executed, 0 reused,
+  119.3s, 0 failed, 0 hosted-required, 4 not-applicable. This was the default
+  native profile, not full static or hosted qualification. The final evidence
+  commit changes only this record and the reviewer-requested prose correction;
+  code, tests, roster, dependencies and configuration remain identical.
+  Evidence is carried forward as equivalent inputs, not a claim of execution
+  on the subsequent documentation commit. Document links and diff hygiene were
+  checked on that final delta; no unchanged broad checks were repeated.
 
-Final native preflight and exact immutable review are pending. Hosted full
-qualification remains unrun, owned by `ci/full-qualification`. This local-only
-candidate is not release-qualified and does not alter the alpha hold.
+Hosted full qualification remains unrun, owned by `ci/full-qualification`.
+No actual concurrent erasure/publication process test, cross-database operation
+or consumer integration qualification is claimed. Consumer fencing is an
+explicit precondition. This local-only candidate is not release-qualified and
+does not alter the alpha hold. Application qualification is a separate consumer-owned
+step, not Framework publication authorization.

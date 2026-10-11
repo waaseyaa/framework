@@ -267,7 +267,7 @@ Already-swept keys cannot be recovered or protected retrospectively; callers
 requiring that guarantee must not admit those retries. New keys remain ordinary
 new requests, so this is not a semantic duplicate-content prevention mechanism.
 
-Erasure itself and retries of erased keys never sweep or write any row. Ordinary
+Erasure itself never sweeps. Retries of erased keys never sweep or write any row. Ordinary
 requests sweep inside their transaction; a failed request rolls that cleanup
 back. Repeating successful erasure returns zero. Invalid
 retained JSON or a database failure aborts the transaction with no partial
