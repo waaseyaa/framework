@@ -74,7 +74,7 @@ final class IdempotencyStoreTest extends TestCase
             }
         }
         self::assertSame(2, $runs);
-        self::assertCount(2, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertSame($rows, iterator_to_array($this->db->select('publishing_idempotency')->execute()), 'An erased retry must not write or sweep any row.');
     }
 
     #[Test]

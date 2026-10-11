@@ -61,7 +61,6 @@ final class IdempotencyStore
             throw new \InvalidArgumentException('Idempotency key must not be empty.');
         }
         $this->ensureTable();
-        $this->sweep();
 
         $storageKey = $namespace === ''
             ? $idempotencyKey
@@ -70,6 +69,12 @@ final class IdempotencyStore
         $transaction = $this->database->transaction('publishing_idempotency');
 
         try {
+            $existing = $this->fetch($storageKey);
+            if ($existing !== null && $existing['response_json'] === 'null') {
+                // An erased retry must not even sweep unrelated expired rows.
+                throw new ContentNotFoundException('Erased publication replay.');
+            }
+            $this->sweep();
             $existing = $this->fetch($storageKey);
             if ($existing !== null) {
                 if ($existing['response_json'] === 'null') {
@@ -126,6 +131,8 @@ final class IdempotencyStore
      * This is a trusted lifecycle operation, not an authorization endpoint.
      * Capture UUID before deletion and compose both operations in one outer
      * transaction on this database. UUID must be unique across the store.
+     * ContentPublisher records have opaque hashed keys. Direct store callers
+     * must ensure their keys contain no content; this operation retains keys.
      * Returns the number of newly erased rows; repeating erasure returns zero.
      * Keys already swept before this operation cannot be recovered.
      */

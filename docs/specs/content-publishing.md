@@ -256,13 +256,20 @@ Markers do not expire: accepting arbitrary old keys makes deletion of the marker
 unsafe. The existing TTL sweep excludes markers. Retention is limited to the
 opaque key and schema-required empty/sentinel values, with no UUID, actor,
 content, request fingerprint or response projection retained in the marker.
+This content-free marker guarantee applies to opaque ContentPublisher keys.
+Direct store callers with an empty namespace retain their raw client key and
+must ensure it contains no content; content-bearing raw legacy keys require
+separate remediation before claiming complete erasure. The operation retains
+the key verbatim and does not establish its provenance.
 No schema migration is required. Existing/legacy response rows are scanned
 without decoding the opaque key namespace, including expired rows still present.
 Already-swept keys cannot be recovered or protected retrospectively; callers
 requiring that guarantee must not admit those retries. New keys remain ordinary
 new requests, so this is not a semantic duplicate-content prevention mechanism.
 
-Erasure itself never sweeps. Repeating successful erasure returns zero. Invalid
+Erasure itself and retries of erased keys never sweep or write any row. Ordinary
+requests sweep inside their transaction; a failed request rolls that cleanup
+back. Repeating successful erasure returns zero. Invalid
 retained JSON or a database failure aborts the transaction with no partial
 erasure. A rollback of the caller's outer transaction restores both deletion and
 snapshots; retry the whole coordinated operation. Process interruption before
