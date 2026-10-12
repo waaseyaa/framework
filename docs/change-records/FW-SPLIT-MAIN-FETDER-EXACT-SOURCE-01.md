@@ -11,6 +11,7 @@ The workflow-control commit is separate from the package-source commit. The cont
 ## Acceptance evidence
 
 - Focused resolver and workflow contract tests fail before the change and pass afterward.
+- The native-host contract lists the new resolver test method, so both hosted leaves can validate its execution evidence without admitting an unlisted method.
 - Default preflight and exact-head hosted qualification pass for the control commit before a forward-only landing.
 - The source commit remains an ancestor of main, package trees are unchanged, and both the source and control commits have their own authoritative CI evidence.
 - The six-package split run succeeds and each mirror ref, split parent, package tree, source SHA and provenance artifact is verified.

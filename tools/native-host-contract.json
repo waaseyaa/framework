@@ -234,6 +234,7 @@
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::resolves_the_complete_sheguiandah_framework_main_cohort",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::newly_reviewed_cohort_targets_resolve_individually_and_refuse_paths",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::resolves_deployer_for_between_release_consumer_verification",
+                "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::resolves_the_fetder_six_package_cohort_including_listing",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\SyncInternalVersionsTest::validate_input_accepts_clean_versions_with_or_without_v_prefix",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\SyncInternalVersionsTest::validate_input_rejects_empty_dev_self_version_wildcards_and_placeholders",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\SyncInternalVersionsTest::find_internal_deps_returns_waaseyaa_keys_from_require_and_require_dev",
