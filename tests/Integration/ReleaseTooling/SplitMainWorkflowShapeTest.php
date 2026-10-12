@@ -21,13 +21,23 @@ final class SplitMainWorkflowShapeTest extends TestCase
     }
 
     #[Test]
-    public function workflow_is_manual_exact_main_and_green_ci_only(): void
+    public function workflow_is_manual_current_main_or_bounded_ancestor_and_green_ci_only(): void
     {
         self::assertStringContainsString('workflow_dispatch:', $this->workflow);
         self::assertStringContainsString('requested}" != "${current_main}', $this->workflow);
         self::assertStringContainsString('wait-for-green-ci', $this->workflow);
         self::assertStringContainsString('resolve-split-main-targets', $this->workflow);
         self::assertStringContainsString('status=in_progress', $this->workflow);
+    }
+
+    #[Test]
+    public function qualified_ancestor_exception_is_exactly_the_fetder_six_package_source(): void
+    {
+        self::assertStringContainsString('approved_source="9cefbdf93e771df8130ac6ae2a131dd556726b92"', $this->workflow);
+        self::assertStringContainsString('approved_packages="api,bimaaji,field,listing,media,workflows"', $this->workflow);
+        self::assertStringContainsString('"${PACKAGE_SELECTION}" != "${approved_packages}"', $this->workflow);
+        self::assertStringContainsString('git merge-base --is-ancestor "${requested}" origin/main', $this->workflow);
+        self::assertStringContainsString('git diff --quiet "${requested}" origin/main -- packages/', $this->workflow);
     }
 
     #[Test]

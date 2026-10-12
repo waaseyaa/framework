@@ -100,7 +100,7 @@
             },
             {
                 "file": "split-main.yml",
-                "sha256": "2bbf5d933434164670714f2523b663f7a77d023ca7660ad16b9b89cc4f0b61f8"
+                "sha256": "1dfc70ba7d7ae4064eec993e6205c6663879ae0d56e7029d6d440778cb82b2ff"
             },
             {
                 "file": "split.yml",
@@ -10827,7 +10827,7 @@
         {
             "file": "split-main.yml",
             "name": "Split selected package main branches",
-            "source_sha256": "2bbf5d933434164670714f2523b663f7a77d023ca7660ad16b9b89cc4f0b61f8",
+            "source_sha256": "1dfc70ba7d7ae4064eec993e6205c6663879ae0d56e7029d6d440778cb82b2ff",
             "triggers": {
                 "events": [
                     "workflow_dispatch"

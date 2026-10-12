@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: Exact current framework main SHA to split
+        description: Exact current main SHA or reviewed FETDER source SHA
         required: true
         type: string
       packages:
@@ -56,10 +56,11 @@ jobs:
               ;;
           esac
 
-      - name: Require the exact current merged main SHA
+      - name: Require current main or the reviewed FETDER source
         id: source
         env:
           REQUESTED_SHA: ${{ inputs.sha }}
+          PACKAGE_SELECTION: ${{ inputs.packages }}
         run: |
           set -euo pipefail
           if [[ ! "${REQUESTED_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -70,8 +71,20 @@ jobs:
           current_main="$(git rev-parse origin/main)"
           requested="$(printf '%s' "${REQUESTED_SHA}" | tr '[:upper:]' '[:lower:]')"
           if [ "${requested}" != "${current_main}" ]; then
-            echo "::error::Stale or unmerged SHA refused: requested ${requested}; current main is ${current_main}."
-            exit 1
+            approved_source="9cefbdf93e771df8130ac6ae2a131dd556726b92"
+            approved_packages="api,bimaaji,field,listing,media,workflows"
+            if [ "${requested}" != "${approved_source}" ] || [ "${PACKAGE_SELECTION}" != "${approved_packages}" ]; then
+              echo "::error::Only current main or the exact reviewed FETDER source and six-package cohort may be split."
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "${requested}" origin/main; then
+              echo "::error::The reviewed FETDER source is no longer an ancestor of main."
+              exit 1
+            fi
+            if ! git diff --quiet "${requested}" origin/main -- packages/; then
+              echo "::error::Package bytes changed after the reviewed FETDER source; exact-source split refused."
+              exit 1
+            fi
           fi
           git merge-base --is-ancestor "${requested}" origin/main
           echo "sha=${requested}" >> "${GITHUB_OUTPUT}"

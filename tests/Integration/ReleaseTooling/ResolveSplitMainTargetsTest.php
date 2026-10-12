@@ -318,6 +318,27 @@ final class ResolveSplitMainTargetsTest extends TestCase
         }
     }
 
+    #[Test]
+    public function resolves_the_fetder_six_package_cohort_including_listing(): void
+    {
+        $names = ['api', 'bimaaji', 'field', 'listing', 'media', 'workflows'];
+        [$exit, $stdout, $stderr] = $this->runScript(implode(',', $names));
+
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame('', $stderr);
+        self::assertSame(['include' => array_map(
+            static fn(string $name): array => ['local' => 'packages/' . $name, 'remote' => $name],
+            $names,
+        )], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+
+        foreach (['packages/listing', '../listing', 'listing,not-a-package'] as $invalid) {
+            [$exit, $stdout, $stderr] = $this->runScript($invalid);
+            self::assertSame(2, $exit);
+            self::assertSame('', $stdout);
+            self::assertStringContainsString('not allowlisted', $stderr);
+        }
+    }
+
     /** @return array{int, string, string} */
     private function runScript(string $selection): array
     {

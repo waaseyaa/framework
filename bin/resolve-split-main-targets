@@ -35,6 +35,7 @@ $allowlist = [
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
     'field' => ['local' => 'packages/field', 'remote' => 'field'],
+    'listing' => ['local' => 'packages/listing', 'remote' => 'listing'],
     'geo' => ['local' => 'packages/geo', 'remote' => 'geo'],
     'graphql' => ['local' => 'packages/graphql', 'remote' => 'graphql'],
     'menu' => ['local' => 'packages/menu', 'remote' => 'menu'],
