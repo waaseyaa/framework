@@ -198,6 +198,7 @@ packages need more than one. Record which you applied and why the others don't a
 | [HTTP, UI and wire contracts](references/profiles/http-ui-contracts.md) | serves routes, middleware or refusals, or shares a payload contract with another language or client |
 | [Domain contracts](references/profiles/domain-contracts.md) | owns invariants, lifecycle rules, events or extension seams |
 | [Persistence and execution](references/profiles/persistence-execution.md) | writes storage, creates tables, runs jobs, retries, or reports mutation outcomes |
+| [Failure handling](references/profiles/failure-handling.md) | catches, maps, logs or renders failures, or owns a boundary whose failure outcome crosses packages |
 | [Generation and build](references/profiles/generation-build.md) | generates code, scaffolds projects, or builds artifacts |
 | [Distribution](references/profiles/distribution.md) | always, for its split-package form; plus metapackages, committed build output and no-dev installs |
 

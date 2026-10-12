@@ -1,6 +1,6 @@
 # Waaseyaa roadmap
 
-Updated 9 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
+Updated 11 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
 released capability. [Specs](specs/workflow.md) own contracts, change records own
 durable scope/evidence, and [GitHub issues](https://github.com/waaseyaa/framework/issues)
 own execution status. Product roadmaps and adoption decisions belong downstream.
@@ -29,6 +29,16 @@ controls and production no-dev composition. Read the [journey contract](specs/fr
 and [Sprint 1 handoff](change-records/FW-PACKAGE-CONVERGENCE-01.md#sprint-1-contract).
 Runtime execution has not begun. Existing urgent repairs continue; later feature
 design does not block the baseline. Package coverage and journeys are complementary.
+
+## Cross-cutting audit: failure handling
+
+[FW-FAILURE-HANDLING-01](change-records/FW-FAILURE-HANDLING-01.md) is ready for
+assessment under #3118: assess error-handler and supplement Foundation #3123
+and CLI #3117, then trace actual API/MCP and worker consumers. Decide maintained
+component fit and intended spec contracts before repairs. Existing #3198, #3014,
+#3035, #2733 and #2743 retain their diagnostic, sanitization, outcome and recovery
+ownership. J1-D supplies the first real bootstrap/HTTP failure evidence; J1 need
+not await whole-audit completion. Preparation is not runtime qualification.
 
 ## Next design slice: reusable social capabilities
 

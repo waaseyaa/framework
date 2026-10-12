@@ -35,6 +35,16 @@ programs. Supplement earlier audits without resetting their evidence or
 automatically advancing their milestones. No GitHub mutations or full-framework
 remediation are implied by this method amendment.
 
+## Failure-handling supplement (2026-10-11)
+
+[FW-FAILURE-HANDLING-01](FW-FAILURE-HANDLING-01.md) scopes the unassessed
+error-handler package and bounded supplements to Foundation #3123 and CLI #3117.
+Actual API/MCP mutation and worker paths reuse #3014/#3035/#2733/#2743 rather
+than creating duplicate defects. J1-D remains the first installation/bootstrap
+failure witness. The existing skills now route failure-boundary reviews through
+one focused profile; runtime specs own intended behavior. Package milestones
+do not advance merely because this additional acceptance is documented.
+
 ## States
 
 - **Audit:** not assessed, inventory only, in progress, assessed, needs delta review.

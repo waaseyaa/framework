@@ -12,7 +12,24 @@ closed as production-like. -->
 
 ## Overview
 
-First-class debugging, logging, and developer experience for Waaseyaa. Strategic integration approach: use existing excellent libraries (Symfony VarDumper) where reinvention is wasteful, build Waaseyaa-native solutions for error pages, toolbar, and logging config.
+First-class debugging, logging, and developer experience for Waaseyaa. Generic
+mechanisms follow the [maintained-infrastructure policy](../governance/agent-contract.md#maintained-infrastructure-before-custom-mechanisms).
+Use suitable maintained Symfony components and established integrations; retain
+Waaseyaa-specific presentation, privacy and domain policy in minimal integration
+code. The earlier blanket preference for native error pages and logging config
+is superseded. Existing custom classes below describe the current design, not
+an exemption from evaluating replacement.
+
+### Failure-handling convergence checkpoint
+
+[FW-FAILURE-HANDLING-01](../change-records/FW-FAILURE-HANDLING-01.md) owns the
+pending composition and component-fit assessment. No component migration or
+claim of end-to-end renderer wiring is established by this documentation change.
+Before runtime repair, settle the affected enduring behavior here and in the
+owning HTTP, CLI, MCP or persistence spec. Keep protocol-specific outcomes,
+debug-policy enforcement, private diagnostics and durable transaction outcomes
+explicit. Audit acceptance lives in [Framework audit journeys](framework-audit-journeys.md#cross-cutting-failure-handling);
+skills supply the method rather than a second runtime specification.
 
 ## Architecture
 

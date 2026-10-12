@@ -436,9 +436,9 @@
             "audit_base": null,
             "audit_date": null,
             "dependency_identity": null,
-            "owner_issue": null,
+            "owner_issue": "#3203",
             "evidence": [],
-            "notes": ""
+            "notes": "Assessment planned under FW-FAILURE-HANDLING-01; no runtime assessment or remediation claimed."
         },
         {
             "package": "waaseyaa/field",

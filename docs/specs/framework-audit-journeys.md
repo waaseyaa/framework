@@ -25,6 +25,23 @@ and evidence gaps. These journeys do not postpone urgent proven defects. Optiona
 packages outside early journeys still require complete package disposition.
 Reuse closed assessments and landed repairs after checking material deltas.
 
+## Cross-cutting failure handling
+
+For each applicable journey, trace failures through their real composition root
+to the public result, durable state, safe private diagnostics and recovery owner.
+Include failures before handler construction and after durable commit where
+reachable. Record expected refusal separately from unexpected, committed and
+uncertain outcomes. Debug/production and installed no-dev evidence must match the
+profiles claimed; an isolated renderer or redactor test is insufficient.
+
+[FW-FAILURE-HANDLING-01](../change-records/FW-FAILURE-HANDLING-01.md) coordinates
+the missing error-handler assessment and bounded Foundation/CLI supplements.
+It does not add another journey or require whole-audit completion before J1
+starts. J1-D supplies the first HTTP/bootstrap witness; J2/J3 supply mutation
+outcomes and J4 supplies worker/retry recovery. Reuse existing defect owners and
+record a blocker only when a failing acceptance requires that repair. Audit
+readiness does not establish runtime conformance or implementation readiness.
+
 ## J1: clean installation through the first homepage
 
 Owner: [#3199](https://github.com/waaseyaa/framework/issues/3199). Start ready for

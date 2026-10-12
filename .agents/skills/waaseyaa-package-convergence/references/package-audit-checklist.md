@@ -60,6 +60,10 @@ For PHP, prefer a scoped Deptrac configuration with uncovered dependencies repor
 
 ## Behavior and boundary integrity
 
+For cross-package exception, diagnostic or failure-outcome ownership, apply the
+[failure-handling profile](profiles/failure-handling.md). Require composition
+evidence through the final caller outcome, not only isolated catch/renderer tests.
+
 - Authentication, authorization, field access, CSRF, and information-oracle behavior
 - Validation order and stable refusal mapping
 - Refusal stack: route options, real middleware, handler non-invocation, HTTP status, and response shape

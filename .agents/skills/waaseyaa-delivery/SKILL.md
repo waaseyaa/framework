@@ -77,6 +77,15 @@ do not restart package discovery or close a journey on partial repair evidence.
 
 ## Implement and review
 
+For failure-handling changes, consume the accepted mechanism/policy decision and
+owning runtime specs. Apply the convergence skill's
+failure-handling profile at
+`.agents/skills/waaseyaa-package-convergence/references/profiles/failure-handling.md`
+to the changed boundary without restarting unaffected audits. Verify public
+outcome, durable effects and safe diagnostics together; preserve distinct
+committed/uncertain outcomes. Remove superseded mechanisms within the authorized
+slice, and record newly exposed gaps with their existing owners.
+
 For package structure and documentation changes, use the convergence
 maintainability checklist at
 `.agents/skills/waaseyaa-package-convergence/references/package-audit-checklist.md`,

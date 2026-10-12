@@ -10,6 +10,16 @@ This is a dated planning disposition, not fresh reproduction of every defect.
 Issue acceptance and package ledgers remain authoritative. Refresh before final
 closeout; do not maintain a second live queue.
 
+## Scoped supplement: 11 October 2026
+
+[#3203](https://github.com/waaseyaa/framework/issues/3203) adds failure-handling
+assessment under #3118, with bounded supplements to #3123/#3117 and J1-D.
+[FW-FAILURE-HANDLING-01](../../change-records/FW-FAILURE-HANDLING-01.md) maps the
+existing #3198/#3014/#3035/#2733/#2743 owners. This is a scoped update, not a
+refresh of the dated full-board counts below. No defect is closed or package
+assessment advanced. Project 4 records P1, Todo and Ready for assessment;
+implementation readiness remains pending contract/component decisions.
+
 ## Decisions
 
 - Keep one convergence umbrella #3118. Native sub-issues encode existing program
