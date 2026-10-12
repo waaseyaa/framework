@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Publishing\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -17,6 +18,7 @@ use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\RevisionId;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -107,6 +109,226 @@ final class ContentPublisherTest extends TestCase
     protected function tearDown(): void
     {
         EntityReadRuntime::installGuard($this->priorGuard);
+    }
+
+    #[Test]
+    public function a_swept_create_retry_cannot_recreate_erased_content_or_repeat_audit(): void
+    {
+        $store = new IdempotencyStore($this->db);
+        $store->enableIssuedKeyAdmission();
+        $originalKey = $store->issueKey();
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), $originalKey);
+        $this->db->update('publishing_idempotency')
+            ->fields(['created_at' => time() - 172801])
+            ->condition('response_json', 'null', '<>')
+            ->execute();
+        $this->publisher->createDraft($this->actor, $this->draftValues(['slug' => 'sweep-trigger']), $store->issueKey());
+
+        $outer = $this->db->transaction('delete_swept_publication');
+        try {
+            $this->repo->delete($this->repo->find((string) $draft['id']));
+            $store->eraseContentResponses($draft['uuid']);
+            $outer->commit();
+        } catch (\Throwable $failure) {
+            $outer->rollBack();
+            throw $failure;
+        }
+
+        $auditCount = count($this->audit->records);
+        try {
+            $this->publisher->createDraft($this->actor, $this->draftValues(), $originalKey);
+            self::fail('Swept retry recreated erased content.');
+        } catch (ContentNotFoundException) {
+        }
+        self::assertNull($this->repo->find((string) $draft['id']));
+        self::assertSame($auditCount, count($this->audit->records));
+        self::assertCount(1, $this->repo->findBy([]));
+    }
+
+    #[Test]
+    public function deletion_and_erasure_remove_five_snapshots_across_actors_without_retry_writes(): void
+    {
+        $store = new IdempotencyStore($this->db);
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'erase-create');
+        $id = (string) $draft['id'];
+        $second = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+        $updated = $this->publisher->updateDraft($second, $id, ['title' => 'Changed'], $draft['revision_id'], 'erase-update');
+        $published = $this->publisher->publish($this->actor, $id, $updated['revision_id'], 'erase-publish');
+        $this->publisher->unpublish($second, $id, $published['revision_id'], 'erase-unpublish');
+        $this->publisher->rollback($this->actor, $id, $draft['revision_id'], 'erase-rollback');
+        $otherValues = $this->draftValues(['slug' => 'unaffected']);
+        $other = $this->publisher->createDraft($second, $otherValues, 'other-create');
+        self::assertCount(6, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertTrue($this->repo->sharesTransactionWith($this->db));
+        $store->enableIssuedKeyAdmission();
+        $outer = $this->db->transaction('delete_and_erase');
+        try {
+            $this->repo->delete($this->repo->find($id));
+            // Reproduces the original separation: deletion leaves five snapshots.
+            $retained = array_filter(iterator_to_array($this->db->select('publishing_idempotency')->execute()),
+                static fn(array $row): bool => (json_decode($row['response_json'], true, 512, JSON_THROW_ON_ERROR)['uuid'] ?? null) === $draft['uuid']);
+            self::assertCount(5, $retained);
+            self::assertSame(5, $store->eraseContentResponses($draft['uuid']));
+            $outer->commit();
+        } catch (\Throwable $failure) {
+            $outer->rollBack();
+            throw $failure;
+        }
+        self::assertNull($this->repo->find($id));
+        self::assertSame([], $this->repo->listRevisions($id));
+        $auditCount = count($this->audit->records);
+        $rowsBefore = iterator_to_array($this->db->select('publishing_idempotency')->execute());
+        foreach ([
+            fn(): array => $this->publisher->createDraft($this->actor, $this->draftValues(), 'erase-create'),
+            fn(): array => $this->publisher->updateDraft($second, $id, ['title' => 'Changed'], $draft['revision_id'], 'erase-update'),
+            fn(): array => $this->publisher->publish($this->actor, $id, $updated['revision_id'], 'erase-publish'),
+            fn(): array => $this->publisher->unpublish($second, $id, $published['revision_id'], 'erase-unpublish'),
+            fn(): array => $this->publisher->rollback($this->actor, $id, $draft['revision_id'], 'erase-rollback'),
+        ] as $retry) {
+            try {
+                $retry();
+                self::fail('Erased retries must refuse.');
+            } catch (ContentNotFoundException) {
+            }
+        }
+        self::assertSame($auditCount, count($this->audit->records));
+        self::assertSame($rowsBefore, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+        self::assertCount(1, $this->repo->findBy([]));
+        self::assertSame($other, $this->publisher->createDraft($second, $otherValues, 'other-create'));
+        self::assertSame(0, $store->eraseContentResponses($draft['uuid']));
+    }
+
+    #[Test]
+    public function erasure_failure_rolls_back_supported_entity_deletion_and_revisions(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'rollback-erasure');
+        $store = new IdempotencyStore($this->db);
+        $store->enableIssuedKeyAdmission();
+        $this->db->query('INSERT INTO publishing_idempotency VALUES (?, ?, ?, ?, ?)', ['broken', 'op', 'hash', '{', time()]);
+        $outer = $this->db->transaction('failed_delete_and_erase');
+        try {
+            $this->repo->delete($this->repo->find($draft['id']));
+            $store->eraseContentResponses($draft['uuid']);
+            self::fail('Corrupt replay JSON must abort erasure.');
+        } catch (\JsonException) {
+            $outer->rollBack();
+        }
+        self::assertNotNull($this->repo->find($draft['id']));
+        self::assertCount(1, $this->repo->listRevisions((string) $draft['id']));
+        self::assertSame($draft, $this->publisher->createDraft($this->actor, $this->draftValues(), 'rollback-erasure'));
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function replayRevocations(): iterable
+    {
+        foreach (['create', 'update', 'publish', 'unpublish', 'rollback'] as $operation) {
+            foreach (['view', 'result-revision', ...($operation === 'create' ? [] : ['update'])] as $denial) {
+                yield $operation . '-' . $denial => [$operation, $denial];
+            }
+        }
+        yield 'rollback-source-revision' => ['rollback', 'source-revision'];
+    }
+
+    #[Test]
+    #[DataProvider('replayRevocations')]
+    public function replay_rechecks_current_access_without_repeating_side_effects(string $operation, string $denial): void
+    {
+        $policy = new class implements AccessPolicyInterface {
+            /** @var list<string> */
+            public array $deniedOperations = [];
+            /** @var list<int> */
+            public array $deniedRevisions = [];
+
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                if (in_array($operation, $this->deniedOperations, true)
+                    || ($operation === 'view_revision' && in_array((int) $entity->revisionId(), $this->deniedRevisions, true))
+                ) {
+                    return AccessResult::forbidden('Authority revoked for this request.');
+                }
+                return AccessResult::allowed('Current fixture authority.');
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed('Create remains allowed.');
+            }
+
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return $entityTypeId === 'test_article';
+            }
+        };
+        $publisher = new ContentPublisher($this->descriptor(), $this->repo, new IdempotencyStore($this->db), $this->audit, new EntityAccessHandler([$policy]));
+        if ($operation === 'create') {
+            $request = fn(): array => $publisher->createDraft($this->actor, $this->draftValues(), 'replay');
+        } else {
+            $draft = $publisher->createDraft($this->actor, $this->draftValues(), 'seed');
+            $id = (string) $draft['id'];
+            $published = $operation === 'unpublish'
+                ? $publisher->publish($this->actor, $id, $draft['revision_id'], 'seed-publish')
+                : null;
+            if ($operation === 'rollback') {
+                $publisher->updateDraft($this->actor, $id, ['title' => 'Edited'], $draft['revision_id'], 'seed-update');
+            }
+            $request = match ($operation) {
+                'update' => fn(): array => $publisher->updateDraft($this->actor, $id, ['title' => 'Edited'], $draft['revision_id'], 'replay'),
+                'publish' => fn(): array => $publisher->publish($this->actor, $id, $draft['revision_id'], 'replay'),
+                'unpublish' => fn(): array => $publisher->unpublish($this->actor, $id, $published['revision_id'], 'replay'),
+                'rollback' => fn(): array => $publisher->rollback($this->actor, $id, $draft['revision_id'], 'replay'),
+            };
+        }
+        $first = $request();
+        $id = (string) $first['id'];
+        // A later legitimate edit must not make the original retry rerun its
+        // stale expected-revision check or replace its original response.
+        $publisher->updateDraft($this->actor, $id, ['title' => 'Later'], $first['revision_id'], 'later');
+        $revisions = fn(): array => array_map(static fn(EntityInterface $revision): ?int => RevisionId::of($revision), $this->repo->listRevisions($id));
+        $history = $revisions();
+        $audits = $this->audit->records;
+        self::assertSame($first, $request());
+        if ($denial === 'view' || $denial === 'update') {
+            $policy->deniedOperations = [$denial];
+        } else {
+            $policy->deniedRevisions = [$denial === 'source-revision' ? $draft['revision_id'] : $first['revision_id']];
+        }
+        try {
+            $request();
+            self::fail('Replay released content after authority was revoked.');
+        } catch (ContentAuthorizationException|ContentNotFoundException $error) {
+            self::assertInstanceOf($denial === 'update' ? ContentAuthorizationException::class : ContentNotFoundException::class, $error);
+        }
+        self::assertSame($history, $revisions());
+        self::assertSame($audits, $this->audit->records);
+        $policy->deniedOperations = [];
+        $policy->deniedRevisions = [];
+        self::assertSame($first, $request(), 'Refusal must retain the original replay record.');
+        self::assertSame($history, $revisions());
+        self::assertSame($audits, $this->audit->records);
+    }
+
+    #[Test]
+    public function replay_does_not_resolve_a_deleted_result_through_a_reassigned_slug(): void
+    {
+        $publisher = new ContentPublisher($this->authoredDescriptor(), $this->repo, new IdempotencyStore($this->db), $this->audit, $this->ownerAccessHandler());
+        $first = $publisher->createDraft($this->actor, $this->draftValues(), 'original');
+        $this->repo->delete($this->repo->find($first['id']));
+        $publisher->createDraft($this->actor, $this->draftValues(['slug' => (string) $first['id']]), 'numeric-slug');
+        $this->expectException(ContentNotFoundException::class);
+        $publisher->createDraft($this->actor, $this->draftValues(), 'original');
+    }
+
+    #[Test]
+    public function replay_refuses_a_pruned_result_revision_even_when_current_content_is_readable(): void
+    {
+        $publisher = new ContentPublisher($this->authoredDescriptor(), $this->repo, new IdempotencyStore($this->db), $this->audit, $this->ownerAccessHandler());
+        $first = $publisher->createDraft($this->actor, $this->draftValues(), 'original');
+        $id = (string) $first['id'];
+        $publisher->updateDraft($this->actor, $id, ['title' => 'Later'], $first['revision_id'], 'later');
+        $this->db->query('DELETE FROM test_article_revision WHERE revision_id = ?', [$first['revision_id']]);
+        self::assertSame('Later', $publisher->get($this->actor, $id)['title']);
+        $this->expectException(ContentNotFoundException::class);
+        $publisher->createDraft($this->actor, $this->draftValues(), 'original');
     }
 
     private function descriptor(): ContentTypeDescriptor

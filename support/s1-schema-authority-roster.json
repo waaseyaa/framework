@@ -12181,6 +12181,20 @@
         },
         {
             "path": "packages/publishing/tests/Unit/IdempotencyStoreTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "1ab9dbec296973a8e5b48b02a9f1b35760bc1acb51c6d88cf54b93b16ae5c2ca",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/publishing/tests/Unit/IdempotencyStoreTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/publishing/tests/Unit/IdempotencyStoreTest.php",
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",

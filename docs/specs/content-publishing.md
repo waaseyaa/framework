@@ -194,6 +194,25 @@ All mutations require: (1) the descriptor's `publishCapability` on the acting pr
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
 
+**Stored mutation responses require current authority.** An idempotency replay
+does not repeat the mutation, but it releases content in the current request.
+With an entity access handler composed, update/publish/unpublish/rollback replay
+must pass update access on the current working copy (UNAUTHORIZED on refusal).
+Every mutation replay, including create, also requires current entity view and
+view_revision for the exact stored response revision, when revisioned; hidden,
+missing or unavailable content is NOT_FOUND. Rollback additionally rechecks its
+source revision. Resolve the result by its stored entity identity and UUID,
+never a reassigned slug. Capability/create checks still precede lookup. The
+explicit handler-free composition retains its capability-only authority.
+
+After request-fingerprint matching, IdempotencyStore invokes the publisher's
+replay authorization callback inside the existing transaction before returning
+stored bytes. A refusal retains the replay record. Authorized replay preserves
+the original response even after later revisions, without rechecking stale
+optimistic preconditions, payload validation or transitions, and without
+repeating saves, audit or completion work. Conflicting reuse and actor-scoped
+partitioning remain unchanged.
+
 `ContentPublisher` accepts an optional `ContentPublicationTransitionerInterface`. When the transitioner reports that an entity is workflow-bound, publication changes must pass through that transitioner after the publisher has asserted the caller's expected revision. The workflows package supplies the canonical adapter: it chooses exactly one currently permitted transition whose target state has the requested `published` value and is a default revision, invokes `TransitionService`, and reloads the working copy. No candidate or an ambiguous candidate set fails with the structured `WORKFLOW_TRANSITION_UNAVAILABLE` publishing error. Direct status-field writes remain the compatibility path only for content without a workflow binding.
 
 | Method | Semantics |
@@ -209,7 +228,87 @@ Sanitization is **lossy-at-input by design** for this surface (unlike the read-b
 
 ### IdempotencyStore
 
-Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type, bundle, **and acting principal** before storage, so neither independent bundle-scoped surfaces nor independent publishers can replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one partition, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; before commit, a projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`). A completion callback failure raised by the outer commit instead leaves the mutation and replay record durable and surfaces `TransactionCompletionException` without a fictional rollback. Same-key replay remains mutation-safe but does not re-run the failed completion work; a new-key retry can duplicate the committed write. The caller-visible HTTP, MCP, and CLI committed-outcome signal remains owned by #2999.
+Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type, bundle, **and acting principal** before storage, so neither independent bundle-scoped surfaces nor independent publishers can replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one partition, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; before commit, a projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. The default 48-hour TTL ends response retention: ordinary sweep clears the response, request hash, operation and creation time and keeps the opaque key as a permanent refusal marker. It never admits an expired retry as a new mutation. Self-creating table (portable schema builder, mirrors `rate_limits`). A completion callback failure raised by the outer commit instead leaves the mutation and replay record durable and surfaces `TransactionCompletionException` without a fictional rollback. Same-key replay remains mutation-safe but does not re-run the failed completion work; a new-key retry can duplicate the committed write. The caller-visible HTTP, MCP, and CLI committed-outcome signal remains owned by #2999.
+
+#### Targeted publication replay erasure
+
+`IdempotencyStore::eraseContentResponses(string $uuid): int` removes every
+retained response whose top-level `uuid` exactly matches the canonical entity
+UUID, across all actors, descriptors and mutation verbs. It returns the count
+of newly erased records. This trusted storage lifecycle operation does not
+authorize erasure and must not be exposed directly to untrusted callers.
+Capture the UUID before supported repository deletion; compose deletion and
+erasure in one outer managed transaction on the same database object. Verify
+`EntityRepository::sharesTransactionWith($database)` before composing them.
+UUIDs must identify unique aggregates across this store and must never be
+reassigned. Numeric entity IDs, slugs and substring matches are insufficient.
+
+For every affected row, `response_json` becomes literal JSON `null`; operation,
+request hash and creation time are cleared. Only the existing opaque key has
+meaning in the retained marker. Clearing the request hash removes the digest
+derived from erased content. Any use of an erased key, with either the original
+or a changed payload, raises `ContentNotFoundException` before authorization
+callback or operation execution. This refusal takes precedence over conflict
+comparison for erased keys; conflicts and current replay authorization remain
+unchanged for unaffected responses.
+
+Markers do not expire. The TTL sweep also converts ordinary expired responses
+to markers, so even a sweep before entity deletion cannot lose retry protection.
+Retention is limited to the
+opaque key and schema-required empty/sentinel values, with no UUID, actor,
+content, request fingerprint or response projection retained in the marker.
+This content-free marker guarantee applies to opaque ContentPublisher keys.
+Direct store callers with an empty namespace retain their raw client key and
+must ensure it contains no content; content-bearing raw legacy keys require
+separate remediation before claiming complete erasure. The operation retains
+the key verbatim and does not establish its provenance.
+No schema migration is required. Existing/legacy response rows are scanned
+without decoding the opaque key namespace, including expired rows still present.
+Already-swept legacy keys cannot be recovered. Before the first erasure, the
+consumer must stop old ingress, call `IdempotencyStore::enableIssuedKeyAdmission()`
+on the same durable database, then resume ingress using keys from
+`IdempotencyStore::issueKey()`. This irreversible admission switch is stored in
+`publishing_idempotency`; erasure refuses before any write until it is enabled.
+The switch stores a random admission secret in a reserved, content-free policy
+row. `issueKey()` is unavailable before the switch and returns
+`pub1.<unix-seconds>.<32 hex nonce>.<64 hex HMAC>`. An unknown key must have
+a valid MAC under that secret and a timestamp within the store's TTL and no
+later than its clock. The secret is not a response snapshot or entity marker.
+An absent policy row means admission has never been enabled. An existing row
+with an invalid response marker, secret shape, operation sentinel or creation
+sentinel is a corrupt cutover, not an absent one. Execution validates this row
+before replay or TTL cleanup and fails with the non-secret
+`Publication key admission state is invalid.` error; transaction rollback
+prevents cleanup writes from committing. Key issuance, erasure and repeated
+cutover also refuse invalid state. Recovery requires stopping publication
+ingress and restoring the original policy row, including its secret, from a
+trusted backup before resuming. If that secret is unrecoverable, keep the
+surface closed and arrange a separately reviewed recovery migration; never
+delete the row or generate a replacement secret in place.
+Unknown legacy keys, including ones already swept by an older version, refuse
+before mutation. Retained legacy rows can replay under current authorization;
+their expiration converts them to markers. The issuer's timestamp is an
+admission bound for exact-key retries, not an authentication credential; normal
+publication authorization still applies. Consumers must keep the same key on
+retry and deliver newly issued keys to their clients through their own trusted
+integration. A new key remains a new request, not duplicate-content detection.
+
+Erasure itself never sweeps. Retries of erased keys never sweep or write any row. Ordinary
+requests sweep inside their transaction; a failed request rolls that cleanup
+back. Repeating successful erasure returns zero. Invalid
+retained JSON or a database failure aborts the transaction with no partial
+erasure. A rollback of the caller's outer transaction restores both deletion and
+snapshots; retry the whole coordinated operation. Process interruption before
+commit relies on database transaction rollback; after commit the markers persist.
+A completion callback failure after commit is a committed outcome and must not
+be reported as rolled back. Consumers must serialize/fence publication at the
+supported deletion transaction boundary; publishing mutations and response
+inserts already share that database transaction. No cross-database atomicity or
+external audit erasure is promised.
+
+Acceptance is pinned by the store erasure tests and the publisher's real SQLite
+deletion/erasure and rollback controls. The enduring decision and evidence owner
+is [FW-PUBLICATION-REPLAY-ERASURE-01](../change-records/FW-PUBLICATION-REPLAY-ERASURE-01.md).
 
 #### Actor-scoped partitioning (framework #2555)
 
