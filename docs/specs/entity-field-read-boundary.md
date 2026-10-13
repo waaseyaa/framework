@@ -500,6 +500,37 @@ backends committed. The strict failure finalization records that invocation
 started; existing `PartialSaveException` committed/uncommitted reporting and
 application-owned reconciliation semantics remain unchanged.
 
+### Boot query-probe durability batches (#3204)
+
+`BatchStrictFieldStorageGatewayAuditInterface` is an optional capability of the
+strict gateway audit, implemented by both database-backed Framework writers.
+Definition validation plans indexed fields without invoking a backend, then
+batches adjacent probes that resolve to the same gateway, including across
+entity types. Field and backend execution order is preserved. Planning errors
+such as an unknown backend refuse before any planned probe is executed.
+
+Each field retains its own value-free reservation and terminal outcome. All
+reservations in a batch commit before fingerprint validation or backend calls;
+no database transaction spans a callback. Outcomes commit together before
+results return to definition validation. A false capability result is an
+audited successful invocation and still fails definition validation. Remaining
+planned probes are not invoked and finalize as `failed_closed`. Fingerprint
+failures, exceptions and forged outputs retain their started/closed distinction.
+
+The database implementations require the concrete DBAL connection outside an
+outer transaction: releasing a savepoint is not durable reservation. Wrapped
+or custom database implementations cannot claim this batching capability
+without establishing that boundary. Custom single-operation audit providers
+retain ordered synchronous per-probe auditing; no batching availability claim
+is made for them. Read, write and delete operations never use probe batching.
+
+A failed reservation transaction leaves no returned receipt and invokes no
+backend. Failed outcome persistence refuses validation and leaves the committed
+reservations unfinished. Process interruption between the two commits likewise
+leaves unfinished reservations; they must not be interpreted as successful or
+silently repaired on the next boot. A later boot creates fresh attempts. There
+is no callback replay, audit suppression, durability relaxation or timeout change.
+
 WP4 activates the no-shim field-storage gateway in one change:
 
 1. convert first-party and approved extension backends to

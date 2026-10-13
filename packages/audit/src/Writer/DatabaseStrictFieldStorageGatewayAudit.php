@@ -6,14 +6,16 @@ namespace Waaseyaa\Audit\Writer;
 
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\EntityStorage\Backend\BatchStrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayAttempt;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayAuditReceipt;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayFailure;
-use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
+use Waaseyaa\EntityStorage\Backend\QueryProbeAuditBatching;
 
 /** Durable reserve/finalize ledger for registrar-owned field-storage gateways. @api */
-final class DatabaseStrictFieldStorageGatewayAudit implements StrictFieldStorageGatewayAuditInterface
+final class DatabaseStrictFieldStorageGatewayAudit implements BatchStrictFieldStorageGatewayAuditInterface
 {
+    use QueryProbeAuditBatching;
     private DatabaseInterface $database;
 
     /** @var \WeakMap<FieldStorageGatewayAuditReceipt, string> */
@@ -21,6 +23,7 @@ final class DatabaseStrictFieldStorageGatewayAudit implements StrictFieldStorage
 
     public function __construct(DatabaseInterface $database)
     {
+        $this->batchDatabase = $database instanceof \Waaseyaa\Database\DBALDatabase ? $database : null;
         $this->database = $database instanceof AppendOnlyAuditDatabase
             ? $database
             : new AppendOnlyAuditDatabase($database);

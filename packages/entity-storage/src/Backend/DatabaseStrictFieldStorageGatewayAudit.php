@@ -14,13 +14,15 @@ use Waaseyaa\Database\DatabaseInterface;
  *
  * @internal
  */
-final class DatabaseStrictFieldStorageGatewayAudit implements StrictFieldStorageGatewayAuditInterface
+final class DatabaseStrictFieldStorageGatewayAudit implements BatchStrictFieldStorageGatewayAuditInterface
 {
+    use QueryProbeAuditBatching;
     /** @var \WeakMap<FieldStorageGatewayAuditReceipt, string> */
     private \WeakMap $receiptIds;
 
     public function __construct(private readonly DatabaseInterface $database)
     {
+        $this->batchDatabase = $database instanceof \Waaseyaa\Database\DBALDatabase ? $database : null;
         new StrictLedgerSchema($database)->ensure();
         $this->receiptIds = new \WeakMap();
     }

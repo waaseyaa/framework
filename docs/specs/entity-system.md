@@ -2676,6 +2676,14 @@ types and before the booted flag is set. It throws `UnsupportedQueryException`
 when any indexed field's resolved backend reports `supportsQuery()` = `false`.
 Boot fails immediately — there is no silent fallback and no runtime retry.
 
+The boot path plans indexed fields and batches adjacent probes on the same
+gateway when its audit supports durable batches (#3204). Every field keeps its
+reservation/outcome pair. Reservations commit before callbacks and outcomes
+commit before validation returns; no transaction spans backend invocation.
+The first unsupported field still refuses boot and subsequent probes are not
+invoked. See `entity-field-read-boundary.md`, "Boot query-probe durability
+batches", for failure, interruption and custom-provider contracts.
+
 ### Revisionable entities (WP07–WP09)
 
 Entity types that opt in to revisioning declare `isRevisionable(): true` and set

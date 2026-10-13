@@ -576,6 +576,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `BackendResolver` | final class | public | Resolves which backend handles a given `FieldDefinition` (M-001, WP02) |
 | `Backend\BackendRegistrar` | final class | public | Registers field storage backends by id for an entity type (M-001, WP01) |
 | `Backend\BackendRegistrarFactory` | final class | public | Creates a `BackendRegistrar` bound to a specific entity type (M-001, WP01) |
+| `Backend\BatchStrictFieldStorageGatewayAuditInterface` | interface | public | Durable reservation and outcome batches for ordered boot query probes (#3204) |
 | `Backend\FieldStorageBackendGateway` | final class | public | Registrar-owned V2 facade that reserves strict audit and never exposes the implementation (#2064 WP3) |
 | `Backend\FieldStorageBackendV2Interface` | interface | public | Active fingerprinted privileged backend SPI; accepts only registrar-issued roles and opaque inputs (#2064 WP4) |
 | `Backend\FieldStorageGatewayAttempt` | final readonly class | public | Value-free strict-audit descriptor reserved before invocation (#2064 WP3) |
@@ -588,6 +589,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Backend\FieldStorageGatewayRole` | final class | public | Opaque registrar-issued role required to unwrap inputs and construct results (#2064 WP3) |
 | `Backend\HasFieldStorageBackendsV2Interface` | interface | public | Provider capability for reviewed V2 field-storage implementations (#2064 WP3) |
 | `Backend\IsFrameworkBackendProviderV2Interface` | interface | public | Marker allowing framework-owned V2 providers to claim reserved backend ids (#2064 WP3) |
+| `Backend\QueryProbeAuditBatching` | trait | internal | — |
 | `Backend\ReservedBackendIds` | final class | public | String constants for built-in backend ids: `SQL_BLOB`, `SQL_COLUMN`, `VECTOR` (M-001, WP01) |
 | `Backend\SqlBlobBackend` | final class | public | Stores field values in a JSON `_data` blob column; `supportsQuery()` always false (M-001, WP03) |
 | `Backend\SqlColumnBackend` | final class | public | Stores each field in a dedicated SQL column; `supportsQuery()` true for non-vector types (M-001, WP05) |

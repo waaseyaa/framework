@@ -523,6 +523,19 @@ Ordering is always `created_at DESC`.
 ---
 
 
+## Field-storage query probes (#3204)
+
+The separate `DatabaseStrictFieldStorageGatewayAudit` writes to
+`privileged_read_ledger`. Its optional query-probe batch capability groups
+reservation persistence and outcome persistence into separate committed
+transactions, preserving one descriptor and outcome per field. It never holds
+a transaction across a backend invocation. Reservation failure prevents all
+invocations; finalization failure prevents successful validation. Interrupted
+batches remain explicitly unfinished. Read/write/delete calls retain their
+single-operation semantics. See `entity-field-read-boundary.md`, "Boot
+query-probe durability batches", for the canonical contract. This does not
+change `DatabaseStrictPrivilegedReadLedger` or best-effort telemetry.
+
 ## Strict reserve/finalize ledger (`strict_audit_ledger`, #2177 F4)
 
 A second, deliberately **non**-best-effort write path, alongside `AuditWriterInterface`.

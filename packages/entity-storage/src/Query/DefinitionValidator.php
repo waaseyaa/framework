@@ -54,32 +54,41 @@ final class DefinitionValidator
      */
     public function validateAll(): void
     {
-        foreach ($this->entityTypeManager->getDefinitions() as $entityType) {
-            $this->validateType($entityType);
-        }
+        $this->validateTypes($this->entityTypeManager->getDefinitions());
     }
 
-    /**
-     * Validate query support for a single entity type.
-     *
-     * @throws UnsupportedQueryException
-     */
+    /** Validate one type using the same durable probe boundary as full boot. */
     public function validateType(EntityTypeInterface $entityType): void
     {
-        $fieldDefinitions = $entityType->getFieldDefinitions();
+        $this->validateTypes([$entityType]);
+    }
 
-        foreach ($fieldDefinitions as $field) {
-            if (!$field instanceof FieldDefinition) {
-                // Non-FieldDefinition entries (e.g. FieldDefinitionInterface stubs) are skipped.
-                continue;
+    /** @param iterable<EntityTypeInterface> $types */
+    private function validateTypes(iterable $types): void
+    {
+        // Plan first, then batch only adjacent uses of the same registrar-owned
+        // gateway. Neither backend order nor first-unsupported refusal changes.
+        $runs = [];
+        foreach ($types as $entityType) {
+            foreach ($entityType->getFieldDefinitions() as $field) {
+                if (!$field instanceof FieldDefinition || !$field->isIndexed()) {
+                    continue;
+                }
+                $backend = $this->backendResolver->resolve($entityType, $field);
+                $last = array_key_last($runs);
+                if ($last === null || $runs[$last]['backend'] !== $backend) {
+                    $runs[] = ['backend' => $backend, 'fields' => [], 'types' => []];
+                    $last = array_key_last($runs);
+                }
+                $runs[$last]['fields'][] = $field;
+                $runs[$last]['types'][] = $entityType;
             }
-
-            if (!$field->isIndexed()) {
-                // No declared query need — skip.
-                continue;
+        }
+        foreach ($runs as $run) {
+            $results = $run['backend']->supportsQueries($run['fields'], new class implements EntityQuery {});
+            foreach ($results as $index => $supported) {
+                $this->validateResult($run['types'][$index], $run['fields'][$index], $run['backend']->id(), $supported);
             }
-
-            $this->validateField($entityType, $field);
         }
     }
 
@@ -88,20 +97,9 @@ final class DefinitionValidator
      *
      * @throws UnsupportedQueryException
      */
-    private function validateField(EntityTypeInterface $entityType, FieldDefinition $field): void
+    private function validateResult(EntityTypeInterface $entityType, FieldDefinition $field, string $backendId, bool $supported): void
     {
-        $backend = $this->backendResolver->resolve($entityType, $field);
-
-        // Use a bare EntityQuery marker — EntityQuery is still a marker interface
-        // (WP06 enriches it). The validator probes general query support for the
-        // field; operator-level granularity belongs to the declared-queries API
-        // introduced in a later WP.
-        $probe = new class implements EntityQuery {};
-
-        $supported = $backend->supportsQuery($field, $probe);
-
         if (!$supported) {
-            $backendId = $backend->id();
             $fieldId = $field->getName();
             $reason = sprintf(
                 'field "%s" on entity type "%s" is marked indexed but backend "%s" '
@@ -125,7 +123,7 @@ final class DefinitionValidator
         $this->logger->debug('DefinitionValidator: query support check passed', [
             'entity_type' => $entityType->id(),
             'field'       => $field->getName(),
-            'backend'     => $backend->id(),
+            'backend'     => $backendId,
         ]);
     }
 }

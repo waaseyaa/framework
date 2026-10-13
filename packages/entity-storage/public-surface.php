@@ -31,6 +31,8 @@ return [
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\SqlColumnQueryTranslator', 'disposition' => 'public', 'purpose' => 'Translates field-level query predicates to SQL for `SqlColumnBackend` (M-001, WP05)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\SqlColumnSchemaBuilder', 'disposition' => 'public', 'purpose' => 'Builds SQL column schema for `SqlColumnBackend` (M-001, WP05)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\StrictFieldStorageGatewayAuditInterface', 'disposition' => 'public', 'purpose' => 'Synchronous reserve/success/failure audit required for V2 gateway activation (#2064 WP3)'],
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\BatchStrictFieldStorageGatewayAuditInterface', 'disposition' => 'public', 'purpose' => 'Durable reservation and outcome batches for ordered boot query probes (#3204)'],
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\QueryProbeAuditBatching', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Backend\\TypeMapping', 'disposition' => 'public', 'purpose' => 'Maps `FieldDefinition` type strings to DBAL column types (M-001, WP05)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Connection\\ConnectionResolverInterface', 'disposition' => 'public', 'purpose' => 'Resolves named database connections; multi-tenancy seam for entity storage'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\ContextualEntityLoaderInterface', 'disposition' => 'internal'],
