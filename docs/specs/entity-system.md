@@ -2523,7 +2523,7 @@ third party.
 
 Before #2160 that provider did not exist and nothing else implemented the
 interface, so the registrar was **empty in every application**. Nothing noticed,
-because `DefinitionValidator::validateType()` skips every field that is not
+because `DefinitionValidator::validateAll()` skips every field that is not
 `isIndexed()` and `BackendResolver::resolve()` — the registrar's only live
 consumer — is reached only for indexed fields. #2157 made `indexed: true`
 declarable, and the first application to use it aborted `db:init` with

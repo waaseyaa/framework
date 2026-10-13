@@ -17,7 +17,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * fixtures. `BackendRegistrarFactory` keeps only classes implementing that
  * interface, so every real application booted with an **empty** registrar.
  *
- * That stayed invisible because `DefinitionValidator::validateType()` skips
+ * That stayed invisible because `DefinitionValidator::validateAll()` skips
  * every field that is not `isIndexed()`, and `BackendResolver::resolve()` — the
  * registrar's only live consumer — is reached only for indexed fields. Until
  * #2157 made `indexed: true` declarable from `#[Field]`, no shipped entity type

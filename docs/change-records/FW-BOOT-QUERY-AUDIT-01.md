@@ -116,3 +116,16 @@ synchronous mode, busy timeout, SQL/transaction lifetimes and sync timings.
 Investigate the storage-latency cause separately. Existing stopped environments
 require explicit maintainer approval before reuse. No release, tags, splits or
 deployment are authorized by this record; the alpha hold remains.
+
+## Hosted qualification correction
+
+The first full hosted run on `6ca90328cb679adcdedf5dd2265d86cfe593d71e`
+identified an unused `DefinitionValidator::validateType()` wrapper after boot
+moved to cross-type batching. Repository and supplied consumer probe searches
+found no invocation. Remove that superseded wrapper and correct its prose
+references. `validateAll()`, the planned probe sequence, durable persistence,
+backend invocation and every tested failure behavior remain byte-for-byte
+unchanged. No dead-code suppression or compatibility shim is introduced.
+This changes the source candidate identity and requires focused independent
+review and fresh exact-head hosted qualification. The integration handoff must
+retain the originally consumer-qualified SHA and enumerate this delta.

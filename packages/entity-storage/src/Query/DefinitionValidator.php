@@ -23,7 +23,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * {@see FieldDefinition::isIndexed()} as the sole signal that a field has
  * declared query needs. A field is skipped unless `isIndexed() === true`.
  *
- * When an EntityType declared-queries API is added, extend `validateType()`
+ * When an EntityType declared-queries API is added, extend `validateTypes()`
  * to iterate those declarations and probe `supportsQuery()` per operator.
  *
  * ## Fail-fast contract
@@ -55,12 +55,6 @@ final class DefinitionValidator
     public function validateAll(): void
     {
         $this->validateTypes($this->entityTypeManager->getDefinitions());
-    }
-
-    /** Validate one type using the same durable probe boundary as full boot. */
-    public function validateType(EntityTypeInterface $entityType): void
-    {
-        $this->validateTypes([$entityType]);
     }
 
     /** @param iterable<EntityTypeInterface> $types */
