@@ -7,6 +7,7 @@ namespace Waaseyaa\User;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
@@ -18,11 +19,12 @@ use Waaseyaa\Entity\EntityInterface;
  * Access policy for user entities.
  *
  * - View: active accounts visible with 'access user profiles'; blocked accounts admin-only.
- * - Update: own account always allowed; others require 'administer users'.
+ * - Update: own account allowed; others need admin or an exact consumer delegate.
  * - Delete: admin-only; self-deletion is forbidden.
- * - Create: admin-only.
+ * - Create: admin or an immutable authenticated consumer-delegated actor.
  * - Field edit: privilege-bearing fields (roles, permissions, status, email_verified)
- *   require 'administer users' even on one's own account; credential / 2FA material
+ *   require 'administer users' even on one's own account, except a delegated
+ *   active-status change; credential / 2FA material
  *   is never reachable through the generic field surface. This closes the JSON:API
  *   mass-assignment escalation where a non-admin self-PATCHes `roles: ['administrator']`
  *   — and the same surface must not accept `legacy_pass`, a password equivalent.
@@ -30,9 +32,11 @@ use Waaseyaa\Entity\EntityInterface;
 #[PolicyAttribute(entityType: 'user')]
 final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
+    public function __construct(private readonly ?UserManagementDelegateInterface $managementDelegate = null) {}
+
     /**
      * Privilege-bearing fields a non-administrator must never edit — not even on their
-     * own account. Editing any of these requires the 'administer users' permission;
+     * own account. Except delegated status, these need 'administer users';
      * without it the field is Forbidden, which is what `EntityAccessHandler::checkFieldAccess()`
      * (and therefore the JSON:API write path) rejects on.
      *
@@ -77,6 +81,12 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
         assert($entity instanceof User);
 
+        if ($operation === 'update' && $account instanceof AuthorizationPrincipalInterface
+            && $account->isAuthenticated()
+            && $this->managementDelegate?->canUpdate($entity, $account)) {
+            return AccessResult::allowed('Consumer delegate admits this actor and account target.');
+        }
+
         return match ($operation) {
             'view' => $this->viewAccess($entity, $account),
             'update' => $this->updateAccess($entity, $account),
@@ -89,6 +99,13 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     {
         if ($account->hasPermission('administer users')) {
             return AccessResult::allowed('User has "administer users" permission.');
+        }
+
+        if ($entityTypeId === 'user' && $bundle === 'user'
+            && $account instanceof AuthorizationPrincipalInterface
+            && $account->isAuthenticated()
+            && $this->managementDelegate?->canCreate($account)) {
+            return AccessResult::allowed('Consumer delegate admits account creation for this actor.');
         }
 
         return AccessResult::neutral('Only administrators can create accounts.');
@@ -113,6 +130,14 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
         if ($operation === 'edit' && in_array($fieldName, self::PRIVILEGED_EDIT_FIELDS, true)) {
             if ($account->hasPermission('administer users')) {
                 return AccessResult::neutral(sprintf("'administer users' may edit '%s'.", $fieldName));
+            }
+
+            if ($fieldName === 'status' && $entity instanceof User
+                && $account instanceof AuthorizationPrincipalInterface
+                && $account->isAuthenticated()
+                && $this->managementDelegate?->canUpdate($entity, $account)
+                && $this->managementDelegate->canChangeActiveStatus($entity, $account)) {
+                return AccessResult::allowed('Consumer delegate admits active-status changes for this target.');
             }
 
             return AccessResult::forbidden(

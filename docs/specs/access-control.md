@@ -138,6 +138,23 @@ Authoritative dispositions are in each element's owning package-local `packages/
 
 ## Core Interfaces
 
+### Consumer-scoped User management
+
+`Waaseyaa\User\UserManagementDelegateInterface` is an optional constructor
+dependency of the canonical `UserAccessPolicy`. A consumer may bind a stateless
+implementation through its service provider to admit a bounded account operator
+without granting `administer users`. Decisions receive an authenticated immutable
+authorization principal and, for update, the exact target User. The consumer
+must use audited target inputs and its own consent/roster scope.
+
+The delegate may admit canonical `user` creation, target update and active
+`status` edits. Status needs both update admission and explicit status admission.
+It cannot authorize role/permission/email-verification edits, generic credential
+writes, deletion or field-read release. Anonymous and mutable account inputs
+never reach the delegate. Without a binding, existing User policy is unchanged.
+EntityAccessHandler remains the composition authority. This extension is not a
+provisioning service, alternate authentication path or audit writer.
+
 ### AccessPolicyInterface
 
 **File:** `packages/access/src/AccessPolicyInterface.php`
