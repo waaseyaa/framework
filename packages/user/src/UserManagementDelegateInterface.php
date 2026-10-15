@@ -16,8 +16,6 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
  */
 interface UserManagementDelegateInterface
 {
-    public function canCreate(AuthorizationPrincipalInterface $actor): bool;
-
     public function canUpdate(User $target, AuthorizationPrincipalInterface $actor): bool;
 
     public function canChangeActiveStatus(User $target, AuthorizationPrincipalInterface $actor): bool;

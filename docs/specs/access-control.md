@@ -147,10 +147,13 @@ without granting `administer users`. Decisions receive an authenticated immutabl
 authorization principal and, for update, the exact target User. The consumer
 must use audited target inputs and its own consent/roster scope.
 
-The delegate may admit canonical `user` creation, target update and active
-`status` edits. Status needs both update admission and explicit status admission.
-It cannot authorize role/permission/email-verification edits, generic credential
-writes, deletion or field-read release. Anonymous and mutable account inputs
+The delegate may admit target update and active `status` edits. Status needs
+both update admission and explicit status admission. Generic account creation
+stays administrator-only: an actor-only create predicate cannot establish a
+consumer's verified consent intake. A separate approved-intake provisioning
+boundary is required for that workflow. The delegate cannot authorize
+role/permission/email-verification edits, generic credential writes, deletion
+or field-read release. Anonymous and mutable account inputs
 never reach the delegate. Without a binding, existing User policy is unchanged.
 EntityAccessHandler remains the composition authority. This extension is not a
 provisioning service, alternate authentication path or audit writer.

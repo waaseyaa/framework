@@ -30,7 +30,7 @@ final class DelegatedUserManagementTest extends TestCase
         $policy = new UserAccessPolicy($this->delegate());
         $handler = new EntityAccessHandler([$policy]);
         $target = new User(['uid' => 20]);
-        self::assertTrue($policy->createAccess('user', 'user', $this->principal())->isAllowed());
+        self::assertFalse($policy->createAccess('user', 'user', $this->principal())->isAllowed());
         self::assertTrue($handler->check($target, 'update', $this->principal())->isAllowed());
         self::assertFalse($handler->check(new User(['uid' => 21]), 'update', $this->principal())->isAllowed());
         self::assertFalse($handler->check($target, 'update', $this->principal(11))->isAllowed());
@@ -74,7 +74,6 @@ final class DelegatedUserManagementTest extends TestCase
     {
         return new class($updates) implements UserManagementDelegateInterface {
             public function __construct(private readonly bool $updates) {}
-            public function canCreate(AuthorizationPrincipalInterface $actor): bool { return $actor->id() === 10; }
             public function canUpdate(User $target, AuthorizationPrincipalInterface $actor): bool { return $this->updates && $actor->id() === 10 && $target->id() === 20; }
             public function canChangeActiveStatus(User $target, AuthorizationPrincipalInterface $actor): bool { return true; }
         };

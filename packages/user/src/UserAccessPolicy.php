@@ -21,7 +21,7 @@ use Waaseyaa\Entity\EntityInterface;
  * - View: active accounts visible with 'access user profiles'; blocked accounts admin-only.
  * - Update: own account allowed; others need admin or an exact consumer delegate.
  * - Delete: admin-only; self-deletion is forbidden.
- * - Create: admin or an immutable authenticated consumer-delegated actor.
+ * - Create: admin-only; consent-aware provisioning is a separate boundary.
  * - Field edit: privilege-bearing fields (roles, permissions, status, email_verified)
  *   require 'administer users' even on one's own account, except a delegated
  *   active-status change; credential / 2FA material
@@ -99,13 +99,6 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     {
         if ($account->hasPermission('administer users')) {
             return AccessResult::allowed('User has "administer users" permission.');
-        }
-
-        if ($entityTypeId === 'user' && $bundle === 'user'
-            && $account instanceof AuthorizationPrincipalInterface
-            && $account->isAuthenticated()
-            && $this->managementDelegate?->canCreate($account)) {
-            return AccessResult::allowed('Consumer delegate admits account creation for this actor.');
         }
 
         return AccessResult::neutral('Only administrators can create accounts.');
