@@ -1,16 +1,20 @@
 # Framework and builder product boundaries
 
-Decision date: 2026-09-16. Accepted architectural direction, not a claim of
-complete downstream acceptance. Record: `WAASEYAA-BUILDER-DIRECTION-01`.
+Updated 2026-10-16. Accepted architectural direction, retained Waaseyaa Studio
+name, developer focus and hosted-browser pilot requirement. Exact pilot scope
+and commercial packaging remain proposed. Record: `WAASEYAA-BUILDER-DIRECTION-01`.
+This is not a claim of complete downstream acceptance.
 
 ## Product relationship
 
 Waaseyaa Framework supplies reusable capabilities for websites and applications.
-Waaseyaa Studio is the open-source builder distribution that composes those
-capabilities. Russell's commercial builder will use that distribution under a
-separate, undecided brand. Other operators must be able to create their own
-branded builders on the same base. Studio is the provisional OSS name; this
-decision changes no license.
+Waaseyaa Studio is the retained name of the open-source builder distribution
+that composes those capabilities. The first product target is a hosted browser
+experience for a few invited developers, showing entities, relationships,
+conversation and the resulting application together. Other operators must be
+able to create their own branded builders on the same base. The hosted offer's
+packaging and brand relationship remain open; a separate commercial name is no
+longer a settled requirement. This decision changes no license.
 
 The commercial SaaS has a separate private working repository; its locator and
 product roadmap are intentionally not part of this public Framework contract.
@@ -83,9 +87,13 @@ this architectural decision.
 
 ## Companion and scope
 
-Studio owns the product direction and proposed roadmap in its
-`docs/product-direction.md` and `docs/roadmap-discussion.md`, under the same
-stable change-record ID. The roadmap is for discussion; no implementation
+Studio owns the [product direction](https://github.com/waaseyaa/studio/blob/main/docs/product-direction.md)
+and [current roadmap](https://github.com/waaseyaa/studio/blob/main/docs/roadmap-discussion.md),
+under the same stable change-record ID. The proposed initial slice creates one
+supported content application and uses its real admin; post-creation structural
+migration, a live application-graph bridge and shared page-editor integration
+are not assumed prerequisites. Existing generation and runtime acceptance must
+still be proved on the exact consumer cohort. The roadmap is for discussion; no implementation
 schedule, runtime change, issue closure, migration, public signup or deployment
 is authorized by this specification. Intersnipe is now a concrete consumer
 planning candidate: its existing PHP dashboard needs exact-main convergence,

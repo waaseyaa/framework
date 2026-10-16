@@ -57,3 +57,30 @@ The documentation was rebased onto current main for direct integration. Public
 Framework prose deliberately describes the separate commercial repository
 without publishing its private locator. The Framework and Studio companions
 retain the same ownership, shared-editor and second-builder boundaries.
+
+## 2026-10-16 hosted developer direction reconciliation
+
+Russell retained **Waaseyaa Studio**, selected developers as the product focus
+and required a hosted browser experience for the first invited users. These
+decisions supersede the earlier provisional name, mandatory separate commercial
+branding and website-first proposal. The proposed first slice is one supported
+content application, an inspectable saved/applied model and real app-admin use.
+Exact supported variation, hosting profile, cohort and commercial packaging
+remain open. No runtime criteria or ownership boundaries are removed.
+
+Codex owns this documentation lane in an isolated worktree:
+- Branch `codex/studio-direction-sync`, base `38bd59f386de7234de12c2a6171c6b6f2692cc69`.
+- Files: `docs/specs/builder-product-boundaries.md`, this record and
+  `changes/unreleased/2783.studio-developer-direction.changed.md`.
+
+Document links, cross-repository decision consistency and whitespace are the
+qualification scope. Studio also retains JavaScript syntax, 19 DOM-emulation
+checks and planner/CSS checks for its offline concept. Actual browser layout and
+native dialogs remain unverified because local-file access was blocked. No PHP
+runtime, provider, container, installed-cohort or hosted-user qualification is
+claimed. Broaden checks only if executable product files change.
+
+Independent review remains pending; publication is a documentation review
+checkpoint, not a reviewed landing or release. Existing issue acceptance stays
+open. GitHub #21 and the Studio project overview should reflect these decisions
+without promoting a proposal, mockup or source inspection to shipped behavior.
