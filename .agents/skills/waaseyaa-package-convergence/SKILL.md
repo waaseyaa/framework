@@ -85,7 +85,8 @@ The minimum remediation output is:
 
 1. a bounded implementation matching the issue acceptance;
 2. focused positive and refusal or negative controls at the affected boundary;
-3. one risk-based subagent review of the immutable candidate;
+3. review of the immutable candidate under the delivery risk policy, preserving
+   any independent review required by the finding or owning acceptance;
 4. required hooks and exact-head qualification under `waaseyaa-delivery`;
 5. reconciliation of the finding and any changed evidence without rewriting
    unaffected audit history.
@@ -366,6 +367,10 @@ any extra package the repair touches.
 Verification effort follows the stakes; severity and security decide the tier.
 The tiers, and how to run them, are in
 [running an audit](references/audit-orchestration.md):
+
+These roles qualify audit evidence. Accepted remediation uses the delivery
+review policy unless the finding or owning acceptance explicitly requires an
+independent review; it does not restart this audit-verification process.
 
 Every verifier, refutation reviewer, tie-break reviewer, and immutable-candidate
 reviewer is a subagent role. Keep these roles AI-agnostic: prompts and evidence

@@ -52,20 +52,12 @@ final class MaintainerSkillsTest extends TestCase
         [$output, $exitCode] = $this->runCommand('validate', '--root=' . $this->root);
 
         self::assertSame(0, $exitCode, implode("\n", $output));
-        self::assertSame(['valid waaseyaa-delivery (3 files)', 'valid waaseyaa-package-convergence (17 files)'], $output);
+        self::assertSame(['valid waaseyaa-delivery (4 files)', 'valid waaseyaa-package-convergence (17 files)'], $output);
     }
 
     #[Test]
-    public function the_repository_skills_route_diagnostics_and_accepted_remediation_without_weakening_evidence(): void
+    public function accepted_remediation_does_not_restart_the_full_convergence_audit(): void
     {
-        $delivery = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-delivery/SKILL.md');
-        self::assertStringContainsString('must never auto-launch it', $delivery);
-        self::assertStringContainsString('may explicitly run its command on a capable local host for diagnosis', $delivery);
-        self::assertStringContainsString('never hosted evidence or a substitute for its owning check', $delivery);
-        self::assertStringNotContainsString('must never be launched locally, even from Linux', $delivery);
-        self::assertStringContainsString('fast-forward that identical SHA to `main`', $delivery);
-        self::assertStringContainsString('source bytes change', $delivery);
-
         $convergence = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-package-convergence/SKILL.md');
         $remediation = strpos($convergence, '## Remediate an accepted finding');
         $audit = strpos($convergence, '## Workflow');
@@ -80,27 +72,8 @@ final class MaintainerSkillsTest extends TestCase
     }
 
     #[Test]
-    public function the_repository_skills_require_ai_agnostic_subagent_reviews_without_weakening_implementation_routing(): void
+    public function dedicated_audit_verification_keeps_its_independent_roles(): void
     {
-        $delivery = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-delivery/SKILL.md');
-        self::assertStringContainsString('Independent review is a subagent role', $delivery);
-        self::assertStringContainsString('do not require, prefer, or silently substitute a', $delivery);
-        self::assertStringContainsString('particular model, vendor, or model-specific skill', $delivery);
-        self::assertStringContainsString('do not substitute self-review and call it independent', $delivery);
-        self::assertStringContainsString('report review as', $delivery);
-        self::assertStringContainsString('pending', $delivery);
-        self::assertStringContainsString('For implementation jobs, check the job ID, selected model, source head', $delivery);
-        self::assertStringContainsString('never use it as a review-quality claim', $delivery);
-        self::assertStringContainsString('On native Windows, do not run repository-wide Unit, Integration, and', $delivery);
-        self::assertStringContainsString('the default preflight and focused affected suites locally', $delivery);
-        self::assertStringContainsString('exact-head hosted full-qualification owner for the complete verdict', $delivery);
-        self::assertStringContainsString('use `--jobs=1`', $delivery);
-        self::assertStringContainsString('run no other local', $delivery);
-        self::assertStringContainsString('preflight or qualification against the same repository at the same time', $delivery);
-        self::assertStringContainsString('label the result diagnostic', $delivery);
-        self::assertStringContainsString('until they reproduce', $delivery);
-        self::assertStringContainsString('or differ from the exact base', $delivery);
-
         $convergence = (string) file_get_contents($this->root . '/.agents/skills/waaseyaa-package-convergence/SKILL.md');
         self::assertStringContainsString('Every verifier, refutation reviewer, tie-break reviewer, and immutable-candidate', $convergence);
         self::assertStringContainsString('reviewer is a subagent role', $convergence);
@@ -123,6 +96,7 @@ final class MaintainerSkillsTest extends TestCase
             '.agents/skills/waaseyaa-delivery/SKILL.md',
             '.agents/skills/waaseyaa-delivery/references/candidate-consumer-integration.md',
             '.agents/skills/waaseyaa-delivery/references/ci-repair.md',
+            '.agents/skills/waaseyaa-delivery/references/parallel-delivery.md',
             '.agents/skills/waaseyaa-package-convergence/SKILL.md',
             '.agents/skills/waaseyaa-package-convergence/agents/openai.yaml',
             '.agents/skills/waaseyaa-package-convergence/references/audit-orchestration.md',

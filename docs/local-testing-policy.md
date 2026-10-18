@@ -8,12 +8,23 @@ tags remain blocked until the exact release candidate is green. A green broad
 suite is not a substitute for testing the boundary named by an acceptance
 criterion.
 
+## Review scope
+
+Use the owning repository's risk policy. Routine documentation, presentation and
+narrow low-risk changes may use recorded self-review and focused checks.
+Independent review remains required for authentication, authorization,
+persistence or migration, execution, isolation, significant shared architecture
+and mandatory-safeguard changes, plus any explicit acceptance requirement.
+Classify by behavior rather than file type. An independent reviewer did not
+author the candidate; self-review is never independent evidence. A pending
+review blocks only integration that requires it, not unrelated safe work.
+
 ## Plan before execution
 
 Each work package must name:
 - the behavior and failure mode being changed;
 - the focused commands and affected caller/contract tests;
-- the independent review owner and final qualification owner;
+- the review method, independent reviewer when required, and qualification owner;
 - the conditions that would require broader testing;
 - any shared host resources needed.
 
@@ -26,7 +37,7 @@ unknown, state that uncertainty and choose the smallest suite that resolves it.
 | Stage | Default verification |
 | --- | --- |
 | Implementation | Reproduce the defect, then run changed-component tests and directly affected callers. |
-| Independent review | Review the immutable diff and write independent failure discriminators; exercise affected contracts. Reuse valid implementation results for unchanged checks. |
+| Review | Record self-review for routine changes; where independent review is required, review the immutable diff and exercise affected failure boundaries. Reuse valid unchanged evidence. |
 | Integration | One appropriately scoped combined qualification of interacting changes, owned by the integrator. |
 | Hosted CI | Observe the landed `main` head through the bounded `ci/main-feedback` profile, record failures, and repair the affected batch. Pull requests and explicit dispatches retain full qualification. Release-cut requires exact-SHA `ci/full-qualification`. |
 
@@ -50,6 +61,25 @@ Record the reason before an optional broad run. Do not rerun an unchanged broad
 suite solely for reassurance, a new reviewer, or a documentation amendment.
 Required hooks still execute normally. Do not suppress hosted failures; account
 for them and repair them before a release cut.
+
+## Native-host and hosted evidence
+
+On native Windows, do not report repository-wide Unit, Integration and
+Architecture runs as local qualification unless the current native-host contract
+supports that combination. Use preflight and focused affected suites; retain
+the named hosted owner for checks that require it. If a broader diagnostic is
+useful, use `--jobs=1`, run no competing local qualification, bound child
+processes and label the result diagnostic. Confirm host-specific failures on
+the supported host or against the exact base before calling them regressions.
+
+Framework preflight reports `passed`, `failed`, `hosted-required` and
+`not-applicable`. Preserve those distinctions. Trust reuse only when the
+governed runner emits `reused exact identity` or `reused equivalent inputs`;
+the latter retains the original tested identity. A `hosted-only` entry is
+ownership metadata and must never auto-launch locally. Explicit local diagnosis
+on a capable host does not replace hosted proof. Do not disable reuse merely
+for reassurance. See `docs/specs/governed-gates.md` for the canonical gate
+roster and `docs/specs/workflow.md` for landing versus release qualification.
 
 ## Evidence reuse
 

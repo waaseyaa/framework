@@ -40,7 +40,7 @@ Distinguish development-host support from production certification.
 3. Capture failure/refusal evidence and assign the existing root-cause owner.
 4. Prepare a small repair slice with acceptance, dependency and verification
    scope. Ready for assessment does not mean ready for implementation.
-5. Use waaseyaa-delivery for authorized repair, immutable independent review and
+5. Use waaseyaa-delivery for authorized repair, risk-based candidate review and
    qualification. Reuse unaffected audit evidence instead of rediscovery.
 6. Reconcile package ledgers, journey evidence, docs/issues and Project mirrors.
    Close only the acceptance actually delivered. Release remains separate.
