@@ -84,3 +84,21 @@ Independent review remains pending; publication is a documentation review
 checkpoint, not a reviewed landing or release. Existing issue acceptance stays
 open. GitHub #21 and the Studio project overview should reflect these decisions
 without promoting a proposal, mockup or source inspection to shipped behavior.
+
+## 2026-10-17 review and integration
+
+Russell authorized review and merge of Framework #3209 and Studio #67.
+Independent non-author review by `review_delivery_policy` approved Framework
+`787da1341cb4e2e43da9fbf28edaf1de3aecd37d` and Studio
+`38c4c11f60d5e8f845138e0604e609211adc8ad5` with no findings. The review confirmed
+matching ownership, truthful mockup limits and unchanged runtime acceptance.
+Framework exact-head CI run `39086114281` passed, including full qualification;
+the normal local push hook passed 42 gates, with 4 not applicable and no failures.
+
+Studio's subsequent first-slice selection is recorded in its
+`docs/mvp/hosted-reference-app.md`: fixed Community Events creation, browser owner
+setup, useful private admin action and ordinary stop/restart with data retained.
+Framework #3073 is the first bounded code repair. Hosted profile selection and
+complete pilot acceptance remain separate. This follow-up records review and
+selection only; the reviewed Framework product specification is unchanged.
+No runtime implementation, release or deployment is part of this landing.
