@@ -48,8 +48,9 @@ independent-audit requirement; an authorized parallel handoff; and unpublished
 Framework consumer development. Validate scope, review method, evidence and
 publication boundaries without executing those scenarios against live services.
 
-Framework publication currently depends on the separate support-review repair
-tracked by #3206. Do not alter its policy dates or bypass hooks in this batch.
+Initial Framework publication was blocked by the separate support-review repair
+tracked by #3206. That review was completed separately before publication resumed;
+see the publication follow-up below. No hook was bypassed.
 
 ## Verification results
 
@@ -98,4 +99,20 @@ but did not rerun tests or independently verify reported hosted CI results.
 Framework's required pre-commit style check passed. Studio CI passed at its
 reviewed SHA in run `39082779595`. The follow-up commit only records evidence;
 reviewed policy, skill and test bytes are unchanged. This is agent review, not
-human approval or publication clearance. Framework's #3206 blocker remains.
+human approval or publication clearance. Framework's #3206 blocker was still
+pending at that checkpoint.
+
+## Publication follow-up, 2026-10-18 UTC
+
+The user authorized resolving #3206 and publishing/merging both delivery
+companions. [FW-S1-SUPPORT-REVIEW-2026-10](FW-S1-SUPPORT-REVIEW-2026-10.md)
+records that separate review. Its repaired candidate
+`42a260db45663edb058c8667f650d8d5b77d9bbc` received independent approval with
+no remaining findings, passed all 42 applicable preflight gates and landed on
+Framework `main`. The push hook reused all 42 exact receipts without bypass.
+
+The delivery branch integrates those support commits without conflicts. The
+reviewed delivery skill, policy and test bytes are unchanged; only these evidence
+records are reconciled. Prior focused test and independent review evidence remains
+applicable. The GitHub mirror records final published heads and hosted outcomes;
+neither this integration nor its checks authorize a release or deployment.

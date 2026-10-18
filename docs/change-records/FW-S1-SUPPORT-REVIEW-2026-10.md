@@ -78,4 +78,9 @@ behavior is changed to suppress them. The owning hosted S1 check remains require
 The first independent review found one P3 evidence-wording error: the record
 had conflated the manual expired-review discriminator with fixture coverage.
 This follow-up corrects that claim and records the base comparison. Policy
-bytes remain unchanged; the repaired candidate needs the reviewer's delta verdict.
+bytes remain unchanged. The separate `review_delivery_policy` agent approved
+repaired candidate `42a260db45663edb058c8667f650d8d5b77d9bbc` with no remaining
+findings. Its governed preflight passed all 42 applicable gates in 290.8 seconds;
+four were not applicable and none failed or required a hosted replacement.
+The normal push hook reused all 42 exact receipts. That candidate landed on
+Framework `main`; owning hosted results are recorded in #3206.
