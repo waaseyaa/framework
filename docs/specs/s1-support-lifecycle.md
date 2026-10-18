@@ -96,6 +96,14 @@ declared transition, or whose review date is not before the transition, fails.
 A terminal transition (security-support end, end-of-life) that has already
 passed always fails: the declared point must be revised, not tolerated.
 
+The [October 2026 review](../change-records/FW-S1-SUPPORT-REVIEW-2026-10.md)
+retains the existing S1 candidate boundaries and Node 24 build/test line through
+its upstream maintenance phase. It completed on 2026-10-18 UTC, after the
+2026-10-15 review deadline but before the 2026-10-20 transition. The original
+notice and review dates remain recorded; this does not make either missed
+deadline retroactively compliant. The next review is due 2027-01-15, at an
+earlier tagged release, or when an upstream support change invalidates a row.
+
 ## Machine-readable authority and fail-closed parity
 
 `support/s1-v1.json` is the machine-readable authority. Human documentation may
