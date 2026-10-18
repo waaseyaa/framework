@@ -38,8 +38,9 @@ and matching record. Bases: Framework
 Focused plan: candidate-local dependency install, maintainer-skill validation,
 MaintainerSkillsTest, PHP syntax/style for that file, changed document links and
 Git whitespace. No broad runtime suite is justified. Mandatory hooks still run.
-This batch changes routine workflow and preserves high-risk requirements; its
-review is recorded self-review, not an independent verdict.
+Initial scenario review was recorded self-review, not an independent verdict.
+Because this batch changes review policy, the immutable candidates also received
+the independent review recorded below.
 
 Scenario review must cover: a wording-only edit; a narrow UI fix; an authorization
 change; a migration; a policy edit weakening an isolation gate; an explicit
@@ -80,6 +81,21 @@ agent testing or runtime evidence:
 | Authorized parallel work | Load only the coordination reference; preserve scoped custody and handoffs. |
 | Unreleased Framework consumer development | Use exact candidate integration; keep published release qualification separate. |
 
-The core is approximately 620 words, down from 2,464. Existing release and
+The core is 617 words, down from 2,464. Existing release and
 permission gates are unchanged. No runtime implementation, release or deployment
 is part of this work.
+
+## Independent review
+
+The separate, non-author `review_delivery_policy` agent reviewed Framework
+`6b0cd158b2a93d4d18d4e66a53e250617b3ee071` and Studio
+`be63e9b5df927b6e9c791d991255514f2be9ef42`: approve both, no findings.
+The review covered both diffs, owning policies, skill references and test changes.
+It confirmed the high-risk and explicit audit review requirements, mandatory
+hooks, authorization and release boundaries remain intact. It checked whitespace
+but did not rerun tests or independently verify reported hosted CI results.
+
+Framework's required pre-commit style check passed. Studio CI passed at its
+reviewed SHA in run `39082779595`. The follow-up commit only records evidence;
+reviewed policy, skill and test bytes are unchanged. This is agent review, not
+human approval or publication clearance. Framework's #3206 blocker remains.
