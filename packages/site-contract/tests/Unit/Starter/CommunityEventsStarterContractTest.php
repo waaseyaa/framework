@@ -36,6 +36,11 @@ final class CommunityEventsStarterContractTest extends TestCase
         self::assertSame($allPermissions, $administrator->permissions);
         self::assertNotContains('*', $administrator->permissions);
         self::assertNotContains('administer everything', $administrator->permissions);
+        self::assertContains('access administration', $administrator->permissions);
+        self::assertNotContains('administer content', $administrator->permissions);
+        foreach (['contributor', 'reviewer'] as $role) {
+            self::assertNotContains('access administration', $blueprint->roles[$role]->permissions);
+        }
 
         $workflow = $blueprint->workflows['event_editorial'];
         self::assertSame('draft', $workflow->initialState);
@@ -122,7 +127,7 @@ final class CommunityEventsStarterContractTest extends TestCase
     #[Test]
     public function packaged_readme_declares_customizations_limits_and_provenance(): void
     {
-        $readme = (string) file_get_contents(dirname($this->path()).'/README.md');
+        $readme = (string) file_get_contents(dirname($this->path()) . '/README.md');
         self::assertStringContainsString('Event-to-Venue and Event-to-Organizer', $readme);
         self::assertStringContainsString('Administrator has no implicit bypass', $readme);
         self::assertStringContainsString('template placeholder', $readme);
@@ -144,6 +149,6 @@ final class CommunityEventsStarterContractTest extends TestCase
 
     private function path(): string
     {
-        return dirname(__DIR__, 3).'/resources/starters/community-events/v1.yaml';
+        return dirname(__DIR__, 3) . '/resources/starters/community-events/v1.yaml';
     }
 }

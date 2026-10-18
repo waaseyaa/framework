@@ -95,6 +95,7 @@ final class InternalFieldVisibilityParityTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($manager, $accessHandler, internalFieldVisibility: $visibility);
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);

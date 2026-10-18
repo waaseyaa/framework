@@ -27,6 +27,7 @@ final class GenericAdminSurfaceHostCapabilitiesTest extends TestCase
     private function principalWith(array $permissions): AuthorizationPrincipalInterface
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
         $account->method('getRoles')->willReturn(['administrator']);
         $account->method('hasPermission')->willReturnCallback(
@@ -104,6 +105,7 @@ final class GenericAdminSurfaceHostCapabilitiesTest extends TestCase
     {
         $queried = [];
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
         $account->method('getRoles')->willReturn(['administrator']);
         $account->method('hasPermission')->willReturnCallback(
@@ -119,7 +121,7 @@ final class GenericAdminSurfaceHostCapabilitiesTest extends TestCase
 
         $this->assertSame([], array_diff(
             array_unique($queried),
-            ['administer content', 'mcp.approval.view'],
+            ['access administration', 'administer content', 'mcp.approval.view'],
         ), 'resolveSession() must not enumerate permissions beyond the admin gate and the allowlist.');
     }
 

@@ -220,6 +220,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -283,6 +284,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     public function resolve_session_returns_null_for_non_admin(): void
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(false);
         $account->method('getRoles')->willReturn(['authenticated']);
@@ -298,6 +300,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     public function resolve_session_returns_data_for_admin(): void
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -326,6 +329,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     public function resolve_session_includes_ui_from_buildAdminUi(): void
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(7);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -356,6 +360,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     public function resolve_session_uses_custom_permission(): void
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturnCallback(
             fn(string $perm) => $perm === 'manage site',
@@ -433,7 +438,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             ),
         ]);
 
-        $catalog = (new GenericAdminSurfaceHost($etm))->buildCatalog(new AdminSurfaceSessionData(
+        $catalog = new GenericAdminSurfaceHost($etm)->buildCatalog(new AdminSurfaceSessionData(
             accountId: '1',
             accountName: 'Admin',
             roles: ['administrator'],
@@ -590,6 +595,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         );
 
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -800,7 +806,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $entity->method('toArray')->willReturn(['id' => '1']);
         $entity->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'id' => '1', default => null
+                'id' => '1', default => null,
             },
         );
 
@@ -820,6 +826,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         // Simulate resolveSession to set currentAccount
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['authenticated']);
@@ -881,6 +888,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -955,6 +963,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         // Simulate resolveSession
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['authenticated']);
@@ -1043,6 +1052,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             publicationFieldReader: $publicationFieldReader,
         );
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['editor']);
@@ -1161,7 +1171,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $high->method('toArray')->willReturn(['id' => 1, 'code' => 'zzz']);
         $high->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'code' => 'zzz', default => null
+                'code' => 'zzz', default => null,
             },
         );
 
@@ -1172,7 +1182,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $low->method('toArray')->willReturn(['id' => 2, 'code' => 'aaa']);
         $low->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'code' => 'aaa', default => null
+                'code' => 'aaa', default => null,
             },
         );
 
@@ -1220,7 +1230,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $ten->method('toArray')->willReturn(['id' => 1, 'n' => '10']);
         $ten->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'n' => '10', default => null
+                'n' => '10', default => null,
             },
         );
 
@@ -1231,7 +1241,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $two->method('toArray')->willReturn(['id' => 2, 'n' => '2']);
         $two->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'n' => '2', default => null
+                'n' => '2', default => null,
             },
         );
 
@@ -1278,7 +1288,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $lead->method('toArray')->willReturn(['id' => 1, 'name' => 'Alice', 'stage' => 'lead']);
         $lead->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'stage' => 'lead', 'name' => 'Alice', default => null
+                'stage' => 'lead', 'name' => 'Alice', default => null,
             },
         );
 
@@ -1289,7 +1299,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $qualified->method('toArray')->willReturn(['id' => 2, 'name' => 'Bob', 'stage' => 'qualified']);
         $qualified->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'stage' => 'qualified', 'name' => 'Bob', default => null
+                'stage' => 'qualified', 'name' => 'Bob', default => null,
             },
         );
 
@@ -1300,7 +1310,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $closed->method('toArray')->willReturn(['id' => 3, 'name' => 'Carol', 'stage' => 'closed']);
         $closed->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'stage' => 'closed', 'name' => 'Carol', default => null
+                'stage' => 'closed', 'name' => 'Carol', default => null,
             },
         );
 

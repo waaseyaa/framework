@@ -275,6 +275,16 @@ types are not exposed on generic JSON:API routes by generation (exposure is
 the operator's `api.entity_type_allowlist` decision), and binding
 activation remains a verified `config:import`, not a boot-time write.
 
+The canonical Community Events starter explicitly declares `access administration`
+and grants it to `event_administrator` for the stock admin surface's entry-only
+admission contract (#3073). It does not grant `administer content`, the reserved
+`administrator` role, or admin entry to contributor/reviewer roles. Generated
+permissions and roles still flow through the existing catalogue and provisioning
+authority; no role-name inference or new blueprint schema is introduced. The
+changed starter digest requires the normal exact-revision approval for generation.
+Existing generated accounts require explicit adoption and role reassignment,
+not a silent permission backfill. See [admin-spa.md](admin-spa.md#admin-surface-admission).
+
 ### Closed vocabulary (#2785)
 
 Namespace `Waaseyaa\SiteContract\Blueprint\`. Every list is a closed mapping

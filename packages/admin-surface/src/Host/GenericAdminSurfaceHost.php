@@ -92,6 +92,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     private readonly EntityIdentifierResolver $identifierResolver;
 
     /**
+     * @param ?string $adminPermission Exact application-specific entry permission. Null uses
+     *   the stock entry-only or content-administrator grant; neither bypasses entity/field access.
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
      * @param list<string> $capabilityAllowlist Explicit permission identifiers to project into the
@@ -106,7 +108,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly ?SchemaPresenter $schemaPresenter = null,
         private readonly string $tenantId = 'default',
         private readonly string $tenantName = 'Waaseyaa',
-        private readonly string $adminPermission = 'administer content',
+        private readonly ?string $adminPermission = null,
         private readonly array $readOnlyTypes = [],
         private readonly ?WorkflowBindingResolver $workflowBindingResolver = null,
         private readonly array $features = [],
@@ -176,11 +178,17 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $account,
         );
 
-        if (!$account instanceof AccountInterface || $principal === null) {
+        if (!$account instanceof AccountInterface || $principal === null || !$principal->isAuthenticated()) {
             return null;
         }
 
-        if (!$principal->hasPermission($this->adminPermission)) {
+        // Entry is separate from content management. Generated roles may grant
+        // only access administration, while content administrators retain entry.
+        // An application-supplied requirement is exact, never ORed with stock grants.
+        $canEnter = $this->adminPermission !== null
+            ? $principal->hasPermission($this->adminPermission)
+            : ($principal->hasPermission('access administration') || $principal->hasPermission('administer content'));
+        if (!$canEnter) {
             return null;
         }
 

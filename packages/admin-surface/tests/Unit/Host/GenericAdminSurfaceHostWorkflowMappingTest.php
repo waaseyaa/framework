@@ -9,13 +9,11 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
@@ -102,6 +100,7 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);

@@ -74,6 +74,7 @@ application_blueprint:
       required: true
       on_delete: restrict
   permissions:
+    - { id: access administration, title: Access the application administration }
     - { id: create event, title: Create events }
     - { id: edit draft event, title: Edit draft events }
     - { id: manage events, title: Manage all events }
@@ -91,6 +92,7 @@ application_blueprint:
     - id: event_administrator
       label: Administrator
       permissions:
+        - access administration
         - create event
         - edit draft event
         - manage events

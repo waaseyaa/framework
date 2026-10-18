@@ -428,6 +428,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         self::assertIsCallable($controller);
 
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -522,6 +523,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         self::assertIsCallable($controller);
 
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);

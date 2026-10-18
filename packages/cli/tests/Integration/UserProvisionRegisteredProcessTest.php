@@ -43,6 +43,32 @@ final class UserProvisionRegisteredProcessTest extends TestCase
     }
 
     #[Test]
+    public function generatedOwnerLoginReachesTheDefaultAdminWithoutGrantingTheReservedRole(): void
+    {
+        foreach (['event_administrator' => 200, 'contributor' => 401, 'reviewer' => 401] as $role => $expected) {
+            $username = 'app-' . str_replace('_', '-', $role);
+            $provision = $this->process('provision', $this->request($username, $username . '@example.test', $role));
+            self::assertSame(0, $provision->run(), $provision->getErrorOutput());
+            self::assertSame('created', json_decode($provision->getOutput(), true, flags: JSON_THROW_ON_ERROR)['status']);
+            $login = $this->process('login-admin', CanonicalJson::encode([
+                'username' => $username,
+                'password' => self::PASSWORD,
+            ]));
+            self::assertSame(0, $login->run(), $login->getErrorOutput());
+            $result = json_decode($login->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame(200, $result['login_status']);
+            self::assertSame($expected, $result['admin_status'], 'Authentication must not substitute for explicit admin entry permission.');
+            self::assertSame($expected === 200 ? [$role] : [], $result['roles']);
+            $this->assertSecretAbsent([$provision, $login]);
+        }
+
+        $reserved = $this->process('provision', $this->request('reserved-owner', 'reserved@example.test', 'administrator'));
+        self::assertSame(1, $reserved->run(), $reserved->getErrorOutput());
+        self::assertSame('reserved_role', json_decode($reserved->getOutput(), true, flags: JSON_THROW_ON_ERROR)['code']);
+        $this->assertSecretAbsent([$reserved]);
+    }
+
+    #[Test]
     public function canonicalGeneratedCommunityEventsRolesPersistAcrossFreshProcessesWithoutSecretEvidence(): void
     {
         $contributor = $this->request('community-owner', 'owner@example.test', 'contributor');
@@ -100,7 +126,7 @@ final class UserProvisionRegisteredProcessTest extends TestCase
         self::assertSame(0, $inspection->run(), $inspection->getErrorOutput());
         self::assertSame([
             'community-administrator' => [
-                'permissions' => ['create event', 'edit draft event', 'manage events', 'manage locations', 'publish event', 'return event', 'submit event', 'view event', 'view organizer', 'view venue'],
+                'permissions' => ['access administration', 'create event', 'edit draft event', 'manage events', 'manage locations', 'publish event', 'return event', 'submit event', 'view event', 'view organizer', 'view venue'],
                 'roles' => ['event_administrator'],
             ],
             'community-owner' => [

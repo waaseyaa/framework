@@ -204,6 +204,24 @@ The host-to-SPA payload shape is defined by the concern-separated modules under 
 
 Two cross-boundary tests under `tests/Integration/AdminSurface/` enforce structural conformance between the backend emit and the contract; the audit (#851) flagged the prior governance drift where snake_case variants in this spec contradicted the camelCase contract. Use camelCase everywhere (e.g. `emailVerified`, `requireVerifiedEmail`).
 
+### Admin surface admission
+
+The stock `GenericAdminSurfaceHost` admits an authenticated immutable principal
+holding either `access administration` (entry only) or `administer content`
+(the existing broad content-administrator capability). Role names do not grant
+entry. Applications opting into the narrow grant declare it once in their
+permission catalogue and explicitly assign it through registered roles.
+The Community Events starter declares and grants it to `event_administrator`.
+It does not grant it implicitly to every authenticated or registered-role user.
+
+An explicit constructor `adminPermission` remains an exact application-specific
+requirement; neither stock grant bypasses it. Null selects the stock admission
+rule. Authentication, entity/field access, workflow transitions, operational
+permissions and reserved-role provisioning remain separate enforcement points.
+Admin entry alone must never confer general content management. Existing apps
+adopt reviewed generated artifacts and explicitly reassign updated roles; this
+change performs no stored-account migration. Record: `FW-GENERATED-OWNER-ADMISSION-01`.
+
 ## Optionality
 
 - **`waaseyaa/admin-surface` (PHP)** is optional. Add it when you want the HTTP admin surface at **`/admin/_surface/*`** (fixed prefix, not configurable). Apps can omit it for headless or API-only setups.

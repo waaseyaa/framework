@@ -55,6 +55,7 @@ final class GenericAdminSurfaceHostSaveAdvisoryTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($manager, $access);
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -101,6 +102,7 @@ final class GenericAdminSurfaceHostSaveAdvisoryTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($manager, $access);
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -148,6 +150,7 @@ final class GenericAdminSurfaceHostSaveAdvisoryTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($manager, $access);
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
