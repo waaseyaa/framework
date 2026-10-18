@@ -32,6 +32,17 @@ obsolete v1/v2 milestone narrative formerly maintained here, which was not a
 statement of current release maturity. Do not maintain a second milestone table.
 GitHub issues mirror execution; portable change records preserve scope/evidence.
 
+## Review scope
+
+The [agent contract](../governance/agent-contract.md#review-according-to-risk)
+defines review requirements by risk. Routine changes may use recorded
+self-review; high-risk boundaries and explicit acceptance contracts require an
+independent reviewer before integration. Apply the same policy to code, docs,
+tests and configuration. Tool or vendor choice does not determine independence.
+The [local testing policy](../local-testing-policy.md) owns focused verification
+and evidence reuse. Neither a PR nor this workflow creates a blanket requirement
+for multiple agents or a full suite on every change.
+
 ## The 4 Workflow Rules
 
 ### Blocking fresh-install cutover invariant

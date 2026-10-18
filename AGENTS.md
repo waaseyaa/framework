@@ -237,7 +237,7 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 
 - Run `composer hooks:install` once per clone and `composer hooks:doctor` when hook behavior is suspect. The tracked `bin/project-hooks` script is the source of truth; installed Git hooks are worktree-aware shims only.
 - Pre-push runs `bin/check-pr-preflight` — every fast repo-state gate CI blocks on, all blocking (spec drift included; no advisory splits). `php bin/check-pr-preflight --full` (adds phpstan + dead-code) plus the three test suites are the complete publication gates; `bin/refresh-governance-artifacts` repairs stale recorded rosters/baselines. Gate roster: `tools/preflight-gates.json`; contract: `docs/specs/governed-gates.md`.
-- Claude startup receives only bounded branch and working-tree context. Run `tools/drift-detector.sh origin/main` explicitly when reviewing specification impact; do not inject full drift reports into session context.
+- Agent startup should receive only bounded branch and working-tree context. Run `tools/drift-detector.sh origin/main` explicitly when reviewing specification impact; do not inject full drift reports into session context.
 
 ## Agent context
 

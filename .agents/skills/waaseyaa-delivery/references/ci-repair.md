@@ -14,7 +14,7 @@ Record and compare:
 
 Do not diagnose a superseded run as current. Cancellation or skipped descendants from an older SHA are historical unless they reveal an independently reproducible infrastructure defect.
 
-The installed upstream `gh-fix-ci` helper is currently pull-request-oriented. For a branch or workflow-dispatch candidate, inspect the supplied GitHub Actions run ID directly with `gh run view` and the completed job-log endpoint. Do not vendor or silently fork that upstream skill in Framework. The desired upstream interface accepts a run ID, branch, or exact SHA without requiring a pull request.
+Use an available CI integration or the GitHub CLI to inspect the exact run. A branch or workflow-dispatch candidate does not need a pull request just to retrieve its logs. Tool availability does not change the evidence boundary.
 
 ## Reduce statuses to root failures
 

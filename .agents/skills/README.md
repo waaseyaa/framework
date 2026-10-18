@@ -7,7 +7,7 @@ Waaseyaa repositories.
 | Skill | Purpose |
 | --- | --- |
 | `waaseyaa-package-convergence` | Audit packages and framework composition, reconcile existing issues/specs/docs, and bound convergence repairs |
-| `waaseyaa-delivery` | Run authorized implementation, review, CI repair, and landing work |
+| `waaseyaa-delivery` | Deliver authorized changes with risk-based review; load coordination and CI references only when needed |
 
 This directory is the only authority for them. They are **not** the consumer
 skills that `bimaaji:install` ships to applications; those live in
@@ -18,7 +18,9 @@ published `waaseyaa/framework` archive.
 
 1. Edit the files here in an isolated reviewed batch. A pull request is optional
    under repository governance. `tests/Architecture/MaintainerSkillsTest.php`
-   and `php bin/maintainer-skills validate` check the structure.
+   and `php bin/maintainer-skills validate` check the structure. Review follows
+   `docs/governance/agent-contract.md`: ordinary wording edits do not require a
+   second agent, while changes to mandatory safeguards require independent review.
 2. Commit the change in this repository. Share and land it through the authorized
    repository workflow so every maintainer uses the same version.
 3. Load the repository source directly. Do not edit or routinely install global
@@ -26,7 +28,7 @@ published `waaseyaa/framework` archive.
 
 ## Repository discovery
 
-Codex discovers this directory when its working directory is inside Framework.
+Use repository skill discovery when the active client supports it.
 Outside Framework, or in a client without repository skill discovery, locate
 an available Framework checkout and read the relevant `SKILL.md` and referenced
 resources there. Use repository-relative paths in maintained guidance, never a

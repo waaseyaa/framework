@@ -49,19 +49,10 @@ maintainer.
   to a temporary branch instead.
 - Use temporary directories for experiments, generated scratch projects,
   archive extraction, and commands with incidental writes.
-- When a harness relocates the agent workspace root (Cursor
-  `move_agent_to_root` and equivalents), that step typically fetches
-  `origin/<current-branch>` in the destination. A brand-new local-only branch
-  name fails that fetch. Preferred sequence: create the worktree on an
-  already-remote tip (`origin/main` or another published branch), relocate the
-  agent root if needed, then create the feature branch inside the worktree.
-  Alternative: create the feature branch first, then push it with the selected
-  Git entrypoint (`bin/git push -u origin HEAD` on a supported POSIX host, or
-  the authorized Windows Git executable on native Windows) so the remote branch
-  exists. Until the branch is on `origin`, keep editing via absolute paths in
-  the worktree rather than relocating.
-  Install worktree `vendor/` (or otherwise satisfy local gates) before the
-  first push if pre-push preflight requires it.
+- Before relocating a task, verify the destination has the intended repository,
+  branch and candidate. A local-only branch may not exist on another host.
+  Preserve the original checkout until custody is confirmed. Provision
+  candidate-local dependencies before any required gate that needs them.
 
 ## Maintained infrastructure before custom mechanisms
 
@@ -170,10 +161,32 @@ retirement. Age alone is not a deletion criterion.
   `spec-reviewed: docs/specs/<name>.md - <reason>`.
 - Respect package layers and existing boundary checkers. Any exemption belongs
   in the explicit allowlist with a concise rationale and a boundary test.
-- An independent review requirement does not authorize parallel implementation
-  or multi-agent delivery. Select a review method that remains within the
-  user's authorized scope and preserves an independent perspective on the
-  immutable candidate.
+
+### Review according to risk
+
+Default to one agent using the active session's tools. Additional agents require
+authorization under the session and repository instructions; no particular
+model, vendor or external execution service is required.
+
+Routine documentation, presentation and narrow low-risk changes may use recorded
+self-review and focused checks. A commit or pull request does not by itself
+require a second reviewer. Determine risk from the affected behavior, not the
+file type. Changes to policy, tests or configuration can affect a high-risk
+boundary just as production code can.
+
+Independent review is required before integrating changes to authentication,
+authorization, persistence or migrations, execution, isolation, significant
+shared architecture, or mandatory safeguards. Explicit review requirements in
+owning acceptance contracts and audit methods remain in force. Do not relabel
+a high-risk change as routine to avoid that review.
+
+The independent reviewer must be a person or separately authorized agent who
+did not author the immutable candidate. Supply acceptance and existing evidence;
+record findings and a verdict. The same model or vendor is allowed. Self-review
+must be labeled as such and cannot satisfy an independent-review requirement.
+If required review is unavailable, complete safe preparation and leave that
+specific integration gate pending. Required review does not authorize parallel
+implementation or widen publication authority.
 
 ## Evidence and canonical state
 
