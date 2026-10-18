@@ -48,9 +48,10 @@ No other recorded transition enters its 90-day notice window before January 15.
 
 Owned files: `support/s1-v1.json`, the lifecycle spec, this record and the
 `3206.s1-support-review.changed.md` release fragment. No production, dependency,
-CI or checker code changes are planned. The existing gate tests already cover
-expired reviews, completed acknowledgement reviews, stale/missing acknowledgements,
-terminal transitions and parity refusals; retain and run those tests.
+CI or checker code changes are planned. The recorded checker failure above is
+the expired-review discriminator. Existing gate fixtures cover completed
+acknowledgement reviews, stale/missing acknowledgements, terminal transitions
+and parity refusals; retain and run those tests.
 
 Qualification: candidate-local Composer install, support checker, both support
 architecture test files, changelog and whitespace checks, required hooks and
@@ -62,3 +63,19 @@ separate evidence and cannot stand in for this review.
 After support integration, resume the already-reviewed Framework and Studio
 delivery branches. A green local gate is not hosted qualification, consumer
 certification or release approval.
+
+At candidate `59ba4fa6ccaee47235a77a30a183007080c2d466`, the direct support
+checker passes and changelog/whitespace checks pass. On native Windows with
+PHP 8.5.5, the two support test files ran 62 tests and 669 assertions in 27.737
+seconds: 59 passed and three failed. The failures are absolute Windows
+`--contract` path handling and two POSIX executable-bit assertions. All three
+fail identically on base `38bd59f386de7234de12c2a6171c6b6f2692cc69` using
+the same worktree, runtime and unchanged dependency lock (3 tests, 18 assertions,
+0.880 seconds); the candidate was restored afterward. These are recorded host
+limitations, not a green Linux suite or policy regressions. No checker or test
+behavior is changed to suppress them. The owning hosted S1 check remains required.
+
+The first independent review found one P3 evidence-wording error: the record
+had conflated the manual expired-review discriminator with fixture coverage.
+This follow-up corrects that claim and records the base comparison. Policy
+bytes remain unchanged; the repaired candidate needs the reviewer's delta verdict.
