@@ -50,15 +50,15 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 | ID | Title | Severity | Confidence | Level | Verified | Destination |
 | --- | --- | --- | --- | --- | --- | --- |
-| FND-CONTRACT-001 | Deferred-provider documentation differs from eager provider execution | low | confirmed | reproduced | B | #3123; FND-S1 |
-| FND-DIAGNOSTIC-001 | Default health-check composition omits available field diagnostics | low | confirmed | reproduced | B | #3123; FND-S2 |
-| GRP-LIFECYCLE-002 | Generic provider-boot documentation promises unavailable cross-package services | low | confirmed | reproduced | B | #3123; FND-S3 |
+| FND-CONTRACT-001 | Deferred-provider documentation differs from eager provider execution | low | confirmed | reproduced | B | [#3123](https://github.com/waaseyaa/framework/issues/3123); FND-S1 |
+| FND-DIAGNOSTIC-001 | Default health-check composition omits available field diagnostics | low | confirmed | reproduced | B | [#3214](https://github.com/waaseyaa/framework/issues/3214); [#3123](https://github.com/waaseyaa/framework/issues/3123); FND-S2 |
+| GRP-LIFECYCLE-002 | Generic provider-boot documentation promises unavailable cross-package services | low | confirmed | reproduced | B | [#3123](https://github.com/waaseyaa/framework/issues/3123); FND-S3 |
 | FND-SEC-001 | Lifecycle configuration requires private triage. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/foundation) |
-| FND-HTTP-001 | Opt-in compression accepts explicitly rejected gzip encoding | low | confirmed | reproduced | B | FND-S4 |
-| FND-HTTP-002 | Opt-in conditional responses lose metadata and miss valid validators | low | confirmed | reproduced | B | FND-S5 |
-| FND-MONITOR-001 | Monitor event name can disagree with its latest timestamp | low | confirmed | reproduced | B | FND-S6 |
-| FND-LOG-001 | Missing configured log default fails after successful construction | low | confirmed | reproduced | B | FND-S7 |
-| FND-GUIDANCE-001 | Schema-drift guidance recommends unscoped database deletion | low | confirmed | reproduced | B | FND-S8 |
+| FND-HTTP-001 | Opt-in compression accepts explicitly rejected gzip encoding | low | confirmed | reproduced | B | [#3215](https://github.com/waaseyaa/framework/issues/3215); FND-S4 |
+| FND-HTTP-002 | Opt-in conditional responses lose metadata and miss valid validators | low | confirmed | reproduced | B | [#3216](https://github.com/waaseyaa/framework/issues/3216); FND-S5 |
+| FND-MONITOR-001 | Monitor event name can disagree with its latest timestamp | low | confirmed | reproduced | B | [#3217](https://github.com/waaseyaa/framework/issues/3217); FND-S6 |
+| FND-LOG-001 | Missing configured log default fails after successful construction | low | confirmed | reproduced | B | [#3218](https://github.com/waaseyaa/framework/issues/3218); FND-S7 |
+| FND-GUIDANCE-001 | Schema-drift guidance recommends unscoped database deletion | low | confirmed | reproduced | B | [#3219](https://github.com/waaseyaa/framework/issues/3219); FND-S8 |
 
 ## Cross-package findings
 
@@ -107,6 +107,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 ## Remediation plan
 
+Every ordinary finding now has a filed issue linked in its destination above. Issue routing leaves the recorded acceptance, evidence limits and assessment milestone unchanged.
+
 | Slice | Findings | Acceptance | Depends on |
 | --- | --- | --- | --- |
 | FND-S1 | FND-CONTRACT-001 | Record the intended lifecycle explicitly and make package-discovery, public method documentation and executable composition evidence agree. The bounded repair may document the current eager provider lifecycle and distinguish lazy factories, or a separately accepted slice may implement deferred provider loading. Do not remove or deprecate public provides/isDeferred APIs based on this audit. Preserve ordinary eager registration, sibling binding availability and singleton behavior unless an explicit lifecycle decision says otherwise. | none |
@@ -142,5 +144,5 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 - Root plus three reused independent reviewers. Parallel investigation is user-authorized; token usage unavailable.
 - **Open:** 1 open decisions; 3 open uncertainties; remediation filing and delivery remain separate.
 - **Elapsed:** Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.
-- **Verification corrections:** 8; **findings without a filed issue:** 6. Private advisory routing is separate.
+- **Verification corrections:** 8; **findings without a filed issue:** 1. Private advisory routing is separate.
 - **Probe retention:** 3 nonsecurity entries; 0 retained. Findings whose notes say reproduced (probe not retained) use the validator's reproduced enum; their repair regression becomes durable evidence.

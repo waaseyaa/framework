@@ -2930,6 +2930,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3213"
+                },
+                {
                     "kind": "slice",
                     "ref": "EST-S1"
                 }
@@ -3163,6 +3167,12 @@
             "claim": "Clean no-dev installation through the first homepage is a shared acceptance journey.",
             "status": "qualification owner retained",
             "evidence": "Monorepo source and synthetic fixtures are not an isolated Composer consumer. No dependency installation or fresh generated app executed in this audit."
+        },
+        {
+            "issue": "#3213",
+            "claim": "EST-DOC-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
         }
     ],
     "remediation_plan": [
@@ -3273,7 +3283,7 @@
             "decisions": 0,
             "uncertainties": 2
         },
-        "findings_without_filed_issue": 3,
+        "findings_without_filed_issue": 2,
         "findings_by_severity": {
             "package_owned": {
                 "withheld": 2,

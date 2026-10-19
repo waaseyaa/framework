@@ -45,12 +45,12 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 | ID | Title | Severity | Confidence | Level | Verified | Destination |
 | --- | --- | --- | --- | --- | --- | --- |
 | CLI-SEC-001 | A migration-integrity issue requires private triage. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/cli) |
-| CLI-INPUT-001 | Three import commands truncate a fractional --limit of 1.9 to one record | low | confirmed | reproduced | B | CLI-S1 |
-| CLI-IO-002 | Four artifact output commands and forced sync-rules updates report success after a refused final write | low | confirmed | reproduced | B | CLI-S2 |
-| CLI-DOC-001 | Documentation diverges from current CLI contracts | info | confirmed | reviewed | C | CLI-S3 |
-| CLI-NAV-001 | Legacy config handlers need a bounded disposition against canonical config authority | info | confirmed | reviewed | C | CLI-S4 |
-| CLI-STRUCT-001 | Site initialization combines distinct policy responsibilities | info | confirmed | reviewed | C | CLI-S5 |
-| CLI-COMPONENT-001 | Custom process runners need a bounded maintained-component comparison | info | likely | reviewed | C | CLI-S6 |
+| CLI-INPUT-001 | Three import commands truncate a fractional --limit of 1.9 to one record | low | confirmed | reproduced | B | [#3220](https://github.com/waaseyaa/framework/issues/3220); CLI-S1 |
+| CLI-IO-002 | Four artifact output commands and forced sync-rules updates report success after a refused final write | low | confirmed | reproduced | B | [#3221](https://github.com/waaseyaa/framework/issues/3221); CLI-S2 |
+| CLI-DOC-001 | Documentation diverges from current CLI contracts | info | confirmed | reviewed | C | [#3222](https://github.com/waaseyaa/framework/issues/3222); CLI-S3 |
+| CLI-NAV-001 | Legacy config handlers need a bounded disposition against canonical config authority | info | confirmed | reviewed | C | [#3223](https://github.com/waaseyaa/framework/issues/3223); CLI-S4 |
+| CLI-STRUCT-001 | Site initialization combines distinct policy responsibilities | info | confirmed | reviewed | C | [#3224](https://github.com/waaseyaa/framework/issues/3224); CLI-S5 |
+| CLI-COMPONENT-001 | Custom process runners need a bounded maintained-component comparison | info | likely | reviewed | C | [#3225](https://github.com/waaseyaa/framework/issues/3225); CLI-S6 |
 
 ## Cross-package findings
 
@@ -98,6 +98,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 ## Remediation plan
 
+Every ordinary finding now has a filed issue linked in its destination above. Issue routing leaves the recorded acceptance, evidence limits and assessment milestone unchanged.
+
 | Slice | Findings | Acceptance | Depends on |
 | --- | --- | --- | --- |
 | CLI-S1 | CLI-INPUT-001 | Define and share one lexical positive-integer contract across the three builders, with an explicit in-range policy. Reject fractional values before runner or lock activity; verify 1.9 and 0.9, zero and malformed values. Keep absent-option and valid 2 behavior including resume position and run-all totals. Assert terminal writes/checkpoints and exit/stderr, not only a private builder return. | none |
@@ -130,5 +132,5 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 - Root plus three reused independent reviewers. Parallel investigation is user-authorized; token usage unavailable.
 - **Open:** 0 open decisions; 3 open uncertainties; remediation filing and delivery remain separate.
 - **Elapsed:** Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.
-- **Verification corrections:** 2; **findings without a filed issue:** 7. Private advisory routing is separate.
+- **Verification corrections:** 2; **findings without a filed issue:** 1. Private advisory routing is separate.
 - **Probe retention:** 1 nonsecurity entries; 0 retained. Findings whose notes say reproduced (probe not retained) use the validator's reproduced enum; their repair regression becomes durable evidence.

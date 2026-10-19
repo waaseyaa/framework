@@ -4618,6 +4618,10 @@
             "destination": [
                 {
                     "kind": "issue",
+                    "ref": "#3214"
+                },
+                {
+                    "kind": "issue",
                     "ref": "#3123"
                 },
                 {
@@ -4751,6 +4755,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3215"
+                },
+                {
                     "kind": "slice",
                     "ref": "FND-S4"
                 }
@@ -4795,6 +4803,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3216"
+                },
+                {
                     "kind": "slice",
                     "ref": "FND-S5"
                 }
@@ -4838,6 +4850,10 @@
             "refutation": "MAX(event) could be correct only for an intentionally lexical maximum contract, but the historical feature contract, current DTO property and UI describe last-event metadata. Existing test explicitly notes alphabetical MAX yet asserts only non-null, so it does not discriminate association. Correct single-name or coincidentally ordered channels narrow prevalence, not the defect.",
             "disposition": "repair",
             "destination": [
+                {
+                    "kind": "issue",
+                    "ref": "#3217"
+                },
                 {
                     "kind": "slice",
                     "ref": "FND-S6"
@@ -4884,6 +4900,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3218"
+                },
+                {
                     "kind": "slice",
                     "ref": "FND-S7"
                 }
@@ -4927,6 +4947,10 @@
             "refutation": "The text offers schema:check as an alternative and deleting a disposable scratch database can be legitimate. Neither makes generic deletion-first guidance appropriate for a shared production-capable diagnostic. No code-driven database deletion exists in this path and no operator followed the advice in this review. Merely changing operator text remains low; any later proposal to automate mutation is outside this verification.",
             "disposition": "repair",
             "destination": [
+                {
+                    "kind": "issue",
+                    "ref": "#3219"
+                },
                 {
                     "kind": "slice",
                     "ref": "FND-S8"
@@ -5174,6 +5198,54 @@
             "claim": "Shared generation or ingestion ownership has existing partial deliveries and explicit residuals.",
             "status": "existing owner retained; no duplicate convergence program",
             "evidence": "Current source families reviewed; material comments distinguish shipped ai:verify from broader project upgrades, and active CLI mapping from envelope validators. Alpha policy does not impose a new deprecation window."
+        },
+        {
+            "issue": "#3123",
+            "claim": "FND-CONTRACT-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3214",
+            "claim": "FND-DIAGNOSTIC-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3123",
+            "claim": "GRP-LIFECYCLE-002 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3215",
+            "claim": "FND-HTTP-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3216",
+            "claim": "FND-HTTP-002 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3217",
+            "claim": "FND-MONITOR-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3218",
+            "claim": "FND-LOG-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3219",
+            "claim": "FND-GUIDANCE-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
         }
     ],
     "remediation_plan": [
@@ -5374,7 +5446,7 @@
             "decisions": 1,
             "uncertainties": 3
         },
-        "findings_without_filed_issue": 6,
+        "findings_without_filed_issue": 1,
         "findings_by_severity": {
             "package_owned": {
                 "low": 8,

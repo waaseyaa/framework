@@ -1,7 +1,7 @@
 # `waaseyaa/user` audit
 
 - **Milestone:** in progress. Repair ready: no. Converged: not claimed.
-- **Audit state:** in progress. **Remediation state:** not triaged
+- **Audit state:** in progress. **Remediation state:** planned
 - **Base:** `3161864a5d1af57621e4819e9720f12e12ccdae7`, audited `2026-10-19`
 - **Dependency identity:** `composer.lock` SHA-256 `8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc`; PHP 8.5.5, native Windows.
 - **Evidence freshness:** current at `3161864a5d1af57621e4819e9720f12e12ccdae7`.
@@ -43,9 +43,9 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 | ID | Title | Severity | Confidence | Level | Verified | Destination |
 | --- | --- | --- | --- | --- | --- | --- |
-| USER-CONTRACT-001 | Native session behavior diverges from its advertised Symfony interface | low | confirmed | reproduced | B | USER-S1 |
+| USER-CONTRACT-001 | Native session behavior diverges from its advertised Symfony interface | low | confirmed | reproduced | B | [#3226](https://github.com/waaseyaa/framework/issues/3226); USER-S1 |
 | USER-SEC-001 | A suspected ownership-integrity issue requires private review. | withheld | suspected | reviewed | pending | private report (framework advisory; owner waaseyaa/user) |
-| USER-DOC-001 | Documentation and responsibility navigation need a bounded refresh | info | confirmed | reviewed | C | USER-S2 |
+| USER-DOC-001 | Documentation and responsibility navigation need a bounded refresh | info | confirmed | reviewed | C | [#3227](https://github.com/waaseyaa/framework/issues/3227); USER-S2 |
 
 ## Cross-package findings
 
@@ -92,6 +92,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 ## Remediation plan
 
+Every ordinary finding now has a filed issue linked in its destination above. Issue routing leaves the recorded acceptance, evidence limits and assessment milestone unchanged.
+
 | Slice | Findings | Acceptance | Depends on |
 | --- | --- | --- | --- |
 | USER-S1 | USER-CONTRACT-001 | Pin stale-key removal, empty replacement, null versus absent, bag retrieval, metadata and lifetime behavior with positive controls. Evaluate a maintained Symfony integration while preserving current raw session consumers. Any public removal requires a separate Tier A decision. | none |
@@ -120,5 +122,5 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 - Root plus three reused independent reviewers. Parallel investigation is user-authorized; token usage unavailable.
 - **Open:** 0 open decisions; 2 open uncertainties; remediation filing and delivery remain separate.
 - **Elapsed:** Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.
-- **Verification corrections:** 3; **findings without a filed issue:** 3. Private advisory routing is separate.
+- **Verification corrections:** 3; **findings without a filed issue:** 1. Private advisory routing is separate.
 - **Probe retention:** 1 nonsecurity entries; 0 retained. Findings whose notes say reproduced (probe not retained) use the validator's reproduced enum; their repair regression becomes durable evidence.

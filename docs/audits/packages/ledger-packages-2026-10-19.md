@@ -52,7 +52,37 @@ The intake captured all 200 open issues, 15 open PRs and 343 Project items. Rele
 
 No fresh no-dev installation, generated application, current downstream deployment or production database was qualified. Missing profile evidence has named owners. The private User lead was interrupted before its required independent verdict and has not been retried or reconstructed; User cannot be marked assessed.
 
-Private briefs and their source evidence are held by Russell Jones under the designated restricted private-audit custody, with verified SHA-256 copies. These public records include safe summaries only. This audit publication implements no repairs and files no new remediation issues. Existing issue owners receive links to the committed records.
+Private briefs and their source evidence are held by Russell Jones under the designated restricted private-audit custody, with verified SHA-256 copies. These public records include safe summaries only. The initial audit publication implemented no repairs. The later ordinary remediation routing is recorded below; private reports remain outside this publication.
 
 Publication self-review checked record/index agreement, historical evidence retention, stable finding IDs, relative links and the public-only file scope. The focused architecture checks passed 134 tests and 1,169 assertions after restoring the earlier CLI and Foundation evidence links. All five ledger validators and the retained API-shape probe passed. No runtime behavior or enduring specification changes are included.
+
+## Ordinary remediation issue routing (2026-10-19)
+
+All 20 ordinary findings now have filed destinations: 16 new issues and four findings assigned to three existing issues. The routing review checked 200 open issues, 15 open pull requests and five targeted closed-issue searches. The open pull requests were dependency updates; closed feature work is retained as historical context rather than treated as current repair evidence.
+
+| Package | Finding | Remediation issue | Routing |
+| --- | --- | --- | --- |
+| audit | AUD-CONTRACT-001 | [#3184](https://github.com/waaseyaa/framework/issues/3184) | Existing owner |
+| audit | AUD-DOC-001 | [#3212](https://github.com/waaseyaa/framework/issues/3212) | New bounded issue |
+| audit | AUD-COMPONENT-001 | [#3015](https://github.com/waaseyaa/framework/issues/3015) | Existing owner |
+| entity-storage | EST-DOC-001 | [#3213](https://github.com/waaseyaa/framework/issues/3213) | New bounded issue |
+| foundation | FND-CONTRACT-001 | [#3123](https://github.com/waaseyaa/framework/issues/3123) | Existing owner |
+| foundation | FND-DIAGNOSTIC-001 | [#3214](https://github.com/waaseyaa/framework/issues/3214) | New bounded issue |
+| foundation | GRP-LIFECYCLE-002 | [#3123](https://github.com/waaseyaa/framework/issues/3123) | Existing owner |
+| foundation | FND-HTTP-001 | [#3215](https://github.com/waaseyaa/framework/issues/3215) | New bounded issue |
+| foundation | FND-HTTP-002 | [#3216](https://github.com/waaseyaa/framework/issues/3216) | New bounded issue |
+| foundation | FND-MONITOR-001 | [#3217](https://github.com/waaseyaa/framework/issues/3217) | New bounded issue |
+| foundation | FND-LOG-001 | [#3218](https://github.com/waaseyaa/framework/issues/3218) | New bounded issue |
+| foundation | FND-GUIDANCE-001 | [#3219](https://github.com/waaseyaa/framework/issues/3219) | New bounded issue |
+| cli | CLI-INPUT-001 | [#3220](https://github.com/waaseyaa/framework/issues/3220) | New bounded issue |
+| cli | CLI-IO-002 | [#3221](https://github.com/waaseyaa/framework/issues/3221) | New bounded issue |
+| cli | CLI-DOC-001 | [#3222](https://github.com/waaseyaa/framework/issues/3222) | New bounded issue |
+| cli | CLI-NAV-001 | [#3223](https://github.com/waaseyaa/framework/issues/3223) | New bounded issue |
+| cli | CLI-STRUCT-001 | [#3224](https://github.com/waaseyaa/framework/issues/3224) | New bounded issue |
+| cli | CLI-COMPONENT-001 | [#3225](https://github.com/waaseyaa/framework/issues/3225) | New bounded issue |
+| user | USER-CONTRACT-001 | [#3226](https://github.com/waaseyaa/framework/issues/3226) | New bounded issue |
+| user | USER-DOC-001 | [#3227](https://github.com/waaseyaa/framework/issues/3227) | New bounded issue |
+
+The issue bodies retain the recorded acceptance and positive controls. Informational findings require the stated bounded review; they are not blanket replacement or extraction decisions. Issue filing implements no repairs, adds no runtime qualification and does not advance assessment or repair-ready milestones. **User remains in progress**; its ordinary remediation is planned while required assessment verification remains incomplete.
+
 

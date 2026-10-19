@@ -46,9 +46,9 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 | AUD-SEC-001 | Cumulative resource use requires private triage. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/audit) |
 | GRP-SEC-003 | Inherited authority-retention report reviewed in private. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/audit) |
 | AUD-SEC-002 | Inherited identity-resolution report reviewed in private. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/audit) |
-| AUD-CONTRACT-001 | The closed User reader lacks the status-only batch seam required by its consumer | medium | confirmed | reproduced | A | #3184; AUD-S1 |
-| AUD-DOC-001 | Package navigation and lifecycle documentation need reconciliation | info | confirmed | reviewed | C | AUD-S2 |
-| AUD-COMPONENT-001 | File export needs a bounded maintained-filesystem equivalence review | info | confirmed | reviewed | C | AUD-S3 |
+| AUD-CONTRACT-001 | The closed User reader lacks the status-only batch seam required by its consumer | medium | confirmed | reproduced | A | [#3184](https://github.com/waaseyaa/framework/issues/3184); AUD-S1 |
+| AUD-DOC-001 | Package navigation and lifecycle documentation need reconciliation | info | confirmed | reviewed | C | [#3212](https://github.com/waaseyaa/framework/issues/3212); AUD-S2 |
+| AUD-COMPONENT-001 | File export needs a bounded maintained-filesystem equivalence review | info | confirmed | reviewed | C | [#3015](https://github.com/waaseyaa/framework/issues/3015); AUD-S3 |
 
 ### `AUD-CONTRACT-001`: The closed User reader lacks the status-only batch seam required by its consumer
 
@@ -106,6 +106,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 ## Remediation plan
 
+Every ordinary finding now has a filed issue linked in its destination above. Issue routing leaves the recorded acceptance, evidence limits and assessment milestone unchanged.
+
 | Slice | Findings | Acceptance | Depends on |
 | --- | --- | --- | --- |
 | AUD-S1 | AUD-CONTRACT-001 | Provide the closed status-only batch port and implementation with fresh disable/reactivate controls, exact status-only metadata and one truthful receipt per entity. Explicitly decide/refuse/qualify caller-transaction behavior; preserve reserve-before-obtain and terminal failure evidence. Qualify the existing consumer with synthetic Linux workload at the candidate. | none |
@@ -136,5 +138,5 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 - Root plus three reused independent reviewers. Parallel investigation is user-authorized; token usage unavailable.
 - **Open:** 0 open decisions; 3 open uncertainties; remediation filing and delivery remain separate.
 - **Elapsed:** Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.
-- **Verification corrections:** 5; **findings without a filed issue:** 5. Private advisory routing is separate.
+- **Verification corrections:** 5; **findings without a filed issue:** 3. Private advisory routing is separate.
 - **Probe retention:** 1 nonsecurity entries; 1 retained. Findings whose notes say reproduced (probe not retained) use the validator's reproduced enum; their repair regression becomes durable evidence.

@@ -1141,7 +1141,7 @@
             "path": "packages/user",
             "form": "library",
             "audit_state": "in progress",
-            "remediation_state": "not triaged",
+            "remediation_state": "planned",
             "audit_base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
             "audit_date": "2026-10-19",
             "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
@@ -1156,7 +1156,7 @@
                     "path": "docs/audits/packages/user.ledger.json"
                 }
             ],
-            "notes": "Fresh source assessment; required independent verification remains incomplete. No convergence claim."
+            "notes": "Ordinary remediation issues filed; required independent verification remains incomplete. User remains in progress. No convergence claim."
         },
         {
             "package": "waaseyaa/validation",

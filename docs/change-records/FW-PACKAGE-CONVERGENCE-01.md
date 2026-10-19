@@ -45,6 +45,16 @@ failure witness. The existing skills now route failure-boundary reviews through
 one focused profile; runtime specs own intended behavior. Package milestones
 do not advance merely because this additional acceptance is documented.
 
+## Five-package ordinary remediation routing (2026-10-19)
+
+The [published assessment and issue map](../audits/packages/ledger-packages-2026-10-19.md#ordinary-remediation-issue-routing-2026-10-19)
+routes all 20 ordinary Audit, Entity-storage, Foundation, CLI and User findings:
+16 new bounded issues and four findings assigned to three existing owners.
+The package records and ledgers link each destination and preserve its acceptance.
+User remains in progress; ordinary remediation is planned and required assessment
+verification is incomplete. Issue filing advances no assessment, repair-ready or
+convergence milestone and claims no implemented repair or runtime qualification.
+
 ## States
 
 - **Audit:** not assessed, inventory only, in progress, assessed, needs delta review.

@@ -55,7 +55,7 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 | --- | --- | --- | --- | --- | --- | --- |
 | EST-SEC-001 | Retention integrity requires private triage. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/entity-storage) |
 | EST-SEC-002 | Data scope consistency requires private triage. | withheld | confirmed | reproduced | A | private report (framework advisory; owner waaseyaa/entity-storage) |
-| EST-DOC-001 | Storage documentation diverges from active composition and public contracts | info | confirmed | reviewed | C | EST-S1 |
+| EST-DOC-001 | Storage documentation diverges from active composition and public contracts | info | confirmed | reviewed | C | [#3213](https://github.com/waaseyaa/framework/issues/3213); EST-S1 |
 
 ## Cross-package findings
 
@@ -103,6 +103,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 
 ## Remediation plan
 
+Every ordinary finding now has a filed issue linked in its destination above. Issue routing leaves the recorded acceptance, evidence limits and assessment milestone unchanged.
+
 | Slice | Findings | Acceptance | Depends on |
 | --- | --- | --- | --- |
 | EST-S1 | EST-DOC-001 | Describe active repository -> V2 adapter -> SQL backend composition and explicit schema entrypoints; distinguish real test fixture and extension interface. Do not say all named engines/interfaces were removed. Describe the actual post-filter boundary and its qualification limits. Do not infer its performance as one SQL query or claim it is wired solely because the class comment says a provider wires it. Document nonempty langcode list, normalization and duplicate semantics; retain current accepted input behavior unless separately reviewed. Document the actual builder output and relationship to the normal schema path. Reconcile alternative public contracts before any implementation merge/removal. Correct comment to actual transactional ordering. No behavior change or migration source rewrite required. Describe raw revision persistence role and leave multi-language orchestration with actual repository/coordinator owner. | none |
@@ -134,5 +136,5 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 - Root plus three reused independent reviewers. Parallel investigation is user-authorized; token usage unavailable.
 - **Open:** 0 open decisions; 2 open uncertainties; remediation filing and delivery remain separate.
 - **Elapsed:** Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.
-- **Verification corrections:** 1; **findings without a filed issue:** 3. Private advisory routing is separate.
+- **Verification corrections:** 1; **findings without a filed issue:** 2. Private advisory routing is separate.
 - **Probe retention:** 0 nonsecurity entries; 0 retained. Findings whose notes say reproduced (probe not retained) use the validator's reproduced enum; their repair regression becomes durable evidence.

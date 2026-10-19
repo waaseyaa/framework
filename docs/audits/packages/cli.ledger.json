@@ -3949,6 +3949,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3220"
+                },
+                {
                     "kind": "slice",
                     "ref": "CLI-S1"
                 }
@@ -3990,6 +3994,10 @@
             "refutation": "This is not every filesystem error: explicit directory-creation guards already refuse correctly. sync-rules tested failure is the forced update branch; its failed add branch is source-only and is not a reproduced claim. Warnings are not exceptions by ordinary PHP semantics; the application only catching Throwable does not repair ignored false writes. Use CLI as the single defect owner. A cross-package convergence program is issue context, not evidence Foundation implements these writes.",
             "disposition": "repair",
             "destination": [
+                {
+                    "kind": "issue",
+                    "ref": "#3221"
+                },
                 {
                     "kind": "slice",
                     "ref": "CLI-S2"
@@ -4033,6 +4041,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3222"
+                },
+                {
                     "kind": "slice",
                     "ref": "CLI-S3"
                 }
@@ -4072,6 +4084,10 @@
             "refutation": "Source observation only; no code-removal or drop-in replacement conclusion follows.",
             "disposition": "repair",
             "destination": [
+                {
+                    "kind": "issue",
+                    "ref": "#3223"
+                },
                 {
                     "kind": "slice",
                     "ref": "CLI-S4"
@@ -4115,6 +4131,10 @@
             "disposition": "repair",
             "destination": [
                 {
+                    "kind": "issue",
+                    "ref": "#3224"
+                },
+                {
                     "kind": "slice",
                     "ref": "CLI-S5"
                 }
@@ -4154,6 +4174,10 @@
             "refutation": "Process::start merges default environment at line 331. Passing only the admin allowlist is not equivalent to replacing the environment. Likewise generic streaming output cannot be substituted directly for buffered cross-stream redaction. Existing stop() implementation does not itself establish the custom terminal-confirmation contract for every supported profile.",
             "disposition": "repair",
             "destination": [
+                {
+                    "kind": "issue",
+                    "ref": "#3225"
+                },
                 {
                     "kind": "slice",
                     "ref": "CLI-S6"
@@ -4327,6 +4351,42 @@
             "claim": "Clean no-dev installation through the first homepage is a shared acceptance journey.",
             "status": "qualification owner retained",
             "evidence": "Monorepo source and synthetic fixtures are not an isolated Composer consumer. No dependency installation or fresh generated app executed in this audit."
+        },
+        {
+            "issue": "#3220",
+            "claim": "CLI-INPUT-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3221",
+            "claim": "CLI-IO-002 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3222",
+            "claim": "CLI-DOC-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3223",
+            "claim": "CLI-NAV-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3224",
+            "claim": "CLI-STRUCT-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
+        },
+        {
+            "issue": "#3225",
+            "claim": "CLI-COMPONENT-001 ordinary remediation is routed to this issue.",
+            "status": "bounded issue filed; repair and qualification remain open",
+            "evidence": "2026-10-19 maintainer-authorized issue routing from the published assessment; no new runtime evidence or milestone advancement."
         }
     ],
     "remediation_plan": [
@@ -4474,7 +4534,7 @@
             "decisions": 0,
             "uncertainties": 3
         },
-        "findings_without_filed_issue": 7,
+        "findings_without_filed_issue": 1,
         "findings_by_severity": {
             "package_owned": {
                 "withheld": 1,
