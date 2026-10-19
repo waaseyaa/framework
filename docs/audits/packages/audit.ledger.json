@@ -1,0 +1,2608 @@
+{
+    "schema_version": 1,
+    "package": "waaseyaa/audit",
+    "base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+    "audit_date": "2026-10-19",
+    "dependency_identity": {
+        "composer_lock_sha256": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+        "php": "8.5.5",
+        "host": "native Windows PowerShell",
+        "evidence_freshness": "Current source at 3161864a5d1af57621e4819e9720f12e12ccdae7",
+        "consumers": []
+    },
+    "milestone": {
+        "assessed": true,
+        "repair_ready": false,
+        "converged": null,
+        "reasons": [
+            "Assessed after independent finding verification, final citation/redaction review and protected-state checks.",
+            "Every shipped file is classified; profile, sampling and historical acceptance gaps have named owners. Repairs and convergence are not claimed."
+        ]
+    },
+    "charter": [
+        {
+            "question": "Owns",
+            "answer": "Ordinary best-effort event recording and query, strict protected-read and mutation receipt implementations, human operation approvals, checkpoint integrity/export and checkpoint-key succession.",
+            "evidence": "AuditServiceProvider; Contracts, Writer, Integrity, Rekey and Storage namespaces."
+        },
+        {
+            "question": "Does not own",
+            "answer": "Access capability policy, application domain mutations, kernel boot frequency, operator command presentation or database transaction primitives.",
+            "evidence": "access and foundation ports; entity-storage gateways; cli audit commands."
+        },
+        {
+            "question": "Consumers",
+            "answer": "Core kernel composition, API requests, entity lifecycle, publishing, agent tools, MCP, broadcast, closed User readers and CLI audit maintenance.",
+            "evidence": "AuditServiceProvider registration and boot; package manifest and 12 declared inbound peers."
+        },
+        {
+            "question": "Dependencies",
+            "answer": "Required: access, database, entity, entity-storage, foundation, scheduler, DBAL and Symfony UID. Event strings and listener duck typing add dynamic AI/MCP/broadcast contracts; user is a development dependency but closed readers operate on its current structural identity.",
+            "evidence": "packages/audit/composer.json and provider/listener source."
+        },
+        {
+            "question": "Public surface",
+            "answer": "Nineteen declarations plus real exposed classes require deliberate classification. Ordinary best-effort failures and strict reserve-before-read/finalize contracts are separate; checkpoint bytes are persisted integrity formats.",
+            "evidence": "packages/audit/public-surface.php; Contracts; Writer; Integrity."
+        },
+        {
+            "question": "Installation profiles",
+            "answer": "Kernel and framework closure are supported by current composition. Standalone primitives and no-dev split closure need explicit qualification; no fresh installed consumer was run.",
+            "evidence": "Package manifest, source provider and explicit-file package tests."
+        }
+    ],
+    "roster": [
+        {
+            "file": "packages/audit/composer.json",
+            "role": "composer.json",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php",
+            "role": "migrations/2026_05_25_000001_create_audit_event_table.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_05_25_000002_create_audit_retention_policy_table.php",
+            "role": "migrations/2026_05_25_000002_create_audit_retention_policy_table.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_08_12_000003_audit_runtime_schema.php",
+            "role": "migrations/2026_08_12_000003_audit_runtime_schema.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_08_12_000004_strict_audit_ledger_schema.php",
+            "role": "migrations/2026_08_12_000004_strict_audit_ledger_schema.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_08_12_000005_approval_event_schema.php",
+            "role": "migrations/2026_08_12_000005_approval_event_schema.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_08_15_000006_audit_prune_authorization.php",
+            "role": "migrations/2026_08_15_000006_audit_prune_authorization.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/migrations/2026_08_15_000007_audit_checkpoint_succession.php",
+            "role": "migrations/2026_08_15_000007_audit_checkpoint_succession.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Historical migration identity reviewed. No-op bodies preserve persisted migration sequence and are not classified as dead code.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/phpunit.xml",
+            "role": "phpunit.xml",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/public-surface.php",
+            "role": "public-surface.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/AuditServiceProvider.php",
+            "role": "src/AuditServiceProvider.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/AuditedFieldRead.php",
+            "role": "src/AuditedFieldRead.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/AuditedQueryFieldRead.php",
+            "role": "src/AuditedQueryFieldRead.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/AuditedQueryReservation.php",
+            "role": "src/AuditedQueryReservation.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Bootstrap/AuditedUserIdentityLookup.php",
+            "role": "src/Bootstrap/AuditedUserIdentityLookup.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Bootstrap/AuditedUserInternalFieldReader.php",
+            "role": "src/Bootstrap/AuditedUserInternalFieldReader.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Bootstrap/AuditedUserSelfProfileReader.php",
+            "role": "src/Bootstrap/AuditedUserSelfProfileReader.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Bootstrap/CredentialBootstrapReader.php",
+            "role": "src/Bootstrap/CredentialBootstrapReader.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Bootstrap/IdentityBootstrapReader.php",
+            "role": "src/Bootstrap/IdentityBootstrapReader.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Bootstrap/SessionBootstrapReader.php",
+            "role": "src/Bootstrap/SessionBootstrapReader.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/AuditEventDescriptor.php",
+            "role": "src/Contract/AuditEventDescriptor.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/AuditQuery.php",
+            "role": "src/Contract/AuditQuery.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/AuditQueryInterface.php",
+            "role": "src/Contract/AuditQueryInterface.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/AuditWriteFailureObserver.php",
+            "role": "src/Contract/AuditWriteFailureObserver.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/AuditWriterInterface.php",
+            "role": "src/Contract/AuditWriterInterface.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/BatchStrictPrivilegedReadLedgerInterface.php",
+            "role": "src/Contract/BatchStrictPrivilegedReadLedgerInterface.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/PrivilegedReadDescriptor.php",
+            "role": "src/Contract/PrivilegedReadDescriptor.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/PrivilegedReadKind.php",
+            "role": "src/Contract/PrivilegedReadKind.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/PrivilegedReadOutcome.php",
+            "role": "src/Contract/PrivilegedReadOutcome.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/PrivilegedReadReceipt.php",
+            "role": "src/Contract/PrivilegedReadReceipt.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Contract/StrictPrivilegedReadLedgerInterface.php",
+            "role": "src/Contract/StrictPrivilegedReadLedgerInterface.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Entity/AuditCheckpoint.php",
+            "role": "src/Entity/AuditCheckpoint.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Entity/AuditEvent.php",
+            "role": "src/Entity/AuditEvent.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Entity/AuditRetentionPolicy.php",
+            "role": "src/Entity/AuditRetentionPolicy.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Enum/AuditEventKind.php",
+            "role": "src/Enum/AuditEventKind.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Exception/PrivilegedReadLedgerException.php",
+            "role": "src/Exception/PrivilegedReadLedgerException.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditChainVerifier.php",
+            "role": "src/Integrity/AuditChainVerifier.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditCheckpointBuilder.php",
+            "role": "src/Integrity/AuditCheckpointBuilder.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditCheckpointCustody.php",
+            "role": "src/Integrity/AuditCheckpointCustody.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditCheckpointHasher.php",
+            "role": "src/Integrity/AuditCheckpointHasher.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditCheckpointSuccessionVerifier.php",
+            "role": "src/Integrity/AuditCheckpointSuccessionVerifier.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditEventCanonicalizer.php",
+            "role": "src/Integrity/AuditEventCanonicalizer.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditPruneAuthorization.php",
+            "role": "src/Integrity/AuditPruneAuthorization.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditSuccessionVerificationWindow.php",
+            "role": "src/Integrity/AuditSuccessionVerificationWindow.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/AuditVerificationResult.php",
+            "role": "src/Integrity/AuditVerificationResult.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/CheckpointSink.php",
+            "role": "src/Integrity/CheckpointSink.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/FileCheckpointSink.php",
+            "role": "src/Integrity/FileCheckpointSink.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Integrity/LegacyCheckpointSignatureMigrator.php",
+            "role": "src/Integrity/LegacyCheckpointSignatureMigrator.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/AgentToolAuditListener.php",
+            "role": "src/Listener/AgentToolAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/ApiRequestAuditListener.php",
+            "role": "src/Listener/ApiRequestAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/BroadcastAuditListener.php",
+            "role": "src/Listener/BroadcastAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/EntityLifecycleAuditListener.php",
+            "role": "src/Listener/EntityLifecycleAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/McpApprovalDecisionAuditListener.php",
+            "role": "src/Listener/McpApprovalDecisionAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/McpDispatchAuditListener.php",
+            "role": "src/Listener/McpDispatchAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/PublishPointerAuditListener.php",
+            "role": "src/Listener/PublishPointerAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Listener/RollbackAuditListener.php",
+            "role": "src/Listener/RollbackAuditListener.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Query/AuditEventQuery.php",
+            "role": "src/Query/AuditEventQuery.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/ReadModel/AuditReadModelDefinitionRegistry.php",
+            "role": "src/ReadModel/AuditReadModelDefinitionRegistry.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Rekey/AuditCheckpointSuccessionRekeyAdapter.php",
+            "role": "src/Rekey/AuditCheckpointSuccessionRekeyAdapter.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Source role reviewed. Checkpoint/export lifecycle or dynamic listener contracts need the bounded evidence and current-caller reconciliation recorded in the structural checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Schedule/AuditCheckpointScheduleEntries.php",
+            "role": "src/Schedule/AuditCheckpointScheduleEntries.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Schema/AuditEventSchemaHandler.php",
+            "role": "src/Schema/AuditEventSchemaHandler.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Storage/AppendOnlyAuditDatabase.php",
+            "role": "src/Storage/AppendOnlyAuditDatabase.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Storage/AppendOnlySchema.php",
+            "role": "src/Storage/AppendOnlySchema.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Storage/ApprovalEventSchema.php",
+            "role": "src/Storage/ApprovalEventSchema.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Storage/StrictAuditLedgerSchema.php",
+            "role": "src/Storage/StrictAuditLedgerSchema.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/AuditEventWriter.php",
+            "role": "src/Writer/AuditEventWriter.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/DatabaseOperationApprovalStore.php",
+            "role": "src/Writer/DatabaseOperationApprovalStore.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/DatabaseStrictAuditLedger.php",
+            "role": "src/Writer/DatabaseStrictAuditLedger.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/DatabaseStrictFieldStorageGatewayAudit.php",
+            "role": "src/Writer/DatabaseStrictFieldStorageGatewayAudit.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/DatabaseStrictPrivilegedReadLedger.php",
+            "role": "src/Writer/DatabaseStrictPrivilegedReadLedger.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/NullAuditWriteFailureObserver.php",
+            "role": "src/Writer/NullAuditWriteFailureObserver.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/audit/src/Writer/NullAuditWriter.php",
+            "role": "src/Writer/NullAuditWriter.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        }
+    ],
+    "checklists": [
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Composer or ecosystem package identity, versioning, exports, and split target",
+            "status": "gap",
+            "answer": "The split subtree, provider and four lifecycle families establish current ownership. No package README exists. Standalone primitive versus kernel closure remains a named qualification gap under #3118.",
+            "evidence": "composer.json; public-surface.php; AuditServiceProvider; .github/workflows/split.yml",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Stated purpose in README, specifications, change records, and package metadata",
+            "status": "gap",
+            "answer": "The split subtree, provider and four lifecycle families establish current ownership. No package README exists. Standalone primitive versus kernel closure remains a named qualification gap under #3118.",
+            "evidence": "composer.json; public-surface.php; AuditServiceProvider; .github/workflows/split.yml",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Capabilities explicitly owned and excluded",
+            "status": "gap",
+            "answer": "The split subtree, provider and four lifecycle families establish current ownership. No package README exists. Standalone primitive versus kernel closure remains a named qualification gap under #3118.",
+            "evidence": "composer.json; public-surface.php; AuditServiceProvider; .github/workflows/split.yml",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Upstream authority and downstream consumers",
+            "status": "gap",
+            "answer": "The split subtree, provider and four lifecycle families establish current ownership. No package README exists. Standalone primitive versus kernel closure remains a named qualification gap under #3118.",
+            "evidence": "composer.json; public-surface.php; AuditServiceProvider; .github/workflows/split.yml",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Source, generated-application, runtime, and distributed-package composition roots",
+            "status": "gap",
+            "answer": "The split subtree, provider and four lifecycle families establish current ownership. No package README exists. Standalone primitive versus kernel closure remains a named qualification gap under #3118.",
+            "evidence": "composer.json; public-surface.php; AuditServiceProvider; .github/workflows/split.yml",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Supported installation profiles and the dependency closure each promises; distinguish primitive-only use from kernel/metapackage composition",
+            "status": "gap",
+            "answer": "The split subtree, provider and four lifecycle families establish current ownership. No package README exists. Standalone primitive versus kernel closure remains a named qualification gap under #3118.",
+            "evidence": "composer.json; public-surface.php; AuditServiceProvider; .github/workflows/split.yml",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Complete issue/PR inventory with search scope, pagination and observation time; relevant closed/merged decisions and discussions",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Every relevant existing issue dispositioned against current acceptance evidence; reuse existing owners and IDs",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Related specs, ADRs, records, READMEs, recipes, examples and shipped/maintainer skills inventoried outside the package as well as inside it",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Requirement-to-spec-to-code-to-test traceability, including undocumented behavior, unimplemented promises and conflicting authorities",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Intended behavior settled before repairing code or revising a spec; no spec rewrite merely to bless a defect",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Superseded documents/passages deleted after preserving current obligations and updating links, manifests, routing and evidence consumers; explicit retention rationale otherwise",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Framework-level composition journeys and cross-package dead-chain/consumer coverage, with owners and installation evidence",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Refreshed issue/Project reconciliation at closeout; future features separated from unresolved defects and required repairs",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Service providers, container bindings, factories, registries, and feature discovery",
+            "status": "gap",
+            "answer": "The provider binds ordinary and strict ports, closed readers, integrity custody, operation approvals and rekey contributions. Boot asserts installed schemas and registers listeners. Optional-present and optional-absent installed combinations remain unqualified. Owner: waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "HTTP routes, controllers, middleware, commands, jobs, events, and listeners",
+            "status": "gap",
+            "answer": "The provider binds ordinary and strict ports, closed readers, integrity custody, operation approvals and rekey contributions. Boot asserts installed schemas and registers listeners. Optional-present and optional-absent installed combinations remain unqualified. Owner: waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Configuration, environment inputs, migrations, storage, and cache behavior",
+            "status": "gap",
+            "answer": "The provider binds ordinary and strict ports, closed readers, integrity custody, operation approvals and rekey contributions. Boot asserts installed schemas and registers listeners. Optional-present and optional-absent installed combinations remain unqualified. Owner: waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Optional integrations and behavior when each dependency is absent",
+            "status": "gap",
+            "answer": "The provider binds ordinary and strict ports, closed readers, integrity custody, operation approvals and rekey contributions. Boot asserts installed schemas and registers listeners. Optional-present and optional-absent installed combinations remain unqualified. Owner: waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Startup, shutdown, retry, idempotency, and failure-state behavior",
+            "status": "gap",
+            "answer": "The provider binds ordinary and strict ports, closed readers, integrity custody, operation approvals and rekey contributions. Boot asserts installed schemas and registers listeners. Optional-present and optional-absent installed combinations remain unqualified. Owner: waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Exported classes, interfaces, traits, functions, constants, DTOs, and exceptions",
+            "status": "gap",
+            "answer": "Strict and best-effort histories have different failure promises. Migrations preserve historical persisted identities. The bounded interface/enum declaration check found declared shapes represented. Public concrete classes do not automatically require manifest entries. Remaining full export and installed caller qualification is owned by #3118.",
+            "evidence": "Contracts, Writer, Integrity, migrations and public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Composer autoload and package public-surface declarations",
+            "status": "gap",
+            "answer": "Strict and best-effort histories have different failure promises. Migrations preserve historical persisted identities. The bounded interface/enum declaration check found declared shapes represented. Public concrete classes do not automatically require manifest entries. Remaining full export and installed caller qualification is owned by #3118.",
+            "evidence": "Contracts, Writer, Integrity, migrations and public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Unclassified exports versus explicitly internal symbols; omission from a declaration is not proof that a real consumer is unsupported",
+            "status": "gap",
+            "answer": "Strict and best-effort histories have different failure promises. Migrations preserve historical persisted identities. The bounded interface/enum declaration check found declared shapes represented. Public concrete classes do not automatically require manifest entries. Remaining full export and installed caller qualification is owned by #3118.",
+            "evidence": "Contracts, Writer, Integrity, migrations and public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Request, response, event, persistence, JSON, TypeScript, schema, and generated contracts",
+            "status": "gap",
+            "answer": "Strict and best-effort histories have different failure promises. Migrations preserve historical persisted identities. The bounded interface/enum declaration check found declared shapes represented. Public concrete classes do not automatically require manifest entries. Remaining full export and installed caller qualification is owned by #3118.",
+            "evidence": "Contracts, Writer, Integrity, migrations and public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Compatibility policy, lifecycle, deprecation path, and error semantics",
+            "status": "gap",
+            "answer": "Strict and best-effort histories have different failure promises. Migrations preserve historical persisted identities. The bounded interface/enum declaration check found declared shapes represented. Public concrete classes do not automatically require manifest entries. Remaining full export and installed caller qualification is owned by #3118.",
+            "evidence": "Contracts, Writer, Integrity, migrations and public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Canonical definitions and every derived or duplicated representation",
+            "status": "gap",
+            "answer": "Strict and best-effort histories have different failure promises. Migrations preserve historical persisted identities. The bounded interface/enum declaration check found declared shapes represented. Public concrete classes do not automatically require manifest entries. Remaining full export and installed caller qualification is owned by #3118.",
+            "evidence": "Contracts, Writer, Integrity, migrations and public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Internal layers derived from the package charter",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Required, optional, development-only, adapter, and framework dependencies",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Inbound dependencies from peer packages and applications",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Outbound dependencies, including dynamic and container-resolved edges",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Cycles, layer bypasses, uncovered dependencies, allowlists, and expiry conditions",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Coupling to peer internals versus narrow public contracts; concrete consumers and compatibility obligations",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Temporal coupling: initialization order, early resolution, retries and coordinated readiness across packages",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Shared mutable state, captured service/provider objects and service-locator dependencies hidden from import graphs",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Change coupling: a concrete change that requires synchronized edits across owners, and whether that coordination is intentional",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Adapter chains from a supported composition root to their terminal implementations; what each layer owns, whether the terminal implementation is production-reachable, and whether a wrapper conceals rather than repairs defective behavior",
+            "status": "gap",
+            "answer": "Ports are access/foundation-owned and database adapters audit-owned. Dynamic event shapes and provider lookup add temporal coupling. Existing layer checks remain authoritative until #3075 Deptrac migration; no new parser or dependency configuration was introduced. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Composer manifest and provider/listener source; #3075",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Authentication, authorization, field access, CSRF, and information-oracle behavior",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Validation order and stable refusal mapping",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Refusal stack: route options, real middleware, handler non-invocation, HTTP status, and response shape",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Concurrency, revision, mutation-token, replay, and idempotency contracts",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Optional capability discovery versus actual route or service availability",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Malformed input, unavailable dependency, partial failure, and recovery behavior",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Adapter truthfulness across inputs, fields, authorization, refusals, errors, mutations, persistence effects, transaction boundaries, retries, and lifecycle transitions",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/audit #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Separation of concerns and single responsibility: group code by coherent ownership and reasons to change; identify policy, orchestration and infrastructure mixed in one host without requiring one class per method",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "DRY at the contract and mechanism level: consolidate repeated knowledge around its canonical owner; retain similar-looking code when different domain rules or change lifecycles justify it",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Human navigation: consistent file, namespace and symbol names; related responsibilities easy to locate; directory depth and grouping proportional to package size; avoid vague dumping grounds and needless nesting",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Trace a maintainer task from package entrypoint to implementation, contract, tests and usage docs; record concrete navigation friction and a justified retain/move/split/merge disposition",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "For proposed moves, name the responsibility and destination, affected imports/autoload, dynamic names, exports, generated consumers, docs and tests; keep ownership and behavior intact and give the repair bounded acceptance",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Unused locals, fields, parameters, callbacks, imports, flags, configuration and branches, including leftovers excluded from static-tool findings",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Deprecated no-ops, old/new implementations, aliases, fallbacks and compatibility shims; apply the skill's alpha Framework policy instead of assuming retention",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Concentrated hosts, providers, controllers, or managers with multiple policy roles",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Repeated translation, validation, serialization, or authorization logic",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Competing sources of truth and dual representations; identify the canonical authority and whether derived views are mechanically checked",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Interfaces with no production implementation or consumer",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Implementations reachable only from tests or obsolete examples",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Abstractions that hide ownership rather than clarifying it",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Adapters backed by test-only or fake delegates, effective no-ops, manufactured success, swallowed failures, lossy translation, or an unavailable terminal capability",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Adapters introduced to make internal paths agree: identify the original producer/consumer mismatch, normalization/defaults/coercions and whether correcting one canonical contract removes the adapter",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Repeated execution versus repeated implementation; measure query or translation cost before claiming a performance defect",
+            "status": "gap",
+            "answer": "Four lifecycle families are navigable by directory, but provider setup spans them all. Succession canonical record/body encodings repeat between adapter and verifier. Legacy listener shape fallbacks need real current-caller obligations; no removal is justified solely by absence in a search. Checkpoint capture/materialization needs scale evidence before a performance claim. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Integrity/AuditCheckpointSuccessionVerifier; Rekey/AuditCheckpointSuccessionRekeyAdapter; Listener; AuditServiceProvider",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Prefer native types where expressive; use PHPDoc for missing precision such as collection element types, array shapes, generics and callable signatures. Check annotations against actual producers, consumers and refusal paths",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Public and extension contracts explain purpose, meaningful input/output semantics, relevant exceptions, side effects and lifecycle or ownership constraints; internal contracts document non-obvious obligations where their callers need them",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Keep PHPDoc, native signatures, public-surface metadata, specs and behavior consistent. Remove stale promises, future-state descriptions and redundant tags that add no type or semantic information",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Explain non-obvious intent, invariants, ordering, security decisions, transaction/cache boundaries and tradeoffs near the affected code. Describe why the rule exists and what would break if it changed; link a stable spec or change record when useful",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Refactor confusing names or flow before adding explanatory prose. Remove narration of obvious statements, commented-out implementations and misleading comments; bounded workarounds identify their owner and removal condition",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Treat inline `@var`, suppressions and `@api` as claims requiring evidence, not shortcuts to a green gate. Fix the producer's type where possible; annotations must not manufacture runtime guarantees or conceal dead code",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Check the installed PHPStan and Deptrac versions and configuration before relying on a tag. PHPStan consumes richer PHPDoc types; Deptrac checks dependency rules and supports documentation-tag classification when configured. Prove the claimed enforcement with relevant controls",
+            "status": "gap",
+            "answer": "Provider schema-install wording lags current nonmutating validation. Canonical byte formats and historical migrations retain real persisted-data obligations. Reconcile stale purpose text without changing behavior to match prose. AUD-DOC-001 owns ordinary navigation and schema wording.",
+            "evidence": "AuditServiceProvider; AuditedQueryFieldRead; migrations; Integrity",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Current custom responsibility, real callers and observable behavior",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Candidate Symfony component, installed/supported version, and verified source/test or official-documentation evidence of fit",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Waaseyaa domain semantics retained, including authorization, sovereignty, lifecycle, error and wire contracts",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Direct use versus a thin adapter; whether the adapter actually reduces maintenance or only relocates coupling",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Compatibility for public symbols, generated artifacts, stored formats and supported application extensions",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Required/optional dependency and split-installation impact, migration effort and ongoing maintenance tradeoff",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Equivalence controls for normal behavior, refusals, failure mapping and relevant lifecycle transitions",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Disposition: simplify around Symfony or replace when fit is established; retain only with an evidenced capability/compatibility gap, owner and review trigger; defer only with bounded migration acceptance and a removal condition",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Remediation destination for each verified replacement opportunity, including those outside the current consumer unblock",
+            "status": "gap",
+            "answer": "Domain receipt capabilities, cryptographic formats and rekey transitions are Framework policy, not generic infrastructure replacement targets. File export can use maintained Filesystem primitives while retaining audit custody and failure policy. That fit needs a bounded proof, including atomic export/failure behavior, under #3015 rather than an unqualified replacement claim.",
+            "evidence": "FileCheckpointSink; https://symfony.com/doc/current/components/filesystem.html; #3015",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Unit tests for pure contracts and policies",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Integration tests through real composition roots",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Boundary tests for authorization, refusal, optional dependencies, and failure mapping",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Producer conformance that fails on undeclared emitted keys and missing required keys",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Canonical-to-consumer compatibility that fails on extra or missing keys, presence, nullability, and value drift",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Non-empty optional and nested fixtures typed against or mechanically validated by the canonical contract",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Source-parser controls for module discovery, nested structures, and empty-result failure when parsing cannot be avoided",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Schema, generated-output freshness, and workflow path-filter checks",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Architecture controls with positive, negative, and uncovered cases",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Mutation or discriminator evidence where a passing test could otherwise be vacuous",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Real-composition adapter controls with a positive path, an applicable refusal or failure path, an asserted terminal effect or returned state, and a discriminator that fails for a no-op or fake delegate",
+            "status": "gap",
+            "answer": "The explicit-file package run completed 369 tests and 1024 assertions with one failing refusal fixture on this Windows host. Existing tests and private verification prove only their stated boundaries. Overlapping runs are not added. Owner: waaseyaa/audit #3118; Linux CI owns portable refusal confirmation.",
+            "evidence": "audit/package-tests.xml; source test suite",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Package charter and public composition examples",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Hard versus optional dependency documentation",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Source and split-package installation",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Generated-application consumption",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Frontend build and committed distribution freshness where applicable",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Distribution form details: see `profiles/distribution.md`",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Refreshed dependency views after production behavior changes",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Upgrade and deprecation guidance",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Changelog fragment and stable change record",
+            "status": "gap",
+            "answer": "Runtime source review is fresh. Current docs-only CI does not qualify installed or generated behavior. Package README, lifecycle runbook and public boundary reconciliation remain owned by waaseyaa/audit #3118.",
+            "evidence": "Package manifests; CI 39295771289; #3118",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Invariants and lifecycle: List the invariants the package promises and where each is enforced. An invariant enforced only in one caller (a controller, a CLI handler, an admin host) is not owned by the package.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Invariants and lifecycle: Map each lifecycle: states, allowed transitions, who may trigger them, and what happens to dependents. Test illegal transitions as well as legal ones.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Invariants and lifecycle: Find type-specific branches in generic code (a hard-coded entity type in a shared host, for example). Each one is either a missing declaration seam or a documented exception with an owner.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Events and extension seams: Record every event the package dispatches or subscribes to: name, payload, ordering, and whether listeners can veto or mutate. Check the order is deterministic and documented where consumers rely on it.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Events and extension seams: For each extension seam (interface, attribute, hook), name its real implementations and consumers. A seam with no production implementation is either `@api` scaffolding with a planned consumer or a removal candidate after the dead-code checks.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Events and extension seams: Check that best-effort listeners can't break the primary operation, and that required listeners can't be skipped silently.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Consumers: Trace actual consumers across packages and downstream applications. The contract is what they rely on, not what the README says.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Consumers: Check that access policies for the package's entity types exist, are discovered, and cover field-level access where the data needs it.",
+            "status": "gap",
+            "answer": "Ordinary recording, privileged reads, mutation approvals and integrity custody have distinct contracts. The closed User status batch operation remains #3184; its acceptance must settle outer-transaction semantics. Owner: waaseyaa/audit, with waaseyaa/access for the port.",
+            "evidence": "Contracts; Writer; Integrity; #3184",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: Before calling a contract canonical, enumerate every request and response that crosses the boundary, including secondary actions such as schema, history, preview, restore and errors. Trace each from its producer or validator, through transport, to the consuming type. A crossing typed only by a local cast or a consumer-private type is not covered.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: Derive field presence from the actual serialization path. An omitted field, an optional field, a required nullable field and a required non-null field are four different contracts.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: When a field carries authority or lifecycle state, test transitions, not just snapshots: authority becoming null, a capability disappearing, a session ending, an optional service going away. Static types can't prove that stale cached authority is revoked.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: One canonical contract doesn't need one file. Split distinct protocols by concern, with one public entrypoint and one compatibility story.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: Duplicated structural contracts must fail on missing or extra keys, required-versus-optional drift, nullability drift and incompatible values. Plain assignability can let an optional field disappear silently.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: Producer conformance must reject both undeclared emitted keys and missing required keys. Keep producer-to-canonical and canonical-to-consumer checks separate, and don't claim \"every payload\" unless the roster names each crossing.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: Use non-empty examples for optional and nested payloads. Type browser and integration fixtures against the canonical contract, or validate them mechanically; an untyped mock keeps a false green path alive after the contract changes.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: If conformance parses contract source instead of importing a runtime schema, require module discovery, nested-structure handling and a sanity control. A parser that finds nothing must fail.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: The gate must run when either the canonical definition or any mirror changes. Check workflow path filters, dependency provisioning and the owning required check. Don't add a gate to a job that can't provision its runtime.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: Prove the whole refusal stack: route options, real middleware, handler not invoked, wire-level status and response shape.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: Separate kernel-level malformed-body refusal from host-level refusal of valid JSON with the wrong shape.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: For a CSRF journey, bootstrap from the real application HTML, read the runtime-configured CSRF cookie name, keep the session cookie jar, and send the matching header on mutation. Also prove a mismatched token can't persist state. Don't hard-code a default cookie name.",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: Cover authentication, authorization, field access and information-oracle behavior (does a refusal reveal whether something exists?).",
+            "status": "gap",
+            "answer": "The package contributes request attribution and field-read middleware, but owns no general route or frontend wire surface. Final HTTP refusal/composition evidence depends on API, access and foundation. Existing middleware tests prove only their stated source boundary. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "AuditServiceProviderFieldReadMiddlewareTest; Listener/ApiRequestAuditListener",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Map first construction, discovery/register, boot/finalization, service resolution and shutdown. Identify when provider lists, entity definitions and other inputs become complete.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Trace early service resolution and recursive resolution. A lazily built singleton must not freeze incomplete registration into a permanent snapshot.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Exercise supported repeated calls and sequential executions. Check retained request/account/tenant state and request-context separation from reusable definitions.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: For failed boot, inspect state retained by each completed phase: frozen registries, singleton caches, registrations and readiness flags. Prove a clean retry or an explicit terminal-state refusal without weakening frozen-state protections.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: For restricted-to-runtime or other profile transitions, establish whether reuse is supported. Test supported transitions or explicit refusal. A single ready boolean is insufficient evidence that all profile-specific services were finalized.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Compare documented eager/deferred provider behavior with observed registration and boot. A mismatch may require correcting the promise rather than implementing new laziness.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Trace the same capability across HTTP, CLI, workers and restricted discovery only where those profiles claim support. Name the canonical composition owner and any divergent copies.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Test a nonempty application provider through the real composition root. A manually injected service proves its consumer, not that the kernel supplies it.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Identify supported primitive-only, split-package, kernel-composition and metapackage installations. Architecture exceptions do not prove dependency closure; an undeclared higher-layer import is not automatically a missing hard dependency for every profile.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Record unavailable dependencies and unsupported profiles explicitly. Inspect failure timing and diagnostics, including whether construction fails before a handler's error boundary.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Review public manifest/read models and discovery APIs against real dynamic and downstream consumers. Do not remove an apparently unused discovery surface based on repository search alone.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Reconcile stability promises, public-surface declarations and serialized/read shapes. A missing declaration is unclassified, not implicitly internal; compatibility must be established from the actual promised and consumed contract.",
+            "status": "gap",
+            "answer": "Source provider composition was reviewed. Optional installed-package matrices and failure recovery remain qualification gaps owned by waaseyaa/audit #3118. Private findings are handled separately.",
+            "evidence": "AuditServiceProvider; package manifest",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Storage access: Entity persistence goes through `EntityRepository` and a storage driver. Supporting tables (join tables, counters, logs) may use `DatabaseInterface` directly. Raw PDO (`new \\PDO`, `$pdo->exec`, `$pdo->prepare`) bypasses the framework database layer and is a finding unless a recorded exception names why.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Storage access: Check every backend the package claims (for example the sovereignty profiles' SQLite, Postgres and pgvector options). A package that only works on one backend must say so.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Storage access: Look for untyped query parameters and backend-specific SQL.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Schema authority: Every table the package creates must come from a migration or a coordinated schema transition (`SchemaMutationCoordinator`, `CoordinatedEntitySchemaExecutor`). A table created lazily at runtime (`CREATE TABLE IF NOT EXISTS` on first use) sits outside the schema-authority manifest and makes later transitions refuse with S1-DB109 (#3110). Record the table name, the creating code and the first code path that triggers it.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Schema authority: Check the deployer runtime-table catalogue (`FrameworkRuntimeTableCatalogue`) agrees with what the package actually creates and how each table is classified.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Schema authority: Check upgrade behavior on an existing database, not just a fresh one: new columns, new tables, and a second run changing nothing.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Identify transaction boundaries and what is atomic. A multi-step write without a transaction needs a documented recovery story.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Check concurrency and fencing: revisions, mutation tokens, unique constraints, and whether counted limits (slots, quotas) are enforced by the database or only by application code.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: For retries and jobs, check idempotency, claim/release semantics and duplicate delivery.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Compare the reported outcome with the durable one. A caller told \"failed\" when the write committed, or \"done\" when it didn't, is a finding (#3035).",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Test restart and recovery: a crash between steps, a partially applied migration, a job interrupted mid-run.",
+            "status": "gap",
+            "answer": "Writer, schema, migration, checkpoint and succession source was read. Ordinary retention #3010/#3011 and overlapping sealing/export #3015 retain existing ownership. Source tests do not qualify production maintenance or crash recovery. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Writer; Storage; migrations; Integrity; Rekey",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Ownership and intended behavior: Trace the real composition root through failure origin, exception conversion,",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Ownership and intended behavior: Separate generic mechanisms from required domain policy. Apply the checklist's",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Ownership and intended behavior: Reconcile intended statuses, exit codes, wire envelopes, privacy and recovery",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Select applicable stages: pre-container/bootstrap, dependency construction,",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Assert public status/body or process status/stdout/stderr, persisted effects,",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Check nested/hostile exception messages, harmless sensitive-looking symbols,",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Exercise applicable development/production, no-dev and supported host profiles,",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Verify unaffected success and refusal controls. For retries or partial writes,",
+            "status": "gap",
+            "answer": "Ordinary writer is best-effort; strict ports propagate reserve/finalization failure. The observer contract forbids throwing, so an imagined throwing observer is not a demonstrated production defect. Export and checkpoint outcomes remain #3015 qualification work. Remaining item-specific proof is owned by waaseyaa/audit #3118.",
+            "evidence": "Contracts; AuditEventWriter; FileCheckpointSink; #3015",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **primitive-only:** a consumer uses the package's classes directly, without",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **standalone split:** the package installed on its own and booted, including",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **kernel composition:** the package's providers and policies discovered and",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **metapackage:** installed through `core`, `cms` or `full`;",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **framework closure:** installed through `waaseyaa/framework`;",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **generated application:** a freshly generated application.",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installed form: Install the split package on its own and boot it with `--no-dev`. Nothing under `src/` may extend a dev-only class.",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installed form: Check optional dependencies both absent and present. Absence must not change unrelated behavior.",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installed form: Metapackages have no production source but still need closure and composition evidence.",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Exports and bytes: Compare the exported files with the source: export-ignore rules, required runtime files present, dev-only and secret-bearing files absent.",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Exports and bytes: For static assets, check exact bytes, MIME types, application override precedence, vendor fallback, index fallback and any runtime HTML rewriting.",
+            "status": "gap",
+            "answer": "Every non-test split-subtree file is inventoried and reviewed in source. No fresh standalone no-dev or installed application was tested; those evidence classes remain named gaps under #3118 and J1 #3199.",
+            "evidence": "72-file roster; split workflow; composer.json",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Trace descriptions back to the actual composed application, including provider-defined entries and ordering. A builtins-only or empty fixture cannot prove consumer completeness.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Distinguish empty, unavailable, failed and complete sections. Verify what the output itself tells a consumer; a warning in a separate log may not make a successful partial result unambiguous.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Compare declared access metadata with effective restrictions. Exercise conflicting flags and layered enforcement; a public route flag alone does not establish unrestricted entity access.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Check description lifetime against the producer's lifecycle. Identify stale snapshots and early construction, and separate stable definitions from request-bound values.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Inspect object-valued metadata before treating it as a serializable definition. A cloned container or route may still share nested live controllers/services. Use bounded descriptive representations for inspection, preserve executable values for runtime dispatch, and test that JSON does not traverse arbitrary object state.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Trace discovery, handler construction, dependency resolution, execution, serialization and output. Test failure at construction as well as execution; handler-local catches cannot cover failures before invocation.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Establish whether section/filter selection scopes work or only output. Test unrelated unavailable capabilities against the promised selection semantics.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Round-trip nonempty JSON through the real output adapter, including formatter-like strings. Check stdout/stderr, exit status, optional integrations, and metadata retained when commands are rebound to a container.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Test supported strict/tolerant modes, unavailable dependencies, unknown selections and repeated execution. Make determinism claims match the ordering actually controlled.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Trace AI/MCP consumers separately: making a service constructible may affect discovery, so verify capability and exposure boundaries without enabling unrelated access.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Test argv parsing through the real application, not only a handler: required and optional arguments, too few and too many arguments, and the documented defaults actually applied.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Test option forms: `--opt=value`, `--opt value`, short options, flags, negatable flags, repeated options, and a value that itself starts with `-`. Unknown options, missing option values and stray arguments must be refused with the documented usage exit code and a message on stderr.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Check the `--` separator, empty-string and non-ASCII values, and values containing console markup, all round-tripped without change.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Map each command to its boot mode (no boot, pre-runtime, restricted, schema, full) and check it doesn't build services the mode forbids.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Register commands in every supported form (instance, service ID, class name) and prove each is bound to its container. A command that lists but can't run is a finding.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Check that aliases, hidden status and help survive registration and container rebinding, through `list`, `help` and alias invocation.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Machine output must be byte-faithful: write JSON through a raw writer, never a path that strips console markup. Diagnostics go to stderr.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Compare exit codes at the handler, the application and the real process. Usage errors, validation, domain failure, exceptions and interruption (130) should match the documented contract at every level.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Test interactive and non-interactive input, stdin sources, signals and cleanup of child processes where the command spawns any.",
+            "status": "does not apply",
+            "answer": "Commands live in waaseyaa/cli. Audit provides query and integrity services consumed by those commands; command exit/envelope semantics are reviewed in the CLI audit.",
+            "evidence": "cli audit command consumers",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Deterministic plans:** the same inputs produce the same plan and bytes. Check ordering, timestamps and host-specific paths or line endings.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Ownership:** know which generated files the tool owns and which the user owns. Regeneration must not overwrite user-owned edits silently.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Collisions:** existing files, names or tables that clash with generated ones are refused or explicitly resolved, never clobbered.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Atomic application:** a failed generation leaves no half-written project. Check temp-then-rename and rollback.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Generated runtime dependencies:** list every framework symbol that generated code imports or calls at runtime (for example a migration helper). Those symbols are a public contract; moving them breaks historical generated files.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Upgrade behavior:** regenerating over an older output, and running old generated code against a newer framework.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Execute the output:** run the generated code or artifact, not just snapshot its text.",
+            "status": "does not apply",
+            "answer": "No application code generator, frontend build or committed binary distribution is owned by this package. Schema migrations are covered by persistence.",
+            "evidence": "Package production roster",
+            "findings": []
+        },
+        {
+            "profile": "specification traceability",
+            "item": "FR-005 / NFR-001 best-effort recording is distinct from strict audit ports",
+            "status": "gap",
+            "answer": "Retain separate failure promises. Application joined lifecycle records remain #2819; source tests do not prove production crash recovery.",
+            "evidence": "docs/specs/ocap-audit-log.md:515; AuditEventWriter; DatabaseStrictAuditLedger; AuditServiceProvider; 369 source tests/1024 assertions, one Windows fixture failure; writer source reviewed.",
+            "findings": []
+        },
+        {
+            "profile": "specification traceability",
+            "item": "Schema installation versus runtime readiness",
+            "status": "gap",
+            "answer": "Reconcile intended canonical lifecycle and stale prose under #3118/#3110. Preserve immutable migration identities; no runtime installation behavior is authorized by prose.",
+            "evidence": "docs/specs/ocap-audit-log.md:157; docs/specs/schema-evolution-v2.md; AuditServiceProvider::boot; Storage and Schema handlers; migrations; Current source asserts installed schemas; broad spec still describes every-boot schema ensure.",
+            "findings": []
+        },
+        {
+            "profile": "specification traceability",
+            "item": "Closed status-only batch contract",
+            "status": "finding",
+            "answer": "#3184 retains bounded port/implementation repair. Decide caller transaction semantics explicitly; historical consumer timings are not fresh measurements.",
+            "evidence": "#3184 closed User status contract; UserInternalFieldReaderInterface; AuditedUserInternalFieldReader; AuditedFieldRead; Tier A independent reviews; retained API-shape discriminator.",
+            "findings": [
+                "AUD-CONTRACT-001"
+            ]
+        },
+        {
+            "profile": "specification traceability",
+            "item": "Ordinary history retention and checkpoint lifecycle",
+            "status": "gap",
+            "answer": "Keep scan completeness, policy decoding and overlapping checkpoint/export acceptance with existing owners. No production maintenance qualification or issue closure.",
+            "evidence": "docs/specs/ocap-audit-log.md:284; #3010/#3011/#3015; AuditPruner; AuditCheckpointJob; FileCheckpointSink; AuditServiceProvider; Full source read and focused CLI verification; restricted older evidence not recovered.",
+            "findings": []
+        }
+    ],
+    "intake": [
+        {
+            "item": "GRP-SEC-003",
+            "from": "groups audit",
+            "disposition": "confirmed",
+            "local_finding": "GRP-SEC-003",
+            "notes": "Existing private report recovered and independently re-derived and refuted at the current base; private maintainer triage remains."
+        }
+    ],
+    "findings": [
+        {
+            "id": "AUD-SEC-001",
+            "title": "Cumulative resource use requires private triage.",
+            "area": "SEC",
+            "severity": "withheld",
+            "confidence": "confirmed",
+            "evidence_level": "reproduced",
+            "observed": "withheld (private brief)",
+            "expected_contract": "withheld (private brief)",
+            "consequence": "withheld (private brief)",
+            "refutation": "withheld (private brief)",
+            "disposition": "private triage",
+            "destination": [
+                {
+                    "kind": "private-report",
+                    "ref": "private report (framework advisory; owner waaseyaa/audit)"
+                }
+            ],
+            "dependencies": "Private verification and maintainer triage",
+            "acceptance": "withheld (private brief)",
+            "residual_risk": "withheld (private brief)",
+            "next_action": "Maintainer private triage and bounded repair planning.",
+            "discovered_in": "waaseyaa/audit",
+            "owned_by": "waaseyaa/audit",
+            "co_owners": [],
+            "affected_consumers": "withheld",
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": null,
+            "merged_into": null,
+            "verification": {
+                "tier": "A",
+                "performed": "Two independent reviews completed. Reportability remains a private maintainer decision.",
+                "reversals": []
+            },
+            "probes": 2,
+            "notes": "Private brief held by Russell Jones. No public localization."
+        },
+        {
+            "id": "GRP-SEC-003",
+            "title": "Inherited authority-retention report reviewed in private.",
+            "area": "SEC",
+            "severity": "withheld",
+            "confidence": "confirmed",
+            "evidence_level": "reproduced",
+            "observed": "withheld (private brief)",
+            "expected_contract": "withheld (private brief)",
+            "consequence": "withheld (private brief)",
+            "refutation": "withheld (private brief)",
+            "disposition": "private triage",
+            "destination": [
+                {
+                    "kind": "private-report",
+                    "ref": "private report (framework advisory; owner waaseyaa/audit)"
+                }
+            ],
+            "dependencies": "Maintainer private reportability and affected-profile decision.",
+            "acceptance": "withheld (private brief)",
+            "residual_risk": "withheld (private brief)",
+            "next_action": "Maintainer private triage and bounded repair planning.",
+            "discovered_in": "waaseyaa/audit",
+            "owned_by": "waaseyaa/audit",
+            "co_owners": [],
+            "affected_consumers": "withheld",
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": null,
+            "merged_into": null,
+            "verification": {
+                "tier": "A",
+                "performed": "Two independent reviewers completed current-source re-derivation and refutation. Reconciled scope and reach limits are held in the private brief; integrity verified.",
+                "reversals": []
+            },
+            "probes": 1,
+            "notes": "Private brief held by Russell Jones. No public localization."
+        },
+        {
+            "id": "AUD-SEC-002",
+            "title": "Inherited identity-resolution report reviewed in private.",
+            "area": "SEC",
+            "severity": "withheld",
+            "confidence": "confirmed",
+            "evidence_level": "reproduced",
+            "observed": "withheld (private brief)",
+            "expected_contract": "withheld (private brief)",
+            "consequence": "withheld (private brief)",
+            "refutation": "withheld (private brief)",
+            "disposition": "private triage",
+            "destination": [
+                {
+                    "kind": "private-report",
+                    "ref": "private report (framework advisory; owner waaseyaa/audit)"
+                }
+            ],
+            "dependencies": "Maintainer private reportability and affected-profile decision.",
+            "acceptance": "withheld (private brief)",
+            "residual_risk": "withheld (private brief)",
+            "next_action": "Maintainer private triage and bounded repair planning.",
+            "discovered_in": "waaseyaa/audit",
+            "owned_by": "waaseyaa/audit",
+            "co_owners": [],
+            "affected_consumers": "withheld",
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": null,
+            "merged_into": null,
+            "verification": {
+                "tier": "A",
+                "performed": "Two independent reviewers completed current-source re-derivation and refutation. Reconciled scope and reach limits are held in the private brief; integrity verified.",
+                "reversals": []
+            },
+            "probes": 1,
+            "notes": "Private brief held by Russell Jones. No public localization."
+        },
+        {
+            "id": "AUD-CONTRACT-001",
+            "title": "The closed User reader lacks the status-only batch seam required by its consumer",
+            "area": "CONTRACT",
+            "severity": "medium",
+            "confidence": "confirmed",
+            "evidence_level": "reproduced",
+            "observed": "The access-owned closed User reader declares six single-entity operations and its audit implementation offers no status-only batch operation. A fresh API-shape discriminator confirms the generic public batch operation exists while the closed seam is absent. packages/access/src/User/UserInternalFieldReaderInterface.php:11; packages/audit/src/Bootstrap/AuditedUserInternalFieldReader.php:26; packages/audit/src/AuditedFieldRead.php:106.",
+            "expected_contract": "#3184 requires fresh active status for a batch of Users without requiring mail/verification data and while preserving exact per-entity audit evidence.",
+            "consequence": "The FETDER consolidation consumer still needs an application-owned narrow interim boundary. Reported Linux latency is historical issue evidence, not remeasured by this audit.",
+            "refutation": "Generic batch machinery already exists. No batch receipt row reduction is promised. Nested caller transactions can roll back generic receipts, so outer-transaction durability semantics must be settled rather than assumed.",
+            "disposition": "repair",
+            "destination": [
+                {
+                    "kind": "issue",
+                    "ref": "#3184"
+                },
+                {
+                    "kind": "slice",
+                    "ref": "AUD-S1"
+                }
+            ],
+            "dependencies": "none",
+            "acceptance": "Provide the closed status-only batch port and implementation with fresh disable/reactivate controls, exact status-only metadata and one truthful receipt per entity. Explicitly decide/refuse/qualify caller-transaction behavior; preserve reserve-before-obtain and terminal failure evidence. Qualify the existing consumer with synthetic Linux workload at the candidate.",
+            "residual_risk": "Does not address broader history lifecycle or imply a latency target measured here.",
+            "next_action": "Audit owns implementation; access owns the port contract; User remains a consumer.",
+            "discovered_in": "waaseyaa/audit",
+            "owned_by": "waaseyaa/audit",
+            "co_owners": [
+                "waaseyaa/access"
+            ],
+            "affected_consumers": [
+                "FETDER consolidation status checks as described in #3184",
+                "waaseyaa/user"
+            ],
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": "required: #3184 records the consumer qualification blocker",
+            "merged_into": null,
+            "verification": {
+                "tier": "A",
+                "performed": "Two independent reviewers confirmed API absence and corrected ownership/transaction limits. Root retained a minimal source-shape discriminator; existing behavior tests are separate evidence.",
+                "reversals": [
+                    "Owner is audit with access as port co-owner; User is a consumer.",
+                    "Generic batching does not guarantee independent durability inside a caller-owned transaction.",
+                    "No current latency reproduction."
+                ]
+            },
+            "probes": [
+                "closed-status-batch-contract"
+            ],
+            "notes": "Source API gap is confirmed. Historical timing remains attributed to #3184."
+        },
+        {
+            "id": "AUD-DOC-001",
+            "title": "Package navigation and lifecycle documentation need reconciliation",
+            "area": "DOC",
+            "severity": "info",
+            "confidence": "confirmed",
+            "evidence_level": "reviewed",
+            "observed": "Audit has no README. Provider wording promises schema ensuring, while current boot validates installed tables. The historical event-table migration is deliberately a no-op; other migrations still execute. Canonical succession projections repeat without an observed inconsistency. Event-shape fallbacks need exact current producer obligations. packages/audit/src/AuditServiceProvider.php:83,371; packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php:9; packages/audit/src/Integrity/AuditCheckpointSuccessionVerifier.php:138; packages/audit/src/Rekey/AuditCheckpointSuccessionRekeyAdapter.php:445",
+            "expected_contract": "Documentation and structural choices reflect current contracts and actual ownership.",
+            "consequence": "Maintainer navigation and safe contract changes require current source guidance.",
+            "refutation": "Provider size alone does not prove an SRP defect. Concrete public classes are not automatically missing declarations; current interfaces/enums found are declared. String event subscriptions serve a real cross-layer boundary.",
+            "disposition": "repair",
+            "destination": [
+                {
+                    "kind": "slice",
+                    "ref": "AUD-S2"
+                }
+            ],
+            "dependencies": "No public removal, persistence-format change or component replacement authorized by this source review.",
+            "acceptance": "Add a package/service map, correct schema-lifecycle comments, preserve historical migration bytes, and compare canonical format helpers byte-for-byte before consolidation. Inventory exact current event-shape obligations before any separately reviewed removal.",
+            "residual_risk": "Source review only; installed consumers and full runtime qualification remain separate.",
+            "next_action": "Bound the documentation and equivalence follow-up with the owning package.",
+            "discovered_in": "waaseyaa/audit",
+            "owned_by": "waaseyaa/audit",
+            "co_owners": [],
+            "affected_consumers": [
+                "Framework maintainers and extension authors"
+            ],
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": "independent: does not change the ledger consumer unblock",
+            "merged_into": null,
+            "verification": {
+                "tier": "C",
+                "performed": "Independent review checked all 18 ordinary Audit/User claims after initial samples required corrections. Protected-state comparison passed.",
+                "reversals": [
+                    "Provider size alone does not prove an SRP defect. Concrete public classes are not automatically missing declarations; current interfaces/enums found are declared. String event subscriptions serve a real cross-layer boundary."
+                ]
+            },
+            "probes": [],
+            "notes": "Source-reviewed information and bounded work, not a public-removal proposal."
+        },
+        {
+            "id": "AUD-COMPONENT-001",
+            "title": "File export needs a bounded maintained-filesystem equivalence review",
+            "area": "COMPONENT",
+            "severity": "info",
+            "confidence": "confirmed",
+            "evidence_level": "reviewed",
+            "observed": "FileCheckpointSink implements directory creation and locked append; Symfony Filesystem provides corresponding primitives. No equivalent replacement is qualified. packages/audit/src/Integrity/FileCheckpointSink.php:60; vendor/symfony/filesystem/Filesystem.php:90,647,696",
+            "expected_contract": "Documentation and structural choices reflect current contracts and actual ownership.",
+            "consequence": "Maintainer navigation and safe contract changes require current source guidance.",
+            "refutation": "Installed library methods do not establish no-dev availability or equivalent durability. Domain serialization and custody remain Framework policy.",
+            "disposition": "repair",
+            "destination": [
+                {
+                    "kind": "slice",
+                    "ref": "AUD-S3"
+                }
+            ],
+            "dependencies": "No public removal, persistence-format change or component replacement authorized by this source review.",
+            "acceptance": "Under #3015 compare append versus replacement, locking, failure mapping, stdout and exact bytes. Keep custody policy with Audit and choose the smallest maintained-component integration only after equivalence controls pass.",
+            "residual_risk": "Source review only; installed consumers and full runtime qualification remain separate.",
+            "next_action": "Bound the documentation and equivalence follow-up with the owning package.",
+            "discovered_in": "waaseyaa/audit",
+            "owned_by": "waaseyaa/audit",
+            "co_owners": [],
+            "affected_consumers": [
+                "Framework maintainers and extension authors"
+            ],
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": "independent: does not change the ledger consumer unblock",
+            "merged_into": null,
+            "verification": {
+                "tier": "C",
+                "performed": "Independent review checked all 18 ordinary Audit/User claims after initial samples required corrections. Protected-state comparison passed.",
+                "reversals": [
+                    "Installed library methods do not establish no-dev availability or equivalent durability. Domain serialization and custody remain Framework policy."
+                ]
+            },
+            "probes": [],
+            "notes": "Source-reviewed information and bounded work, not a public-removal proposal."
+        }
+    ],
+    "refuted": [],
+    "handoffs": [],
+    "decisions": [],
+    "uncertainties": [
+        {
+            "id": "U1",
+            "uncertainty": "Fresh installed/no-dev, generated-application and supported closure qualification is not established.",
+            "findings": [],
+            "what_would_settle_it": "Owning package and #3199 run the supported profile matrix at an immutable candidate with declared dependencies only.",
+            "status": "open",
+            "resolution": null
+        },
+        {
+            "id": "U2",
+            "uncertainty": "Some historical issue acceptance and specification traceability remains unreconciled.",
+            "findings": [],
+            "what_would_settle_it": "Owning package completes per-item source/spec/test reconciliation from the captured issue, Project and document inventories.",
+            "status": "open",
+            "resolution": null
+        },
+        {
+            "id": "U3",
+            "uncertainty": "Restricted historical source referenced by existing retention and export issues was not found in the designated private custody locations.",
+            "findings": [],
+            "what_would_settle_it": "The #3001 source holder supplies the referenced restricted artifact, or the issue owner explicitly re-establishes bounded acceptance from current authorized evidence without publishing private details.",
+            "status": "open",
+            "resolution": null
+        }
+    ],
+    "issue_reconciliation": [
+        {
+            "issue": "#3184",
+            "claim": "Closed status-only batch seam remains absent.",
+            "status": "confirmed; reuse existing issue",
+            "evidence": "The access-owned closed User reader declares six single-entity operations and its audit implementation offers no status-only batch operation. A fresh API-shape discriminator confirms the generic public batch operation exists while the closed seam is absent. packages/access/src/User/UserInternalFieldReaderInterface.php:11; packages/audit/src/Bootstrap/AuditedUserInternalFieldReader.php:26; packages/audit/src/AuditedFieldRead.php:106. Two independent reviews agree; original timings not repeated."
+        },
+        {
+            "issue": "#3010",
+            "claim": "Existing bounded issue depends partly on historical restricted source.",
+            "status": "open; no duplicate or closure proposed",
+            "evidence": "Issue body and current package roles reviewed. Restricted historical artifact not recovered; current runtime acceptance is not asserted complete."
+        },
+        {
+            "issue": "#3011",
+            "claim": "Existing bounded issue depends partly on historical restricted source.",
+            "status": "open; no duplicate or closure proposed",
+            "evidence": "Issue body and current package roles reviewed. Restricted historical artifact not recovered; current runtime acceptance is not asserted complete."
+        },
+        {
+            "issue": "#3015",
+            "claim": "Existing bounded issue depends partly on historical restricted source.",
+            "status": "open; no duplicate or closure proposed",
+            "evidence": "Issue body and current package roles reviewed. Restricted historical artifact not recovered; current runtime acceptance is not asserted complete."
+        },
+        {
+            "issue": "#3164",
+            "claim": "Operator rotation entrypoint and runbook are missing despite existing rekey machinery.",
+            "status": "open; coordinate audit, foundation and cli ownership",
+            "evidence": "Source adapters and key-succession implementation exist; CLI exposure remains the existing bounded work. No production rotation performed."
+        },
+        {
+            "issue": "#2819",
+            "claim": "Applications require a transaction-joined lifecycle record distinct from best-effort telemetry and independently durable reservations.",
+            "status": "intentional capability work; retain existing owner",
+            "evidence": "Audit interfaces and database writers retain separate contracts. Current managed transactions supersede old no-savepoint rationale; issue comment reviewed. No joined application contribution API or fresh atomicity qualification is claimed."
+        },
+        {
+            "issue": "#2997",
+            "claim": "Translation event delivery must reach audit and derived-store consumers.",
+            "status": "out-of-package primary ownership, retained cross-package qualification",
+            "evidence": "Storage event dispatch and Audit listeners reviewed in source. End-to-end terminal event effects not rerun; entity owns #2997."
+        },
+        {
+            "issue": "#3199",
+            "claim": "Clean no-dev installation through the first homepage is a shared acceptance journey.",
+            "status": "qualification owner retained",
+            "evidence": "Monorepo source and synthetic fixtures are not an isolated Composer consumer. No dependency installation or fresh generated app executed in this audit."
+        }
+    ],
+    "remediation_plan": [
+        {
+            "slice": "AUD-S1",
+            "findings": [
+                "AUD-CONTRACT-001"
+            ],
+            "acceptance": "Provide the closed status-only batch port and implementation with fresh disable/reactivate controls, exact status-only metadata and one truthful receipt per entity. Explicitly decide/refuse/qualify caller-transaction behavior; preserve reserve-before-obtain and terminal failure evidence. Qualify the existing consumer with synthetic Linux workload at the candidate.",
+            "depends_on": []
+        },
+        {
+            "slice": "AUD-S2",
+            "findings": [
+                "AUD-DOC-001"
+            ],
+            "acceptance": "Add a package/service map, correct schema-lifecycle comments, preserve historical migration bytes, and compare canonical format helpers byte-for-byte before consolidation. Inventory exact current event-shape obligations before any separately reviewed removal.",
+            "depends_on": []
+        },
+        {
+            "slice": "AUD-S3",
+            "findings": [
+                "AUD-COMPONENT-001"
+            ],
+            "acceptance": "Under #3015 compare append versus replacement, locking, failure mapping, stdout and exact bytes. Keep custody policy with Audit and choose the smallest maintained-component integration only after equivalence controls pass.",
+            "depends_on": []
+        }
+    ],
+    "qualification": [
+        {
+            "profile": "kernel composition",
+            "supported": "yes",
+            "evidence_class": "source",
+            "evidence": "Source composition reviewed at the base; exact scope and test outcomes are recorded separately.",
+            "gap_owner": "waaseyaa/audit #3118"
+        },
+        {
+            "profile": "standalone split",
+            "supported": "undecided",
+            "evidence_class": "none",
+            "evidence": "No fresh isolated no-dev installation was qualified. Decide supported primitive and kernel closure, then exercise declared dependencies without root autoload help.",
+            "gap_owner": "waaseyaa/audit #3118"
+        },
+        {
+            "profile": "framework closure",
+            "supported": "yes",
+            "evidence_class": "none",
+            "evidence": "Current docs-only CI 39295771289 succeeded; behavior and installed-profile jobs were skipped and do not qualify this profile.",
+            "gap_owner": "waaseyaa/audit #3118"
+        },
+        {
+            "profile": "generated application",
+            "supported": "undecided",
+            "evidence_class": "none",
+            "evidence": "No fresh generated application was qualified; coordinate J1 #3199 and generator program #2844.",
+            "gap_owner": "waaseyaa/framework #3199"
+        }
+    ],
+    "probes": [
+        {
+            "name": "closed-status-batch-contract",
+            "purpose": "Discriminate the missing closed User batch port from the existing generic batch API.",
+            "result": "Pass: six closed operations each accept one entity; production implementation conforms; generic batch positive control exists. No timing or durable-write claim.",
+            "retained_path": "tests/Fixtures/Audits/Audit/AUD-CONTRACT-001-closed-status-batch.php",
+            "reproduce": "php tests/Fixtures/Audits/Audit/AUD-CONTRACT-001-closed-status-batch.php <framework-root>; drafted for retention, not yet committed."
+        }
+    ],
+    "evidence_runs": [
+        {
+            "command": "Explicit-file packages/audit/tests PHPUnit run --no-coverage --do-not-cache-result",
+            "base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "dependency_identity": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "runner": "local PHP 8.5.5 / PHPUnit 13.1.14",
+            "host": "native Windows",
+            "proves": "Source package tests, not installed qualification",
+            "result": "369 tests, 1024 assertions, one failure: /proc is writable on native Windows."
+        },
+        {
+            "command": "PHPStan analyse audit, entity-storage, foundation, cli and user src paths with scratch config including repository config; unmatched baseline reports disabled for scoped analysis.",
+            "base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "dependency_identity": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "runner": "PHP 8.5.5 / PHPStan 2.1.54",
+            "host": "native Windows",
+            "proves": "Scoped production-source static analysis under the existing baseline. No installed or runtime qualification.",
+            "result": "Exit 0; zero reported errors and zero file errors. Cache and output confined to audit scratch."
+        }
+    ],
+    "not_reviewed": [
+        "Fresh installed/no-dev split, generated application and released-consumer qualification.",
+        "Current acceptance for every historical issue still requires reconciliation; issue titles are not proof of defect persistence.",
+        "The restricted historical artifact behind parts of #3010/#3011/#3015 was not recovered; existing issue ownership is retained.",
+        "Current affected consumer configurations and full installed routes were not qualified; private source findings do not establish deployed exposure."
+    ],
+    "host_limits": [
+        "Native Windows has known SQLite teardown, permission, symlink and POSIX gate limits (#3096, #3081). Missing installed and generated evidence belongs to hosted Linux jobs; no waiver or pass is claimed."
+    ],
+    "scorecard": {
+        "elapsed": "Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.",
+        "agents": "Root plus three reused independent reviewers; parallel package investigation explicitly authorized by the user.",
+        "subagent_tokens": "unavailable",
+        "scope": {
+            "production_files": 72,
+            "php_lines": 7339,
+            "inbound_packages": 12
+        },
+        "verification_reversals": [
+            "Owner is audit with access as port co-owner; User is a consumer.",
+            "Generic batching does not guarantee independent durability inside a caller-owned transaction.",
+            "No current latency reproduction.",
+            "Provider size alone does not prove an SRP defect. Concrete public classes are not automatically missing declarations; current interfaces/enums found are declared. String event subscriptions serve a real cross-layer boundary.",
+            "Installed library methods do not establish no-dev availability or equivalent durability. Domain serialization and custody remain Framework policy."
+        ],
+        "record_size": {
+            "lines": 141,
+            "words": 2207,
+            "ledger_bytes": 194033
+        },
+        "probes": {
+            "nonsecurity_entries": 1,
+            "retained": 1,
+            "private": "Counted only in safe finding rows; details and custody held separately.",
+            "phase_metrics": "unavailable"
+        },
+        "open": {
+            "decisions": 0,
+            "uncertainties": 3
+        },
+        "findings_without_filed_issue": 5,
+        "findings_by_severity": {
+            "package_owned": {
+                "withheld": 3,
+                "medium": 1,
+                "info": 2
+            },
+            "cross_package": []
+        }
+    }
+}

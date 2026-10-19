@@ -1,0 +1,2111 @@
+{
+    "schema_version": 1,
+    "package": "waaseyaa/user",
+    "base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+    "audit_date": "2026-10-19",
+    "dependency_identity": {
+        "composer_lock_sha256": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+        "php": "8.5.5",
+        "host": "native Windows PowerShell",
+        "evidence_freshness": "Current source at 3161864a5d1af57621e4819e9720f12e12ccdae7",
+        "consumers": []
+    },
+    "milestone": {
+        "assessed": false,
+        "repair_ready": false,
+        "converged": null,
+        "reasons": [
+            "Required independent verification of one private lead is incomplete, so this package remains in progress.",
+            "The ordinary findings, source roster, profile gaps and final record review are complete; no convergence claim."
+        ]
+    },
+    "charter": [
+        {
+            "question": "Owns",
+            "answer": "User and blocking entities, read policies, roles and registered-role assignment, session/bearer/CSRF/cache middleware, authentication mail presentation.",
+            "evidence": "All 28 source files and UserServiceProvider reviewed."
+        },
+        {
+            "question": "Does not own",
+            "answer": "Login/reset orchestration, access capability interfaces, strict read receipt persistence, generic storage or kernel composition.",
+            "evidence": "auth orchestrates; access declares closed reader ports; audit implements them; foundation composes."
+        },
+        {
+            "question": "Consumers",
+            "answer": "HTTP middleware stack, auth, SSR, OIDC, routing, MCP and account-management consumers.",
+            "evidence": "Nine declared inbound packages; SessionMiddleware and UserServiceProvider."
+        },
+        {
+            "question": "Dependencies",
+            "answer": "Required entity, access, foundation, mail, Symfony HttpFoundation and Twig. Database, entity-storage, field and SSR are development dependencies. Optional mail template configuration does not imply an optional mail package.",
+            "evidence": "composer.json; AuthMailer; UserServiceProvider."
+        },
+        {
+            "question": "Public surface",
+            "answer": "User and role/session contracts are exposed and consumed beyond the four public-surface entries. NativeSession advertises Symfony SessionInterface while retaining flat session data used by current auth/SSR code.",
+            "evidence": "public-surface.php; Session/NativeSession; auth/SSR consumers."
+        },
+        {
+            "question": "Installation profiles",
+            "answer": "Kernel composition is current. Individual no-dev split and generated account lifecycle profiles remain unqualified in this run.",
+            "evidence": "composer.json; source tests; J1 #3199 and generated account issues #2443/#2441."
+        }
+    ],
+    "roster": [
+        {
+            "file": "packages/user/README.md",
+            "role": "README.md",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/composer.json",
+            "role": "composer.json",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/phpunit.xml",
+            "role": "phpunit.xml",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/public-surface.php",
+            "role": "public-surface.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Manifest, public declarations or documentation reviewed against current source. Distribution and caller-contract reconciliation remains owned by the package; no installed-profile pass is inferred.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/AnonymousUser.php",
+            "role": "src/AnonymousUser.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/AuthMailPresentation.php",
+            "role": "src/AuthMailPresentation.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/AuthMailer.php",
+            "role": "src/AuthMailer.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Authentication/AuthenticationEligibilityInterface.php",
+            "role": "src/Authentication/AuthenticationEligibilityInterface.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Authentication/AuthenticationStage.php",
+            "role": "src/Authentication/AuthenticationStage.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/DevAdminAccount.php",
+            "role": "src/DevAdminAccount.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Http/AuthController.php",
+            "role": "src/Http/AuthController.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Middleware/BearerAuthMiddleware.php",
+            "role": "src/Middleware/BearerAuthMiddleware.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Middleware/CsrfMiddleware.php",
+            "role": "src/Middleware/CsrfMiddleware.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Middleware/ResponseCacheControlMiddleware.php",
+            "role": "src/Middleware/ResponseCacheControlMiddleware.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Middleware/SessionMiddleware.php",
+            "role": "src/Middleware/SessionMiddleware.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/RegisteredRoleAssignment.php",
+            "role": "src/RegisteredRoleAssignment.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/RegisteredRoleAssignmentService.php",
+            "role": "src/RegisteredRoleAssignmentService.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Role.php",
+            "role": "src/Role.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/RoleRepository.php",
+            "role": "src/RoleRepository.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Session/AuthenticatedSession.php",
+            "role": "src/Session/AuthenticatedSession.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Session/InvalidSessionCookiePolicyException.php",
+            "role": "src/Session/InvalidSessionCookiePolicyException.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/Session/NativeSession.php",
+            "role": "src/Session/NativeSession.php",
+            "classification": "duplicated or drifting contract",
+            "evidence_level": "reviewed",
+            "notes": "Source and independently reproduced Symfony interface mismatch; flat-key integration remains a real current obligation.",
+            "findings": [
+                "USER-CONTRACT-001"
+            ]
+        },
+        {
+            "file": "packages/user/src/Session/SessionCookiePolicy.php",
+            "role": "src/Session/SessionCookiePolicy.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/User.php",
+            "role": "src/User.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserAccessPolicy.php",
+            "role": "src/UserAccessPolicy.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserBlock.php",
+            "role": "src/UserBlock.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserBlockAccessPolicy.php",
+            "role": "src/UserBlockAccessPolicy.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserBlockService.php",
+            "role": "src/UserBlockService.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserEntityReadPolicy.php",
+            "role": "src/UserEntityReadPolicy.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserProtectedFieldReadPolicy.php",
+            "role": "src/UserProtectedFieldReadPolicy.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserServiceProvider.php",
+            "role": "src/UserServiceProvider.php",
+            "classification": "owned and coherent",
+            "evidence_level": "reviewed",
+            "notes": "Full production source read by the root reviewer. Source classification only; real composition and profile limits are recorded in the checklist.",
+            "findings": []
+        },
+        {
+            "file": "packages/user/src/UserSession.php",
+            "role": "src/UserSession.php",
+            "classification": "necessary but under-specified",
+            "evidence_level": "reviewed",
+            "notes": "Reviewed mutable account wrapper; no in-tree production caller found in the initial search. External/generated caller and authority reconciliation is required before claiming obsolete or removing it.",
+            "findings": []
+        }
+    ],
+    "checklists": [
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Composer or ecosystem package identity, versioning, exports, and split target",
+            "status": "gap",
+            "answer": "Source, manifest and consumers establish account/middleware ownership. Closed-reader implementation belongs to audit and its interface to access; #3184's prior user ownership is corrected in this assessment. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; composer.json; independent ledger verification",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Stated purpose in README, specifications, change records, and package metadata",
+            "status": "gap",
+            "answer": "Source, manifest and consumers establish account/middleware ownership. Closed-reader implementation belongs to audit and its interface to access; #3184's prior user ownership is corrected in this assessment. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; composer.json; independent ledger verification",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Capabilities explicitly owned and excluded",
+            "status": "gap",
+            "answer": "Source, manifest and consumers establish account/middleware ownership. Closed-reader implementation belongs to audit and its interface to access; #3184's prior user ownership is corrected in this assessment. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; composer.json; independent ledger verification",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Upstream authority and downstream consumers",
+            "status": "gap",
+            "answer": "Source, manifest and consumers establish account/middleware ownership. Closed-reader implementation belongs to audit and its interface to access; #3184's prior user ownership is corrected in this assessment. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; composer.json; independent ledger verification",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Source, generated-application, runtime, and distributed-package composition roots",
+            "status": "gap",
+            "answer": "Source, manifest and consumers establish account/middleware ownership. Closed-reader implementation belongs to audit and its interface to access; #3184's prior user ownership is corrected in this assessment. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; composer.json; independent ledger verification",
+            "findings": []
+        },
+        {
+            "profile": "general: Identity and ownership",
+            "item": "Supported installation profiles and the dependency closure each promises; distinguish primitive-only use from kernel/metapackage composition",
+            "status": "gap",
+            "answer": "Source, manifest and consumers establish account/middleware ownership. Closed-reader implementation belongs to audit and its interface to access; #3184's prior user ownership is corrected in this assessment. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; composer.json; independent ledger verification",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Complete issue/PR inventory with search scope, pagination and observation time; relevant closed/merged decisions and discussions",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Every relevant existing issue dispositioned against current acceptance evidence; reuse existing owners and IDs",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Related specs, ADRs, records, READMEs, recipes, examples and shipped/maintainer skills inventoried outside the package as well as inside it",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Requirement-to-spec-to-code-to-test traceability, including undocumented behavior, unimplemented promises and conflicting authorities",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Intended behavior settled before repairing code or revising a spec; no spec rewrite merely to bless a defect",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Superseded documents/passages deleted after preserving current obligations and updating links, manifests, routing and evidence consumers; explicit retention rationale otherwise",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Framework-level composition journeys and cross-package dead-chain/consumer coverage, with owners and installation evidence",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Existing work, specifications and repository hygiene",
+            "item": "Refreshed issue/Project reconciliation at closeout; future features separated from unresolved defects and required repairs",
+            "status": "gap",
+            "answer": "All 200 open issues, 15 open PRs and 343 Project items were captured with pagination. Relevant closed search is capped at 100; comments were refreshed for 55 selected issues, including 22 with discussion. All 244 document candidates have inventory dispositions; 17 named specification paths have current requirement/code/evidence traces. Whole-document semantic gaps and historical acceptance retain their named owners and are not fresh qualification.",
+            "evidence": "intake inventory; issue_reconciliation; docs/specs; package records",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Service providers, container bindings, factories, registries, and feature discovery",
+            "status": "gap",
+            "answer": "Bearer middleware precedes session middleware; downstream account eligibility and principal projection matter. CSRF and cache middleware then apply request policy. Auth mail resolves closed readers and mail transport. Optional absence and installed-profile qualification remain gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; Authentication middleware; AuthMailer; 402-test source run",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "HTTP routes, controllers, middleware, commands, jobs, events, and listeners",
+            "status": "gap",
+            "answer": "Bearer middleware precedes session middleware; downstream account eligibility and principal projection matter. CSRF and cache middleware then apply request policy. Auth mail resolves closed readers and mail transport. Optional absence and installed-profile qualification remain gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; Authentication middleware; AuthMailer; 402-test source run",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Configuration, environment inputs, migrations, storage, and cache behavior",
+            "status": "gap",
+            "answer": "Bearer middleware precedes session middleware; downstream account eligibility and principal projection matter. CSRF and cache middleware then apply request policy. Auth mail resolves closed readers and mail transport. Optional absence and installed-profile qualification remain gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; Authentication middleware; AuthMailer; 402-test source run",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Optional integrations and behavior when each dependency is absent",
+            "status": "gap",
+            "answer": "Bearer middleware precedes session middleware; downstream account eligibility and principal projection matter. CSRF and cache middleware then apply request policy. Auth mail resolves closed readers and mail transport. Optional absence and installed-profile qualification remain gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; Authentication middleware; AuthMailer; 402-test source run",
+            "findings": []
+        },
+        {
+            "profile": "general: Entrypoints and runtime wiring",
+            "item": "Startup, shutdown, retry, idempotency, and failure-state behavior",
+            "status": "gap",
+            "answer": "Bearer middleware precedes session middleware; downstream account eligibility and principal projection matter. CSRF and cache middleware then apply request policy. Auth mail resolves closed readers and mail transport. Optional absence and installed-profile qualification remain gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; Authentication middleware; AuthMailer; 402-test source run",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Exported classes, interfaces, traits, functions, constants, DTOs, and exceptions",
+            "status": "gap",
+            "answer": "NativeSession's maintained-interface promise needs conformance beyond its get/set consumers. User identity hydration distinguishes historical persisted rows from creation rules. Registered role assignment replaces the registered set while preserving unknown stored roles without granting permissions; this is intentional behavior. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "NativeSession; User; RegisteredRoleAssignmentService; role tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Composer autoload and package public-surface declarations",
+            "status": "gap",
+            "answer": "NativeSession's maintained-interface promise needs conformance beyond its get/set consumers. User identity hydration distinguishes historical persisted rows from creation rules. Registered role assignment replaces the registered set while preserving unknown stored roles without granting permissions; this is intentional behavior. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "NativeSession; User; RegisteredRoleAssignmentService; role tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Unclassified exports versus explicitly internal symbols; omission from a declaration is not proof that a real consumer is unsupported",
+            "status": "gap",
+            "answer": "NativeSession's maintained-interface promise needs conformance beyond its get/set consumers. User identity hydration distinguishes historical persisted rows from creation rules. Registered role assignment replaces the registered set while preserving unknown stored roles without granting permissions; this is intentional behavior. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "NativeSession; User; RegisteredRoleAssignmentService; role tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Request, response, event, persistence, JSON, TypeScript, schema, and generated contracts",
+            "status": "gap",
+            "answer": "NativeSession's maintained-interface promise needs conformance beyond its get/set consumers. User identity hydration distinguishes historical persisted rows from creation rules. Registered role assignment replaces the registered set while preserving unknown stored roles without granting permissions; this is intentional behavior. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "NativeSession; User; RegisteredRoleAssignmentService; role tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Compatibility policy, lifecycle, deprecation path, and error semantics",
+            "status": "gap",
+            "answer": "NativeSession's maintained-interface promise needs conformance beyond its get/set consumers. User identity hydration distinguishes historical persisted rows from creation rules. Registered role assignment replaces the registered set while preserving unknown stored roles without granting permissions; this is intentional behavior. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "NativeSession; User; RegisteredRoleAssignmentService; role tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Contracts and public surfaces",
+            "item": "Canonical definitions and every derived or duplicated representation",
+            "status": "gap",
+            "answer": "NativeSession's maintained-interface promise needs conformance beyond its get/set consumers. User identity hydration distinguishes historical persisted rows from creation rules. Registered role assignment replaces the registered set while preserving unknown stored roles without granting permissions; this is intentional behavior. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "NativeSession; User; RegisteredRoleAssignmentService; role tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Internal layers derived from the package charter",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Required, optional, development-only, adapter, and framework dependencies",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Inbound dependencies from peer packages and applications",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Outbound dependencies, including dynamic and container-resolved edges",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Cycles, layer bypasses, uncovered dependencies, allowlists, and expiry conditions",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Coupling to peer internals versus narrow public contracts; concrete consumers and compatibility obligations",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Temporal coupling: initialization order, early resolution, retries and coordinated readiness across packages",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Shared mutable state, captured service/provider objects and service-locator dependencies hidden from import graphs",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Change coupling: a concrete change that requires synchronized edits across owners, and whether that coordination is intentional",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Dependency structure",
+            "item": "Adapter chains from a supported composition root to their terminal implementations; what each layer owns, whether the terminal implementation is production-reachable, and whether a wrapper conceals rather than repairs defective behavior",
+            "status": "gap",
+            "answer": "Actual direct and container-resolved consumers were traced. No new dependency parser was used; scoped Deptrac migration is coordinated under #3075. Runtime initialization and session globals remain coupling requiring lifetime qualification.",
+            "evidence": "composer.json; UserServiceProvider; auth/SSR callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Authentication, authorization, field access, CSRF, and information-oracle behavior",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Validation order and stable refusal mapping",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Refusal stack: route options, real middleware, handler non-invocation, HTTP status, and response shape",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Concurrency, revision, mutation-token, replay, and idempotency contracts",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Optional capability discovery versus actual route or service availability",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Malformed input, unavailable dependency, partial failure, and recovery behavior",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Behavior and boundary integrity",
+            "item": "Adapter truthfulness across inputs, fields, authorization, refusals, errors, mutations, persistence effects, transaction boundaries, retries, and lifecycle transitions",
+            "status": "gap",
+            "answer": "Current source and named tests were inspected, but complete real-composition refusal, failure, optionality and lifecycle evidence is not established. Owner: waaseyaa/user #3118.",
+            "evidence": "Source package tests; profile entries",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Separation of concerns and single responsibility: group code by coherent ownership and reasons to change; identify policy, orchestration and infrastructure mixed in one host without requiring one class per method",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "DRY at the contract and mechanism level: consolidate repeated knowledge around its canonical owner; retain similar-looking code when different domain rules or change lifecycles justify it",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Human navigation: consistent file, namespace and symbol names; related responsibilities easy to locate; directory depth and grouping proportional to package size; avoid vague dumping grounds and needless nesting",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Trace a maintainer task from package entrypoint to implementation, contract, tests and usage docs; record concrete navigation friction and a justified retain/move/split/merge disposition",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "For proposed moves, name the responsibility and destination, affected imports/autoload, dynamic names, exports, generated consumers, docs and tests; keep ownership and behavior intact and give the repair bounded acceptance",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Unused locals, fields, parameters, callbacks, imports, flags, configuration and branches, including leftovers excluded from static-tool findings",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Deprecated no-ops, old/new implementations, aliases, fallbacks and compatibility shims; apply the skill's alpha Framework policy instead of assuming retention",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Concentrated hosts, providers, controllers, or managers with multiple policy roles",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Repeated translation, validation, serialization, or authorization logic",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Competing sources of truth and dual representations; identify the canonical authority and whether derived views are mechanically checked",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Interfaces with no production implementation or consumer",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Implementations reachable only from tests or obsolete examples",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Abstractions that hide ownership rather than clarifying it",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Adapters backed by test-only or fake delegates, effective no-ops, manufactured success, swallowed failures, lossy translation, or an unavailable terminal capability",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Adapters introduced to make internal paths agree: identify the original producer/consumer mismatch, normalization/defaults/coercions and whether correcting one canonical contract removes the adapter",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Code quality and cohesion",
+            "item": "Repeated execution versus repeated implementation; measure query or translation cost before claiming a performance defect",
+            "status": "gap",
+            "answer": "Entity/policy, roles, middleware, mail and sessions form coherent responsibility families across root files and Authentication, Http, Middleware and Session directories. UserSession has no production instantiator in the bounded search but differs from nullable account context; no deletion is justified by that search. Shared role assignment is a single authority. Current session integration and documentation follow-ups own the remaining work.",
+            "evidence": "Source review; maintained SessionInterface comparison; current callers",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Prefer native types where expressive; use PHPDoc for missing precision such as collection element types, array shapes, generics and callable signatures. Check annotations against actual producers, consumers and refusal paths",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Public and extension contracts explain purpose, meaningful input/output semantics, relevant exceptions, side effects and lifecycle or ownership constraints; internal contracts document non-obvious obligations where their callers need them",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Keep PHPDoc, native signatures, public-surface metadata, specs and behavior consistent. Remove stale promises, future-state descriptions and redundant tags that add no type or semantic information",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Explain non-obvious intent, invariants, ordering, security decisions, transaction/cache boundaries and tradeoffs near the affected code. Describe why the rule exists and what would break if it changed; link a stable spec or change record when useful",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Refactor confusing names or flow before adding explanatory prose. Remove narration of obvious statements, commented-out implementations and misleading comments; bounded workarounds identify their owner and removal condition",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Treat inline `@var`, suppressions and `@api` as claims requiring evidence, not shortcuts to a green gate. Fix the producer's type where possible; annotations must not manufacture runtime guarantees or conceal dead code",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: PHPDoc and human comments",
+            "item": "Check the installed PHPStan and Deptrac versions and configuration before relying on a tag. PHPStan consumes richer PHPDoc types; Deptrac checks dependency rules and supports documentation-tag classification when configured. Prove the claimed enforcement with relevant controls",
+            "status": "gap",
+            "answer": "Legacy access comments and interface coverage need reconciliation with V2 projection and actual adapter behavior. Native types and collection shapes are generally useful; @api alone does not prove a current caller or a supported installation profile. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserAccessPolicy; NativeSession; public-surface.php",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Current custom responsibility, real callers and observable behavior",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Candidate Symfony component, installed/supported version, and verified source/test or official-documentation evidence of fit",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Waaseyaa domain semantics retained, including authorization, sovereignty, lifecycle, error and wire contracts",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Direct use versus a thin adapter; whether the adapter actually reduces maintenance or only relocates coupling",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Compatibility for public symbols, generated artifacts, stored formats and supported application extensions",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Required/optional dependency and split-installation impact, migration effort and ongoing maintenance tradeoff",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Equivalence controls for normal behavior, refusals, failure mapping and relevant lifecycle transitions",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Disposition: simplify around Symfony or replace when fit is established; retain only with an evidenced capability/compatibility gap, owner and review trigger; defer only with bounded migration acceptance and a removal condition",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Custom infrastructure versus Symfony",
+            "item": "Remediation destination for each verified replacement opportunity, including those outside the current consumer unblock",
+            "status": "gap",
+            "answer": "Symfony HttpFoundation 7.4.13 is installed. Its session implementation is the default comparison, but current AuthManager/identity/CSRF/SSR depend on flat stored session keys. Any integration must preserve or explicitly migrate that persisted obligation and retain Framework cookie, eligibility and generation policy. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "https://symfony.com/doc/7.4/session.html; installed Session/AttributeBag source; NativeSession and production callers",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Unit tests for pure contracts and policies",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Integration tests through real composition roots",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Boundary tests for authorization, refusal, optional dependencies, and failure mapping",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Producer conformance that fails on undeclared emitted keys and missing required keys",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Canonical-to-consumer compatibility that fails on extra or missing keys, presence, nullability, and value drift",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Non-empty optional and nested fixtures typed against or mechanically validated by the canonical contract",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Source-parser controls for module discovery, nested structures, and empty-result failure when parsing cannot be avoided",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Schema, generated-output freshness, and workflow path-filter checks",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Architecture controls with positive, negative, and uncovered cases",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Mutation or discriminator evidence where a passing test could otherwise be vacuous",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Tests and mechanical gates",
+            "item": "Real-composition adapter controls with a positive path, an applicable refusal or failure path, an asserted terminal effect or returned state, and a discriminator that fails for a no-op or fake delegate",
+            "status": "gap",
+            "answer": "Explicit-file PHPUnit invocation passed 402 tests and 823 assertions. An initial directory invocation executed no tests and is not a pass. Focused NativeSession tests overlap the full package run. Source tests do not prove installed dependency absence or downstream session migration. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "user/user-tests-explicit.xml",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Package charter and public composition examples",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Hard versus optional dependency documentation",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Source and split-package installation",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Generated-application consumption",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Frontend build and committed distribution freshness where applicable",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Distribution form details: see `profiles/distribution.md`",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Refreshed dependency views after production behavior changes",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Upgrade and deprecation guidance",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "general: Documentation and delivery forms",
+            "item": "Changelog fragment and stable change record",
+            "status": "gap",
+            "answer": "Package documentation and public-surface coverage need a caller-based reconciliation. Fresh no-dev installation and generated-account qualification remain assigned to #3118 and J1 #3199.",
+            "evidence": "README; manifest; public-surface.php; package tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Invariants and lifecycle: List the invariants the package promises and where each is enforced. An invariant enforced only in one caller (a controller, a CLI handler, an admin host) is not owned by the package.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Invariants and lifecycle: Map each lifecycle: states, allowed transitions, who may trigger them, and what happens to dependents. Test illegal transitions as well as legal ones.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Invariants and lifecycle: Find type-specific branches in generic code (a hard-coded entity type in a shared host, for example). Each one is either a missing declaration seam or a documented exception with an owner.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Events and extension seams: Record every event the package dispatches or subscribes to: name, payload, ordering, and whether listeners can veto or mutate. Check the order is deterministic and documented where consumers rely on it.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Events and extension seams: For each extension seam (interface, attribute, hook), name its real implementations and consumers. A seam with no production implementation is either `@api` scaffolding with a planned consumer or a removal candidate after the dead-code checks.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Events and extension seams: Check that best-effort listeners can't break the primary operation, and that required listeners can't be skipped silently.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Consumers: Trace actual consumers across packages and downstream applications. The contract is what they rely on, not what the README says.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "domain-contracts",
+            "item": "Consumers: Check that access policies for the package's entity types exist, are discovered, and cover field-level access where the data needs it.",
+            "status": "gap",
+            "answer": "Reviewed identity canonicalization/hydration, role assignment, account lifecycle vocabulary and mail inputs. Private boundary evidence is incomplete; no public authorization-completeness claim is made. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; roles; provider and tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: Before calling a contract canonical, enumerate every request and response that crosses the boundary, including secondary actions such as schema, history, preview, restore and errors. Trace each from its producer or validator, through transport, to the consuming type. A crossing typed only by a local cast or a consumer-private type is not covered.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: Derive field presence from the actual serialization path. An omitted field, an optional field, a required nullable field and a required non-null field are four different contracts.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: When a field carries authority or lifecycle state, test transitions, not just snapshots: authority becoming null, a capability disappearing, a session ending, an optional service going away. Static types can't prove that stale cached authority is revoked.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Crossings: One canonical contract doesn't need one file. Split distinct protocols by concern, with one public entrypoint and one compatibility story.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: Duplicated structural contracts must fail on missing or extra keys, required-versus-optional drift, nullability drift and incompatible values. Plain assignability can let an optional field disappear silently.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: Producer conformance must reject both undeclared emitted keys and missing required keys. Keep producer-to-canonical and canonical-to-consumer checks separate, and don't claim \"every payload\" unless the roster names each crossing.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: Use non-empty examples for optional and nested payloads. Type browser and integration fixtures against the canonical contract, or validate them mechanically; an untyped mock keeps a false green path alive after the contract changes.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: If conformance parses contract source instead of importing a runtime schema, require module discovery, nested-structure handling and a sanity control. A parser that finds nothing must fail.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Mechanical checks: The gate must run when either the canonical definition or any mirror changes. Check workflow path filters, dependency provisioning and the owning required check. Don't add a gate to a job that can't provision its runtime.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: Prove the whole refusal stack: route options, real middleware, handler not invoked, wire-level status and response shape.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: Separate kernel-level malformed-body refusal from host-level refusal of valid JSON with the wrong shape.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: For a CSRF journey, bootstrap from the real application HTML, read the runtime-configured CSRF cookie name, keep the session cookie jar, and send the matching header on mutation. Also prove a mismatched token can't persist state. Don't hard-code a default cookie name.",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "http-ui-contracts",
+            "item": "Refusals and authentication: Cover authentication, authorization, field access and information-oracle behavior (does a refusal reveal whether something exists?).",
+            "status": "gap",
+            "answer": "Reviewed middleware order and downstream eligibility, CSRF metadata/JSON behavior and session-bound cache policy. Positive package tests pass. Full installed bearer/session/refusal matrices and private findings require remaining qualification. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware source and package tests",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Map first construction, discovery/register, boot/finalization, service resolution and shutdown. Identify when provider lists, entity definitions and other inputs become complete.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Trace early service resolution and recursive resolution. A lazily built singleton must not freeze incomplete registration into a permanent snapshot.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Exercise supported repeated calls and sequential executions. Check retained request/account/tenant state and request-context separation from reusable definitions.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: For failed boot, inspect state retained by each completed phase: frozen registries, singleton caches, registrations and readiness flags. Prove a clean retry or an explicit terminal-state refusal without weakening frozen-state protections.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: For restricted-to-runtime or other profile transitions, establish whether reuse is supported. Test supported transitions or explicit refusal. A single ready boolean is insufficient evidence that all profile-specific services were finalized.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Lifecycle and state: Compare documented eager/deferred provider behavior with observed registration and boot. A mismatch may require correcting the promise rather than implementing new laziness.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Trace the same capability across HTTP, CLI, workers and restricted discovery only where those profiles claim support. Name the canonical composition owner and any divergent copies.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Test a nonempty application provider through the real composition root. A manually injected service proves its consumer, not that the kernel supplies it.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Identify supported primitive-only, split-package, kernel-composition and metapackage installations. Architecture exceptions do not prove dependency closure; an undeclared higher-layer import is not automatically a missing hard dependency for every profile.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Record unavailable dependencies and unsupported profiles explicitly. Inspect failure timing and diagnostics, including whether construction fails before a handler's error boundary.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Review public manifest/read models and discovery APIs against real dynamic and downstream consumers. Do not remove an apparently unused discovery surface based on repository search alone.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "kernel-runtime",
+            "item": "Composition and installation: Reconcile stability promises, public-surface declarations and serialized/read shapes. A missing declaration is unclassified, not implicitly internal; compatibility must be established from the actual promised and consumed contract.",
+            "status": "gap",
+            "answer": "Provider composition and middleware priorities reviewed. Repeated requests and no-user/optional compositions involve foundation and remain profile qualification gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "UserServiceProvider; foundation HttpKernel composition",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Storage access: Entity persistence goes through `EntityRepository` and a storage driver. Supporting tables (join tables, counters, logs) may use `DatabaseInterface` directly. Raw PDO (`new \\PDO`, `$pdo->exec`, `$pdo->prepare`) bypasses the framework database layer and is a finding unless a recorded exception names why.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Storage access: Check every backend the package claims (for example the sovereignty profiles' SQLite, Postgres and pgvector options). A package that only works on one backend must say so.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Storage access: Look for untyped query parameters and backend-specific SQL.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Schema authority: Every table the package creates must come from a migration or a coordinated schema transition (`SchemaMutationCoordinator`, `CoordinatedEntitySchemaExecutor`). A table created lazily at runtime (`CREATE TABLE IF NOT EXISTS` on first use) sits outside the schema-authority manifest and makes later transitions refuse with S1-DB109 (#3110). Record the table name, the creating code and the first code path that triggers it.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Schema authority: Check the deployer runtime-table catalogue (`FrameworkRuntimeTableCatalogue`) agrees with what the package actually creates and how each table is classified.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Schema authority: Check upgrade behavior on an existing database, not just a fresh one: new columns, new tables, and a second run changing nothing.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Identify transaction boundaries and what is atomic. A multi-step write without a transaction needs a documented recovery story.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Check concurrency and fencing: revisions, mutation tokens, unique constraints, and whether counted limits (slots, quotas) are enforced by the database or only by application code.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: For retries and jobs, check idempotency, claim/release semantics and duplicate delivery.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Compare the reported outcome with the durable one. A caller told \"failed\" when the write committed, or \"done\" when it didn't, is a finding (#3035).",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "persistence-execution",
+            "item": "Transactions and outcomes: Test restart and recovery: a crash between steps, a partially applied migration, a job interrupted mid-run.",
+            "status": "gap",
+            "answer": "User owns entity rules but repository persistence is entity-storage-owned. Flat session keys are a real persisted compatibility obligation; cookie regeneration and lifetime semantics require conformance controls. No live service or production data was touched. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "User; NativeSession; SessionCookiePolicy; source tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Ownership and intended behavior: Trace the real composition root through failure origin, exception conversion,",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Ownership and intended behavior: Separate generic mechanisms from required domain policy. Apply the checklist's",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Ownership and intended behavior: Reconcile intended statuses, exit codes, wire envelopes, privacy and recovery",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Select applicable stages: pre-container/bootstrap, dependency construction,",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Assert public status/body or process status/stdout/stderr, persisted effects,",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Check nested/hostile exception messages, harmless sensitive-looking symbols,",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Exercise applicable development/production, no-dev and supported host profiles,",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "failure-handling",
+            "item": "Boundary evidence: Verify unaffected success and refusal controls. For retries or partial writes,",
+            "status": "gap",
+            "answer": "Reader/storage failures, bearer fallback, mail configuration and CSRF refusal were reviewed in source. Independent private verification was incomplete, and final caller outcomes across installed applications remain unqualified. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "Middleware and AuthMailer source; tests",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **primitive-only:** a consumer uses the package's classes directly, without",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **standalone split:** the package installed on its own and booted, including",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **kernel composition:** the package's providers and policies discovered and",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **metapackage:** installed through `core`, `cms` or `full`;",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **framework closure:** installed through `waaseyaa/framework`;",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installation profiles: **generated application:** a freshly generated application.",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installed form: Install the split package on its own and boot it with `--no-dev`. Nothing under `src/` may extend a dev-only class.",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installed form: Check optional dependencies both absent and present. Absence must not change unrelated behavior.",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Installed form: Metapackages have no production source but still need closure and composition evidence.",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Exports and bytes: Compare the exported files with the source: export-ignore rules, required runtime files present, dev-only and secret-bearing files absent.",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "distribution",
+            "item": "Exports and bytes: For static assets, check exact bytes, MIME types, application override precedence, vendor fallback, index fallback and any runtime HTML rewriting.",
+            "status": "gap",
+            "answer": "All 32 non-test split files are rostered and source-reviewed. Root autoload success is not a standalone split proof. No-dev and generated profiles remain named gaps. Remaining item-specific proof is owned by waaseyaa/user #3118.",
+            "evidence": "composer.json; roster; split workflow",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Trace descriptions back to the actual composed application, including provider-defined entries and ordering. A builtins-only or empty fixture cannot prove consumer completeness.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Distinguish empty, unavailable, failed and complete sections. Verify what the output itself tells a consumer; a warning in a separate log may not make a successful partial result unambiguous.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Compare declared access metadata with effective restrictions. Exercise conflicting flags and layered enforcement; a public route flag alone does not establish unrestricted entity access.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Check description lifetime against the producer's lifecycle. Identify stale snapshots and early construction, and separate stable definitions from request-bound values.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Truthful descriptions: Inspect object-valued metadata before treating it as a serializable definition. A cloned container or route may still share nested live controllers/services. Use bounded descriptive representations for inspection, preserve executable values for runtime dispatch, and test that JSON does not traverse arbitrary object state.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Trace discovery, handler construction, dependency resolution, execution, serialization and output. Test failure at construction as well as execution; handler-local catches cannot cover failures before invocation.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Establish whether section/filter selection scopes work or only output. Test unrelated unavailable capabilities against the promised selection semantics.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Round-trip nonempty JSON through the real output adapter, including formatter-like strings. Check stdout/stderr, exit status, optional integrations, and metadata retained when commands are rebound to a container.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Test supported strict/tolerant modes, unavailable dependencies, unknown selections and repeated execution. Make determinism claims match the ordering actually controlled.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "Command boundary: Trace AI/MCP consumers separately: making a service constructible may affect discovery, so verify capability and exposure boundaries without enabling unrelated access.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Test argv parsing through the real application, not only a handler: required and optional arguments, too few and too many arguments, and the documented defaults actually applied.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Test option forms: `--opt=value`, `--opt value`, short options, flags, negatable flags, repeated options, and a value that itself starts with `-`. Unknown options, missing option values and stray arguments must be refused with the documented usage exit code and a message on stderr.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Check the `--` separator, empty-string and non-ASCII values, and values containing console markup, all round-tripped without change.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Map each command to its boot mode (no boot, pre-runtime, restricted, schema, full) and check it doesn't build services the mode forbids.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Register commands in every supported form (instance, service ID, class name) and prove each is bound to its container. A command that lists but can't run is a finding.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Check that aliases, hidden status and help survive registration and container rebinding, through `list`, `help` and alias invocation.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Machine output must be byte-faithful: write JSON through a raw writer, never a path that strips console markup. Diagnostics go to stderr.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Compare exit codes at the handler, the application and the real process. Usage errors, validation, domain failure, exceptions and interruption (130) should match the documented contract at every level.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "introspection-cli",
+            "item": "CLI process contract: Test interactive and non-interactive input, stdin sources, signals and cleanup of child processes where the command spawns any.",
+            "status": "does not apply",
+            "answer": "User contributes no commands or introspection engine. CLI account commands are consumers and are covered in the CLI audit.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Deterministic plans:** the same inputs produce the same plan and bytes. Check ordering, timestamps and host-specific paths or line endings.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Ownership:** know which generated files the tool owns and which the user owns. Regeneration must not overwrite user-owned edits silently.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Collisions:** existing files, names or tables that clash with generated ones are refused or explicitly resolved, never clobbered.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Atomic application:** a failed generation leaves no half-written project. Check temp-then-rename and rollback.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Generated runtime dependencies:** list every framework symbol that generated code imports or calls at runtime (for example a migration helper). Those symbols are a public contract; moving them breaks historical generated files.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Upgrade behavior:** regenerating over an older output, and running old generated code against a newer framework.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "generation-build",
+            "item": ": **Execute the output:** run the generated code or artifact, not just snapshot its text.",
+            "status": "does not apply",
+            "answer": "No code generator or frontend build is shipped here. Generated account flows belong to CLI/skeleton.",
+            "evidence": "Production roster",
+            "findings": []
+        },
+        {
+            "profile": "specification traceability",
+            "item": "Implemented SessionInterface semantics",
+            "status": "finding",
+            "answer": "USER-S1 bounds truthful replace/null/bag/lifetime behavior. Any component substitution must preserve actual raw-key integration; no blind replacement.",
+            "evidence": "Symfony HttpFoundation 7.4.13 SessionInterface; https://symfony.com/doc/7.4/session.html; NativeSession; auth/CSRF/SSR raw session-key consumers; Independent contract controls and User source suite.",
+            "findings": [
+                "USER-CONTRACT-001"
+            ]
+        },
+        {
+            "profile": "specification traceability",
+            "item": "Immutable acting identity and policy composition",
+            "status": "gap",
+            "answer": "Package source controls do not qualify full API/session/mail lifecycle. #2443 owns application acceptance and #3205 remains unlanded candidate work.",
+            "evidence": "docs/specs/access-control.md; docs/specs/security-defaults.md; UserAccessPolicy; identity value classes; UserServiceProvider; 402 source tests/823 assertions; no fresh installed application.",
+            "findings": []
+        },
+        {
+            "profile": "specification traceability",
+            "item": "Fresh generated account lifecycle and supported extensions",
+            "status": "gap",
+            "answer": "User/auth and J1 #3199 own fresh installed positive/refusal lifecycle, active-status freshness and extension qualification.",
+            "evidence": "docs/specs/auth-consumer-extensions.md; #2441/#2443; User package plus auth/API/kernel and generated application consumers; Source composition reviewed; no generated installation executed.",
+            "findings": []
+        }
+    ],
+    "intake": [],
+    "findings": [
+        {
+            "id": "USER-CONTRACT-001",
+            "title": "Native session behavior diverges from its advertised Symfony interface",
+            "area": "CONTRACT",
+            "severity": "low",
+            "confidence": "confirmed",
+            "evidence_level": "reproduced",
+            "observed": "NativeSession replacement retains omitted keys, explicit-null attributes behave as absent, optional lifetimes are ignored, bag registration has no effect and metadata is unsupported. packages/user/src/Session/NativeSession.php:81,97,117,160,170; independently compared with installed HttpFoundation 7.4.13.",
+            "expected_contract": "SessionInterface replacement, key presence, lifetime and bag semantics must be truthful. Raw flat session storage is a real current framework obligation.",
+            "consequence": "Extension consumers can receive divergent state or success without the requested behavior. No failing current in-tree caller or security exploit was demonstrated.",
+            "refutation": "ID rotation, preservation, clearing and missing-key controls pass. Current consumers use get/set/remove/getId. Default Symfony bags do not preserve the flat-key contract, so a blind replacement is invalid.",
+            "disposition": "repair",
+            "destination": [
+                {
+                    "kind": "slice",
+                    "ref": "USER-S1"
+                }
+            ],
+            "dependencies": "none",
+            "acceptance": "Pin stale-key removal, empty replacement, null versus absent, bag retrieval, metadata and lifetime behavior with positive controls. Evaluate a maintained Symfony integration while preserving current raw session consumers. Any public removal requires a separate Tier A decision.",
+            "residual_risk": "Installed and external consumer qualification remains separate.",
+            "next_action": "Scope the bounded repair with its owning package.",
+            "discovered_in": "waaseyaa/user",
+            "owned_by": "waaseyaa/user",
+            "co_owners": [],
+            "affected_consumers": [
+                "Framework source composition"
+            ],
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": "independent: does not change the ledger consumer unblock",
+            "merged_into": null,
+            "verification": {
+                "tier": "B",
+                "performed": "One independent reviewer re-derived and refuted every grouped SessionInterface claim with real isolated PHP sessions and installed Symfony comparison. 22 existing tests/27 assertions passed; parent integrity verified.",
+                "reversals": [
+                    "No current in-tree consumer failure or vulnerability established.",
+                    "Flat-data bridge remains a real integration obligation."
+                ]
+            },
+            "probes": [
+                "session-contract-discriminator"
+            ],
+            "notes": "reproduced (probe not retained). Source evidence only; no installed-profile qualification."
+        },
+        {
+            "id": "USER-SEC-001",
+            "title": "A suspected ownership-integrity issue requires private review.",
+            "area": "SEC",
+            "severity": "withheld",
+            "confidence": "suspected",
+            "evidence_level": "reviewed",
+            "observed": "withheld (private brief)",
+            "expected_contract": "withheld (private brief)",
+            "consequence": "withheld (private brief)",
+            "refutation": "withheld (private brief)",
+            "disposition": "private triage",
+            "destination": [
+                {
+                    "kind": "private-report",
+                    "ref": "private report (framework advisory; owner waaseyaa/user)"
+                }
+            ],
+            "dependencies": "Private verification and maintainer triage",
+            "acceptance": "withheld (private brief)",
+            "residual_risk": "withheld (private brief)",
+            "next_action": "Complete private verification and maintainer triage.",
+            "discovered_in": "waaseyaa/user",
+            "owned_by": "waaseyaa/user",
+            "co_owners": [],
+            "affected_consumers": "withheld",
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": null,
+            "merged_into": null,
+            "verification": {
+                "tier": "pending",
+                "performed": "Required fresh independent verification is incomplete.",
+                "reversals": []
+            },
+            "probes": 0,
+            "notes": "Private brief held by Russell Jones. No public localization."
+        },
+        {
+            "id": "USER-DOC-001",
+            "title": "Documentation and responsibility navigation need a bounded refresh",
+            "area": "DOC",
+            "severity": "info",
+            "confidence": "confirmed",
+            "evidence_level": "reviewed",
+            "observed": "README omits current session abstraction and the full development-runtime gate. Responsibility families exist across root files and four subdirectories. UserSession always contains an account, whereas the access context distinguishes no actor; no removal conclusion follows from a bounded caller search. packages/user/README.md:7; packages/user/src/Session/AuthenticatedSession.php:12; packages/user/src/DevAdminAccount.php:11; packages/user/src/UserSession.php:15; packages/access/src/Context/AccountContextInterface.php:10",
+            "expected_contract": "Documentation and structural choices reflect current contracts and actual ownership.",
+            "consequence": "Maintainer navigation and safe contract changes require current source guidance.",
+            "refutation": "The UID key remains current. UserSession and nullable account context are not equivalent. Optional unconfigured mail behavior is deliberate; no new runtime or security defect is asserted.",
+            "disposition": "repair",
+            "destination": [
+                {
+                    "kind": "slice",
+                    "ref": "USER-S2"
+                }
+            ],
+            "dependencies": "No public removal, persistence-format change or component replacement authorized by this source review.",
+            "acceptance": "Document current session abstraction without renaming its persisted UID key; describe the actual development gate and projected-read policy path. Use accurate responsibility-family navigation. Establish UserSession's current obligation before any separately reviewed public change; qualify optional mail composition.",
+            "residual_risk": "Source review only; installed consumers and full runtime qualification remain separate.",
+            "next_action": "Bound the documentation and equivalence follow-up with the owning package.",
+            "discovered_in": "waaseyaa/user",
+            "owned_by": "waaseyaa/user",
+            "co_owners": [],
+            "affected_consumers": [
+                "Framework maintainers and extension authors"
+            ],
+            "blocks_assessment": false,
+            "decision": null,
+            "consumer_unblock": "independent: does not change the ledger consumer unblock",
+            "merged_into": null,
+            "verification": {
+                "tier": "C",
+                "performed": "Independent review checked all 18 ordinary Audit/User claims after initial samples required corrections. Protected-state comparison passed.",
+                "reversals": [
+                    "The UID key remains current. UserSession and nullable account context are not equivalent. Optional unconfigured mail behavior is deliberate; no new runtime or security defect is asserted."
+                ]
+            },
+            "probes": [],
+            "notes": "Source-reviewed information and bounded work, not a public-removal proposal."
+        }
+    ],
+    "refuted": [],
+    "handoffs": [],
+    "decisions": [],
+    "uncertainties": [
+        {
+            "id": "U1",
+            "uncertainty": "Fresh installed/no-dev, generated-application and supported closure qualification is not established.",
+            "findings": [],
+            "what_would_settle_it": "Owning package and #3199 run the supported profile matrix at an immutable candidate with declared dependencies only.",
+            "status": "open",
+            "resolution": null
+        },
+        {
+            "id": "U2",
+            "uncertainty": "Some historical issue acceptance and specification traceability remains unreconciled.",
+            "findings": [],
+            "what_would_settle_it": "Owning package completes per-item source/spec/test reconciliation from the captured issue, Project and document inventories.",
+            "status": "open",
+            "resolution": null
+        }
+    ],
+    "issue_reconciliation": [
+        {
+            "issue": "#3205",
+            "claim": "Delegated user management candidate is an open issue.",
+            "status": "open; not assumed landed",
+            "evidence": "Fresh complete open PR inventory contains Dependabot updates only. Candidate issue text does not establish source qualification."
+        },
+        {
+            "issue": "#2443",
+            "claim": "Account lifecycle and customization must be qualified in the generated application.",
+            "status": "existing integration/recipe owner retained",
+            "evidence": "User source suite passes 402 tests/823 assertions, but those package tests do not establish generated UI, session/mail or full account lifecycle acceptance."
+        },
+        {
+            "issue": "#2441",
+            "claim": "Account lifecycle and customization must be qualified in the generated application.",
+            "status": "existing integration/recipe owner retained",
+            "evidence": "User source suite passes 402 tests/823 assertions, but those package tests do not establish generated UI, session/mail or full account lifecycle acceptance."
+        },
+        {
+            "issue": "#2440",
+            "claim": "Account lifecycle and customization must be qualified in the generated application.",
+            "status": "existing integration/recipe owner retained",
+            "evidence": "User source suite passes 402 tests/823 assertions, but those package tests do not establish generated UI, session/mail or full account lifecycle acceptance."
+        },
+        {
+            "issue": "#3199",
+            "claim": "Clean no-dev installation through the first homepage is a shared acceptance journey.",
+            "status": "qualification owner retained",
+            "evidence": "Monorepo source and synthetic fixtures are not an isolated Composer consumer. No dependency installation or fresh generated app executed in this audit."
+        }
+    ],
+    "remediation_plan": [
+        {
+            "slice": "USER-S1",
+            "findings": [
+                "USER-CONTRACT-001"
+            ],
+            "acceptance": "Pin stale-key removal, empty replacement, null versus absent, bag retrieval, metadata and lifetime behavior with positive controls. Evaluate a maintained Symfony integration while preserving current raw session consumers. Any public removal requires a separate Tier A decision.",
+            "depends_on": []
+        },
+        {
+            "slice": "USER-S2",
+            "findings": [
+                "USER-DOC-001"
+            ],
+            "acceptance": "Document current session abstraction without renaming its persisted UID key; describe the actual development gate and projected-read policy path. Use accurate responsibility-family navigation. Establish UserSession's current obligation before any separately reviewed public change; qualify optional mail composition.",
+            "depends_on": []
+        }
+    ],
+    "qualification": [
+        {
+            "profile": "kernel composition",
+            "supported": "yes",
+            "evidence_class": "source",
+            "evidence": "Source composition reviewed at the base; exact scope and test outcomes are recorded separately.",
+            "gap_owner": "waaseyaa/user #3118"
+        },
+        {
+            "profile": "standalone split",
+            "supported": "undecided",
+            "evidence_class": "none",
+            "evidence": "No fresh isolated no-dev installation was qualified. Decide supported primitive and kernel closure, then exercise declared dependencies without root autoload help.",
+            "gap_owner": "waaseyaa/user #3118"
+        },
+        {
+            "profile": "framework closure",
+            "supported": "yes",
+            "evidence_class": "none",
+            "evidence": "Current docs-only CI 39295771289 succeeded; behavior and installed-profile jobs were skipped and do not qualify this profile.",
+            "gap_owner": "waaseyaa/user #3118"
+        },
+        {
+            "profile": "generated application",
+            "supported": "undecided",
+            "evidence_class": "none",
+            "evidence": "No fresh generated application was qualified; coordinate J1 #3199 and generator program #2844.",
+            "gap_owner": "waaseyaa/framework #3199"
+        }
+    ],
+    "probes": [
+        {
+            "name": "session-contract-discriminator",
+            "purpose": "Compare NativeSession with installed Symfony behavior using isolated real PHP sessions.",
+            "result": "Confirmed low interface divergence with passing ordinary-state controls; fixture setup error corrected before the final run.",
+            "retained_path": null,
+            "reproduce": "Private audit scratch contains the nonsecurity SessionInterface discriminator; not retained in repository. Run isolated CLI processes with PHP 8.5.5 and installed HttpFoundation 7.4.13."
+        }
+    ],
+    "evidence_runs": [
+        {
+            "command": "Explicit-file packages/user/tests PHPUnit run --no-coverage --do-not-cache-result",
+            "base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "dependency_identity": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "runner": "local PHP 8.5.5 / PHPUnit 13.1.14",
+            "host": "native Windows",
+            "proves": "Source package unit/integration assertions",
+            "result": "402 tests, 823 assertions, pass; 14.939 seconds."
+        },
+        {
+            "command": "PHPStan analyse audit, entity-storage, foundation, cli and user src paths with scratch config including repository config; unmatched baseline reports disabled for scoped analysis.",
+            "base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "dependency_identity": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "runner": "PHP 8.5.5 / PHPStan 2.1.54",
+            "host": "native Windows",
+            "proves": "Scoped production-source static analysis under the existing baseline. No installed or runtime qualification.",
+            "result": "Exit 0; zero reported errors and zero file errors. Cache and output confined to audit scratch."
+        }
+    ],
+    "not_reviewed": [
+        "Fresh standalone/no-dev split, generated application and released-consumer qualification.",
+        "Completion of independent review for a private lead remains unavailable; no completed verdict is claimed.",
+        "External consumers of apparently unused public symbols; no removal recommendation is accepted without that evidence."
+    ],
+    "host_limits": [
+        "Native Windows has known SQLite teardown, permission, symlink and POSIX gate limits (#3096, #3081). Missing installed and generated evidence belongs to hosted Linux jobs; no waiver or pass is claimed."
+    ],
+    "scorecard": {
+        "elapsed": "Started 2026-10-19 17:41 UTC; generated 2026-10-19 20:06 UTC. Initial allocation 120 minutes with reported checkpoint; phase-specific token metrics unavailable.",
+        "agents": "Root plus three reused independent reviewers; parallel package investigation explicitly authorized by the user.",
+        "subagent_tokens": "unavailable",
+        "scope": {
+            "production_files": 32,
+            "php_lines": 3282,
+            "inbound_packages": 9
+        },
+        "verification_reversals": [
+            "No current in-tree consumer failure or vulnerability established.",
+            "Flat-data bridge remains a real integration obligation.",
+            "The UID key remains current. UserSession and nullable account context are not equivalent. Optional unconfigured mail behavior is deliberate; no new runtime or security defect is asserted."
+        ],
+        "record_size": {
+            "lines": 125,
+            "words": 1806,
+            "ledger_bytes": 161651
+        },
+        "probes": {
+            "nonsecurity_entries": 1,
+            "retained": 0,
+            "private": "Counted only in safe finding rows; details and custody held separately.",
+            "phase_metrics": "unavailable"
+        },
+        "open": {
+            "decisions": 0,
+            "uncertainties": 2
+        },
+        "findings_without_filed_issue": 3,
+        "findings_by_severity": {
+            "package_owned": {
+                "low": 1,
+                "withheld": 1,
+                "info": 1
+            },
+            "cross_package": []
+        }
+    }
+}

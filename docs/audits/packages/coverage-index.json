@@ -226,14 +226,27 @@
             "package": "waaseyaa/audit",
             "path": "packages/audit",
             "form": "library",
-            "audit_state": "not assessed",
-            "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_state": "assessed",
+            "remediation_state": "planned",
+            "audit_base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "audit_date": "2026-10-19",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/audit.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/audit.ledger.json"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "tests/Fixtures/Audits/Audit/AUD-CONTRACT-001-closed-status-batch.php"
+                }
+            ],
+            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim."
         },
         {
             "package": "waaseyaa/auth",
@@ -296,19 +309,27 @@
             "package": "waaseyaa/cli",
             "path": "packages/cli",
             "form": "library",
-            "audit_state": "in progress",
+            "audit_state": "assessed",
             "remediation_state": "planned",
-            "audit_base": "5196f173b06bac698f14d292c7b827f2ddac388f",
-            "audit_date": "2026-09-21",
-            "dependency_identity": "composer.lock sha256:0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164",
+            "audit_base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "audit_date": "2026-10-19",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
             "owner_issue": "#3117",
             "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/cli.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/cli.ledger.json"
+                },
                 {
                     "kind": "repository-path",
                     "path": "docs/audits/packages/evidence/cli/issue-3117.txt"
                 }
             ],
-            "notes": "Pilot. Complete inventory; site/project, most handlers, admin build and MCP not yet reviewed. FW-CLI-CONVERGENCE-01 is cited once it lands on main."
+            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim."
         },
         {
             "package": "waaseyaa/cms",
@@ -418,14 +439,23 @@
             "package": "waaseyaa/entity-storage",
             "path": "packages/entity-storage",
             "form": "library",
-            "audit_state": "not assessed",
-            "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_state": "assessed",
+            "remediation_state": "planned",
+            "audit_base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "audit_date": "2026-10-19",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/entity-storage.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/entity-storage.ledger.json"
+                }
+            ],
+            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim."
         },
         {
             "package": "waaseyaa/error-handler",
@@ -457,19 +487,27 @@
             "package": "waaseyaa/foundation",
             "path": "packages/foundation",
             "form": "library",
-            "audit_state": "in progress",
+            "audit_state": "assessed",
             "remediation_state": "planned",
-            "audit_base": "5196f173b06bac698f14d292c7b827f2ddac388f",
-            "audit_date": "2026-09-21",
-            "dependency_identity": "composer.lock sha256:0afec6855797a75c5dd93e4f84be22ab30deb14f633ebc2d1b9434b8c7923164",
+            "audit_base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "audit_date": "2026-10-19",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
             "owner_issue": "#3123",
             "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/foundation.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/foundation.ledger.json"
+                },
                 {
                     "kind": "repository-path",
                     "path": "docs/audits/packages/evidence/foundation/issue-3123.txt"
                 }
             ],
-            "notes": "Route-composition and lifecycle slice under #3122; other subsystems not reviewed. ROUTE-METADATA-01 is cited once it lands on main."
+            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim."
         },
         {
             "package": "waaseyaa/framework",
@@ -1102,14 +1140,23 @@
             "package": "waaseyaa/user",
             "path": "packages/user",
             "form": "library",
-            "audit_state": "not assessed",
+            "audit_state": "in progress",
             "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_base": "3161864a5d1af57621e4819e9720f12e12ccdae7",
+            "audit_date": "2026-10-19",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/user.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/user.ledger.json"
+                }
+            ],
+            "notes": "Fresh source assessment; required independent verification remains incomplete. No convergence claim."
         },
         {
             "package": "waaseyaa/validation",
