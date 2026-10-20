@@ -1,6 +1,6 @@
 # Waaseyaa roadmap
 
-Updated 11 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
+Updated 20 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
 released capability. [Specs](specs/workflow.md) own contracts, change records own
 durable scope/evidence, and [GitHub issues](https://github.com/waaseyaa/framework/issues)
 own execution status. Product roadmaps and adoption decisions belong downstream.
@@ -20,6 +20,15 @@ Listing's bounded repairs and messaging's completed repairs retain their proof;
 remaining messaging domain/profile decisions proceed through shared social design.
 Framework-wide convergence is not yet complete. New feature absence alone is not
 a defect, and this program does not block unrelated delivery.
+
+Maintenance landed 20 October: [PR #3228](https://github.com/waaseyaa/framework/pull/3228)
+upgrades the locked Admin Vite from 8.2.0 to 8.3.4 and regenerates the published
+Admin distribution. [Exact-head full CI](https://github.com/waaseyaa/framework/actions/runs/39487145862)
+and [Admin SPA validation](https://github.com/waaseyaa/framework/actions/runs/39487145861)
+passed, including typecheck, contract/schema checks, build, unit tests and browser
+integration. The accepted distribution contains 99 files / 597,692 bytes.
+The broader [bot-approval follow-up #2707](https://github.com/waaseyaa/framework/issues/2707)
+remains open; package convergence and J1 qualification remain open.
 
 ## Next sprint: installation to homepage
 
