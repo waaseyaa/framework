@@ -874,6 +874,9 @@ committing such a project from Windows, stage the file and run
 Do not edit its ownership metadata by hand. A reviewed dependency update,
 manifest lock rebind, and `site:init` regeneration adopt the new mode and
 acceptance test together through the existing generated-artifact upgrade path.
+After regeneration, clear an old executable Git index entry with
+`git update-index --chmod=-x bin/maintenance/site-verify` after staging; the new
+entry must be `100644`. See the [upgrade procedure](../upgrade-notes/site-generated-verification-portability.md).
 
 Verification proves:
 

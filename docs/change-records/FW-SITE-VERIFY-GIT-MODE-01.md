@@ -10,8 +10,9 @@ requires `0755`, so Linux verification rejects an otherwise identical checkout.
 The reproduced failure and isolated correction are in
 `jonesrussell/waaseyaa-guide-test-alpha306`, Actions run `39680462646`.
 
-All supported verification entrypoints already interpret the script through
-PHP. Generate it as `0644` on every host, and retain exact permission checking
+Composer and the starter CI entrypoint already interpret the script through
+PHP. Update the reference-consumer harness to do the same. Generate it as `0644`
+on every host, and retain exact permission checking
 on hosts with POSIX permission bits. The generated acceptance test must prove
 both the declared regular-file mode and execution through `PHP_BINARY`.
 Do not mutate a consumer's Git index, weaken the doctor, introduce a second
@@ -70,3 +71,14 @@ immutable candidate. Windows local checks do not substitute for hosted POSIX
 permission enforcement, including rejection of a substituted `0755` mode.
 Final candidate, review and hosted identities are recorded in the pull request
 and delivery record so that evidence updates do not rewrite the reviewed code.
+
+The first hosted run (`39682851680`) caught one remaining direct execution in
+`tests/ReferenceConsumer/check-reference-consumer` (exit 126). That caller now
+uses PHP explicitly; its contract assertion is updated and the full hosted
+consumer lifecycle is required again on the repaired candidate. Upgrade notes
+also cover clearing an existing Git execute bit after reviewed regeneration.
+The reference-consumer architecture contract has an existing Windows-only
+failure at its shell adapter's `is_executable()` assertion, reproduced on
+unchanged base source; hosted Linux owns execution of that contract. The repaired
+renderer/Git focused tests still pass (10 tests, 73 assertions). The new Git
+fixture's cleanup also preserves an original test failure if cleanup fails.

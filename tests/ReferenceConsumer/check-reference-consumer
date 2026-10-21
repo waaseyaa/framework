@@ -215,7 +215,7 @@ if [[ "$generation_before" != "$generation_after" ]]; then
 fi
 
 (cd "$consumer_root" && php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root="$consumer_root")
-"$consumer_root/bin/maintenance/site-verify"
+php "$consumer_root/bin/maintenance/site-verify"
 "$consumer_root/.ci/site-verify"
 
 # Framework upgrade continuity: a reviewed dependency-lock change must fail

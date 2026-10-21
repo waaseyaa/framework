@@ -24,6 +24,7 @@ final class SiteVerifierGitRoundTripTest extends TestCase
         $filesystem = new Filesystem();
         $filesystem->mkdir([$source, $checkout]);
         $framework = dirname(__DIR__, 2);
+        $failure = null;
 
         try {
             $manifest = new SiteManifestParser()->parse(<<<'YAML'
@@ -82,10 +83,19 @@ final class SiteVerifierGitRoundTripTest extends TestCase
                 self::assertSame(1, $substituted->getExitCode(), $substituted->getOutput() . $substituted->getErrorOutput());
                 self::assertStringContainsString('regular-file mode', $substituted->getOutput());
             }
+        } catch (\Throwable $exception) {
+            $failure = $exception;
+            throw $exception;
         } finally {
             // Git objects are read-only on Windows; release only this owned fixture.
-            $filesystem->chmod($root, 0o700, recursive: true);
-            $filesystem->remove($root);
+            try {
+                $filesystem->chmod($root, 0o700, recursive: true);
+                $filesystem->remove($root);
+            } catch (\Throwable $cleanupFailure) {
+                if ($failure === null) {
+                    throw $cleanupFailure;
+                }
+            }
         }
     }
 
