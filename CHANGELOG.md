@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.306] - 2026-10-21
+
+### Added
+
+- Added fresh convergence audit records and structured coverage for audit, entity-storage, foundation, cli and user, with User remaining in progress pending required verification.
+
+- Recorded messaging convergence assessment under #3118, reusing atomic-creation evidence and adding verified structural findings with bounded repair scope.
+
+### Changed
+
+- Allowed the reviewed FETDER six-package development split from its exact qualified Framework source while keeping the normal current-main gate and release boundary (#2315).
+
+- Align builder product boundaries with the retained Waaseyaa Studio name and hosted developer pilot direction, preserving Framework ownership and separate runtime qualification.
+
+- Simplify maintainer delivery into an agent-agnostic core with optional coordination references, proportionate verification and independent review for high-risk changes.
+
+- Recover maintainability audit criteria into repository-owned maintainer skills and make global client export an explicit optional workflow.
+
+- Require existing-issue, specification and documentation reconciliation in package audits, define the framework remediation finish line, refresh the project README, and replace stale entity/specification skill guidance (FW-AUDIT-RECONCILIATION-01).
+
+- Retire superseded mission specs and obsolete two-axis guidance, route the full open backlog to existing owners, and compile current spec successors.
+
+- Linked all 20 ordinary findings from the five-package convergence audit to bounded remediation issues, reusing existing owners and keeping User in progress.
+
+- Draft the shared social-capability contract for consumer applications and record verified private audit custody; no runtime behavior changes.
+
+- Consolidated Framework audit planning, backlog ownership and Project readiness around one umbrella and the installation-to-homepage sprint contract.
+
+- Framework maintainer instructions now use AGENTS.md exclusively. Removed root Claude instructions and migrated layer-audit tooling and live references to the shared entrypoint.
+
+- Clarify alpha Framework direct replacement without compatibility shims, and require structural and adapter-necessity evidence in initial package convergence audits (FW-ALPHA-STRUCTURAL-CONVERGENCE-01).
+
+- Clarified the debugging specification's maintained-component policy and added failure-handling acceptance to the Framework audit roadmap. Runtime error behavior is unchanged (#3203).
+
+- Reviewed the S1 platform sources, retained the existing candidate profile through Node 24's maintenance transition, and recorded the completed review with a bounded January 15, 2027 deadline without weakening support gates.
+
+### Removed
+
+- Removed the empty deprecated ThreadParticipantBootstrapSubscriber::onPostSave callback during alpha. Use canonical provider PRE_SAVE and transactional persisted-event wiring; no compatibility callback is required.
+
+### Fixed
+
+- Authenticated messaging thread creation now commits creator membership in the same SQL transaction and surfaces membership failures instead of leaving inaccessible threads. Canonical provider boot refuses unsupported memory-only repository composition.
+
+- Admit explicitly authorized generated application owners to the stock admin surface with a narrow entry permission, preserving content policies and custom-host admission requirements.
+
+- Listing filters preserve conjunctions and case-insensitive text semantics; typed date overrides, lifecycle cache eviction, provider discovery and cache reads follow their canonical contracts. PHPDoc describes current behavior and shared hashing preserves cache bytes; split-artifact acceptance covers standalone no-dev composition and generated listings.
+
+- Messaging Protected-read adapters now independently autoload, schema migration shares JSON decoding, and package documentation states current generic contracts and qualification gaps.
+
+- Batch boot query-capability audit durability while preserving per-field reservations, refusal outcomes and fail-closed validation under SQLite contention (#3204).
 ## [0.1.0-alpha.305] - 2026-10-04
 
 ### Added
