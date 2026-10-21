@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.307] - 2026-10-21
+
+### Fixed
+
+- Generated site verification now uses regular-file mode 0644 and explicit PHP execution, so a project committed from Windows verifies on Linux without an executable-bit workaround. Strict permission and content integrity checks remain enforced; existing alpha.306 projects retain their recorded mode until reviewed regeneration.
 ## [0.1.0-alpha.306] - 2026-10-21
 
 ### Added

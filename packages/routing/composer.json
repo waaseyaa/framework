@@ -49,23 +49,23 @@
         "php": ">=8.5",
         "symfony/expression-language": "^7.0",
         "symfony/http-foundation": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.306",
-        "waaseyaa/access": "^0.1.0-alpha.306",
-        "waaseyaa/i18n": "^0.1.0-alpha.306",
-        "waaseyaa/auth": "^0.1.0-alpha.306",
+        "waaseyaa/entity": "^0.1.0-alpha.307",
+        "waaseyaa/access": "^0.1.0-alpha.307",
+        "waaseyaa/i18n": "^0.1.0-alpha.307",
+        "waaseyaa/auth": "^0.1.0-alpha.307",
         "symfony/routing": "^7.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.306",
-        "waaseyaa/user": "^0.1.0-alpha.306"
+        "waaseyaa/foundation": "^0.1.0-alpha.307",
+        "waaseyaa/user": "^0.1.0-alpha.307"
     },
     "suggest": {
         "waaseyaa/oidc": "Provides optional OpenID Connect issuer routes"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/oidc": "^0.1.0-alpha.306",
-        "waaseyaa/audit": "^0.1.0-alpha.306",
-        "waaseyaa/api": "^0.1.0-alpha.306",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.306"
+        "waaseyaa/oidc": "^0.1.0-alpha.307",
+        "waaseyaa/audit": "^0.1.0-alpha.307",
+        "waaseyaa/api": "^0.1.0-alpha.307",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.307"
     },
     "autoload": {
         "psr-4": {

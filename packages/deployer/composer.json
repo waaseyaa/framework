@@ -19,8 +19,8 @@
         "deployer/deployer": "^7.0"
     },
     "require-dev": {
-        "waaseyaa/database-legacy": "^0.1.0-alpha.306",
-        "waaseyaa/foundation": "^0.1.0-alpha.306"
+        "waaseyaa/database-legacy": "^0.1.0-alpha.307",
+        "waaseyaa/foundation": "^0.1.0-alpha.307"
     },
     "autoload": {
         "psr-4": {
