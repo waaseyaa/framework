@@ -60,7 +60,7 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertStringContainsString('waaseyaa:extension:start local-guidance', $first->artifacts['AGENTS.md']->content);
         self::assertStringContainsString('bin/maintenance/site-verify', $first->artifacts['AGENTS.md']->content);
         self::assertStringNotContainsString('github', strtolower(implode("\n", $first->contents())));
-        self::assertSame(0o755, $first->artifacts['bin/maintenance/site-verify']->mode);
+        self::assertSame(0o644, $first->artifacts['bin/maintenance/site-verify']->mode);
         self::assertStringContainsString('chdir($root)', $first->artifacts['bin/maintenance/site-verify']->content);
         self::assertStringContainsString('site:doctor --strict --format=json', $first->artifacts['bin/maintenance/site-verify']->content);
         // FW-REHYDRATION-DRIFT-01 / GitHub #3056:
@@ -81,24 +81,10 @@ final class SiteArtifactRendererTest extends TestCase
             $first->artifacts['bin/maintenance/site-verify']->content,
         );
 
-        // #2644: the generated acceptance test originally asserted
-        // is_executable() on an extensionless file. Windows resolves
-        // executability through PATHEXT, so that assertion failed there for a
-        // perfectly good file — fixed by asserting the shebang on every host
-        // and the execute bit only under DIRECTORY_SEPARATOR === '/'.
-        //
-        // FW-SITE-VERIFY-NOEXEC-01 / GitHub #3054: that POSIX-only is_executable() check itself does not hold
-        // inside a hardened container whose project mount is noexec (e.g. a
-        // sandboxed execution environment's tmpfs). The file is genuinely
-        // mode 0755, but is_executable() reads mount policy, not just the
-        // inode, and reports false. Two properties, measured two ways:
-        // (1) the artifact carries the promised permission bits — read via
-        // fileperms(), which reports the inode regardless of mount flags, so
-        // it still fails if Framework stops chmod-ing the artifact; and
-        // (2) the command actually runs through the one invocation every
-        // caller uses, `PHP_BINARY <script>` — proven by really spawning it
-        // with `--self-test` and asserting the exit code, not by inspecting
-        // the shebang string alone.
+        // FW-SITE-VERIFY-GIT-MODE-01: permission integrity and actual PHP
+        // execution remain distinct checks. A Windows Git round trip and
+        // mode-substitution refusal execute this generated test in
+        // tests/Architecture/SiteVerifierGitRoundTripTest.php.
         $acceptance = $first->artifacts['tests/Acceptance/SiteGoldenPathTest.php']->content;
         self::assertStringContainsString("DIRECTORY_SEPARATOR === '/'", $acceptance);
         self::assertStringContainsString('assertStringStartsWith(', $acceptance);
@@ -107,7 +93,7 @@ final class SiteArtifactRendererTest extends TestCase
 
         // Property 1: POSIX permission bits, measured mount-independently.
         self::assertStringContainsString('fileperms(', $acceptance);
-        self::assertStringContainsString('0111', $acceptance);
+        self::assertStringContainsString('0644', $acceptance);
         self::assertStringNotContainsString('self::assertTrue(is_executable(', $acceptance);
 
         // Property 2: actually runnable through the supported PHP invocation
@@ -133,7 +119,7 @@ final class SiteArtifactRendererTest extends TestCase
     }
 
     #[Test]
-    public function blueprintFreeV1OwnershipMetadataRemainsByteIdentical(): void
+    public function blueprintFreeV1OwnershipMetadataMatchesPortableGeneration(): void
     {
         $site = new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($this->manifest()));
         $expected = file_get_contents(__DIR__ . '/../Fixtures/Generation/blueprint-free-v1.generated.json');
@@ -180,7 +166,7 @@ final class SiteArtifactRendererTest extends TestCase
     public function itRefusesAnUninstalledRecipeInsteadOfSilentlyIgnoringIt(): void
     {
         $manifest = str_replace(
-            "recipes: []",
+            'recipes: []',
             "recipes:\n  - id: private_fork\n    version: 1\n    capability: published_content\n    artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             str_replace('id: governed_authoring', 'id: published_content', $this->manifest()),
         );
@@ -225,7 +211,7 @@ final class SiteArtifactRendererTest extends TestCase
     #[Test]
     public function itCompilesExactlyOneRegistrationPerRecipeThatContributesOne(): void
     {
-        $makeRecipe = static fn(string $id, string $fqcn): SiteRecipeRendererInterface&SiteRecipeProviderRegistrationInterface => new class($id, $fqcn) implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface {
+        $makeRecipe = static fn(string $id, string $fqcn): SiteRecipeRendererInterface&SiteRecipeProviderRegistrationInterface => new class ($id, $fqcn) implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface {
             public function __construct(private string $recipeId, private string $providerFqcn) {}
 
             public function id(): string
@@ -261,7 +247,7 @@ final class SiteArtifactRendererTest extends TestCase
     #[Test]
     public function duplicateProviderRegistrationsAcrossRecipesAreRefused(): void
     {
-        $makeRecipe = static fn(string $id): SiteRecipeRendererInterface&SiteRecipeProviderRegistrationInterface => new class($id) implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface {
+        $makeRecipe = static fn(string $id): SiteRecipeRendererInterface&SiteRecipeProviderRegistrationInterface => new class ($id) implements SiteRecipeRendererInterface, SiteRecipeProviderRegistrationInterface {
             public function __construct(private string $recipeId) {}
 
             public function id(): string

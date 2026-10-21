@@ -55,7 +55,7 @@ final class SiteArtifactRenderer
             new GeneratedArtifact('AGENTS.md', $this->agents(), extensionRegion: 'local-guidance'),
             new GeneratedArtifact('tests/Architecture/SiteContractTest.php', $this->architectureTest()),
             new GeneratedArtifact('tests/Acceptance/SiteGoldenPathTest.php', $this->acceptanceTest()),
-            new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript($recipeTests), 0o755),
+            new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript($recipeTests)),
         ];
         foreach ($recipeArtifacts as $artifact) {
             $artifacts[] = $artifact;
@@ -170,7 +170,7 @@ final class SiteArtifactRenderer
             2. Use the selected first-party Waaseyaa recipes and extension points.
             3. Run `tests/Architecture/SiteContractTest.php`.
             4. Run the strict site diagnostics.
-            5. Run `bin/maintenance/site-verify` without network access.
+            5. Run `php bin/maintenance/site-verify` without network access.
 
             Generated files are owned by `.waaseyaa/generated.json`. Regeneration refuses edits outside the extension region below.
 
@@ -236,24 +236,16 @@ final class SiteArtifactRenderer
                     self::assertFileExists($command);
                     self::assertStringStartsWith('#!/usr/bin/env php', (string) file_get_contents($command));
 
-                    // Two properties, measured two separate ways. A hardened
-                    // execution environment can mount the project tree noexec
-                    // (e.g. a sandboxed runner's tmpfs): the file is genuinely
-                    // mode 0755 and owned by the running user, but
-                    // is_executable() / posix_access(X_OK) both report false
-                    // because the *mount*, not the inode, denies execution.
+                    // PHP interprets this regular file. Mode 0644 survives a
+                    // Windows Git index and a later POSIX checkout without
+                    // staging an executable bit that the invocation never uses.
                     if (DIRECTORY_SEPARATOR === '/') {
-                        // 1. The artifact carries the POSIX permission bits
-                        // Waaseyaa promises. fileperms() reads the inode mode
-                        // directly, which reports the real bits regardless of
-                        // mount flags — so this still fails the day Framework
-                        // stops chmod-ing the artifact.
                         $mode = fileperms($command);
                         self::assertNotFalse($mode, 'unable to stat the generated verification command');
-                        self::assertSame(0111, $mode & 0111, 'the generated verification command must carry execute permission bits');
+                        self::assertSame(0644, $mode & 0777, 'the generated verification command must carry its declared regular-file mode');
                     }
 
-                    // 2. The command actually runs through the one invocation
+                    // The command actually runs through the one invocation
                     // every caller uses — `PHP_BINARY <script>` (see
                     // .ci/site-verify.php, the composer.json `site-verify`
                     // script, and the .ci/site-verify exec wrapper). PHP

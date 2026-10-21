@@ -36,6 +36,14 @@ Linux and native Windows behavior is exercised by Framework CI; this is not a
 macOS evidence claim. The `.ci/site-verify` shell adapter is a POSIX-only
 convenience that calls the same implementation.
 
+The generated verifier is a regular PHP file (mode `0644`), so ordinary Git
+staging on Windows preserves its contract on Linux. Invoke it through Composer
+or `php bin/maintenance/site-verify`, not as a directly executable file.
+For an existing alpha.306 project whose generated metadata still records
+`0755`, run `git add bin/maintenance/site-verify` and then
+`git update-index --chmod=+x bin/maintenance/site-verify` before committing from
+Windows. Do not hand-edit generated metadata to silence a verification failure.
+
 The full native Linux/Windows entrypoint boundary, including generated
 maintenance commands, test launchers, local AI, and MCP launchers, is in the
 [native host support contract](https://github.com/waaseyaa/framework/blob/main/docs/specs/native-host-support.md).
