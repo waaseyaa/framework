@@ -82,3 +82,20 @@ failure at its shell adapter's `is_executable()` assertion, reproduced on
 unchanged base source; hosted Linux owns execution of that contract. The repaired
 renderer/Git focused tests still pass (10 tests, 73 assertions). The new Git
 fixture's cleanup also preserves an original test failure if cleanup fails.
+
+The broad hosted test shard also detected ten saved CLI output snapshots that
+include the changed generated contract: nine blueprint process envelopes and
+one root-doctor report. They were regenerated through the real CLI process and
+doctor fixture setup in an isolated Linux container, using the unchanged test
+receipt normalization. No comparison assertion was removed or relaxed.
+The affected process and doctor classes then passed on Linux (25 tests,
+349 assertions). Structural snapshot review is limited to the verifier mode,
+generated AGENTS/acceptance-test bytes, and their derived digests; refusal
+snapshots are unchanged. Regeneration helper, structural diff and logs are
+retained under `C:/dev/waaseyaa/windows-guide-delivery`.
+
+The isolated Linux Git round trip, reference-consumer architecture contract and
+renderer tests passed (13 tests, 149 assertions), including the actual generated
+acceptance test's rejection of `0755`. Runtime: PHP 8.5.10, image
+`sha256:b80dfc7d2bc0fc97755620a0dfb3d5e8e9cbf70a2970ea2d5c9dc64154b31422`.
+This scoped container evidence does not replace the final hosted qualification.
