@@ -223,7 +223,7 @@ final class SiteReferenceConsumerContractTest extends TestCase
         self::assertStringContainsString('(cd "$consumer_root" && php vendor/bin/waaseyaa', $gate);
         self::assertStringContainsString('site:init', $gate);
         self::assertStringContainsString('site:doctor --strict', $gate);
-        self::assertStringContainsString('bin/maintenance/site-verify', $gate);
+        self::assertStringContainsString('php "$consumer_root/bin/maintenance/site-verify"', $gate);
 
         // #2664: one installed reference consumer proves the composed command
         // rather than substituting the in-tree stub process fixture. Its

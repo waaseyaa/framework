@@ -2,17 +2,22 @@
 
 ## Who is affected
 
-Any project that ran `waaseyaa site:init` on alpha.299 or earlier and then
-upgrades the framework. If you have never run `site:init`, nothing here applies.
+Any project with generated site artifacts that upgrades across a verification
+contract change, including the executable-mode correction after alpha.306.
+If you have never run `site:init`, there are no existing artifacts to regenerate.
 
 ## What changed
 
-The bytes of one generated file changed: `tests/Acceptance/SiteGoldenPathTest.php`.
-It asserted `is_executable()` on `bin/maintenance/site-verify`, which is an
-extensionless file. Windows resolves executability through PATHEXT, so that
-assertion fails there for a perfectly good file. The test now asserts the
-portable property on every host — that the command is runnable PHP — and keeps
-the execute-bit assertion on POSIX only.
+The earlier portability correction replaced `is_executable()` with proof that
+`bin/maintenance/site-verify` is runnable PHP. Windows resolves executability
+through PATHEXT, so the old assertion failed for this extensionless PHP file.
+
+The generator after alpha.306 also declares the verifier as a regular `0644`
+file, matching the `100644` mode Git records for a new file on Windows. Generated
+acceptance tests require that exact mode on POSIX and still execute the script
+through `PHP_BINARY`. Generated guidance, acceptance-test bytes and ownership
+metadata change together. Use `composer site-verify` or
+`php bin/maintenance/site-verify`; the reference-consumer harness uses PHP too.
 
 **The generated artifact *set* is unchanged.** No file was added or removed.
 That distinction matters: `SiteInitializationService` compares the artifact set
@@ -56,11 +61,18 @@ supported path.
 
 ## Windows note
 
-A project initialized on Windows cannot carry a POSIX execute bit, so
-`bin/maintenance/site-verify` will not be directly executable if you later
-deploy that checkout to Linux. `composer site-verify` is unaffected — it
-re-executes the command through `PHP_BINARY` — which is why it is the documented
-invocation. Set the bit in your deployment if you invoke the file directly.
+The published alpha.306 generator still declares `0755`. Before committing an
+alpha.306 app on Windows, run `git add bin/maintenance/site-verify` followed by
+`git update-index --chmod=+x bin/maintenance/site-verify`. Confirm
+`git ls-files --stage bin/maintenance/site-verify` begins with `100755`. Otherwise
+Linux strict doctor rejects the checkout even when Composer invokes it through
+PHP. A local Windows `chmod` does not set Git's index mode.
+
+After upgrading to a framework version containing the `0644` correction, follow
+the reviewed lock-rebind and regeneration steps above. If the old file was
+already indexed as executable, stage the regenerated file and run
+`git update-index --chmod=-x bin/maintenance/site-verify` so Git records `100644`.
+Do not manually edit ownership metadata or add execute bits to the new artifact.
 
 Relatedly, if your repository applies a CRLF filter to `composer.lock`, the
 digest recorded by the machine that ran `site:init` will not match the digest
