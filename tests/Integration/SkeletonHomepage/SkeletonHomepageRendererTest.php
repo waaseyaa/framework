@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Integration\SkeletonHomepage;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -102,6 +103,37 @@ final class SkeletonHomepageRendererTest extends TestCase
     #[Test]
     public function minimal_content_generation_preserves_the_application_homepage(): void
     {
+        $this->generatePublishedContent();
+
+        $response = $this->request('/');
+
+        self::assertSame(200, $response['status']);
+        self::assertStringContainsString('data-template="app-home"', $response['body']);
+        self::assertStringContainsString('PROBE-VALUE: 42', $response['body']);
+        self::assertStringNotContainsString('data-listing="page_index"', $response['body']);
+    }
+
+    #[Test]
+    #[DataProvider('absentContentRoutes')]
+    public function generated_detail_dispatch_returns_404_for_an_absent_alias(string $route, string $path): void
+    {
+        $this->generatePublishedContent($route);
+
+        $response = $this->request($path);
+
+        self::assertSame(404, $response['status']);
+        self::assertSame('Not found', $response['body']);
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function absentContentRoutes(): iterable
+    {
+        yield 'root slug' => ['/{slug}', '/__absent_content_3199'];
+        yield 'prefixed slug' => ['/news/{slug}', '/news/__absent_content_3199'];
+    }
+
+    private function generatePublishedContent(string $detailRoute = '/{slug}'): void
+    {
         file_put_contents($this->projectRoot . '/composer.lock', "{}\n");
         $seed = <<<'YAML'
             schema: waaseyaa.site-seed
@@ -115,16 +147,10 @@ final class SkeletonHomepageRendererTest extends TestCase
               - id: page
                 canonical_route: /{slug}
             YAML;
+        $seed = str_replace('/{slug}', $detailRoute, $seed);
         $yaml = new SitePresetResolver()->resolveFromSeedDocument(SitePreset::Minimal, $seed, '<homepage-test>', $this->projectRoot);
         $manifest = new SiteManifestParser()->parse($yaml);
         new SiteInitializationService($this->projectRoot)->initialize(SiteArtifactRendererFactory::create()->compile($manifest));
-
-        $response = $this->request('/');
-
-        self::assertSame(200, $response['status']);
-        self::assertStringContainsString('data-template="app-home"', $response['body']);
-        self::assertStringContainsString('PROBE-VALUE: 42', $response['body']);
-        self::assertStringNotContainsString('data-listing="page_index"', $response['body']);
     }
 
     #[Test]

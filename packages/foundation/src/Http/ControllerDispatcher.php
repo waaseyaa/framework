@@ -146,13 +146,7 @@ final class ControllerDispatcher
 
     private function handleException(\Throwable $e): HttpResponse
     {
-        $this->logger->critical(sprintf(
-            "Unhandled exception: %s in %s:%d\n%s",
-            $e->getMessage(),
-            $e->getFile(),
-            $e->getLine(),
-            $e->getTraceAsString(),
-        ));
+        $this->logger->critical('Unhandled controller exception.', ['exception' => $e]);
 
         $error = [
             'status' => '500',

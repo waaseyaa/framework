@@ -98,6 +98,7 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
             'field_read_levels' => ['summary' => 'public', 'body' => 'public'],
             'listing' => ['page_size' => 24, 'access_ops' => ['view'], 'sort' => ['changed' => 'DESC']],
             'index_routes' => ['root_detail' => 'bundle_path', 'prefixed_detail' => 'parent_path'],
+            'detail_callable_parameters' => ['request', 'slug'],
             'authorities' => ['listing', 'path', 'routing', 'sitemap', 'seo', 'container'],
         ]));
     }
@@ -303,7 +304,7 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
                             ->controller(fn(\Symfony\Component\HttpFoundation\Request $request) => $controller()->index($request, $bundle))
                             ->allowAll()->methods('GET')->build());
                         $router->addRoute('site.' . $bundle . '.detail', RouteBuilder::create($definition['detail_route'])
-                            ->controller(fn(\Symfony\Component\HttpFoundation\Request $request) => $controller()->detail($request, $bundle))
+                            ->controller(fn(\Symfony\Component\HttpFoundation\Request $request, string $slug) => $controller()->detail($request, $bundle))
                             ->allowAll()->methods('GET')->build());
                     }
                     $router->addRoute('site.sitemap', RouteBuilder::create('/sitemap.xml')

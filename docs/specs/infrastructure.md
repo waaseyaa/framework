@@ -1,5 +1,13 @@
 # Infrastructure
 
+Controller dispatch logs unexpected failures as a fixed event with structured
+Throwable context through the existing LogManager final sink sanitizer. That
+sanitizer retains type/code and individually sanitized message/previous context;
+dispatch does not concatenate raw traces, arguments or request payloads. Public
+responses retain the generic 500 contract. Missing published-content aliases
+reach their owning controller's 404 response through correctly bound generated
+slug closures; arbitrary binding and execution errors remain 500.
+
 ## Explicit installation database authority
 
 `ConsoleKernel` selects database creation only for the explicit `install:init`

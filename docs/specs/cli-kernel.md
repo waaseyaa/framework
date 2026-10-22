@@ -580,6 +580,10 @@ Published-content generation preserves the skeleton's SSR homepage at `/`.
 For `/{slug}` details, its collection uses `/<bundle-id>`; prefixed details
 retain their parent collection path. The URL reservation and collision refusal
 contract is owned by [Published content](site-golden-path.md#published-content).
+Generated detail closures declare both the request and terminal named slug
+parameter, matching ordinary callable dispatch. An absent alias reaches the
+controller's 404 branch; binding errors remain unexpected failures. The recipe
+digest includes this callable contract.
 
 `--json` is opt-in and emits one invocation object: `evaluation` (the plan,
 observed project state, both identities, per-artifact statuses, set delta and

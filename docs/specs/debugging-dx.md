@@ -31,6 +31,14 @@ debug-policy enforcement, private diagnostics and durable transaction outcomes
 explicit. Audit acceptance lives in [Framework audit journeys](framework-audit-journeys.md#cross-cutting-failure-handling);
 skills supply the method rather than a second runtime specification.
 
+At the controller-dispatch boundary, unexpected callable/domain-router failures
+retain a fixed private event and structured Throwable context. The existing
+mandatory LogManager sanitizer preserves safe exception type/code and sanitized
+message/previous metadata, without serializing raw traces or request payloads.
+The public JSON:API response remains a generic 500. This bounded #3198 repair
+does not establish convergence of other kernel diagnostics or #3203's broader
+component assessment.
+
 ## Architecture
 
 Four capabilities shipping in priority order, distributed across the layer architecture:

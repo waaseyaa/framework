@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Tests\Unit\Http;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
+use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\LogManager;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 
 #[CoversClass(ControllerDispatcher::class)]
 final class ControllerDispatcherTest extends TestCase
@@ -75,6 +79,23 @@ final class ControllerDispatcherTest extends TestCase
         $this->assertSame(201, $response->getStatusCode());
         $decoded = json_decode($response->getContent(), true);
         $this->assertSame('abc', $decoded['id']);
+    }
+
+    #[Test]
+    public function named_route_parameters_bind_strictly_to_the_callable(): void
+    {
+        $request = Request::create('/article');
+        $request->attributes->add([
+            '_controller' => static fn(Request $request, string $slug) => new Response($slug),
+            'slug' => 'article',
+        ]);
+        $dispatcher = new ControllerDispatcher([]);
+
+        self::assertSame('article', $dispatcher->dispatch($request)->getContent());
+
+        $request->attributes->set('_controller', static fn(Request $request, string $id) => new Response($id));
+
+        self::assertSame(500, $dispatcher->dispatch($request)->getStatusCode(), 'A broken callable contract must not silently discard route parameters.');
     }
 
     #[Test]
@@ -148,5 +169,65 @@ final class ControllerDispatcherTest extends TestCase
         $this->assertStringNotContainsString('RuntimeException', $body);
         $this->assertStringNotContainsString(__FILE__, $body);
         $this->assertStringNotContainsString('sensitive failure', $body);
+    }
+
+    #[Test]
+    #[DataProvider('exceptionBoundaries')]
+    public function authorization_trace_does_not_erase_safe_private_diagnostics(string $boundary, bool $sensitiveMessage): void
+    {
+        $privateValue = 'synthetic-j1-opaque-value';
+        $payload = 'synthetic-j1-request-payload';
+        $lines = [];
+        $logger = new LogManager(
+            new ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
+                $lines[] = $line;
+            }),
+            new RedactorProcessor(registeredValues: [$privateValue]),
+        );
+        $error = new \RuntimeException(
+            ($sensitiveMessage ? 'authorization=' : 'operational failure ') . $privateValue,
+            3199,
+            new \LogicException('password=' . $payload),
+        );
+        $request = Request::create('/failure', 'POST', content: $payload);
+        $routers = [];
+        if ($boundary === 'callable') {
+            $request->attributes->set('_controller', static fn(Request $request) => throw $error);
+        } else {
+            $request->attributes->set('_controller', 'test.failure');
+            $router = $this->createStub(DomainRouterInterface::class);
+            $router->method('supports')->willReturn(true);
+            $router->method('handle')->willThrowException($error);
+            $routers[] = $router;
+        }
+
+        $response = new ControllerDispatcher($routers, $logger)->dispatch($request);
+
+        self::assertSame(500, $response->getStatusCode());
+        $body = (string) $response->getContent();
+        self::assertSame('An unexpected error occurred.', json_decode($body, true, flags: JSON_THROW_ON_ERROR)['errors'][0]['detail']);
+        self::assertCount(1, $lines);
+        $line = $lines[0];
+        self::assertStringContainsString('Unhandled controller exception.', $line);
+        $context = json_decode(substr($line, (int) strpos($line, '{')), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(\RuntimeException::class, $context['exception']['type']);
+        self::assertSame(3199, $context['exception']['code']);
+        self::assertSame($sensitiveMessage ? '[REDACTED]' : 'operational failure [REDACTED]', $context['exception']['message']);
+        self::assertSame(\LogicException::class, $context['exception']['previous']['type']);
+        self::assertSame('[REDACTED]', $context['exception']['previous']['message']);
+        foreach ([$privateValue, $payload, __FILE__] as $forbidden) {
+            self::assertStringNotContainsString($forbidden, $line . $body);
+        }
+        self::assertStringNotContainsString('RuntimeException', $body);
+        self::assertStringNotContainsString('getTrace', $line);
+    }
+
+    /** @return iterable<string, array{string, bool}> */
+    public static function exceptionBoundaries(): iterable
+    {
+        foreach (['callable', 'domain router'] as $boundary) {
+            yield $boundary . ' safe message' => [$boundary, false];
+            yield $boundary . ' sensitive message' => [$boundary, true];
+        }
     }
 }
