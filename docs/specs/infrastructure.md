@@ -3,7 +3,10 @@
 ## Explicit installation database authority
 
 `ConsoleKernel` selects database creation only for the explicit `install:init`
-invocation. Its private installation mode is scoped to restricted boot and
+execution, after Symfony Console handles help and validates input using the
+canonical `MigrateServiceProvider::installInitCommand()` definition. Help and
+invalid options/arguments must not create a database, sidecars or directories.
+Its private installation mode is scoped to restricted boot and
 restored in `finally`. `DatabaseBootstrapper::initializeForInstallation()` owns
 configured-path resolution and directory preparation using Symfony Filesystem,
 then uses the existing S1-verified DBAL SQLite connection lifecycle to create or

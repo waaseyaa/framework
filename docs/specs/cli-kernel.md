@@ -443,8 +443,11 @@ restricted pre-boot command set alongside `schema:sync` and `migrate*`.
 constructs a runtime consumer that would require the configuration generation it
 is producing, and it exits without entering ordinary runtime boot. The
 installation boot additionally selects `DatabaseBootstrapper::initializeForInstallation()`
-for the configured database connection. Only the literal `install:init` dispatch
-owns that private, scoped creation authority; it is restored in `finally` even
+for the configured database connection. Only literal `install:init` execution
+owns that private, scoped creation authority. Symfony first handles help and
+validates input against `MigrateServiceProvider::installInitCommand()`, shared
+with provider discovery; help and invalid input create no storage. The mode is
+restored in `finally` even
 on boot failure. The bootstrapper validates S1 path/environment policy before
 preparing the directory with Symfony Filesystem and opening the verified SQLite
 connection through DBAL. It neither touches an empty file nor invokes `db:init`.

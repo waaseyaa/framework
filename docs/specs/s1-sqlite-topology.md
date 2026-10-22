@@ -54,7 +54,7 @@ search, `db:init`, and migration entry points pass the resolved environment to
 the same fail-closed authority; `DatabaseBootstrapper` owns application-database
 directory preparation and the production missing-file guard.
 
-Explicit `install:init` console boot uses the bootstrapper's
+Explicit, Symfony-validated `install:init` execution uses the bootstrapper's
 `initializeForInstallation()` lifecycle to materialize a missing configured
 database through that same verified DBAL connection. The existing schema
 coordinator and configuration genesis then own initialization. This command
@@ -62,6 +62,8 @@ intent does not widen ordinary production boot or other restricted discovery:
 they still refuse a missing file. Path precedence, production memory/URI/share
 refusals, schema ownership and field-access activation remain enforced. No
 placeholder file, environment downgrade or operator `db:init` is required.
+Help and invalid installation input never select creation boot or prepare
+directories, database files or sidecars.
 
 The repository checker binds the JSON contract to runtime constants,
 documentation, package composition, reproducible verification commands, and a

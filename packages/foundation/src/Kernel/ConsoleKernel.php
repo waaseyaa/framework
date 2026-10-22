@@ -9,6 +9,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Waaseyaa\CLI\ConsoleApplicationFactory;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
+use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\VersionResolver;
 use Waaseyaa\CLI\WaaseyaaConsoleApplication;
@@ -77,6 +78,10 @@ final class ConsoleKernel extends AbstractKernel
             return $application->run($input, $output);
         }
 
+        if ($input->getFirstArgument() === 'install:init') {
+            return $this->runInstallation($input, $output);
+        }
+
         $restrictedFieldAccessCommand = $input->getFirstArgument();
         if (in_array($restrictedFieldAccessCommand, [
             'field-access:preflight',
@@ -104,13 +109,6 @@ final class ConsoleKernel extends AbstractKernel
         try {
             if ($input->getFirstArgument() === 'entity:backfill-mutation-authorities') {
                 $this->bootForMutationAuthorityBackfill();
-            } elseif ($input->getFirstArgument() === 'install:init') {
-                $this->initializingDatabase = true;
-                try {
-                    $this->bootForSchemaSync();
-                } finally {
-                    $this->initializingDatabase = false;
-                }
             } elseif (in_array($input->getFirstArgument(), [
                 'schema:sync',
                 'migrate',
@@ -153,6 +151,35 @@ final class ConsoleKernel extends AbstractKernel
             $this->config,
             $this->logger,
         );
+    }
+
+    private function runInstallation(ArgvInput $input, ConsoleOutput $output): int
+    {
+        $application = new WaaseyaaConsoleApplication(
+            version: new VersionResolver($this->projectRoot)->resolve(),
+            logger: $this->logger,
+        );
+        $command = MigrateServiceProvider::installInitCommand();
+        // Symfony handles help and validates the canonical command definition
+        // before entering this callback, so only execution can create storage.
+        $command->setCode(function () use ($input, $output): int {
+            $this->initializingDatabase = true;
+            try {
+                $this->bootForSchemaSync();
+            } finally {
+                $this->initializingDatabase = false;
+            }
+
+            return new ConsoleApplicationFactory(
+                kernel: $this,
+                container: $this->buildHandlerContainer(),
+                providers: $this->getProviders(),
+                logger: $this->logger,
+            )->create()->run($input, $output);
+        });
+        $application->addCommand($command);
+
+        return $application->run($input, $output);
     }
 
     private function canRunWithoutFrameworkBoot(ArgvInput $input): bool

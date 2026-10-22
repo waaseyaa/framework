@@ -83,6 +83,30 @@ final class ProductionInstallInitTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('nonExecutingInstallationInputs')]
+    public function help_and_invalid_installation_input_do_not_create_storage(array $arguments, int $exitCode): void
+    {
+        $database = $this->projectRoot . '/selected/nested/app.sqlite';
+
+        $process = $this->console('install:init', $database, $arguments);
+
+        self::assertSame($exitCode, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+        self::assertFileDoesNotExist($database);
+        self::assertFileDoesNotExist($database . '-wal');
+        self::assertFileDoesNotExist($database . '-shm');
+        self::assertDirectoryDoesNotExist($this->projectRoot . '/selected');
+        self::assertDirectoryDoesNotExist($this->projectRoot . '/storage');
+    }
+
+    public static function nonExecutingInstallationInputs(): iterable
+    {
+        yield 'help' => [['--help'], 0];
+        yield 'short help' => [['-h'], 0];
+        yield 'invalid option' => [['--invalid-install-option'], 2];
+        yield 'unexpected argument' => [['unexpected-argument'], 2];
+    }
+
+    #[Test]
     public function ordinary_production_console_boot_still_refuses_an_absent_database(): void
     {
         $process = $this->console('about');
@@ -197,10 +221,10 @@ final class ProductionInstallInitTest extends TestCase
             'WAASEYAA_DB' => $database ?? false] + getenv();
     }
 
-    private function console(string $command, ?string $database = null): Process
+    private function console(string $command, ?string $database = null, array $arguments = []): Process
     {
         $process = new Process(
-            [PHP_BINARY, $this->repoRoot . '/packages/cli/bin/waaseyaa', $command, '--no-interaction', '--no-ansi'],
+            [PHP_BINARY, $this->repoRoot . '/packages/cli/bin/waaseyaa', $command, '--no-interaction', '--no-ansi', ...$arguments],
             $this->projectRoot,
             $this->environment($database),
             timeout: 60,

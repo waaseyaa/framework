@@ -244,11 +244,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
             handler: [MutationAuthorityBackfillHandler::class, 'execute'],
         );
 
-        yield new HandlerCommand(
-            name: 'install:init',
-            description: 'Initialize a fresh installation: apply migrations, synchronize schema, and activate the initial configuration generation',
-            handler: [InstallInitHandler::class, 'execute'],
-        );
+        yield self::installInitCommand();
 
         yield new HandlerCommand(
             name: 'migrate',
@@ -324,6 +320,15 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
                 ),
             ],
             handler: [MigrateDefaultsHandler::class, 'execute'],
+        );
+    }
+
+    public static function installInitCommand(): HandlerCommand
+    {
+        return new HandlerCommand(
+            name: 'install:init',
+            description: 'Initialize a fresh installation: apply migrations, synchronize schema, and activate the initial configuration generation',
+            handler: [InstallInitHandler::class, 'execute'],
         );
     }
 }

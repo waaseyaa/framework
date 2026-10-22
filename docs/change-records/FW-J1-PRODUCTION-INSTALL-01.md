@@ -98,7 +98,26 @@ the already-locked Filesystem package into the production graph; package
 versions remain unchanged. Canonical generators refreshed the new SQLite
 construction and schema-boundary occurrences; no allowlist suppression was added.
 
-Exact-candidate installed qualification and independent review are pending at
-this checkpoint. Local evidence is retained outside the repository under
+The initial immutable candidate `51adda46994497902432c306636f0e91ff2ee418`
+received REQUEST CHANGES from the separate reviewer: selecting installation
+boot from the raw command token created storage for help and invalid input.
+Four new real-entrypoint Linux regressions confirmed that finding before its
+repair (`installation-intent-red.log`, 4 tests / 8 assertions / 4 failures).
+Creation authority belongs only to validated command execution. The repair
+shares `MigrateServiceProvider::installInitCommand()` between pre-boot dispatch
+and provider discovery, using Symfony's execution callback to defer boot until
+help and argument/option validation finish. It adds no second input parser.
+The installed Symfony Console `Command::run()` and `setCode()` implementations
+were inspected to confirm this ordering and the supported callback mechanism.
+
+Initial candidate qualification stopped at a faulty diagnostic class-name
+probe before initialization; it is harness evidence, not a product failure.
+Repaired-candidate qualification and independent re-review are pending at this
+checkpoint. Local evidence is retained outside the repository under
 `3199-evidence/20261022-prod-install-3199`. The preserved published failure is
 `3199-evidence/20261021-s1-fpm-44b7b1d8/baseline.txt`.
+
+After the review repair, the expanded Linux selection passes **107 tests /
+426 assertions**, including all four non-executing input cases and the migration
+provider tests. Each such input asserts absence of the selected database,
+WAL/SHM sidecars, selected parent directory and ordinary storage directory.
