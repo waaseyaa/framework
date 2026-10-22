@@ -109,3 +109,53 @@ verification from production activation and document the ready-only explicit
 artifact operation, per-installation/no-dev proof and immutable-directory
 authority. Independent immutable review and installed qualification follow;
 their exact identities and results are retained in the external receipt.
+
+## Installed result and next boundary
+
+Immutable repair `5b92bbb5708a2ee5a322006dff6c73f1da2cccfe` passed independent
+review with no findings. Its fresh installed production app completed canonical
+read-only preflight with exit 0, `ready: true` and all blocker inventories empty.
+The explicit `--write-artifact` result exactly matched that prior names-only
+result. Ordinary production CLI boot consumed it successfully. No classification
+artifact was created; the two classifications came from generated definitions.
+
+The separate no-dev installation used its own vendor, database, schema and
+preflight execution, then independently wrote and consumed its own artifact.
+The lock is `d32e8cf0eb0758ecdc7f104a031feb1286122f4d73acaf0bf94cc49352d3f2e8`;
+the schema fingerprint is
+`0fb780325b583e4101f3e2d59f1a5b90912b0475a7d58b4533e351ef830d5da9`.
+Both installations have the same canonical empty classification input and
+names-only field metadata, so equal result checksums are expected; equality is
+not used as permission to copy the artifact. Each producer ran against its own
+inputs. Preflight checksum:
+`4a01c9b72677659f850b3afd570ecaa1beb61b23d80ac89ddbb26d3f12b69336`.
+
+Cold, warm and restarted real Apache/PHP-FPM `GET /` returned 200 with the
+app-owned Twig marker `FW-J1-FIELD-ACTIVATION-01 42` in both installations.
+Captured process IDs change across each restart. PHP-FPM reports production,
+debug false and development account fallback false; no-dev reports PHPUnit
+absent. This qualifies the bounded activation/homepage candidate, not the
+published alpha.307 cohort or S1 consumer certification. Frozen runtime image:
+`sha256:900c5980dafea5d01df469d7de7a9f5b283abd973f989f1d99730c44e78e44dc`.
+Apache 2.4.58, PHP CLI/FPM 8.5.12 and SQLite 3.45.1 run on Linux/ext4 under WSL2.
+
+The next observed J1-D failure is the no-dev unknown-route request
+`GET /__j1_absent_71a0`: 500 instead of the required 404. The public body is
+generic, 223 bytes, SHA-256
+`7ea629daa89207aeac6877fc5f6421a3fa8ceda4ac9562dcd7983e45fc2f7611`.
+Its private critical message is wholly `[REDACTED]` with HTTP method/URI only,
+so this evidence does not establish the underlying exception cause. #3203 owns
+cross-boundary failure-handling assessment; #3198 owns the demonstrated loss
+of safe diagnostic metadata. Keep those limits rather than attributing the
+500 to an unobserved cause. No routing, error handling or logging repair is
+included. Final receipts retain independent J1 refusal checks and this first
+unexpected boundary without hiding it behind homepage success.
+
+Final-head qualification and custody receipts name the exact archive, actual
+package map/lock, commands, stdout/stderr, identities, exit statuses, HTTP
+bodies/headers and review verdict under
+`3199-evidence/20261022-field-activation-3199`. Installer/guard evidence is
+reused only for unchanged source and dependencies. The earlier published and
+reviewed candidates, failed applications and stopped containers remain
+unchanged. #3199 and #3120 remain open; no published-cohort adoption, merge,
+release or deployment is claimed.
