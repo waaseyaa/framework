@@ -153,3 +153,30 @@ repository. The fresh-install HTTP evidence and code-candidate preflight above
 remain valid because this follow-up changes only the evidence record. Normal
 publication hooks remain enabled. The PR is a bounded part of #3199 and does
 not close the broader journey or claim Linux S1/PHP-FPM production proof.
+
+### PR #3231 CI repair
+
+The maintainer authorized CI repairs and merge after passing checks. On head
+`182e7513920d41b4494958eb3e484d7e78dd80ba`, the sole failed execution job was
+`ci/split-artifact-acceptance` in Actions run `39705097786`. Its installed
+listing probe still requested `/` and failed with `Generated index omitted
+published row.` The homepage response was correct under the new route policy.
+
+The probe now requests `/page` and positively checks the `page_index` listing
+marker before checking the published witness and excluding the draft witness.
+No runtime source, generated artifact, dependency or authorization rule changes
+in this repair. Self-review confirmed that the content-visibility assertions
+remain intact and the existing homepage integration regression still owns `/`.
+
+The original probe reproduced the same failure against the previously installed
+candidate no-dev application on PHP 8.5.5; the revised probe passed against that
+application. These are local diagnostics using the retained candidate install,
+not a fresh split-artifact qualification. A full native Windows diagnostic was
+stopped during Composer autoload generation after the focused reproduction was
+available; it supplies no acceptance result. The named hosted check remains
+the owner of full split-artifact qualification on the new PR head.
+
+Logs are retained under `3199-evidence/20261021-ci` outside the repository.
+Earlier fresh-install and Linux homepage evidence remains applicable because
+the repair changes only the packaged probe and this record. Normal commit and
+push hooks remain enabled. #3199 retains the residual acceptance listed above.

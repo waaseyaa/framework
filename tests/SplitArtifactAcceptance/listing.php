@@ -129,11 +129,13 @@ if ($mode === 'generated') {
         $repository->save(Waaseyaa\Node\Node::make(['type' => 'page', 'title' => $title, 'slug' => $slug, 'status' => $status, 'changed' => 1791451200]));
     }
     $_SERVER['REQUEST_METHOD'] = 'GET';
-    $_SERVER['REQUEST_URI'] = '/';
+    // Root belongs to the application homepage; this bundle's collection is /page.
+    $_SERVER['REQUEST_URI'] = '/page';
     $_SERVER['QUERY_STRING'] = '';
     $_GET = [];
     $response = $kernel->handle();
     listingCheck($response->getStatusCode() === 200, 'Generated listing route did not return 200.');
+    listingCheck(str_contains($response->getContent(), 'data-listing="page_index"'), 'Generated collection route did not render its listing.');
     listingCheck(str_contains($response->getContent(), 'Listing public witness'), 'Generated index omitted published row.');
     listingCheck(!str_contains($response->getContent(), 'Listing draft witness'), 'Generated index exposed draft row.');
     echo "listing generated installed HTTP journey OK\n";
