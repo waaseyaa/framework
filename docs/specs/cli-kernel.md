@@ -455,6 +455,21 @@ Existing databases are opened without replacement. Other restricted commands,
 ordinary CLI and HTTP retain the production missing-database guard. Foundation
 declares Symfony Filesystem as a runtime dependency for this preparation.
 
+Successful `install:init` does not finish production activation. J1-B next runs
+the restricted `field-access:preflight --format=json`, retains its complete
+names-only result and actual input identities, and resolves owned blockers.
+Only a zero exit with `ready: true` permits the separate `--write-artifact`
+operation. That restricted command remains the sole artifact producer; normal
+production boot refuses missing, stale, malformed or blocker-bearing evidence.
+The published-content recipe explicitly declares its fixed summary/body bundle
+fields Public, matching its public capability, and binds those declarations into
+the recipe digest. It does not infer classifications for other application fields.
+Ordinary HTTP must then prove app-owned Twig rendering cold, warm and after
+restart. A separate no-dev installation generates its own activation evidence
+against its actual inputs; offline site verification alone proves neither phase.
+See [the field-read boundary](entity-field-read-boundary.md) and
+[the fresh-site contract](site-golden-path.md).
+
 Restricted definition discovery also skips live capability validation (#3064): production
 `configuration.authority.v1` publication calls `requireActiveGenerationId()`,
 and `install:init` is the command that creates that generation. Ordinary
