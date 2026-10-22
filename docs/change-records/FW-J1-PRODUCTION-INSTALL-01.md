@@ -112,8 +112,7 @@ were inspected to confirm this ordering and the supported callback mechanism.
 
 Initial candidate qualification stopped at a faulty diagnostic class-name
 probe before initialization; it is harness evidence, not a product failure.
-Repaired-candidate qualification and independent re-review are pending at this
-checkpoint. Local evidence is retained outside the repository under
+Local evidence is retained outside the repository under
 `3199-evidence/20261022-prod-install-3199`. The preserved published failure is
 `3199-evidence/20261021-s1-fpm-44b7b1d8/baseline.txt`.
 
@@ -121,3 +120,68 @@ After the review repair, the expanded Linux selection passes **107 tests /
 426 assertions**, including all four non-executing input cases and the migration
 provider tests. Each such input asserts absence of the selected database,
 WAL/SHM sidecars, selected parent directory and ordinary storage directory.
+
+## Installed candidate qualification and review
+
+The independent reviewer passed runtime candidate
+`08fbc6199b39a7772303d183dfffe8da6f4ae60b` with no findings after re-review.
+Independent native diagnostics also confirmed help before the command, version,
+end-of-options handling, invalid input with an invalid production secret, and
+clearing installation mode after callback failure. Ordinary restricted boot
+still refused the absent database. `review-initial.txt` and `review-final.txt`
+retain the finding, disposition, exact identities and limits.
+
+The Linux focused export's 5,709 source/test/manifest files were byte-compared
+against that candidate archive. Its 107-test evidence is carried forward only
+for equivalent runtime, tests, dependency inputs and execution conditions;
+later documentation-only custody updates do not claim a new suite execution.
+The default governed preflight passed 43 executed gates, zero failures, zero
+hosted-required and three not-applicable in 159 seconds. Mandatory commit hooks
+passed. The optional full profile and hosted release qualification were not run.
+
+Qualification exports the exact Framework commit and published skeleton commit
+`db29e321305110480429a2bdc5b124ae04d94f72` with native Git. The disposable
+template alone adds mirrored Composer path repositories (`symlink: false`) for
+the complete first-party cohort. The checked-out alpha.307 label is only solver
+metadata. All 67 installed `waaseyaa/*` members resolve from the single export;
+representative loaded Foundation and CLI classes match its bytes. Normal
+Composer scripts/plugins and application autoload rules remain enabled, and
+each application has its own vendor. The candidate identity, archive digest,
+overlay manifest, package map and exact lock are retained in the qualification
+receipt, distinct from the preserved published alpha.307 lock.
+
+The candidate app installed 115 production and 31 development packages, then
+passed minimal site preview/generation and production `install:init` with no
+database present. SQLite creation, migrations, entity schema and canonical
+configuration genesis completed with sequence 1. Repeated initialization
+preserved a content witness and every configuration-activation row.
+`composer site-verify` passed strict site-doctor and its 6 tests / 20 assertions.
+A separate fresh install from the same lock with `--no-dev` proved PHPUnit
+absent, Symfony Filesystem present and production initialization successful.
+
+The same frozen Linux image supplies Apache 2.4.58, PHP CLI/FPM 8.5.12 and
+SQLite 3.45.1. The HTTP runtime witness confirms `fpm-fcgi`, production mode,
+debug false and development fallback false. It is an unpublished, exact-
+candidate installed qualification on WSL2 Docker with Linux filesystem
+storage. It is not a new published alpha.307 result, an S1 consumer
+certification, release qualification or deployment. Final immutable-head
+receipts and independent custody review live alongside the evidence above.
+
+## Next journey boundary and retained work
+
+After successful initialization and site verification, the cold Apache/FPM
+`GET /` returns 500 because field-read activation requires
+`.waaseyaa/field-access-preflight.json`. The installed app has no such artifact;
+installation intentionally did not fabricate one. The public response is a
+generic boot error (128 bytes, SHA-256
+`45d5049de8d8b6f5130f049ff5143d8121bd8e1a2c5f8d7ad8dd37509946234d`);
+the server log captures the owning preflight refusal. This is the first failing
+journey boundary after the bounded repair, preserved without further repair.
+The request cannot reach the already-merged homepage route until that boundary
+is resolved through its own lifecycle.
+
+The original published baseline's evidence, failed application trees and
+stopped container remain unchanged. Candidate applications and their stopped
+containers are separate custody. #3199 remains open: the full fresh-install
+journey and pending S1 consumer certification have not been proven. No push,
+merge, release or deployment is part of this repair.
