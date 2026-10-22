@@ -12,12 +12,15 @@ use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
 use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\VersionResolver;
 use Waaseyaa\CLI\WaaseyaaConsoleApplication;
+use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 
 /**
  * @api
  */
 final class ConsoleKernel extends AbstractKernel
 {
+    private bool $initializingDatabase = false;
+
     public function handle(): int
     {
         $input = new ArgvInput();
@@ -101,14 +104,18 @@ final class ConsoleKernel extends AbstractKernel
         try {
             if ($input->getFirstArgument() === 'entity:backfill-mutation-authorities') {
                 $this->bootForMutationAuthorityBackfill();
+            } elseif ($input->getFirstArgument() === 'install:init') {
+                $this->initializingDatabase = true;
+                try {
+                    $this->bootForSchemaSync();
+                } finally {
+                    $this->initializingDatabase = false;
+                }
             } elseif (in_array($input->getFirstArgument(), [
                 'schema:sync',
                 'migrate',
                 'migrate:rollback',
                 'migrate:status',
-                // #2428: the installation phase must not construct runtime
-                // consumers that require the generation it is about to create.
-                'install:init',
             ], true)) {
                 $this->bootForSchemaSync();
             } else {
@@ -131,6 +138,21 @@ final class ConsoleKernel extends AbstractKernel
         );
 
         return $factory->create()->run($input, $output);
+    }
+
+    protected function bootDatabase(): void
+    {
+        if (!$this->initializingDatabase) {
+            parent::bootDatabase();
+
+            return;
+        }
+
+        $this->database = new DatabaseBootstrapper()->initializeForInstallation(
+            $this->projectRoot,
+            $this->config,
+            $this->logger,
+        );
     }
 
     private function canRunWithoutFrameworkBoot(ArgvInput $input): bool

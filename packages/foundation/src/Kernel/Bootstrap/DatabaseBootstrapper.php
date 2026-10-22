@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\SqliteTopology;
@@ -12,6 +13,27 @@ use Waaseyaa\Foundation\Log\NullLogger;
 
 final class DatabaseBootstrapper
 {
+    /**
+     * Explicit installation authority. Ordinary boot still refuses missing
+     * production databases; only install:init selects this creation lifecycle.
+     *
+     * @param array<string, mixed> $config Application config.
+     */
+    public function initializeForInstallation(string $projectRoot, array $config, ?LoggerInterface $logger = null): DatabaseInterface
+    {
+        self::assertConfiguredPathShape($config);
+        $path = self::resolveDatabasePath($projectRoot, $config);
+        $environment = SqliteTopology::resolveEnvironment($config);
+        SqliteTopology::assertEnvironmentAllowsPath($path, $environment);
+        $this->warnWhenInsideDocroot($path, $projectRoot, $logger ?? new NullLogger());
+
+        if ($path !== ':memory:') {
+            new Filesystem()->mkdir(dirname($path), 0o755);
+        }
+
+        return DBALDatabase::createSqlite($path, $environment);
+    }
+
     /**
      * Create and return the database connection.
      *

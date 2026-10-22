@@ -441,8 +441,18 @@ applying.` SQLite behaviour (the common local/CI case) is unchanged: the
 restricted pre-boot command set alongside `schema:sync` and `migrate*`.
 `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`, so it never
 constructs a runtime consumer that would require the configuration generation it
-is producing, and it exits without entering ordinary runtime boot. Restricted
-definition discovery also skips live capability validation (#3064): production
+is producing, and it exits without entering ordinary runtime boot. The
+installation boot additionally selects `DatabaseBootstrapper::initializeForInstallation()`
+for the configured database connection. Only the literal `install:init` dispatch
+owns that private, scoped creation authority; it is restored in `finally` even
+on boot failure. The bootstrapper validates S1 path/environment policy before
+preparing the directory with Symfony Filesystem and opening the verified SQLite
+connection through DBAL. It neither touches an empty file nor invokes `db:init`.
+Existing databases are opened without replacement. Other restricted commands,
+ordinary CLI and HTTP retain the production missing-database guard. Foundation
+declares Symfony Filesystem as a runtime dependency for this preparation.
+
+Restricted definition discovery also skips live capability validation (#3064): production
 `configuration.authority.v1` publication calls `requireActiveGenerationId()`,
 and `install:init` is the command that creates that generation. Ordinary
 production boot still refuses when no generation is active; `APP_ENV=local` is

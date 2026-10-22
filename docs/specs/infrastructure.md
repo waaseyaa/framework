@@ -1,5 +1,21 @@
 # Infrastructure
 
+## Explicit installation database authority
+
+`ConsoleKernel` selects database creation only for the explicit `install:init`
+invocation. Its private installation mode is scoped to restricted boot and
+restored in `finally`. `DatabaseBootstrapper::initializeForInstallation()` owns
+configured-path resolution and directory preparation using Symfony Filesystem,
+then uses the existing S1-verified DBAL SQLite connection lifecycle to create or
+open the file. Foundation declares the Filesystem runtime dependency. Actual
+schema mutation and configuration genesis retain their existing owners.
+
+Ordinary production CLI/HTTP bootstrap and other restricted commands keep the
+missing-file guard. Installation does not create field-access preflight evidence,
+change environment classification or relax path, schema/configuration authority
+or runtime activation checks. See [CLI installation](cli-kernel.md) and
+[S1 SQLite topology](s1-sqlite-topology.md).
+
 SQLite artifact runtime catalogue v5 conservatively promotes indexing history
 for imported vectors after preserving serving generation tokens and tombstones.
 Its preparation report records actual transformed candidate counts and digests.

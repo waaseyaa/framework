@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
@@ -33,7 +34,64 @@ final class DatabaseBootstrapperTest extends TestCase
         putenv('WAASEYAA_DB');
 
         // Clean up temp files recursively.
-        (new Filesystem())->remove($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
+    }
+
+    #[Test]
+    public function explicitInstallationCreatesProductionSqliteThroughTheVerifiedConnectionLifecycle(): void
+    {
+        $path = $this->tempDir . '/nested/production.sqlite';
+        $bootstrapper = new DatabaseBootstrapper();
+        $database = $bootstrapper->initializeForInstallation($this->tempDir, [
+            'environment' => 'production', 'database' => $path,
+        ]);
+
+        self::assertInstanceOf(DBALDatabase::class, $database);
+        self::assertFileExists($path);
+        self::assertSame('SQLite format 3', substr((string) file_get_contents($path), 0, 15));
+        $connection = $database->getConnection();
+        self::assertSame('wal', $connection->fetchOne('PRAGMA journal_mode'));
+        self::assertSame(1, (int) $connection->fetchOne('PRAGMA foreign_keys'));
+        self::assertSame(5000, (int) $connection->fetchOne('PRAGMA busy_timeout'));
+        $connection->executeStatement('CREATE TABLE witness (value TEXT)');
+        $connection->executeStatement("INSERT INTO witness VALUES ('kept')");
+        $connection->close();
+
+        $again = $bootstrapper->initializeForInstallation($this->tempDir, [
+            'environment' => 'production', 'database' => $path,
+        ]);
+        self::assertInstanceOf(DBALDatabase::class, $again);
+        self::assertSame('kept', $again->getConnection()->fetchOne('SELECT value FROM witness'));
+        $again->getConnection()->close();
+    }
+
+    #[Test]
+    public function installationStillRejectsProductionMemoryBeforeCreatingStorage(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            new DatabaseBootstrapper()->initializeForInstallation($this->tempDir, [
+                'environment' => 'production', 'database' => ':memory:',
+            ]);
+        } finally {
+            self::assertDirectoryDoesNotExist($this->tempDir . '/storage');
+        }
+    }
+
+    #[Test]
+    public function installationStillRejectsUnsupportedPathBeforeCreatingDirectories(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            new DatabaseBootstrapper()->initializeForInstallation($this->tempDir, [
+                'environment' => 'production', 'database' => 'file:disallowed.sqlite',
+            ]);
+        } finally {
+            self::assertFileDoesNotExist($this->tempDir . '/file:disallowed.sqlite');
+            self::assertDirectoryDoesNotExist($this->tempDir . '/storage');
+        }
     }
 
     #[Test]
