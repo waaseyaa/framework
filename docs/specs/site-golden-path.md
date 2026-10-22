@@ -766,6 +766,12 @@ URLs ahead of slug detail matching. Duplicate generated collection paths are
 refused before publication, including a root bundle's collection colliding
 with another type's prefixed collection.
 
+Generated detail closures declare the request and terminal named slug parameter.
+They retain canonical alias resolution and entity/field access decisions. An
+absent alias returns 404 through the owning controller; invalid callable binding
+or unexpected execution remains a sanitized 500. The recipe digest includes the
+detail callable contract.
+
 ### Subscription
 
 The first subscription recipe generates:

@@ -129,3 +129,78 @@ front controller remain exact. Each profile checks its own environment/artifact
 restoration hashes, absent database noncreation, stranger refusal, generated and
 unmatched 404, sanitized unexpected 500 and private structured diagnostics.
 Each profile produces its own ready activation artifact from its actual inputs.
+
+## Immutable candidate qualification and disposition
+
+Code candidate 54981aeff47831b00674c7598e32ab910f8847ad passed independent
+review with no actionable findings (review-code.txt). The reviewer independently
+ran five strict-binding/formatted-sink tests: 58 assertions passed on native
+PHP 8.5.5. No implementation, diagnostic authority, authorization, persistence
+or sanitizer change followed that review. The final record/spec amendment is a
+documentation delta; final-receipt.json and review-final.txt bind its final SHA
+and fresh installed custody without claiming the earlier tests ran on that SHA.
+
+The code candidate passed a new production dev installation and a separate
+locked no-dev installation, both through real Apache/PHP-FPM. Canonical
+site:init, install:init, read-only field-access:preflight and the explicit
+--write-artifact operation all exited zero. Each artifact was byte-decoded and
+compared with its own complete read-only result. They are ready, blocker-free
+and independent. Lock:
+d32e8cf0eb0758ecdc7f104a031feb1286122f4d73acaf0bf94cc49352d3f2e8.
+
+Dev schema fingerprint:
+0fb780325b583e4101f3e2d59f1a5b90912b0475a7d58b4533e351ef830d5da9.
+Dev checksum:
+4a01c9b72677659f850b3afd570ecaa1beb61b23d80ac89ddbb26d3f12b69336.
+No-dev schema fingerprint:
+9098e7873762fb3c9d0aa8a0036c79c0a37d2b950827208b0d0ecda0cc8a9646.
+No-dev checksum:
+668cd4222d20cda442b17565d2bee838eedc829da884e542e2be536113099041.
+These identities describe the actual discovered inputs of each profile, not a
+claim that equal lockfiles imply equal schemas. The final installed run
+regenerates and validates each artifact independently.
+
+Both profiles proved cold, warm and restarted GET / with the app-owned Twig
+marker FW-J1-UNKNOWN-ROUTE-01 42. Each separately proved stranger 401, generated
+absent-alias 404 (Not found), unmatched multi-segment 404, and controlled
+unexpected 500 with the generic public JSON:API response. The private log
+retained the fixed dispatch event, RuntimeException type, code 3199 and safe
+controlled message, while the nested sensitive message was redacted. The
+synthetic private payload was absent from both formatted log and public body.
+Missing required secret and unavailable SQLite each produced CLI exit 1 and
+generic HTTP 500 in both profiles. Exact environment restoration recovered the
+Twig homepage; activation artifacts remained unchanged and absent databases were
+not created. No-dev runtime confirmed PHPUnit absent.
+
+Governed code-candidate preflight:
+php bin/check-pr-preflight --base=4122814ad68fd7c8aa17f0d68b807c90367ab11f
+--report-json=<evidence>/preflight-code.json
+passed 43 executed, zero reused, zero failures, zero hosted-required and three
+not-applicable in 244.1 seconds. Normal pre-commit portable-path and complete
+CS checks passed. Final preflight uses the same governed command with
+preflight-final.json and retains emitted exact/equivalent reuse identities.
+No full-profile, hosted or release qualification is claimed.
+
+Exact installed qualification commands are retained verbatim in each
+candidate-<sha9>/steps.json, with independent stdout/stderr, exits and HTTP
+bodies/headers. Reproduce by exporting the named native Git commit and published
+skeleton db29e321305110480429a2bdc5b124ae04d94f72, then running
+qualify-http.py <final-sha> under WSL Ubuntu. The final helper removes the inherited
+test-only raw node insertion, checks repeated activation rows read-only and
+reuses earlier installer data-preservation evidence. The preserved first code
+qualification's 07-repeat-proof.log remains a fixture witness, not evidence of
+canonical authoring. Installer lifecycle/safeguard source and dependency inputs
+are unchanged; the original reviewed installer evidence and intermediate
+candidate proof remain separately identified. Future authoring uses the
+registered canonical entity pipeline.
+
+No new failing runtime boundary appeared after this repair in the scoped
+installed controls. The next unqualified boundary is published-cohort adoption
+and supported S1 consumer certification, followed by J1-F landing and full
+journey reconciliation. The Linux image, Apache 2.4.58, PHP CLI/FPM 8.5.12 and
+SQLite 3.45.1 are frozen as recorded in provenance; WSL2 Docker/ext4 evidence
+does not certify S1. The alpha.307 path label is solver metadata only.
+The original published baseline, reviewed candidates, failed applications and
+stopped containers remain preserved. #3199 remains open. #3198 retains other
+diagnostic boundaries; #3203 retains broader failure-handling/component
+assessment. No push, merge, release or deployment.
