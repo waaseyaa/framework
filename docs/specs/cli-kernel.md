@@ -548,6 +548,11 @@ no writes. Publication is serialized by the project initialization lock and
 delegates collision refusal, durable journaling, rollback, crash recovery, and
 generated ownership to `SiteInitializationService`.
 
+Published-content generation preserves the skeleton's SSR homepage at `/`.
+For `/{slug}` details, its collection uses `/<bundle-id>`; prefixed details
+retain their parent collection path. The URL reservation and collision refusal
+contract is owned by [Published content](site-golden-path.md#published-content).
+
 `--json` is opt-in and emits one invocation object: `evaluation` (the plan,
 observed project state, both identities, per-artifact statuses, set delta and
 refusals), `result` (the versioned artifact-result document), and `receipts`

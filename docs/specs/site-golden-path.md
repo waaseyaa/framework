@@ -743,6 +743,16 @@ The first published-content recipe generates:
 Internal entity paths such as `/node/{id}` cannot enter the public sitemap when
 a canonical application route is declared.
 
+The skeleton homepage owns `/` through the Framework SSR renderer and the
+application's `templates/home.html.twig`. Published-content generation must not
+register a collection at `/`. A prefixed detail route such as `/news/{slug}`
+keeps its parent collection `/news`. A root-level detail route `/{slug}` uses
+`/<bundle-id>` for its collection, such as `/page` for the `page` bundle, while
+preserving the authored detail route. Collection paths reserve those literal
+URLs ahead of slug detail matching. Duplicate generated collection paths are
+refused before publication, including a root bundle's collection colliding
+with another type's prefixed collection.
+
 ### Subscription
 
 The first subscription recipe generates:
