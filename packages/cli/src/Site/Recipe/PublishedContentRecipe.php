@@ -95,6 +95,7 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
             'version' => self::VERSION,
             'entity_type' => 'node',
             'fields' => ['title', 'slug', 'summary', 'body', 'status', 'changed'],
+            'field_read_levels' => ['summary' => 'public', 'body' => 'public'],
             'listing' => ['page_size' => 24, 'access_ops' => ['view'], 'sort' => ['changed' => 'DESC']],
             'index_routes' => ['root_detail' => 'bundle_path', 'prefixed_detail' => 'parent_path'],
             'authorities' => ['listing', 'path', 'routing', 'sitemap', 'seo', 'container'],
@@ -129,16 +130,17 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
 
             namespace App\Content\Bundle;
 
+            use Waaseyaa\Entity\FieldReadLevel;
             use Waaseyaa\Field\Attribute\BundleTemplate;
             use Waaseyaa\Field\Attribute\FieldTemplate;
 
             #[BundleTemplate(entityType: 'node', bundle: '__BUNDLE__')]
             final class __CLASS__
             {
-                #[FieldTemplate(key: 'summary', type: 'text', label: 'Summary', group: 'content')]
+                #[FieldTemplate(key: 'summary', type: 'text', label: 'Summary', group: 'content', read: FieldReadLevel::Public)]
                 public string $summary;
 
-                #[FieldTemplate(key: 'body', type: 'text', label: 'Body', group: 'content')]
+                #[FieldTemplate(key: 'body', type: 'text', label: 'Body', group: 'content', read: FieldReadLevel::Public)]
                 public string $body;
             }
             PHP);

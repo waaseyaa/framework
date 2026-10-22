@@ -10,6 +10,19 @@
 
 ## Purpose
 
+Production initialization includes an explicit field-access activation phase
+after `site:init` and `install:init`: inspect the read-only names-only
+`field-access:preflight --format=json`, resolve owned blockers, and only when
+ready publish with `--write-artifact`. The restricted preflight remains the
+sole producer; installation and site verification do not create readiness
+evidence. The published-content recipe's fixed summary/body bundle fields
+declare Public read metadata, matching its public content capability. Other
+application fields retain their own classification decisions. Ordinary
+production boot continues refusing missing, stale, malformed or blocked evidence.
+See [the field-read boundary](entity-field-read-boundary.md) and the skeleton's
+production activation instructions. J1 requires HTTP proof and separate no-dev
+activation using each installation's actual inputs.
+
 A fresh Waaseyaa application must make its product and architecture decisions
 explicit before feature implementation, generate supported first-party
 integration patterns from those decisions, and fail closed when the resulting

@@ -83,6 +83,46 @@ final class ProductionInstallInitTest extends TestCase
     }
 
     #[Test]
+    public function canonical_minimal_site_classifies_its_published_fields_before_activation(): void
+    {
+        copy($this->repoRoot . '/skeleton/composer.json', $this->projectRoot . '/composer.json');
+        copy($this->repoRoot . '/composer.lock', $this->projectRoot . '/composer.lock');
+        file_put_contents($this->projectRoot . '/minimal.yaml', <<<'YAML'
+            schema: waaseyaa.site-seed
+            version: 1
+            application:
+              id: fieldactivation
+              name: Field Activation
+              canonical_origin:
+                config_key: APP_ORIGIN
+            content_types:
+              - id: page
+                canonical_route: /{slug}
+            YAML);
+        $site = $this->console('site:init', arguments: [
+            '--preset=minimal', '--answers=' . $this->projectRoot . '/minimal.yaml', '--yes',
+        ]);
+        self::assertSame(0, $site->getExitCode(), $site->getOutput() . $site->getErrorOutput());
+        $install = $this->console('install:init');
+        self::assertSame(0, $install->getExitCode(), $install->getOutput() . $install->getErrorOutput());
+        $artifact = $this->projectRoot . '/.waaseyaa/field-access-preflight.json';
+        self::assertFileDoesNotExist($artifact);
+
+        $scan = $this->console('field-access:preflight', arguments: ['--format=json']);
+        $result = json_decode($scan->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+
+        // This source-composed fixture discovers the monorepo's optional
+        // packages too. Their independent blockers must not be waived here;
+        // exact installed-cohort readiness is qualified separately.
+        self::assertSame($result['ready'] ? 0 : 1, $scan->getExitCode(), $scan->getErrorOutput());
+        self::assertNotContains('node|page|body', $result['unclassified_entries']);
+        self::assertNotContains('node|page|summary', $result['unclassified_entries']);
+        self::assertSame('public:definition', $result['fields']['node|page|body']);
+        self::assertSame('public:definition', $result['fields']['node|page|summary']);
+        self::assertFileDoesNotExist($artifact);
+    }
+
+    #[Test]
     #[DataProvider('nonExecutingInstallationInputs')]
     public function help_and_invalid_installation_input_do_not_create_storage(array $arguments, int $exitCode): void
     {

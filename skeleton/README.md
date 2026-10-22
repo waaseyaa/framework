@@ -15,7 +15,9 @@ composer site-verify                   # 4. verification
 composer run dev                       # 5. serve
 ```
 
-These five phases are the whole fresh-project lifecycle, and they are ordered.
+These five phases describe development setup, and they are ordered. Before
+production serving, complete [Production activation](#production-activation).
+Passing `composer site-verify` does not prove production readiness.
 
 ### What each phase does
 
@@ -27,7 +29,7 @@ These five phases are the whole fresh-project lifecycle, and they are ordered.
 | 4. Verify | `composer site-verify` | A strict site-contract diagnosis plus the generated acceptance tests. Read-only: it never opens or creates the database. | — |
 | 5. Serve | `composer run dev` | FrankenPHP on `http://127.0.0.1:8080`. | — |
 
-`install:init` is the single materialization step; it subsumes `migrate` and
+`install:init` is the single schema/configuration materialization step; it subsumes `migrate` and
 `schema:sync` and is the only command that activates the configuration
 generation. It is idempotent, so re-run it after any later `site:init`.
 
@@ -51,6 +53,68 @@ executable index entry. See the
 The full native Linux/Windows entrypoint boundary, including generated
 maintenance commands, test launchers, local AI, and MCP launchers, is in the
 [native host support contract](https://github.com/waaseyaa/framework/blob/main/docs/specs/native-host-support.md).
+
+## Production activation
+
+Work in the final, unserved application directory as the intended runtime user.
+Install the reviewed dependency lock, configure the actual local SQLite path
+and synchronization path, set a valid production application secret, and set
+`APP_ENV=production`, `APP_DEBUG=false` and development account fallback false
+in the application's environment. Keep secret values out of logs. The CLI and
+Apache/PHP-FPM processes must receive the same production configuration and the
+required PHP extensions. Follow the
+[S1 serving contract](https://github.com/waaseyaa/framework/blob/main/docs/specs/s1-sqlite-topology.md).
+
+After `site:init`, initialize schema and the configuration generation, then run
+the restricted names-only field-access scan:
+
+```bash
+php vendor/bin/waaseyaa install:init
+php vendor/bin/waaseyaa field-access:preflight --format=json
+```
+
+The scan is read-only by default. Retain its complete JSON, exit status and
+framework/lock, classification and schema identities. Continue only when it
+exits zero with `ready: true` and empty blocker inventories. Unclassified fields,
+metadata conflicts, legacy drivers or payloads require their owning correction;
+do not guess a Public classification to make the scan green. The first-party
+published-content recipe explicitly classifies its summary/body fields Public;
+other application fields need their own reviewed declarations. See the
+[field-read boundary](https://github.com/waaseyaa/framework/blob/main/docs/specs/entity-field-read-boundary.md).
+
+Only after the read-only scan is ready, publish its deployment artifact:
+
+```bash
+php vendor/bin/waaseyaa field-access:preflight --format=json --write-artifact
+```
+
+This command is the sole producer of `.waaseyaa/field-access-preflight.json`.
+`install:init` does not generate it. Never hand-write it or edit its readiness
+flag. Normal production boot refuses missing, stale, malformed or blocker-bearing
+evidence. Regenerate through preflight after changing the lock, classifications,
+definitions or entity schema; an artifact from another installation is not proof
+for this one.
+
+Run ordinary production CLI and real Apache/PHP-FPM HTTP checks before serving
+traffic. Verify the application-owned Twig template on cold, warm and restarted
+`GET /`, plus required configuration/database and access refusals. A green
+offline `composer site-verify` checks site contracts and generated acceptance
+tests; it does not qualify database activation, field-access readiness or HTTP.
+
+Repeat activation and HTTP in a separate `composer install --no-dev`
+installation using the same locked production packages and that installation's
+actual inputs. Run development/build verification before this boundary; production
+requests must not depend on PHPUnit or other development tools. For a later
+immutable release directory, run installation and preflight in that final
+directory before traffic switches: configuration authority includes project and
+synchronization paths, so an existing database/schema is insufficient proof.
+
+The standard skeleton includes CLI and Bimaaji through `waaseyaa/framework`.
+A deliberately smaller consumer must include `waaseyaa/cli` in the installation/
+activation tool environment. Bimaaji supplies maintained agent guidance and
+introspection; it is not an HTTP activation bypass. After activation, use the
+[Bimaaji skill-install workflow](https://github.com/waaseyaa/framework/blob/main/docs/specs/bimaaji-install.md)
+when setting up framework-maintained instructions for development agents.
 
 Use `./vendor/bin/waaseyaa` for the CLI. Optional path-linked `waaseyaa/*` checkouts: copy `composer.local.json.example` to `composer.local.json` (see [docs/local-dev.md](docs/local-dev.md)).
 

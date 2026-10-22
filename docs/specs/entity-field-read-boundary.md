@@ -291,6 +291,14 @@ fields whose release depends on the viewing account are Protected; values that
 exist only for credential, authorization, administration, storage, or audit
 work are Internal.
 
+The first-party published-content recipe declares its generated summary/body
+bundle fields Public at their FieldTemplate definitions, matching the recipe's
+explicit public capability and projection. This does not classify arbitrary
+application fields or waive a preflight blocker. Production installation still
+requires a separate read-only preflight followed, only when ready, by the
+restricted command's explicit `--write-artifact` operation. Installation and
+offline site verification do not produce activation evidence.
+
 | First-party area | Public | Protected | Internal |
 |---|---|---|---|
 | User | uid, uuid | name; status (self/admin direct read; exact entity/name authorization input) | mail, pass, roles, permissions, created, email verification, all two-factor state |
