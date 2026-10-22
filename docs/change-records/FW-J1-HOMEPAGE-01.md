@@ -29,8 +29,10 @@ new router, authorization policy, schema or migration mechanism.
 First capture failing recipe and composed-homepage regressions. Repair the
 producer, then run the focused recipe, preset and homepage checks plus governed
 preflight. Review the bounded delta through recorded self-review; retain any
-host or integration-review limits explicitly. No publication or integration
-is authorized by this implementation request.
+host or integration-review limits explicitly. The initial implementation
+request did not authorize publication. The subsequent maintainer instruction
+authorizes Linux verification and PR publication; merge and release remain
+separate.
 
 For installed proof, seal the exact candidate and follow the delivery skill's
 candidate-consumer integration procedure: one exported Framework cohort,
@@ -55,7 +57,7 @@ manifest assembly and initialization-handler checks passed 48 tests / 261
 assertions on PHP 8.5.5, Composer 2.10.3 and native Windows 11.
 
 The unchanged shared fixture cannot create symlinks on this PC, so the
-composed-homepage integration suite is pending a capable host. An additional
+composed-homepage integration suite initially awaited a capable host. An additional
 initialization-service suite exposed Windows directory-sync, path-separator,
 hard-link and symlink assumptions in unchanged code; it is not a passing run.
 Real installed HTTP verification is the local composed-boundary witness.
@@ -108,7 +110,9 @@ Version `0.1.0-alpha.307` is solver metadata for that unpublished export.
 Self-review checked root ownership, preserved detail/prefixed routes, collision
 refusal, recipe identity, mirrored source provenance and unchanged authorization
 and persistence mechanisms. No independent review is claimed or used as an
-integration approval. The code candidate is not merged, pushed or released.
+integration approval. At this sealed-candidate checkpoint the change was local;
+the later PR-publication instruction is recorded below. No merge or release
+is implied.
 
 The local evidence directory is `3199-evidence/20261021-repair` outside the
 repository; it retains logs, exact locks, HTTP bodies, provenance records and
@@ -120,5 +124,32 @@ under the new scratch root for these runs.
 This qualifies the bounded candidate journey on native Windows development.
 It does not close #3199: Linux S1/PHP-FPM, the remaining J1 failure controls,
 full lifecycle replay and published adoption remain outstanding. The existing
-symlink-based integration test still needs a capable host. Dev-only Bimaaji
-route-metadata warnings remain a separate, unrepaired intake.
+symlink-based integration test subsequently passed on Linux as recorded below.
+Dev-only Bimaaji route-metadata warnings remain a separate, unrepaired intake.
+
+### Linux integration and PR publication
+
+The maintainer requested the remaining Linux homepage integration test followed
+by a PR. On 21 October 2026, the complete
+`tests/Integration/SkeletonHomepage/SkeletonHomepageRendererTest.php` suite
+passed on Ubuntu 24.04 x86_64 under WSL2, PHP 8.5.11, Composer 2.10.3 and
+PHPUnit 13.1.14: **5 tests / 38 assertions**, zero failures, errors or skips,
+7.381 seconds. This includes
+`minimal_content_generation_preserves_the_application_homepage`.
+
+The tested subject was `5f8f2bc8375ca0b6a9543d98942444a58551fa25`, whose code
+is identical to the sealed code candidate above. Windows Git exported that
+exact commit to a new native Linux temporary directory. Dependencies were
+installed there from its lock with `COMPOSER_ROOT_VERSION=dev-main`, not borrowed
+from Windows or another checkout. WSL Git was not used. The command was:
+
+```text
+timeout 180s php -d memory_limit=1G vendor/bin/phpunit tests/Integration/SkeletonHomepage/SkeletonHomepageRendererTest.php --no-coverage --colors=never
+```
+
+Host, archive and lock identities, dependency-install output and the complete
+PHPUnit output are retained under `3199-evidence/20261021-linux` outside the
+repository. The fresh-install HTTP evidence and code-candidate preflight above
+remain valid because this follow-up changes only the evidence record. Normal
+publication hooks remain enabled. The PR is a bounded part of #3199 and does
+not close the broader journey or claim Linux S1/PHP-FPM production proof.
