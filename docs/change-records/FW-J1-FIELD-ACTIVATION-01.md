@@ -122,13 +122,19 @@ artifact was created; the two classifications came from generated definitions.
 The separate no-dev installation used its own vendor, database, schema and
 preflight execution, then independently wrote and consumed its own artifact.
 The lock is `d32e8cf0eb0758ecdc7f104a031feb1286122f4d73acaf0bf94cc49352d3f2e8`;
-the schema fingerprint is
+the development installation's schema fingerprint is
 `0fb780325b583e4101f3e2d59f1a5b90912b0475a7d58b4533e351ef830d5da9`.
-Both installations have the same canonical empty classification input and
-names-only field metadata, so equal result checksums are expected; equality is
-not used as permission to copy the artifact. Each producer ran against its own
-inputs. Preflight checksum:
+Its preflight checksum is
 `4a01c9b72677659f850b3afd570ecaa1beb61b23d80ac89ddbb26d3f12b69336`.
+The no-dev installation has fewer discovered fields and a different schema
+fingerprint:
+`9098e7873762fb3c9d0aa8a0036c79c0a37d2b950827208b0d0ecda0cc8a9646`;
+its preflight checksum is
+`668cd4222d20cda442b17565d2bee838eedc829da884e542e2be536113099041`.
+Both use the canonical empty classification input, but their names-only metadata
+and schema identities differ. Each producer ran against its own actual inputs;
+no artifact was copied between installations. Independent custody review caught
+and corrected an earlier documentation-only claim that these identities matched.
 
 Cold, warm and restarted real Apache/PHP-FPM `GET /` returned 200 with the
 app-owned Twig marker `FW-J1-FIELD-ACTIVATION-01 42` in both installations.
@@ -150,6 +156,16 @@ of safe diagnostic metadata. Keep those limits rather than attributing the
 500 to an unobserved cause. No routing, error handling or logging repair is
 included. Final receipts retain independent J1 refusal checks and this first
 unexpected boundary without hiding it behind homepage success.
+
+Independent J1-D controls on the no-dev installation additionally confirmed 401
+for a stranger's request to an explicitly authenticated synthetic route. Missing
+required production secret and unavailable configured SQLite profiles each
+returned CLI exit 1 and generic HTTP 500 with actionable private refusal names.
+Restoring the exact environment bytes restored the homepage marker; the artifact
+bytes remained unchanged and the unavailable database was never created. These
+controls precede the final unknown-route request, so that failing application is
+left stopped at its observed boundary. No activation evidence was edited for a
+negative control.
 
 Final-head qualification and custody receipts name the exact archive, actual
 package map/lock, commands, stdout/stderr, identities, exit statuses, HTTP
