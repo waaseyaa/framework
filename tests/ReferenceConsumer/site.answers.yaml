@@ -54,7 +54,7 @@ recipes:
   - id: published_content
     version: 1
     capability: published_content
-    artifact_digest: 602bdef1b7d4cf71b7ce11d3d3f1c0c13af016fd89f02d49a32f78f55cdef93d
+    artifact_digest: a90fdeeedfc2e246ed4bfcea40fe72738d69bcb4ae57c99c185a894bf00814e4
   - id: governed_authoring
     version: 1
     capability: governed_authoring

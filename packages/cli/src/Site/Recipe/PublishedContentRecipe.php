@@ -38,7 +38,7 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
             if (!str_ends_with($contentType->canonicalRoute, '/{slug}') && $contentType->canonicalRoute !== '/{slug}') {
                 throw new \InvalidArgumentException("Published content type {$contentType->id} requires a terminal {slug} canonical route.");
             }
-            $indexRoute = $this->indexRoute($contentType->canonicalRoute);
+            $indexRoute = $this->indexRoute($contentType->canonicalRoute, $contentType->id);
             if (isset($indexRoutes[$indexRoute])) {
                 throw new \InvalidArgumentException("Published content index route collision: {$indexRoute}");
             }
@@ -96,15 +96,18 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
             'entity_type' => 'node',
             'fields' => ['title', 'slug', 'summary', 'body', 'status', 'changed'],
             'listing' => ['page_size' => 24, 'access_ops' => ['view'], 'sort' => ['changed' => 'DESC']],
+            'index_routes' => ['root_detail' => 'bundle_path', 'prefixed_detail' => 'parent_path'],
             'authorities' => ['listing', 'path', 'routing', 'sitemap', 'seo', 'container'],
         ]));
     }
 
-    private function indexRoute(string $detailRoute): string
+    private function indexRoute(string $detailRoute, string $bundle): string
     {
         $route = preg_replace('#/\{[^/]+\}$#', '', $detailRoute) ?? '';
 
-        return $route === '' ? '/' : $route;
+        // The skeleton's SSR homepage owns /. Root-level detail routes still
+        // need a collection URL without replacing that application template.
+        return $route === '' ? '/' . $bundle : $route;
     }
 
     private function bundleClass(string $bundle): string
@@ -500,6 +503,7 @@ final class PublishedContentRecipe implements SiteRecipeRendererInterface, SiteR
                     foreach ($this->definitions() as $definition) {
                         self::assertStringContainsString('{slug}', $definition['detail_route']);
                         self::assertStringStartsWith('/', $definition['index_route']);
+                        self::assertNotSame('/', $definition['index_route'], 'The skeleton homepage owns /.');
                     }
                 }
 

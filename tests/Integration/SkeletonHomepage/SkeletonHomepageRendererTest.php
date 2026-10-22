@@ -8,7 +8,12 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
+use Waaseyaa\CLI\Site\SiteInitializationService;
+use Waaseyaa\CLI\Site\SitePreset;
+use Waaseyaa\CLI\Site\SitePresetResolver;
 use Waaseyaa\Foundation\Diagnostic\CleanUrlProbe;
+use Waaseyaa\SiteContract\SiteManifestParser;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 /**
@@ -61,8 +66,6 @@ final class SkeletonHomepageRendererTest extends TestCase
             . "<main data-template=\"app-home\"><p id=\"probe\">PROBE-VALUE: {{ 6 * 7 }}</p></main>\n"
             . "</body></html>\n",
         );
-
-        $this->initializeFreshDatabase();
     }
 
     protected function tearDown(): void
@@ -93,10 +96,37 @@ final class SkeletonHomepageRendererTest extends TestCase
     }
 
     /**
-     * Template overrides keep working: the theme chain puts the application's
-     * own `templates/` ahead of `packages/ssr/templates/`, so the app copy — not
-     * the framework fallback copy of `home.html.twig` — is what renders.
+     * #3199: activating the minimal published-content recipe must preserve the
+     * application's SSR homepage instead of serving a generated content index.
      */
+    #[Test]
+    public function minimal_content_generation_preserves_the_application_homepage(): void
+    {
+        file_put_contents($this->projectRoot . '/composer.lock', "{}\n");
+        $seed = <<<'YAML'
+            schema: waaseyaa.site-seed
+            version: 1
+            application:
+              id: skeleton-homepage
+              name: Skeleton homepage
+              canonical_origin:
+                config_key: APP_ORIGIN
+            content_types:
+              - id: page
+                canonical_route: /{slug}
+            YAML;
+        $yaml = new SitePresetResolver()->resolveFromSeedDocument(SitePreset::Minimal, $seed, '<homepage-test>', $this->projectRoot);
+        $manifest = new SiteManifestParser()->parse($yaml);
+        new SiteInitializationService($this->projectRoot)->initialize(SiteArtifactRendererFactory::create()->compile($manifest));
+
+        $response = $this->request('/');
+
+        self::assertSame(200, $response['status']);
+        self::assertStringContainsString('data-template="app-home"', $response['body']);
+        self::assertStringContainsString('PROBE-VALUE: 42', $response['body']);
+        self::assertStringNotContainsString('data-listing="page_index"', $response['body']);
+    }
+
     #[Test]
     public function application_home_template_still_overrides_the_framework_copy(): void
     {
@@ -153,6 +183,11 @@ final class SkeletonHomepageRendererTest extends TestCase
      */
     private function request(string $uri, string $method = 'GET'): array
     {
+        // Generate selected recipes before database initialization so their
+        // bundle declarations participate in the ordinary schema lifecycle.
+        if (!is_file($this->projectRoot . '/storage/waaseyaa.sqlite')) {
+            $this->initializeFreshDatabase();
+        }
         $payload = $this->runFixture('request', $method, $uri);
 
         return [

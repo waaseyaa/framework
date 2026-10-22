@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Site;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -47,7 +48,7 @@ final class PublishedContentRecipeTest extends TestCase
         self::assertStringContainsString("'access_ops' =>", $config);
         self::assertStringContainsString("'view'", $config);
         self::assertStringContainsString("'detail_route' => '/{slug}'", $config);
-        self::assertStringContainsString("'index_route' => '/'", $config);
+        self::assertStringContainsString("'index_route' => '/page'", $config);
 
         $provider = $site->artifacts['src/Provider/PublishedContentServiceProvider.php']->content;
         foreach (['implements HasListingsInterface', 'new ListingDefinition(', 'pageSize: 24', "accessOps: ['view']", 'RouteBuilder::create(', 'PathAliasResolver::class', 'SitemapGenerator::class', 'MetaTagBuilder::class', 'EntitySchemaOrgMapper::class', 'BundleTemplateCompiler::class', '$this->singleton('] as $required) {
@@ -77,6 +78,42 @@ final class PublishedContentRecipeTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('collectionRoutes')]
+    public function itReservesTheHomepageWhilePreservingPrefixedCollections(string $detailRoute, string $indexRoute): void
+    {
+        $manifest = str_replace('/{slug}', $detailRoute, $this->manifest());
+
+        $site = $this->renderer()->render(new SiteManifestParser()->parse($manifest));
+
+        $config = $site->artifacts['config/waaseyaa-recipes/published-content.php']->content;
+        self::assertStringContainsString("'detail_route' => '{$detailRoute}'", $config);
+        self::assertStringContainsString("'index_route' => '{$indexRoute}'", $config);
+        self::assertStringNotContainsString("'index_route' => '/'", $config);
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function collectionRoutes(): iterable
+    {
+        yield 'root detail leaves the homepage available' => ['/{slug}', '/page'];
+        yield 'prefixed detail keeps its collection' => ['/news/{slug}', '/news'];
+        yield 'nested detail keeps its collection' => ['/news/archive/{slug}', '/news/archive'];
+    }
+
+    #[Test]
+    public function itRefusesACollectionCollisionWithTheRootLevelBundle(): void
+    {
+        $manifest = str_replace(
+            "capabilities:\n",
+            "  - id: news\n    canonical_route: /page/{slug}\ncapabilities:\n",
+            $this->manifest(),
+        );
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Published content index route collision: /page');
+
+        $this->renderer()->render(new SiteManifestParser()->parse($manifest));
+    }
+
+    #[Test]
     public function itRefusesASubstitutedRecipeDigest(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -98,7 +135,7 @@ final class PublishedContentRecipeTest extends TestCase
     public function aPublishedRecipePassesTheStrictGeneratedArtifactDoctor(): void
     {
         $root = sys_get_temp_dir() . '/waaseyaa_published_recipe_' . bin2hex(random_bytes(8));
-        mkdir($root, 0777, true);
+        mkdir($root, 0o777, true);
         try {
             file_put_contents($root . '/composer.lock', "{}\n");
             $manifest = str_replace(str_repeat('a', 64), hash_file('sha256', $root . '/composer.lock'), $this->manifest());
@@ -109,7 +146,7 @@ final class PublishedContentRecipeTest extends TestCase
             self::assertTrue($report->passed, $report->canonicalJson());
         } finally {
             if (is_dir($root)) {
-                (new Filesystem())->remove($root);
+                new Filesystem()->remove($root);
             }
         }
     }
