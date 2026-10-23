@@ -102,3 +102,40 @@ Report integrated SHA/main/PR status, hosted qualification, actual publication
 and package provenance, published consumer results, S1 tuple evidence and J1-F
 coverage separately. A publication or environment prerequisite is not a runtime
 pass. No deployment or unrelated issue completion is authorized.
+
+## Hosted integration failure and bounded repair decision
+
+Full hosted run 39877168340 on f3471230876d43f05778603c97fe837d63bc79e9
+first failed site-reference-consumer; the Windows consumer independently failed
+project:init --dry-run. Their native-host/platform aggregate failures are
+derivatives. Preserve the original job logs before edits.
+
+A separate fresh exact-f347 installed Linux consumer reproduced project:init
+--dry-run exit 1. Its site phase reports: "The published_content recipe digest
+does not match the installed first-party recipe." The reference answers pin
+a90fdeeedfc2e246ed4bfcea40fe72738d69bcb4ae57c99c185a894bf00814e4, while
+the reviewed recipe now owns
+cf8f1932dea7f7dc08ccf2cefbf42465d5c2838b1d0e1fbd3cf62a63da580f11.
+
+This is a candidate fixture migration omission from the reviewed recipe changes,
+not permission to weaken recipe provenance. Refresh the checked-in reference
+selection only. Add a focused contract regression that renders this actual
+reference manifest through the recipe, capture it failing first, and retain the
+existing substituted-digest refusal test. Runtime, installation/activation
+authority, persistence and normal-boot safeguards remain unchanged. Review the
+immutable fixture/test delta, run affected tests and governed preflight, then
+obtain new exact-head hosted qualification. Main remains unchanged until those
+gates pass. Installer and WSL HTTP evidence remain input-equivalent; this
+diagnostic consumer is not published-package or S1 certification evidence.
+
+The new regression fails before the fixture refresh with the same recipe digest
+exception (one test, exit 2). On Linux PHP8.5.12, the refreshed selection and
+existing recipe refusal/collision checks pass: 14 tests, 146 assertions. A second
+separate fresh installed diagnostic consumer passes project:init preview without
+creating storage/artifacts, initialization, repeated initialization and generated
+site verification. The failed first consumer/container is preserved and stopped.
+The native Windows all-method diagnostic reports the existing POSIX executable
+bit assertion; Linux passes that assertion. Hosted Linux/Windows remain the
+qualification owners. Exact commands and outputs are retained in the external
+20261022-integration-3199 evidence packet. No runtime/spec contract changes are
+needed for this fixture correction; strict recipe identity remains authoritative.

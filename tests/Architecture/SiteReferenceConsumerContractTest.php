@@ -8,10 +8,20 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
+use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 final class SiteReferenceConsumerContractTest extends TestCase
 {
+    #[Test]
+    public function theReferenceSelectionRendersWithTheInstalledPublishedContentRecipe(): void
+    {
+        $path = dirname(__DIR__) . '/ReferenceConsumer/site.answers.yaml';
+        $manifest = new SiteManifestParser()->parse((string) file_get_contents($path), $path);
+
+        self::assertNotEmpty(new PublishedContentRecipe()->render($manifest));
+    }
+
     #[Test]
     public function generationStateReadsTheCanonicalLedgerWithoutMutatingIt(): void
     {
