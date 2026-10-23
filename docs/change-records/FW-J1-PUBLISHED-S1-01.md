@@ -160,3 +160,30 @@ harness-json-canary-red.log; public evidence must replace both the exact known
 secret bytes and their standard JSON string representation. This does not
 change Framework's runtime redactor or permit app/environment uploads. The
 original unredacted streams remain exclusively inside the encrypted snapshot.
+
+## First published run: bounded topology diagnostic correction
+
+Run 39980925409 at harness 2cd1f91b stopped both independent profiles at
+read-content.php's topology assertion, after successful real production init,
+site verification/doctor, read-only ready field scans, restricted artifact
+activation, ordinary CLI boot and supported entity creation. Both stopped
+root filesystems, complete app binds and original streams are retained in
+artifact 12513617797. Its encrypted snapshot was downloaded and decrypted
+locally with matching ciphertext/plaintext hashes. A new, separate WSL2
+reconstruction reproduced the authored entities and exposed the actual PRAGMAs;
+that diagnostic reconstruction is not new S1 serving evidence.
+
+The application connection has foreign_keys=1, journal_mode=wal and
+busy_timeout=5000. database_list contains one file-backed main at the expected
+app storage path plus temp with an empty file name. The harness incorrectly
+equated one authoritative database file with one SQLite schema row. SQLite's
+canonical database_list contract documents main, temp and attached schema rows:
+https://www.sqlite.org/pragma.html#pragma_database_list.
+
+Classification: qualification-harness overconstraint. No Framework lifecycle,
+installation, authorization or persistence repair is justified. Correct only
+the diagnostic predicate: require exactly one main at the original canonical
+owned path, allow only an optional temp with no file, and refuse other attached
+schemas/files, malformed inventory, wrong PRAGMAs and path/symlink escapes.
+Preserve the original run/apps/snapshot unchanged, add discriminating controls,
+independently review the immutable delta and rerun in fresh published apps.

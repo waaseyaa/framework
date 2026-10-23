@@ -2,6 +2,40 @@
 
 declare(strict_types=1);
 
+function j1DatabaseTopologyMatches(array $pragmas, string $root): bool
+{
+    $rows = $pragmas['database_list'] ?? null;
+    if (!is_array($rows)) {
+        return false;
+    }
+    $path = null;
+    $temp = false;
+    foreach ($rows as $row) {
+        if (!is_array($row) || !isset($row['name'], $row['file']) || !is_string($row['file'])) {
+            return false;
+        }
+        if ($row['name'] === 'main' && $path === null) {
+            $path = $row['file'];
+        } elseif ($row['name'] === 'temp' && $row['file'] === '' && !$temp) {
+            $temp = true;
+        } else {
+            return false;
+        }
+    }
+
+    return $path !== null
+        && (int) ($pragmas['foreign_keys'][0]['foreign_keys'] ?? 0) === 1
+        && ($pragmas['journal_mode'][0]['journal_mode'] ?? '') === 'wal'
+        && (int) ($pragmas['busy_timeout'][0]['timeout'] ?? 0) === 5000
+        && is_file($root . '/storage/waaseyaa.sqlite')
+        && realpath($path) === realpath($root . '/storage/waaseyaa.sqlite')
+        && !is_link($root . '/storage') && !is_link($path);
+}
+
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') !== __FILE__) {
+    return;
+}
+
 require getcwd() . '/vendor/autoload.php';
 $kernel = new Waaseyaa\Foundation\Kernel\ConsoleKernel(getcwd());
 $kernel->bootForCli();
@@ -15,16 +49,8 @@ $pragmas = [];
 foreach (['foreign_keys', 'journal_mode', 'busy_timeout', 'database_list'] as $pragma) {
     $pragmas[$pragma] = iterator_to_array($database->query('PRAGMA ' . $pragma));
 }
-if ((int) $pragmas['foreign_keys'][0]['foreign_keys'] !== 1
-    || $pragmas['journal_mode'][0]['journal_mode'] !== 'wal'
-    || (int) $pragmas['busy_timeout'][0]['timeout'] !== 5000
-    || count($pragmas['database_list']) !== 1) {
+if (!j1DatabaseTopologyMatches($pragmas, getcwd())) {
     throw new RuntimeException('Effective database topology differs from S1.');
-}
-$databasePath = $pragmas['database_list'][0]['file'];
-if (realpath($databasePath) !== getcwd() . '/storage/waaseyaa.sqlite'
-    || is_link(getcwd() . '/storage') || is_link($databasePath)) {
-    throw new RuntimeException('Database escapes the observed authoritative application bind.');
 }
 echo json_encode([
     'id' => $entity->id(),

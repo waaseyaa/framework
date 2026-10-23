@@ -11,10 +11,41 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
 
 require_once dirname(__DIR__, 2) . '/tools/j1-published-s1/qualify.php';
+require_once dirname(__DIR__, 2) . '/tools/j1-published-s1/read-content.php';
 
 #[CoversNothing]
 final class PublishedS1QualificationContractTest extends TestCase
 {
+    #[Test]
+    public function one_authoritative_file_allows_sqlite_temp_but_refuses_other_schemas_and_paths(): void
+    {
+        $root = sys_get_temp_dir() . '/j1-topology-' . bin2hex(random_bytes(8));
+        $fs = new Filesystem();
+        $fs->mkdir($root . '/storage');
+        $path = $root . '/storage/waaseyaa.sqlite';
+        $fs->dumpFile($path, 'Path witness only; the unit test opens no database.');
+        $main = ['seq' => 0, 'name' => 'main', 'file' => $path];
+        $temp = ['seq' => 1, 'name' => 'temp', 'file' => ''];
+        $observed = ['foreign_keys' => [['foreign_keys' => 1]], 'journal_mode' => [['journal_mode' => 'wal']],
+            'busy_timeout' => [['timeout' => 5000]], 'database_list' => [$main, $temp]];
+        try {
+            self::assertTrue(j1DatabaseTopologyMatches($observed, $root));
+            foreach ([[$main], [$temp, $main]] as $valid) {
+                self::assertTrue(j1DatabaseTopologyMatches(array_replace($observed, ['database_list' => $valid]), $root));
+            }
+            foreach ([[], [$temp], [$main, $main], [$main, $temp, $temp], [$main, ['name' => 'other', 'file' => '']],
+                [$main, ['name' => 'other', 'file' => $path]], [$main, ['name' => 'temp', 'file' => $path]],
+                [['name' => 'main', 'file' => $root . '/elsewhere.sqlite']]] as $invalid) {
+                self::assertFalse(j1DatabaseTopologyMatches(array_replace($observed, ['database_list' => $invalid]), $root));
+            }
+            self::assertFalse(j1DatabaseTopologyMatches(array_replace($observed, ['foreign_keys' => [['foreign_keys' => 0]]]), $root));
+            self::assertFalse(j1DatabaseTopologyMatches(array_replace($observed, ['journal_mode' => [['journal_mode' => 'delete']]]), $root));
+            self::assertFalse(j1DatabaseTopologyMatches(array_replace($observed, ['busy_timeout' => [['timeout' => 0]]]), $root));
+        } finally {
+            $fs->remove($root);
+        }
+    }
+
     #[Test]
     public function original_archive_bytes_discriminate_a_manifest_only_match_from_a_stale_runtime(): void
     {
