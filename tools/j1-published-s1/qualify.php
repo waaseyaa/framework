@@ -48,7 +48,7 @@ final class PublishedS1Qualification
         $this->evidence = (string) getenv('J1_EVIDENCE');
         $this->need(!file_exists($this->work) && !file_exists($this->evidence), 'Refuse reused qualification directories');
         $this->fs->mkdir([$this->work . '/raw', $this->work . '/apps', $this->evidence]);
-        $this->deadline = microtime(true) + 35 * 60;
+        $this->deadline = microtime(true) + 30 * 60;
     }
 
     private function need(bool $condition, string $message): void
@@ -86,9 +86,9 @@ final class PublishedS1Qualification
 
     private function run(string $label, array $argv, ?string $cwd = null, bool $check = true, int $timeout = 300): array
     {
-        $remaining = $this->deadline - microtime(true);
-        $this->need($this->finalizing || $remaining > 0, 'Qualification deadline reached; custody time reserved');
-        $process = new Process($argv, $cwd, timeout: $this->finalizing ? $timeout : min($timeout, $remaining));
+        $remaining = $this->deadline + ($this->finalizing ? 15 * 60 : 0) - microtime(true);
+        $this->need($remaining > 0, 'Qualification/custody deadline reached');
+        $process = new Process($argv, $cwd, timeout: min($timeout, $remaining));
         $start = microtime(true);
         try {
             $code = $process->run();
@@ -147,6 +147,7 @@ final class PublishedS1Qualification
         $this->fs->dumpFile($recipient, $recipientLine . "\n");
         [, $fingerprint] = $this->run('recipient-identity', ['ssh-keygen', '-lf', $recipient]);
         $this->need((preg_split('/\s+/', trim($fingerprint))[1] ?? '') === self::RECIPIENT, 'Recipient differs from locally verified age identity');
+        $this->run('snapshot-tool-version', ['age', '--version']);
         $release = $this->work . '/release';
         $this->fs->mkdir($release);
         $this->run('release-assets', ['gh', 'release', 'download', 'v' . $this->version, '--repo', 'waaseyaa/framework', '--pattern', 'SHA256SUMS',
@@ -378,7 +379,12 @@ final class PublishedS1Qualification
         $this->cli($profile, 'site-init', ['site:init', '--preset=minimal', '--answers=minimal.seed.yaml', '--yes']);
         $this->need(!file_exists($app . '/storage/waaseyaa.sqlite'), 'site:init created database');
         $this->cli($profile, 'install-init', ['install:init']);
-        $this->command($profile, 'site-verify', ['php', '/usr/local/bin/composer', 'site-verify', '--no-interaction', '--no-ansi']);
+        if ($profile === 'dev') {
+            $this->command($profile, 'site-verify', ['php', '/usr/local/bin/composer', 'site-verify', '--no-interaction', '--no-ansi']);
+        } else {
+            $this->need(!is_file($app . '/vendor/bin/phpunit'), 'No-dev installation contains the development verifier');
+            $this->cli($profile, 'site-doctor', ['site:doctor', '--strict', '--format=json']);
+        }
         $artifact = $app . '/.waaseyaa/field-access-preflight.json';
         $this->need(!file_exists($artifact), 'Installer produced field access artifact');
         [$code, $scan] = $this->cli($profile, 'readonly-preflight', ['field-access:preflight', '--format=json'], false);

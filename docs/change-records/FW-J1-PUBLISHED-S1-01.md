@@ -55,6 +55,14 @@ review and preservation receipts are retained under the portable evidence packet
 identity `20261023-alpha308-s1-3199`. Source is isolated on the task-owned
 `codex/j1-published-s1-3199` branch; original checkouts are not advanced.
 
+The single canonical cut 39971597002 completed at release commit
+baead2150a78883b82536282d1181cf5b7a92a10. Exact-release full CI 39971708958 and
+Readiness 39973030447 passed. Split/publication 39975413783 completed, including
+every-package installability and GitHub Release publication. Skeleton sync
+39975413572 and its default smoke 39975460551 passed. The downloaded provenance
+and SBOM hashes match SHA256SUMS. These establish publication inputs; the new
+published Apache/FPM consumer qualification remains a separate required run.
+
 ## Qualification harness decisions before execution
 
 Extend the existing Skeleton Smoke workflow with an explicit manual-only boolean
@@ -75,6 +83,14 @@ https://symfony.com/doc/8.0/components/filesystem.html and
 https://symfony.com/doc/7.4/http_client.html. Component line upgrades remain a
 separate repository dependency decision, not a reason to fork a mechanism here.
 
+The generated verification script explicitly requires vendor/bin/phpunit. J1's
+production-composition contract permits development verification before the
+no-dev boundary. Run composer site-verify in the dev installation; the separate
+fresh no-dev installation must lack that verifier and instead run the canonical
+site:doctor --strict --format=json, its own field scan/artifact, ordinary boot
+and the complete serving/refusal sequence. Do not install or borrow dev tools
+to satisfy a harness-only requirement in the production installation.
+
 The native hosted VM is ephemeral. Before teardown, stop each task container and
 retain its inspect metadata plus complete exported root filesystem. Docker export
 excludes mounts: separately archive the complete ext4 bind tree, including app
@@ -93,7 +109,7 @@ The existing private identity successfully decrypted an age v1.3.2 synthetic
 round-trip locally; the verified release binary/archive digest and recipient
 fingerprint are retained in `recipient-verification.json`. Neither the private
 identity nor plaintext snapshots enter CI uploads. The hosted lane has a 60-minute
-job limit: 35 minutes of qualification work, up to 15 minutes for quiesce/export/
+job limit: 30 minutes of qualification work, up to 15 minutes for quiesce/export/
 sealing and the remaining upload margin. Every child command and HTTP operation
 also has a bounded timeout. Published S1 results require both workflow success
 and local verified download/decryption, not just a profile PASS file.

@@ -77,6 +77,49 @@ final class PublishedS1QualificationContractTest extends TestCase
     }
 
     #[Test]
+    public function child_refusal_and_timeout_preserve_original_streams_and_fail_closed(): void
+    {
+        $root = sys_get_temp_dir() . '/j1-command-' . bin2hex(random_bytes(8));
+        $fs = new Filesystem();
+        $fs->mkdir([$root . '/raw', $root . '/public']);
+        try {
+            $qualification = new \ReflectionClass(\PublishedS1Qualification::class)->newInstanceWithoutConstructor();
+            foreach (['work' => $root, 'evidence' => $root . '/public', 'fs' => $fs, 'deadline' => microtime(true) + 15] as $property => $value) {
+                new \ReflectionProperty($qualification, $property)->setValue($qualification, $value);
+            }
+            $run = new \ReflectionMethod($qualification, 'run');
+            ob_start();
+            try {
+                $success = $run->invoke($qualification, 'success', [PHP_BINARY, '-r', 'echo "ready";']);
+                self::assertSame([0, 'ready', ''], $success);
+                try {
+                    $run->invoke($qualification, 'refusal', [PHP_BINARY, '-r', 'fwrite(STDOUT, "synthetic-j1-private-payload"); fwrite(STDERR, "refused"); exit(7);']);
+                    self::fail('A refused child was accepted.');
+                } catch (\RuntimeException $failure) {
+                    self::assertSame('refusal exited 7', $failure->getMessage());
+                }
+                try {
+                    $run->invoke($qualification, 'timeout', [PHP_BINARY, '-r', 'echo "before timeout"; sleep(5);'], null, true, 1);
+                    self::fail('A timed out child was accepted.');
+                } catch (\RuntimeException $failure) {
+                    self::assertSame('timeout exited 124', $failure->getMessage());
+                }
+            } finally {
+                ob_end_clean();
+            }
+            self::assertSame('synthetic-j1-private-payload', file_get_contents($root . '/raw/refusal.stdout'));
+            self::assertSame('[REDACTED]', file_get_contents($root . '/public/refusal.stdout'));
+            self::assertSame('refused', file_get_contents($root . '/raw/refusal.stderr'));
+            self::assertSame('before timeout', file_get_contents($root . '/raw/timeout.stdout'));
+            $steps = json_decode(file_get_contents($root . '/public/steps.json'), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame([0, 7, 124], array_column($steps, 'exit'));
+            self::assertStringNotContainsString('synthetic-j1-private-payload', file_get_contents($root . '/public/steps.json'));
+        } finally {
+            $fs->remove($root);
+        }
+    }
+
+    #[Test]
     public function the_serving_lane_requires_explicit_manual_selection_and_only_reads_repository_contents(): void
     {
         $workflow = Yaml::parseFile(dirname(__DIR__, 2) . '/.github/workflows/skeleton-smoke.yml');

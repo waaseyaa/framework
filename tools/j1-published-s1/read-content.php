@@ -21,6 +21,11 @@ if ((int) $pragmas['foreign_keys'][0]['foreign_keys'] !== 1
     || count($pragmas['database_list']) !== 1) {
     throw new RuntimeException('Effective database topology differs from S1.');
 }
+$databasePath = $pragmas['database_list'][0]['file'];
+if (realpath($databasePath) !== getcwd() . '/storage/waaseyaa.sqlite'
+    || is_link(getcwd() . '/storage') || is_link($databasePath)) {
+    throw new RuntimeException('Database escapes the observed authoritative application bind.');
+}
 echo json_encode([
     'id' => $entity->id(),
     'title' => $entity->get('title'),
