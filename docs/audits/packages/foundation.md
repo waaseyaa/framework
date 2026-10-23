@@ -22,7 +22,7 @@ Foundation supplies composition, lifecycle, migration authority, HTTP infrastruc
 - **Consumers:** 56 declared inbound packages, HTTP/Console/MCP kernels, generated applications and metapackages. Evidence: Composer inbound inventory and source entrypoints.
 - **Dependencies:** DBAL, PSR interfaces, Symfony Dotenv/EventDispatcher/HttpFoundation/ServiceContracts/UID and cache/database/queue. Higher-layer composition has explicit architectural exceptions and development-only closure edges. Evidence: packages/foundation/composer.json
 - **Public surface:** Provider contracts, runtime/schema/security/diagnostic primitives, kernels and route metadata. Primitive-only use and full kernel composition require distinct installation evidence. Evidence: packages/foundation/public-surface.php and actual source callers.
-- **Installation profiles:** Minimal J1 installed dev/no-dev and generated-application composition is qualified by the alpha.308 supplement. Standalone split and wider package profiles remain incomplete. Evidence: FW-J1-PUBLISHED-S1-01 and the portable published summary below.
+- **Installation profiles:** Minimal J1 installed dev/no-dev and generated-application composition is qualified by the alpha.308 supplement. Standalone split and wider package profiles remain incomplete. Evidence: FW-J1-PUBLISHED-S1-01 and the captured published J1 witness below.
 
 ## Roster
 
@@ -71,8 +71,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 | --- | --- | --- | --- | --- |
 | kernel composition | yes | source | Source composition reviewed at the base; exact scope and test outcomes are recorded separately. | waaseyaa/foundation #3123 |
 | standalone split | undecided | none | No fresh isolated no-dev installation was qualified. Decide supported primitive and kernel closure, then exercise declared dependencies without root autoload help. | waaseyaa/foundation #3123 |
-| framework closure | yes (minimal J1 composition only) | installed consumer | Qualified minimal J1 production dev/no-dev ConsoleKernel/HTTP composition, own field activation, repeat content and refusal controls on observed Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider package closure behavior remains unqualified. | waaseyaa/foundation #3123 |
-| generated application | yes (minimal J1 only) | generated application | Qualified minimal generated J1 application only: actual published Skeleton c83a410bbae6ce9d491c733be7e339b540ec42fd, alpha.308 cohort, lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; cold/warm/restarted Twig homepage and refusal controls in separate dev/no-dev apps. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider generation profiles remain #2844/#2850. | waaseyaa/foundation #3123; wider generation #2844/#2850 |
+| framework closure | yes (minimal J1 composition only) | installed consumer | Qualified minimal J1 production dev/no-dev ConsoleKernel/HTTP composition, own field activation, repeat content and refusal controls on observed Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.txt; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider package closure behavior remains unqualified. | waaseyaa/foundation #3123 |
+| generated application | yes (minimal J1 only) | generated application | Qualified minimal generated J1 application only: actual published Skeleton c83a410bbae6ce9d491c733be7e339b540ec42fd, alpha.308 cohort, lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; cold/warm/restarted Twig homepage and refusal controls in separate dev/no-dev apps. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.txt; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider generation profiles remain #2844/#2850. | waaseyaa/foundation #3123; wider generation #2844/#2850 |
 
 ## Profile and structural review
 
@@ -140,7 +140,7 @@ Every ordinary finding now has a filed issue linked in its destination above. Is
 
 ## J1 installed-profile supplement, 2026-10-23
 
-The [portable published summary](evidence/j1/published-alpha308.json) and
+The [captured published J1 witness](evidence/j1/published-alpha308.txt) and
 [FW-J1-PUBLISHED-S1-01](../../change-records/FW-J1-PUBLISHED-S1-01.md) retain
 actual release, template, cohort/lock, per-installation activation and HTTP
 identities. [Run39985296383](https://github.com/waaseyaa/framework/actions/runs/39985296383)

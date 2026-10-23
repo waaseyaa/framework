@@ -360,12 +360,15 @@ and wider #3198/#3203/#2859/#2844 acceptance remain separate.
 
 ### Criterion evidence and existing repair ownership
 
-The portable result is
-`docs/audits/packages/evidence/j1/published-alpha308.json`, copied byte for byte
-from the independently reviewed run summary. It supplements the existing
-Foundation/CLI ledgers; it does not replace their source inventories or change
-their assessed/not-converged state. Original raw streams, full names-only scans,
-archives, input inventories and custody receipts remain in the sealed packet.
+The captured published witness is
+`docs/audits/packages/evidence/j1/published-alpha308.txt`, containing the actual
+returned body of #3199 comment6372931018 with its governed issue provenance and
+body digest. It links the original independently reviewed raw result summary,
+retained at immutable33662368 and in the unchanged publication packet. It
+supplements the existing Foundation/CLI ledgers; it does not replace their
+source inventories or change their assessed/not-converged state. Original raw
+streams, full names-only scans, archives, input inventories and custody receipts
+remain in the sealed packet.
 
 | Criterion | Demonstrated witness | Closeout discriminator |
 | --- | --- | --- |
@@ -405,3 +408,44 @@ generation/upgrade is #2844/#2850, kernel lifecycle is #2859, diagnostics is
 needs its real disposable-consumer observation and certification authority;
 the present task does not assign a named certification operator or enlarge
 the support matrix.
+
+### First integration-CI failure and bounded repair plan
+
+Full exact-head run40008954263 at3366236871ed347f169e785b93fb78d3a272de09
+failed before any main update or issue closure. Both ordinary and random-order
+shard1 report the same two root assertions; random seed1354248618 is retained.
+The six other red contexts are their aggregate consequences, not six defects.
+
+1. PackageConvergenceCoverageIndexTest rejects the newly added raw result JSON
+   under the captured-evidence directory because no package index row cites it.
+   That directory also requires the existing provenance/body-digest envelope;
+   adding only a citation would leave the format contract unsatisfied.
+2. TestQualityInventoryTest reports PublishedS1QualificationContractTest as an
+   unclassified wait. The signal is the fixed sleep5 inside its disposable
+   php-r child. The test proves the existing run helper terminates that child
+   at one second and retains exit124/streams. It is a bounded timeout fixture,
+   not a retry-until-green assertion or a serving/install delay.
+
+The focused coverage/inventory selection is also preserved on native Windows:
+coverage rejects the uncited file, while the POSIX-only inventory entrypoint
+cannot execute bin/git natively. That second local result is an unsupported
+host invocation, not another reproduction or a product regression. Its real
+red witness is the two Linux CI executions; its green owner remains Linux CI.
+
+Repair only this integration metadata. Publish an honest open-issue J1 witness
+with integration still pending, capture those actual returned issue-comment
+bytes in the existing issue provenance envelope, and cite it from the two
+existing package index rows. Preserve the original raw JSON at immutable33662368
+and in its original evidence packet; do not invent commit/issue provenance or
+weaken the capture parser/history test. Update consuming pointers to the captured
+issue witness. Classify only the exact known timeout-fixture test path in the
+existing subprocess-polling inventory, with its bounded-child rationale, and
+advance the exact expected count from14 to15. Keep its execution/timeout/stream
+assertions unchanged and retain rejection of all other unclassified waits.
+
+Run the affected captured-evidence tests and ledger validators, reuse unchanged
+consumer execution only after explicit input comparison, and run governed
+preflight. Independently re-review the metadata/guard delta on an immutable new
+candidate, then run one new full exact-head CI. The failed33662368 run and both
+primary logs remain frozen. No runtime, installation, classification, artifact
+producer, persistence, authorization or production refusal repair is justified.

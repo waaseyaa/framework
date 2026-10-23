@@ -364,7 +364,7 @@ findings are the work of the sprint, not a reason to postpone its start.
 [FW-J1-PUBLISHED-S1-01](FW-J1-PUBLISHED-S1-01.md) now records the actual published
 alpha.308 dev/no-dev journey, the earlier first failures and their existing
 repair owners, independent reviews and the bounded J1-F integration plan.
-[Portable names/identity/result evidence](../audits/packages/evidence/j1/published-alpha308.json)
+[Portable names/identity/result evidence](../audits/packages/evidence/j1/published-alpha308.txt)
 is retained with the existing Foundation/CLI ledgers. Their assessed audit state,
 source rosters and wider open uncertainty remain distinct from this supplement.
 

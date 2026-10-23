@@ -5333,14 +5333,14 @@
             "profile": "framework closure",
             "supported": "yes (minimal J1 composition only)",
             "evidence_class": "installed consumer",
-            "evidence": "Qualified minimal J1 production dev/no-dev ConsoleKernel/HTTP composition, own field activation, repeat content and refusal controls on observed Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider package closure behavior remains unqualified.",
+            "evidence": "Qualified minimal J1 production dev/no-dev ConsoleKernel/HTTP composition, own field activation, repeat content and refusal controls on observed Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.txt; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider package closure behavior remains unqualified.",
             "gap_owner": "waaseyaa/foundation #3123"
         },
         {
             "profile": "generated application",
             "supported": "yes (minimal J1 only)",
             "evidence_class": "generated application",
-            "evidence": "Qualified minimal generated J1 application only: actual published Skeleton c83a410bbae6ce9d491c733be7e339b540ec42fd, alpha.308 cohort, lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; cold/warm/restarted Twig homepage and refusal controls in separate dev/no-dev apps. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider generation profiles remain #2844/#2850.",
+            "evidence": "Qualified minimal generated J1 application only: actual published Skeleton c83a410bbae6ce9d491c733be7e339b540ec42fd, alpha.308 cohort, lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; cold/warm/restarted Twig homepage and refusal controls in separate dev/no-dev apps. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.txt; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider generation profiles remain #2844/#2850.",
             "gap_owner": "waaseyaa/foundation #3123; wider generation #2844/#2850"
         }
     ],
@@ -5411,7 +5411,7 @@
             "runner": "PHP-FPM8.5.12 / Apache2.4.58 / Composer2.10.3 / SQLite3.45.1; harness c0fe3e35acf487b781ce472227c45473f2eb8748",
             "host": "Native hosted Ubuntu24.04 x86_64, local ext4; WSL2 recovery is separate diagnostic evidence.",
             "proves": "Bounded minimal generated/installed J1 dev/no-dev activation, HTTP, repeat persistence and refusal controls only. No standalone split, wider package lifecycle or global consumer certification claim.",
-            "result": "PASS both fresh profiles; 29 focused hosted tests/5019 assertions; actual names-only preflights ready, 226 dev/187 no-dev fields; own restricted artifact producers, cold/warm/restarted Twig42, planned refusal and restoration controls. Portable summary: docs/audits/packages/evidence/j1/published-alpha308.json."
+            "result": "PASS both fresh profiles; 29 focused hosted tests/5019 assertions; actual names-only preflights ready, 226 dev/187 no-dev fields; own restricted artifact producers, cold/warm/restarted Twig42, planned refusal and restoration controls. Captured issue witness: docs/audits/packages/evidence/j1/published-alpha308.txt."
         }
     ],
     "not_reviewed": [

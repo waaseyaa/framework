@@ -202,6 +202,11 @@ foreach ($phpTestFiles as $path) {
             // its marker. Subprocess-lifecycle fixtures, never assertion
             // retry loops.
             'tests/Architecture/ProjectHooksLauncherTest.php' => 'subprocess_polling',
+            // #3199: sleep(5) is only a literal in a disposable php -r child.
+            // The qualification runner must terminate it at its one-second
+            // deadline and preserve exit124 and streams. This fixed child
+            // proves timeout handling; it never retries an assertion.
+            'tests/Architecture/PublishedS1QualificationContractTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;

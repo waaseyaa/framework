@@ -327,9 +327,13 @@
                 {
                     "kind": "repository-path",
                     "path": "docs/audits/packages/evidence/cli/issue-3117.txt"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/evidence/j1/published-alpha308.txt"
                 }
             ],
-            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim."
+            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim. Minimal published J1 alpha.308 dev/no-dev evidence is supplemented under FW-J1-PUBLISHED-S1-01; wider package convergence remains open."
         },
         {
             "package": "waaseyaa/cms",
@@ -505,9 +509,13 @@
                 {
                     "kind": "repository-path",
                     "path": "docs/audits/packages/evidence/foundation/issue-3123.txt"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/evidence/j1/published-alpha308.txt"
                 }
             ],
-            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim."
+            "notes": "Fresh assessment completed with independent review; qualification and sampling gaps remain explicitly owned. No convergence claim. Minimal published J1 alpha.308 dev/no-dev evidence is supplemented under FW-J1-PUBLISHED-S1-01; wider package convergence remains open."
         },
         {
             "package": "waaseyaa/framework",

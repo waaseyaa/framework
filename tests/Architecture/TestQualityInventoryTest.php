@@ -49,8 +49,11 @@ final class TestQualityInventoryTest extends TestCase
         // usleep). The fourteenth is #2679's ProjectHooksLauncherTest: fixed
         // php -r children stopped at a deadline by repository_wait_for_child()
         // and the bounded Git probe, plus one bounded post-deadline
-        // observation. None is a retry loop (see bin/test-quality-inventory).
-        self::assertCount(14, array_merge(
+        // observation. The fifteenth is #3199's PublishedS1QualificationContractTest:
+        // a fixed five-second sleep exists only in a disposable child which the runner
+        // must terminate at one second while preserving exit124 and streams.
+        // None is a retry loop (see bin/test-quality-inventory).
+        self::assertCount(15, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));

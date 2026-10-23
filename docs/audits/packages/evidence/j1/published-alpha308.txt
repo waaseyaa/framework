@@ -1,0 +1,20 @@
+source: issue waaseyaa/framework#3199
+captured: 2026-10-23
+body-sha256: a98876efb72f4ce0e70aa2994f7b8f2e1099d13c468ec93dfee5641f332b03ac
+---
+Published J1 witness, with J1-F integration still pending (2026-10-23).
+
+The fresh published [alpha.308 consumer run39985296383](https://github.com/waaseyaa/framework/actions/runs/39985296383) passed in separate production dev/no-dev applications on observed native Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. This supports J1-A through J1-E for that tuple.
+
+- Published Framework: `baead2150a78883b82536282d1181cf5b7a92a10`; actual Skeleton: `c83a410bbae6ce9d491c733be7e339b540ec42fd`.
+- Consumer lock SHA-256: `6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001`; 67 dev/63 no-dev installed first-party members match release provenance and original archive bytes.
+- Each installation performed canonical initialization, its own ready read-only names-only preflight and restricted artifact generation: 226 dev/187 no-dev fields, with distinct actual schema/checksum/artifact identities.
+- Repeat initialization preserved authored content, configuration ledger and artifact. Cold/warm/restarted GET / rendered the app-owned Twig42 marker; Apache and FPM masters changed.
+- Generated/unmatched404, stranger401, safe generic500/useful redacted private diagnostics, missing-secret/database/artifact refusal and exact restoration passed. No-dev FPM lacks PHPUnit.
+- Linux qualification checks passed29tests/5019assertions. No vendor overlays, fabricated package aliases, manual DB bootstrap, installer-produced field artifact or enforcement relaxation was used.
+
+The immutable [full result summary](https://github.com/waaseyaa/framework/blob/3366236871ed347f169e785b93fb78d3a272de09/docs/audits/packages/evidence/j1/published-alpha308.json) and [portable change record](https://github.com/waaseyaa/framework/blob/3366236871ed347f169e785b93fb78d3a272de09/docs/change-records/FW-J1-PUBLISHED-S1-01.md) retain input identities, failure owners and limits. Qualified harness input was `c0fe3e35acf487b781ce472227c45473f2eb8748`; integration candidate33662368 changed documentation/evidence only. Independent source, custody and criterion review passed, conditional on actual integration checks and reconciliation.
+
+[Integration CI40008954263](https://github.com/waaseyaa/framework/actions/runs/40008954263) currently fails two repository metadata assertions: the new package evidence needs its governed citation/provenance envelope, and the fixed disposable child-timeout fixture needs an explicit determinism classification. Both Linux execution lanes preserve the same failures. Main has not moved; no issue is closed. Repairs stay bounded to that integration metadata, followed by independent delta review and new exact-head CI.
+
+Native Windows/Linux development gates in that CI passed; the production serving proof is the observed Linux tuple. Prior Windows candidate and WSL2 recovery evidence remain their separate classes. Global S0-SHEG-02 certification, broader #3198/#3203 diagnostics, package convergence and wider lifecycle/generation/native parity remain open. No new release, publication or deployment is part of this J1-F continuation.
