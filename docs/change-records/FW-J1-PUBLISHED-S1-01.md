@@ -153,3 +153,10 @@ ambiguous result cannot omit a created container. Finalization inspects every
 possibly-created name, records confirmed absence or stops/inspects/exports the
 object. A daemon inspection failure remains custody-incomplete. Do not retry a
 failed launch or repair its application into success.
+
+An additional synthetic canary showed that externally emitted JSON can escape
+slashes in a known base64 app secret, defeating literal replacement. Retain
+harness-json-canary-red.log; public evidence must replace both the exact known
+secret bytes and their standard JSON string representation. This does not
+change Framework's runtime redactor or permit app/environment uploads. The
+original unredacted streams remain exclusively inside the encrypted snapshot.

@@ -72,7 +72,11 @@ final class PublishedS1Qualification
             }
         }
 
-        return str_replace(array_values($this->secrets), '[REDACTED]', $data);
+        foreach ($this->secrets as $secret) {
+            $data = str_replace([$secret, substr(json_encode($secret, JSON_THROW_ON_ERROR), 1, -1)], '[REDACTED]', $data);
+        }
+
+        return $data;
     }
 
     private function save(string $name, mixed $data): void

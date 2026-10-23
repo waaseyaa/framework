@@ -59,6 +59,7 @@ final class PublishedS1QualificationContractTest extends TestCase
         $fs = new Filesystem();
         $fs->mkdir($root . '/apps/dev');
         $fs->dumpFile($root . '/apps/dev/.env', "WAASEYAA_APP_SECRET=base64:canonical-synthetic-secret\n");
+        $fs->dumpFile($root . '/apps/dev/.env.local', "WAASEYAA_APP_SECRET=base64:canonical/secret+\n");
         try {
             $qualification = new \ReflectionClass(\PublishedS1Qualification::class)->newInstanceWithoutConstructor();
             new \ReflectionProperty($qualification, 'work')->setValue($qualification, $root);
@@ -70,6 +71,10 @@ final class PublishedS1QualificationContractTest extends TestCase
             self::assertSame('{"fields":{"node|page|body":"public:definition"}}', $safe->invoke(
                 $qualification,
                 '{"fields":{"node|page|body":"public:definition"}}',
+            ));
+            self::assertSame('{"canary":"[REDACTED]"}', $safe->invoke(
+                $qualification,
+                json_encode(['canary' => 'base64:canonical/secret+'], JSON_THROW_ON_ERROR),
             ));
         } finally {
             $fs->remove($root);
