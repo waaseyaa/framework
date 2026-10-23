@@ -377,7 +377,7 @@ remain in the sealed packet.
 | J1-C | Real public/index.php through kernel, middleware/principal, route/access, configuration/storage and Twig; app-owned rendered marker42 at cold/warm/restarted GET / in both apps. | Twig source expression absent; Apache and FPM master PIDs change; no static/framework fallback success. |
 | J1-D | Missing required secret/database/artifact CLI1/HTTP500, generated and unmatched404, stranger401, controlled generic500 with safe private RuntimeException/code3199 and previous LogicException/[REDACTED]. | Actual statuses/bodies and safe private chain retained; restoration recovers200, artifact bytes and authored state. Separate platform refusal leaves serving configuration intact. |
 | J1-E | Separate fresh no-dev vendor/application, same locked production packages, own scan/artifact and all HTTP/refusal controls under production/debug=false/fallback=false. | Actual FPM has no PHPUnit; dev verification runs only in dev app, no-dev uses canonical strict doctor. Native Ubuntu24/ext4/Apache2.4/FPM8.5 is observed, not inferred from WSL2. |
-| J1-F | Earlier repair records settle authority and retain red/green/negative controls; runtime repairs are in published baead2150a78883b82536282d1181cf5b7a92a10; final applicable journey run39985296383 passes. Existing package ledgers and program evidence now point to that witness. | Harness landing, exact integration checks and issue/Project updates are pending execution checkpoints in this candidate. Final adapter receipt must bind their actual accepted SHA/state before issue closure. |
+| J1-F | Earlier repair records settle authority and retain red/green/negative controls; runtime repairs are in published baead2150a78883b82536282d1181cf5b7a92a10; final applicable journey run39985296383 passes. Existing package ledgers and program evidence point to that witness. | Completed at32d8334be7718c64040c2bfbcb4019237037d0be with full CI40011832495, separate main feedback40013713277 and actual issue/Project postconditions. The final checkbox followed every guarded Project write and complete comparison; see the dated closeout below. |
 
 | Observed failure | Owning contract and bounded disposition |
 | --- | --- |
@@ -449,3 +449,143 @@ preflight. Independently re-review the metadata/guard delta on an immutable new
 candidate, then run one new full exact-head CI. The failed33662368 run and both
 primary logs remain frozen. No runtime, installation, classification, artifact
 producer, persistence, authorization or production refusal repair is justified.
+
+## Completed J1-F integration and reconciliation (2026-10-23)
+
+Russell authorized governed harness integration, landing and acceptance-based
+issue/Project reconciliation through Orchestrate. This continuation authorizes
+no new release, package publication or deployment. The previous dated plan and
+first-failure entries remain historical evidence; the results below complete
+their execution checkpoints.
+
+The immutable reviewed integration candidate is
+`32d8334be7718c64040c2bfbcb4019237037d0be`. Source/metadata and captured-provenance
+review passed; the focused capture controls passed four tests/964 assertions,
+including tamper refusals. Existing activation controls passed 13 tests/19
+assertions on native Windows as source-contract evidence. Governed preflight
+executed 42 gates and reused three, with zero failures, zero hosted-required
+and one not applicable. The normal push reused 45 gates with zero failures.
+
+[Full exact-head CI40011832495](https://github.com/waaseyaa/framework/actions/runs/40011832495)
+passed 59 jobs, with only the expected `ci/main-feedback` skip. Ordinary and
+random-order Linux shard1 now pass the two previously failing metadata paths;
+the failed33662368 run and both original logs remain preserved. Actual native
+Windows/Linux contracts, Windows create-project, paired native consumer CLI,
+platform-runtime acceptance and full-qualification decisions all passed. This
+supplies the declared native development gates without claiming Windows
+production HTTP qualification.
+
+After rechecking main rules and absence of release split/fan-out activity, the
+normal `git.exe push origin HEAD:refs/heads/main` fast-forwarded
+`baead2150a78883b82536282d1181cf5b7a92a10` to the exact reviewed candidate with
+mandatory hooks intact. The distinct push/main
+[feedback40013713277](https://github.com/waaseyaa/framework/actions/runs/40013713277)
+passed: 10 jobs succeeded and 45 were expected profile skips, including a
+successful `ci/main-feedback` decision. Full qualification and main feedback
+are separate successful runs, not interchangeable receipts. The peeled
+alpha.308 release tag remains at `baead2150a78883b82536282d1181cf5b7a92a10`.
+
+The successful published-consumer execution remains
+`c0fe3e35acf487b781ce472227c45473f2eb8748`, run39985296383. A native Git input
+comparison proves its workflow, selected consumer tests, tools, Dockerfile,
+runtime/recipes and Composer inputs unchanged. Governance inventory/evidence
+inputs did change and were qualified by the new full CI above. The 29 tests/
+5019 assertions belong to that published run's preceding Linux contract
+selection; separate consumer command and HTTP receipts establish the actual
+journey. No duplicate consumer execution is inferred from metadata updates.
+
+### Actual issue and Project postconditions
+
+Independent criterion/native-profile reviews accepted #3199 A-E and #3120's
+own six documentation/activation requirements. Review corrected two staged
+draft findings before any write: J1-F stayed unchecked while Project work was
+pending, and the released README link now names the actual
+[waaseyaa/waaseyaa template at c83a410b](https://github.com/waaseyaa/waaseyaa/blob/c83a410bbae6ce9d491c733be7e339b540ec42fd/README.md).
+Original drafts, corrected draft hashes and reviews are retained.
+
+The canonical whole-board plan contained 19 unrelated operations and unresolved
+priority findings, and cannot apply a selected subset or manage Delivery note.
+It was not applied. Independent review instead accepted a finite existing-gh
+operator for only the two existing J1 items and their three permitted fields.
+It requires exact integrated/full/feedback identities, CLOSED/completed issues
+with accepted bodies before every write, live item/field/option/before values,
+an exclusive durable in-flight/completed receipt, and stop without replay on a
+partial or uncertain outcome. Review found and repaired a possible reused-run
+feedback identity before execution; the immutable repaired operator and 14
+isolated guard fixtures passed re-review.
+
+Authoritative issue closures were applied from the reviewed staged bodies.
+Fresh complete Project snapshots showed automation had already set both Status
+fields Done. The final independently reviewed plan therefore omitted those
+two satisfied operations and retained only four writes: clear Readiness and
+set Delivery note for each issue. Its SHA-256 is
+`896bf82907894c2ee4b9147e140fad45806a5991c91d749c025843855ad4a697`.
+The immutable operator SHA-256 is
+`5b4194495f70508e0b5f17b6cdcfcb712b4e46f073121456854d2c8a23309798`.
+
+The operator executed once and verified all four postimages. Its completed
+receipt SHA-256 is
+`bcdcd3c98fc1fa063df2d54ba9ae9eb416d95da594d7dde1d73e5a481e1fd6c4`.
+The complete comparison of 343 items and 18 fields proves both selected items
+Done, both readiness values absent, evidence notes present and P1 unchanged;
+every other item/axis and all field definitions are unchanged. Only then was
+J1-F checked in #3199. The final accepted issue-body SHA-256 values are:
+
+| Issue | Actual final state | Accepted body SHA-256 |
+| --- | --- | --- |
+| #3199 | CLOSED/completed, J1-A through J1-F checked | `19890300ac504432614dc9fba2dbc39eeaba7e39fad0034cfff260e67c299eda` |
+| #3120 | CLOSED/completed, own six criteria checked | `9d3af183e91e413ad11dbe5ad8ec24edb22295e5f6aa70a693227f456732bbbd` |
+
+The final #3199 body hash is deliberately separate from its staged operator
+acceptance hash. No body changed during the operator's checks. The live wider
+owners #3198/#3203, #3123/#3117 and parent #3118 remain open without assignees;
+the existing broader schema, generation, kernel and native-parity owners are
+not closed by this result.
+
+Exact structured issue requests/responses, command streams/exits, full CI and
+feedback job identities, independent reviews and before/after Project snapshots
+are retained in packet `20261023-j1-f-integration-3199`. For the following exact
+commands, `E` denotes its local path
+`C:/dev/waaseyaa/3199-evidence/20261023-j1-f-integration-3199`; that storage path
+is custody, not a runtime or qualification authority:
+
+- `php E/apply-bounded-j1-project.php --validate E/bounded-project-plan-32d8334b-final.json 896bf82907894c2ee4b9147e140fad45806a5991c91d749c025843855ad4a697`
+- `php E/apply-bounded-j1-project.php --execute E/bounded-project-plan-32d8334b-final.json 896bf82907894c2ee4b9147e140fad45806a5991c91d749c025843855ad4a697`
+- `python E/verify-project-postconditions.py`
+- `php bin/project-board-sync audit --format=json --output=E/project-audit-after.json`
+
+The audit's actual JSON is emitted to stdout and retained byte-for-byte in
+`project-audit-after.log` and its JSON copy; its `--output` option applies to
+plan, not audit. Exit1 reports the same 37 unrelated findings (18 missing open
+items, 18 priority findings and #3073's readiness), with zero J1 findings. No
+unrelated operation was applied or described as clean-board acceptance.
+
+The original alpha.308 packet README, final receipt and evidence-index digests
+remain unchanged. No original application, stopped container, private identity
+or plaintext recovery payload was operated on during this integration.
+Record-only closeout changes reuse the exact32d8334b full qualification after
+an explicit input comparison, scoped preflight and observed main feedback;
+they do not imply another published consumer run or release.
+
+### Remaining S1 consumer-certification boundary
+
+J1 is complete for the observed native Linux production tuple and named native
+development gates. WSL2 remains diagnostic/recovery-custody evidence. The
+[S0-SHEG-02 consumer evidence point](../specs/s1-upgrade-compatibility.md#consumer-evidence-point)
+still requires a real disposable-consumer observation, unsupported mixed-
+predecessor refusal, an eligible predecessor fixture, every compatibility
+decision class and non-destructive failure containment. Production recovery
+requires its separate authorized gate. The support lifecycle's global
+certification record is unchanged.
+
+The owner is the S0-SHEG-02 consumer-observation/orchestration role, with the
+Framework support maintainer accepting its contract evidence. A named execution
+operator and current live consumer execution record are not established by this
+packet. This is an explicit ownership gap. The next bounded action is to name
+the operator/disposable consumer, record eligible and mixed predecessor inputs
+and a non-destructive test plan, then establish its own execution authority.
+Wider diagnostics (#3198/#3203), Foundation/CLI convergence (#3123/#3117),
+generation/upgrade (#2844/#2850), kernel lifecycle (#2859) and native parity
+(#2676/#2681) retain their own boundaries rather than becoming automatic J1 or
+certification blockers. Orchestrate owns A06/A07 and WORKBOARD.md reconciliation;
+this task does not edit those external tracker files.

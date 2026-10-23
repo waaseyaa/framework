@@ -32,17 +32,21 @@ remains open; wider package convergence remains open.
 
 ## Installation-to-homepage journey
 
-[#3199](https://github.com/waaseyaa/framework/issues/3199) has actual published
-alpha.308 J1-A through J1-E evidence for separate native Linux production dev/no-dev
-applications: creation, initialization/field activation, cold/warm/restarted
-Twig homepage and failure/refusal controls. The
-[published record and J1-F integration plan](change-records/FW-J1-PUBLISHED-S1-01.md)
-own remaining harness landing and issue/Project reconciliation; issue closure
-requires those actual checkpoints. The [journey contract](specs/framework-audit-journeys.md)
+[#3199](https://github.com/waaseyaa/framework/issues/3199) is qualified and closed
+through J1-A to J1-F for the observed published alpha.308 native Linux production
+dev/no-dev applications: creation, initialization/field activation,
+cold/warm/restarted Twig homepage and failure/refusal controls. The reviewed
+harness landed at `32d8334be7718c64040c2bfbcb4019237037d0be` after exact-head full CI;
+separate main feedback and issue/Project postconditions passed. #3120 closed on
+its own documentation/activation criteria. The
+[published qualification and completed reconciliation record](change-records/FW-J1-PUBLISHED-S1-01.md#completed-j1-f-integration-and-reconciliation-2026-10-23)
+retains the exact identities, first failures and decisions. The [journey contract](specs/framework-audit-journeys.md)
 and [Sprint 1 handoff](change-records/FW-PACKAGE-CONVERGENCE-01.md#sprint-1-contract)
 retain scope. The observed tuple does not complete global S1 certification,
 wider package audits or native-host parity. Package coverage and journeys remain
-complementary.
+complementary. The next consumer-certification boundary needs an identified
+S0-SHEG-02 operator and disposable consumer for its predecessor/decision/refusal/
+containment matrix; that ownership gap remains explicit in the closeout record.
 
 ## Cross-cutting audit: failure handling
 

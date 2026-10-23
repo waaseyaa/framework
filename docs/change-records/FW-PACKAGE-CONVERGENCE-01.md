@@ -368,13 +368,27 @@ repair owners, independent reviews and the bounded J1-F integration plan.
 is retained with the existing Foundation/CLI ledgers. Their assessed audit state,
 source rosters and wider open uncertainty remain distinct from this supplement.
 
-J1-A through J1-E pass on the observed native Ubuntu24/ext4/Apache2.4/PHP-FPM8.5
-tuple in run39985296383. Harness landing and canonical issue/Project
-reconciliation are the remaining J1-F checkpoints, not another runtime defect.
-The integration receipt must establish those actual operations before #3199
-closure. #3120 has its own documentation/production-proof criteria; #3198/#3203
+J1-A through J1-F are accepted on the observed native Ubuntu24/ext4/Apache2.4/
+PHP-FPM8.5 tuple. Published run39985296383 supplies the actual dev/no-dev consumer
+witness. The reviewed harness landed at `32d8334be7718c64040c2bfbcb4019237037d0be`
+after full CI40011832495; distinct main feedback40013713277 passed. #3199 and
+#3120 are closed, both Project items are Done with readiness cleared and evidence
+notes present, and the comparison of all 343 items and 18 fields proves the bounded
+four-write reconciliation changed no other item or axis. J1-F was checked only
+after those postconditions. The
+[completed closeout](FW-J1-PUBLISHED-S1-01.md#completed-j1-f-integration-and-reconciliation-2026-10-23)
+records the reviews, commands and receipt identities. #3120 closed on its own
+documentation/production-proof criteria; #3198/#3203
 and S0-SHEG-02 retain their wider ownership. Prior Windows candidate development
 and WSL2 diagnostic evidence do not become global consumer certification.
 
 No new release, package publication or deployment is part of this integration.
 Orchestrate owns the external action-item/workboard reconciliation.
+
+The separate S0-SHEG-02 consumer upgrade observation still needs a named operator
+and disposable consumer. Its mixed-predecessor refusal, eligible predecessor,
+complete decision-class matrix and non-destructive failure containment are not
+implied by the fresh-install journey. Framework support maintainers retain
+contract acceptance; a named execution owner is not established in this packet.
+The next bounded action is to establish that owner/input/test-plan authority,
+without starting a production recovery or changing the support matrix.
