@@ -96,7 +96,7 @@
             },
             {
                 "file": "skeleton-smoke.yml",
-                "sha256": "843376094f0bba5e69cdbdcf2e02fbd5264c9f0205e9b42c991d7f41542abb10"
+                "sha256": "3bfd930200767f4084a7dbbe281824f078517640c86b3cdf899f1ab7e8649fbf"
             },
             {
                 "file": "split-main.yml",
@@ -118,9 +118,9 @@
     },
     "summary": {
         "workflow_count": 22,
-        "job_count": 100,
-        "visible_context_count": 176,
-        "unresolved_expression_count": 18
+        "job_count": 101,
+        "visible_context_count": 177,
+        "unresolved_expression_count": 19
     },
     "workflows": [
         {
@@ -10682,7 +10682,7 @@
         {
             "file": "skeleton-smoke.yml",
             "name": "Skeleton Smoke (Packaged-form CI)",
-            "source_sha256": "843376094f0bba5e69cdbdcf2e02fbd5264c9f0205e9b42c991d7f41542abb10",
+            "source_sha256": "3bfd930200767f4084a7dbbe281824f078517640c86b3cdf899f1ab7e8649fbf",
             "triggers": {
                 "events": [
                     "workflow_dispatch",
@@ -10693,10 +10693,22 @@
                         "event": "workflow_dispatch",
                         "inputs": [
                             {
+                                "name": "evidence_recipient",
+                                "required": false,
+                                "type": "string",
+                                "has_default": false
+                            },
+                            {
                                 "name": "framework_constraint",
                                 "required": true,
                                 "type": null,
                                 "has_default": false
+                            },
+                            {
+                                "name": "j1_published_s1",
+                                "required": false,
+                                "type": "boolean",
+                                "has_default": true
                             }
                         ]
                     },
@@ -10722,6 +10734,114 @@
             "defaults": null,
             "env": [],
             "jobs": [
+                {
+                    "key": "published-j1-s1",
+                    "name": {
+                        "kind": "literal",
+                        "raw": "Qualify published J1 on S1",
+                        "derivation": "literal"
+                    },
+                    "contexts": [
+                        {
+                            "context": "Qualify published J1 on S1",
+                            "derivation": "literal",
+                            "matrix": null
+                        }
+                    ],
+                    "structural_role": "execution",
+                    "role_evidence": {
+                        "publication_signals": [],
+                        "orchestration_signals": [],
+                        "aggregate_condition_with_needs": false,
+                        "feeds_same_workflow_consumer": false
+                    },
+                    "expansion": "singleton",
+                    "strategy": null,
+                    "matrix": null,
+                    "reusable_workflow": null,
+                    "runs_on": {
+                        "kind": "literal",
+                        "value": "ubuntu-24.04"
+                    },
+                    "timeout_minutes": {
+                        "kind": "literal",
+                        "value": 60
+                    },
+                    "continue_on_error": null,
+                    "environment": null,
+                    "defaults": null,
+                    "permissions": null,
+                    "effective_permissions": {
+                        "scope": "workflow",
+                        "kind": "literal",
+                        "shorthand": null,
+                        "grants": {
+                            "contents": "read"
+                        }
+                    },
+                    "needs": [],
+                    "needed_by": [],
+                    "if": {
+                        "kind": "unresolved-expression",
+                        "raw": "github.event_name == 'workflow_dispatch' && inputs.j1_published_s1",
+                        "normalized": "github.event_name == 'workflow_dispatch' && inputs.j1_published_s1",
+                        "classification": [
+                            "event",
+                            "input"
+                        ],
+                        "references": [
+                            "github.event_name",
+                            "inputs.j1_published_s1"
+                        ],
+                        "literals": [
+                            "workflow_dispatch"
+                        ]
+                    },
+                    "expected_skip": {
+                        "own_condition": true,
+                        "inherited_from": [],
+                        "propagates_prerequisite_failure": false
+                    },
+                    "aggregate": null,
+                    "dependency_result_references": [],
+                    "outputs": [],
+                    "artifacts": {
+                        "produces": [
+                            {
+                                "step_index": 6,
+                                "name": "published-j1-s1-${{ github.run_id }}",
+                                "kind": "unresolved-expression",
+                                "expansion": [],
+                                "path": [
+                                    "${{ runner.temp }}/j1-s1-evidence/"
+                                ],
+                                "if": "always()",
+                                "if_no_files_found": "error",
+                                "retention_days": 90,
+                                "overwrite": null
+                            }
+                        ],
+                        "consumes": []
+                    },
+                    "action_uses": [
+                        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+                        "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
+                    ],
+                    "step_count": 7,
+                    "local_equivalent": {
+                        "status": "partial",
+                        "commands": [
+                            "composer install",
+                            "tests/Architecture/FreshInstallBootGateTest.php",
+                            "tools/j1-published-s1/qualify.php",
+                            "vendor/bin/phpunit"
+                        ],
+                        "hosted_signals": [
+                            "github-token"
+                        ]
+                    }
+                },
                 {
                     "key": "smoke",
                     "name": {
@@ -10771,16 +10891,18 @@
                     "needed_by": [],
                     "if": {
                         "kind": "unresolved-expression",
-                        "raw": "github.event_name == 'workflow_dispatch' ||\n(github.event.workflow_run.conclusion == 'success' &&\n startsWith(github.event.workflow_run.head_branch, 'v'))\n",
-                        "normalized": "github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))",
+                        "raw": "(github.event_name == 'workflow_dispatch' && !inputs.j1_published_s1) ||\n(github.event.workflow_run.conclusion == 'success' &&\n startsWith(github.event.workflow_run.head_branch, 'v'))\n",
+                        "normalized": "(github.event_name == 'workflow_dispatch' && !inputs.j1_published_s1) || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))",
                         "classification": [
                             "event",
+                            "input",
                             "workflow-run"
                         ],
                         "references": [
                             "github.event.workflow_run.conclusion",
                             "github.event.workflow_run.head_branch",
-                            "github.event_name"
+                            "github.event_name",
+                            "inputs.j1_published_s1"
                         ],
                         "literals": [
                             "success",
@@ -10820,9 +10942,26 @@
                     }
                 }
             ],
-            "artifact_flows": [],
+            "artifact_flows": [
+                {
+                    "id": "published-j1-s1-${{ github.run_id }}",
+                    "producers": [
+                        {
+                            "job": "published-j1-s1",
+                            "kind": "unresolved-expression",
+                            "expansion": [],
+                            "if": "always()"
+                        }
+                    ],
+                    "consumers": [],
+                    "cross_run_consumers": [],
+                    "cross_run_producer_candidates": []
+                }
+            ],
             "duplicate_contexts": [],
-            "unresolved_expressions": []
+            "unresolved_expressions": [
+                "jobs.published-j1-s1.steps.6.with.name: published-j1-s1-${{ github.run_id }}"
+            ]
         },
         {
             "file": "split-main.yml",
