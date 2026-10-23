@@ -48,7 +48,9 @@ final class PublishedS1Qualification
         $this->evidence = (string) getenv('J1_EVIDENCE');
         $this->need(!file_exists($this->work) && !file_exists($this->evidence), 'Refuse reused qualification directories');
         $this->fs->mkdir([$this->work . '/raw', $this->work . '/apps', $this->evidence]);
-        $this->deadline = microtime(true) + 30 * 60;
+        $started = (string) getenv('J1_JOB_STARTED_AT');
+        $this->need(ctype_digit($started) && (int) $started <= time(), 'Workflow start identity required');
+        $this->deadline = (int) $started + 30 * 60;
     }
 
     private function need(bool $condition, string $message): void
@@ -139,6 +141,10 @@ final class PublishedS1Qualification
         $this->need(str_contains($kernel, 'x86_64') && !str_contains(strtolower($kernel), 'microsoft'), 'Unsupported native host kernel');
         [, $mount] = $this->run('host-mount', ['findmnt', '--target', $this->work . '/apps', '--json', '--output', 'SOURCE,FSTYPE,OPTIONS']);
         $this->need(json_decode($mount, true, flags: JSON_THROW_ON_ERROR)['filesystems'][0]['fstype'] === 'ext4', 'App storage is not local ext4');
+        foreach (['dev', 'no-dev'] as $profile) {
+            [$code, , $error] = $this->run($profile . '-container-admission', ['docker', 'container', 'inspect', $this->name($profile)], check: false);
+            $this->need($code === 1 && preg_match('/No such (?:object|container):/', $error) === 1, 'Container name is not confirmed absent: ' . $profile);
+        }
         [, $harness] = $this->run('harness-revision', [$this->repo . '/bin/git', 'rev-parse', 'HEAD'], $this->repo);
         $this->save('harness-identity.json', ['sha' => trim($harness), 'script_sha256' => hash_file('sha256', __FILE__)]);
         $recipient = $this->work . '/recipient.pub';
@@ -335,10 +341,10 @@ final class PublishedS1Qualification
     private function profile(string $profile): void
     {
         $name = $this->name($profile);
+        $this->containers[] = $name;
         $this->run($profile . '-container-start', ['docker', 'run', '-d', '--name', $name, '--memory', '2g', '--cpus', '2',
             '--env', 'APP_ENV=production', '--env', 'APP_DEBUG=false', '--env', 'WAASEYAA_DEV_FALLBACK_ACCOUNT=false',
             '-p', '127.0.0.1:19229:80', '--mount', 'type=bind,src=' . $this->work . '/apps,dst=/work', 'j1-s1:' . getenv('GITHUB_RUN_ID')]);
-        $this->containers[] = $name;
         $this->run($profile . '-workspace-owner', ['docker', 'exec', $name, 'bash', '-euc', 'mkdir /work/composer-home-' . $profile . '; chown www-data:www-data /work /work/composer-home-' . $profile]);
         [, $runtime] = $this->run($profile . '-runtime', ['docker', 'exec', $name, 'bash', '-euc', 'cat /etc/os-release; uname -srm; php -v; php /usr/local/bin/composer --version; apache2ctl -V; php-fpm8.5 -v; cat /opt/runtime-packages.txt']);
         $this->need(str_contains($runtime, 'VERSION_ID="24.04"') && str_contains($runtime, 'Apache/2.4.')
@@ -515,6 +521,13 @@ final class PublishedS1Qualification
         }
         $this->finalizing = true;
         try {
+            [$code, , $error] = $this->run($profile . '-possibly-created-inspect', ['docker', 'container', 'inspect', $this->name($profile)], check: false);
+            if ($code !== 0) {
+                $this->need($code === 1 && preg_match('/No such (?:object|container):/', $error) === 1, 'Cannot establish possibly-created container custody: ' . $profile);
+                $this->save($profile . '-container-custody.json', ['name' => $this->name($profile), 'state' => 'confirmed not created']);
+
+                return;
+            }
             $this->run($profile . '-stop-container', ['docker', 'stop', '--time', '1', $this->name($profile)], timeout: 30);
             $this->run($profile . '-container-inspect', ['docker', 'inspect', $this->name($profile)]);
             $this->run($profile . '-container-export', ['docker', 'export', '--output', $this->work . '/' . $profile . '-container.tar', $this->name($profile)]);

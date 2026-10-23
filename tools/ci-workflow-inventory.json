@@ -96,7 +96,7 @@
             },
             {
                 "file": "skeleton-smoke.yml",
-                "sha256": "e119b0251aae1780a29cc352617a3cdaa0355768f5d271112062ecfa553d9ded"
+                "sha256": "ca9c6982a3433a8dc08041fb801b89f46b2d7aea380c53ee013e1c1e690acded"
             },
             {
                 "file": "split-main.yml",
@@ -10682,7 +10682,7 @@
         {
             "file": "skeleton-smoke.yml",
             "name": "Skeleton Smoke (Packaged-form CI)",
-            "source_sha256": "e119b0251aae1780a29cc352617a3cdaa0355768f5d271112062ecfa553d9ded",
+            "source_sha256": "ca9c6982a3433a8dc08041fb801b89f46b2d7aea380c53ee013e1c1e690acded",
             "triggers": {
                 "events": [
                     "workflow_dispatch",
@@ -10808,7 +10808,7 @@
                     "artifacts": {
                         "produces": [
                             {
-                                "step_index": 6,
+                                "step_index": 7,
                                 "name": "published-j1-s1-${{ github.run_id }}",
                                 "kind": "unresolved-expression",
                                 "expansion": [],
@@ -10828,7 +10828,7 @@
                         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
                         "shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240"
                     ],
-                    "step_count": 7,
+                    "step_count": 8,
                     "local_equivalent": {
                         "status": "partial",
                         "commands": [
@@ -10962,7 +10962,7 @@
             ],
             "duplicate_contexts": [],
             "unresolved_expressions": [
-                "jobs.published-j1-s1.steps.6.with.name: published-j1-s1-${{ github.run_id }}"
+                "jobs.published-j1-s1.steps.7.with.name: published-j1-s1-${{ github.run_id }}"
             ]
         },
         {

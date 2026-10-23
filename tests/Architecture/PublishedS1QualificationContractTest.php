@@ -77,6 +77,44 @@ final class PublishedS1QualificationContractTest extends TestCase
     }
 
     #[Test]
+    public function qualification_budget_includes_the_workflow_prelude(): void
+    {
+        $root = sys_get_temp_dir() . '/j1-budget-' . bin2hex(random_bytes(8));
+        $started = time() - 600;
+        $environment = ['GITHUB_RUN_ID' => '3199', 'RUNNER_TEMP' => $root,
+            'J1_FRAMEWORK_VERSION' => '0.1.0-alpha.308', 'J1_EVIDENCE' => $root . '/public', 'J1_JOB_STARTED_AT' => (string) $started];
+        $original = [];
+        foreach ($environment as $key => $value) {
+            $original[$key] = getenv($key);
+            putenv($key . '=' . $value);
+        }
+        try {
+            $qualification = new \PublishedS1Qualification();
+            self::assertLessThanOrEqual($started + 30 * 60, new \ReflectionProperty($qualification, 'deadline')->getValue($qualification));
+        } finally {
+            foreach ($original as $key => $value) {
+                putenv($value === false ? $key : $key . '=' . $value);
+            }
+            new Filesystem()->remove($root);
+        }
+    }
+
+    #[Test]
+    public function an_unconfirmed_container_launch_remains_owned_for_custody(): void
+    {
+        $qualification = new \ReflectionClass(\PublishedS1Qualification::class)->newInstanceWithoutConstructor();
+        new \ReflectionProperty($qualification, 'work')->setValue($qualification, '/unstarted-j1');
+        new \ReflectionProperty($qualification, 'deadline')->setValue($qualification, microtime(true) - 1);
+        try {
+            new \ReflectionMethod($qualification, 'profile')->invoke($qualification, 'dev');
+            self::fail('An expired qualification launched a container.');
+        } catch (\RuntimeException $failure) {
+            self::assertSame('Qualification/custody deadline reached', $failure->getMessage());
+        }
+        self::assertCount(1, new \ReflectionProperty($qualification, 'containers')->getValue($qualification));
+    }
+
+    #[Test]
     public function child_refusal_and_timeout_preserve_original_streams_and_fail_closed(): void
     {
         $root = sys_get_temp_dir() . '/j1-command-' . bin2hex(random_bytes(8));

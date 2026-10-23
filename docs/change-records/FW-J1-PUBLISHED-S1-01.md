@@ -139,3 +139,17 @@ Per-command and whole-qualification deadlines reserve quiesce/encryption/upload
 time. Timeout, export, sealing, upload or local-download/hash failure leaves
 custody incomplete and cannot yield complete qualification. New failed instances
 receive immutable snapshot identities; no prior instance is reused or repaired.
+
+Independent source review of 52cf446b/30dc38cf identified two harness custody
+defects before any consumer execution. Both are reproduced in
+harness-review-regressions-red.log. The owning workflow must timestamp its first
+executable step, and the harness's absolute 30-minute qualification/45-minute
+custody deadlines must include checkout, dependency installation and test time.
+The 60-minute job retains a 15-minute margin for runner setup and upload; late
+admission cannot create an application after the qualification deadline.
+On the task-private Docker daemon, admission must prove each unique run-owned
+container name absent. Record that ownership before launching so a timeout or
+ambiguous result cannot omit a created container. Finalization inspects every
+possibly-created name, records confirmed absence or stops/inspects/exports the
+object. A daemon inspection failure remains custody-incomplete. Do not retry a
+failed launch or repair its application into success.
