@@ -139,3 +139,20 @@ bit assertion; Linux passes that assertion. Hosted Linux/Windows remain the
 qualification owners. Exact commands and outputs are retained in the external
 20261022-integration-3199 evidence packet. No runtime/spec contract changes are
 needed for this fixture correction; strict recipe identity remains authoritative.
+
+The reference correction is ab06c87a628d1845a22d2c31c14ec30a6c9ef813;
+independent review PASS. Its default preflight against main passed 43 executed,
+zero reused/failed and three not applicable. The original hosted Architecture
+ordinary/random lanes additionally expose an input-authority omission:
+support/s1-sqlite-dependency-bytes.json still binds the pre-installer lock.
+All four Doctrine/PSR versions, references and deterministic dependency byte
+hashes are unchanged. Do not alter those records or relax either artifact gate.
+
+Before implementation, record this bounded decision: run the existing
+tests/PackagedForm/check-s1-sqlite-artifact --write-dependency-authority producer
+using the native Windows Git entrypoint through Git for Windows Bash. Accept
+only its Composer lock SHA refresh. Generation exits before runtime probing;
+therefore run both installed-artifact scripts without --write on the committed
+candidate, retain their existing negative controls, obtain independent review
+and full exact-head hosted proof. This is qualification-input maintenance for
+the installer lock change, not new schema, persistence or support authority.
