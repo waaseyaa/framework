@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -73,7 +73,7 @@ jobs:
           ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3
@@ -144,7 +144,7 @@ jobs:
           ref: ${{ inputs.sha || github.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_pgsql
@@ -239,7 +239,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -293,7 +293,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -351,7 +351,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -399,7 +399,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -482,7 +482,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP with PCOV
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -617,7 +617,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -661,7 +661,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -786,7 +786,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -856,7 +856,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: xml
@@ -911,7 +911,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP with PCOV
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -959,7 +959,7 @@ jobs:
           fetch-depth: 2
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -1328,7 +1328,7 @@ jobs:
       # Composer is pinned to the 2.10 feature line of the native-host contract,
       # whose consumer evidence validates the observed version (#2678).
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml, sodium, fileinfo, zip
@@ -1637,7 +1637,7 @@ jobs:
       # ext-sodium. Composer is pinned to the 2.10 feature line of the
       # native-host contract; the evidence still validates the observed version.
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml, sodium, fileinfo, zip
@@ -1798,7 +1798,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -1839,7 +1839,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -1873,7 +1873,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -1917,7 +1917,7 @@ jobs:
       # Composer is pinned to the 2.10 feature line of the native-host contract,
       # whose consumer evidence validates the observed version (#2678).
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2003,7 +2003,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2052,7 +2052,7 @@ jobs:
           ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2093,7 +2093,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2127,7 +2127,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2170,7 +2170,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2200,7 +2200,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2236,7 +2236,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2287,7 +2287,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml, zip
@@ -2348,7 +2348,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml, zip
@@ -2420,7 +2420,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2495,7 +2495,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2598,7 +2598,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2710,7 +2710,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -2935,7 +2935,7 @@ jobs:
         run: bash bin/check-no-secrets
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
