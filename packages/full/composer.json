@@ -4,14 +4,14 @@
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "waaseyaa/ai-pipeline": "^0.1.0-alpha.307",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.307",
-        "waaseyaa/ai-tools": "^0.1.0-alpha.307",
-        "waaseyaa/attachment": "^0.1.0-alpha.307",
-        "waaseyaa/cms": "^0.1.0-alpha.307",
-        "waaseyaa/relationship": "^0.1.0-alpha.307",
-        "waaseyaa/search": "^0.1.0-alpha.307",
-        "waaseyaa/structured-import": "^0.1.0-alpha.307"
+        "waaseyaa/ai-pipeline": "^0.1.0-alpha.308",
+        "waaseyaa/ai-schema": "^0.1.0-alpha.308",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.308",
+        "waaseyaa/attachment": "^0.1.0-alpha.308",
+        "waaseyaa/cms": "^0.1.0-alpha.308",
+        "waaseyaa/relationship": "^0.1.0-alpha.308",
+        "waaseyaa/search": "^0.1.0-alpha.308",
+        "waaseyaa/structured-import": "^0.1.0-alpha.308"
     },
     "suggest": {
         "waaseyaa/ai-agent": "^0.1.0-alpha.271 for agent execution and orchestration",

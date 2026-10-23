@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.308] - 2026-10-23
+
+### Fixed
+
+- Declare the published-content recipe's summary/body fields Public at their
+  generated definitions, and document the explicit production preflight/artifact
+  sequence without weakening activation safeguards.
+
+- Bind the generated published-content detail slug correctly so absent aliases
+  return 404, and retain safe structured controller failure diagnostics through
+  the existing mandatory log sanitizer.
+
+- Preserve the skeleton homepage after published-content generation. Root-level
+  detail routes now use the bundle path for their collection (`/page` for
+  `page`) instead of registering `/`; prefixed collection URLs stay unchanged.
+
+- Let explicit production `install:init` create its configured SQLite database
+  through the verified bootstrap lifecycle, retaining ordinary missing-database
+  refusal and schema, configuration and field-access safeguards. Help and
+  invalid installation input create no storage.
+
+- Refresh the reference consumer's published-content selection for the reviewed
+  recipe, retaining strict digest refusal and checking that the real reference
+  manifest renders before hosted consumer qualification. Rebind the unchanged
+  S1 dependency-byte authority to the reviewed installer lock.
 ## [0.1.0-alpha.307] - 2026-10-21
 
 ### Fixed
