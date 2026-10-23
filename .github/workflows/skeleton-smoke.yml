@@ -63,7 +63,7 @@ jobs:
           sudo apt-get install -y age
       - name: Check qualification input and existing workflow contracts
         run: |
-          php vendor/bin/phpunit --no-coverage tests/Architecture/PublishedS1QualificationContractTest.php tests/Architecture/FreshInstallBootGateTest.php tests/Architecture/CiWorkflowTimeoutPolicyTest.php
+          php vendor/bin/phpunit --no-coverage tests/Architecture/PublishedS1QualificationContractTest.php tests/Architecture/FreshInstallBootGateTest.php tests/Architecture/CiWorkflowTimeoutPolicyTest.php tests/Architecture/S1SchemaAuthorityContractTest.php tests/Architecture/S1SqliteTopologyContractTest.php tests/Architecture/S1RosterSchemaV2Test.php
       - name: Qualify actual published consumers
         timeout-minutes: 50
         env:

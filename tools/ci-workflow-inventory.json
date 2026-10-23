@@ -96,7 +96,7 @@
             },
             {
                 "file": "skeleton-smoke.yml",
-                "sha256": "3bfd930200767f4084a7dbbe281824f078517640c86b3cdf899f1ab7e8649fbf"
+                "sha256": "e119b0251aae1780a29cc352617a3cdaa0355768f5d271112062ecfa553d9ded"
             },
             {
                 "file": "split-main.yml",
@@ -10682,7 +10682,7 @@
         {
             "file": "skeleton-smoke.yml",
             "name": "Skeleton Smoke (Packaged-form CI)",
-            "source_sha256": "3bfd930200767f4084a7dbbe281824f078517640c86b3cdf899f1ab7e8649fbf",
+            "source_sha256": "e119b0251aae1780a29cc352617a3cdaa0355768f5d271112062ecfa553d9ded",
             "triggers": {
                 "events": [
                     "workflow_dispatch",
@@ -10834,6 +10834,8 @@
                         "commands": [
                             "composer install",
                             "tests/Architecture/FreshInstallBootGateTest.php",
+                            "tests/Architecture/S1RosterSchemaV2Test.php",
+                            "tests/Architecture/S1SchemaAuthorityContractTest.php",
                             "tools/j1-published-s1/qualify.php",
                             "vendor/bin/phpunit"
                         ],

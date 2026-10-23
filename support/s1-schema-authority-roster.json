@@ -15027,6 +15027,20 @@
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
             "occurrence": 1
+        },
+        {
+            "path": "tools/j1-published-s1/qualify.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-tooling",
+            "match_sha256": "848452b59be362b1d974e7eba2f687f559b5d8214154e372ba5603ec7787c6a2",
+            "occurrence": 1
+        },
+        {
+            "path": "tools/j1-published-s1/qualify.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-tooling",
+            "match_sha256": "848452b59be362b1d974e7eba2f687f559b5d8214154e372ba5603ec7787c6a2",
+            "occurrence": 2
         }
     ]
 }

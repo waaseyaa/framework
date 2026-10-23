@@ -93,6 +93,9 @@ function s1SqliteConstructionClass(string $path, string $patternId): string
         'bin/test-quality-inventory|sqlite_dsn_token' => 'tooling-query',
         'tools/lib/DevRuntime.php|pdo_sqlite_token' => 'tooling-query',
         'tools/lib/DevRuntime.php|sqlite_dsn_token' => 'tooling-query',
+        // Names the expected missing Composer extension in an isolated negative
+        // control; opens no connection and changes no serving configuration.
+        'tools/j1-published-s1/qualify.php|pdo_sqlite_token' => 'tooling-query',
     ];
 
     return $reviewed[$path . '|' . $patternId] ?? 'unclassified';

@@ -91,6 +91,20 @@ site:doctor --strict --format=json, its own field scan/artifact, ordinary boot
 and the complete serving/refusal sequence. Do not install or borrow dev tools
 to satisfy a harness-only requirement in the production installation.
 
+The first governed preflight on harness 52cf446b failed exactly two inventory
+gates, with 43 other executed gates passing. The schema scanner recognized two
+Filesystem artifact rename calls as legacy schema methods; these are isolated
+test-tooling, not database DDL. The SQLite scanner recognized the negative
+Composer diagnostic's literal extension name; this is tooling-query, not a
+connection constructor. Add only those verifier-owned exact-path classifications
+and canonically regenerate their complete rosters. Existing runtime authority,
+scanner patterns and refusal rules remain unchanged. Retain the failed receipt
+and independently review these safeguard inventory changes before execution.
+The scanner entrypoints pass natively. Existing architecture tests that require
+POSIX executable bits or invoke packaged-form Bash entrypoints cannot pass on
+native Windows; retain that diagnostic result and run their exact files on the
+new hosted Linux lane before consumer qualification. Do not weaken those tests.
+
 The native hosted VM is ephemeral. Before teardown, stop each task container and
 retain its inspect metadata plus complete exported root filesystem. Docker export
 excludes mounts: separately archive the complete ext4 bind tree, including app
