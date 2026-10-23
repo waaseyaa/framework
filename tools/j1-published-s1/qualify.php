@@ -441,17 +441,18 @@ final class PublishedS1Qualification
     private function controllerEvents(string $log): array
     {
         $events = [];
+        $marker = '[critical] [default] Unhandled controller exception. ';
         foreach (explode("\n", $log) as $line) {
-            // Apache can prefix one line with multiple JSON objects. Bind the event.
-            for ($offset = 0; ($offset = strpos($line, '{', $offset)) !== false; ++$offset) {
-                $candidate = substr($line, $offset);
+            // Apache may combine messages; TextFormatter puts only context in JSON.
+            for ($offset = 0; ($offset = strpos($line, $marker, $offset)) !== false; $offset += strlen($marker)) {
+                $candidate = substr($line, $offset + strlen($marker));
                 for ($end = strlen($candidate); $end > 0; --$end) {
                     if ($candidate[$end - 1] !== '}') {
                         continue;
                     }
-                    $event = json_decode(substr($candidate, 0, $end), true);
-                    if (is_array($event) && ($event['message'] ?? '') === 'Unhandled controller exception.') {
-                        $events[] = $event;
+                    $context = json_decode(substr($candidate, 0, $end), true);
+                    if (is_array($context)) {
+                        $events[] = $context;
                         break;
                     }
                 }

@@ -9,6 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
+use Waaseyaa\Foundation\Log\Formatter\TextFormatter;
+use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Log\LogRecord;
 
 require_once dirname(__DIR__, 2) . '/tools/j1-published-s1/qualify.php';
 require_once dirname(__DIR__, 2) . '/tools/j1-published-s1/read-content.php';
@@ -77,10 +80,18 @@ final class PublishedS1QualificationContractTest extends TestCase
     {
         $qualification = new \ReflectionClass(\PublishedS1Qualification::class)->newInstanceWithoutConstructor();
         $select = new \ReflectionMethod($qualification, 'controllerEvents');
-        $event = ['message' => 'Unhandled controller exception.', 'context' => ['exception' => ['type' => 'RuntimeException', 'code' => 3199]]];
-        $line = '[apache] {"message":"Authorization trace","context":{}} ' . json_encode($event, JSON_THROW_ON_ERROR);
-        self::assertSame([$event], $select->invoke($qualification, $line));
-        self::assertSame([], $select->invoke($qualification, '[apache] {"message":"Authorization trace"}'));
+        $context = ['exception' => ['type' => 'RuntimeException', 'code' => 3199, 'message' => 'J1 controlled failure',
+            'previous' => ['type' => 'LogicException', 'code' => 0, 'message' => '[REDACTED]', 'previous' => null]],
+            'http_method' => 'GET', 'uri' => '/__j1/failure'];
+        $formatter = new TextFormatter();
+        $unrelated = $formatter->format(new LogRecord(LogLevel::WARNING, 'Authorization trace', $context));
+        $event = $formatter->format(new LogRecord(LogLevel::CRITICAL, 'Unhandled controller exception.', $context));
+        $line = "[apache] Got error 'PHP message: $unrelated; PHP message: $event'";
+        self::assertSame([$context], $select->invoke($qualification, $line));
+        self::assertSame([$context, $context], $select->invoke($qualification, $line . '; PHP message: ' . $event));
+        self::assertSame([], $select->invoke($qualification, $unrelated));
+        self::assertSame([], $select->invoke($qualification, str_replace('[critical]', '[warning]', $event)));
+        self::assertSame([], $select->invoke($qualification, substr($event, 0, -1)));
     }
 
     #[Test]

@@ -187,3 +187,27 @@ owned path, allow only an optional temp with no file, and refuse other attached
 schemas/files, malformed inventory, wrong PRAGMAs and path/symlink escapes.
 Preserve the original run/apps/snapshot unchanged, add discriminating controls,
 independently review the immutable delta and rerun in fresh published apps.
+
+## Second published run: canonical private-log extraction
+
+Run 39983367262 at harness a1cfea34 passed the corrected topology check in both
+fresh installations. Both initialized and activated from their own real inputs,
+preserved canonical authored content/activation across repeat installation,
+served the app-owned Twig marker through cold/warm/restarted Apache/FPM, changed
+both serving master PIDs, and returned the expected generated/unmatched404,
+stranger401 and generic controlled500. It stopped at the private-log assertion;
+later missing-secret/database/artifact/platform controls were not reached.
+The failed run, stopped exports/apps and encrypted snapshot are preserved,
+downloaded with matching GitHub archive digest, and locally decrypted with
+matching ciphertext/plaintext hashes before repair.
+
+The actual owning ErrorLogHandler uses TextFormatter: the event message is in
+the text prefix and only its context is JSON. Retained logs contain the correct
+critical controller event, RuntimeException/code3199, previous LogicException
+and redacted previous message. The harness incorrectly expected a JSON envelope
+with a root message property. Classification: qualification-harness log-format
+mismatch, with no demonstrated runtime diagnostic/redaction defect. Replace
+that unused assumption with extraction anchored to the exact canonical critical
+default-channel event prefix; preserve the original context and reject unrelated
+preceding warning/authorization JSON. Use real TextFormatter output in the
+regression, independently review the immutable repair and rerun fresh apps.
