@@ -211,3 +211,88 @@ that unused assumption with extraction anchored to the exact canonical critical
 default-channel event prefix; preserve the original context and reject unrelated
 preceding warning/authorization JSON. Use real TextFormatter output in the
 regression, independently review the immutable repair and rerun fresh apps.
+
+## Published qualification result and remaining boundary
+
+Run 39985296383 at exact harness c0fe3e35acf487b781ce472227c45473f2eb8748
+completed PASS for both fresh published installations. Its preceding Linux
+contract checks passed 29 tests/5019 assertions. Independent source reviews
+passed the immutable harness and each changed execution/diagnostic slice;
+default preflight on c0fe3e35 executed42/reused3 with zero failures, and the
+normal push hook reused all45 gates. The final record-only commit reuses this
+execution evidence only after proving the workflow, tooling, tests, Dockerfile,
+runtime packages, Skeleton and Composer inputs unchanged from c0fe3e35.
+
+Observed native host: Ubuntu24.04, Linux6.17.0-1022-azure x86_64, local ext4
+/dev/sda1. Separate app containers: Ubuntu24.04.5, Apache2.4.58,
+PHP-FPM8.5.12 (matching the contemporaneous upstream latest8.5 patch),
+Composer2.10.3, SQLite3.45.1, APP_ENV=production, debug=false and development
+fallback=false. Image identity:
+sha256:6cefffd3b0452ef8c834620a87359819651fcc1fb2601389bfd90edc7019e8ec.
+Both selected the real Packagist dev-main template at Skeleton
+c83a410bbae6ce9d491c733be7e339b540ec42fd; metadata, original dist archives,
+installed bytes and every installed first-party source/dist ref were checked.
+All first-party packages are actual published alpha.308, not solver aliases.
+
+The dev install has67 first-party members and226 scanned fields; no-dev has63
+members and187 fields, with PHPUnit absent from its actual FPM process. Both
+use lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001,
+but independently produce their own names-only scan and restricted artifact.
+Canonical scanner identity is retained verbatim:
+dev@6bac4a1c9dec43a8@classification-4f53cda18c2baa0c. Its dev prefix is the
+producer's documented fallback when the consumer has no VERSION file; actual
+published package identity and production environment are proven separately.
+Dev checksum: beedf5f18e854d5d27dd55738207b4e9b2dfde026768577a8be6b9e053864fc9.
+No-dev checksum: 624666d5b69d462d35ce8c07380974082f4f63feb7846aae12df5a09dadf3f26.
+No readiness/classification/version flags or artifact bodies were substituted.
+
+Exact command argv/exits are in runs/39985296383/steps.json of packet
+20261023-alpha308-s1-3199, alongside every HTTP body/header/status/hash,
+selected-template/cohort/lock identity, full names-only result and artifact.
+The owning workflow executes `sudo -E php -d memory_limit=1G
+tools/j1-published-s1/qualify.php`; consumers run as www-data with separate
+COMPOSER_HOME and vendor directories. Each uses normal create-project and
+locked install (no-dev adds --no-dev), then these real console operations:
+
+```text
+php vendor/bin/waaseyaa site:init --preset=minimal --answers=minimal.seed.yaml --yes --no-interaction --no-ansi
+php vendor/bin/waaseyaa install:init --no-interaction --no-ansi
+php vendor/bin/waaseyaa field-access:preflight --format=json --no-interaction --no-ansi
+php vendor/bin/waaseyaa field-access:preflight --format=json --write-artifact --no-interaction --no-ansi
+php vendor/bin/waaseyaa about --no-interaction --no-ansi
+```
+
+Dev uses composer site-verify; no-dev uses site:doctor --strict --format=json.
+Supported entity:create/list plus ordinary ConsoleKernel/repository/field reads
+prove repeat install preserves the authored entity, activation ledger and field
+artifact. Active PRAGMAs and the canonical database path match S1. Cold/warm/
+restarted GET / return200 with the app-owned Twig42 marker, and Apache/FPM master
+PIDs change. Generated/unmatched routes return404, stranger access401 and the
+controlled failure500 with a generic public response and safe structured private
+chain. Missing secret/database/artifact each refuse ordinary CLI(exit1) and
+HTTP(500); exact restoration recovers GET /(200), preserves activation bytes and
+creates no absent database. An isolated missing SQLite extension refuses
+Composer platform requirements(exit2). Earlier schema/configuration/field-access
+refusal contracts are reused from the unchanged released runtime and exact
+release CI, rather than recast as new runtime repairs.
+
+Artifact12515073064 contains the sealed successful apps, raw streams and stopped
+rootfs/inspect records. The GitHub ZIP digest, downloaded ciphertext hash and
+locally decrypted plaintext hash all match. A new passive ext4 extraction
+compared every archive member's data and metadata with GNU tar successfully.
+Both earlier failed runs retain the same verified custody; the first also
+successfully reconstructed separate diagnostic containers and its authored
+entities. The final preservation manifest matches all717017 original file
+identities and18 original stopped containers byte for byte. The primary local
+checkout remains at c6362a2f9ba948a826e44ffa648722d61a48a51b.
+
+J1-A through J1-E are proven for this observed published tuple. J1-F remains
+pending governed harness landing and package/docs/issue/Project reconciliation;
+Orchestrate owns the workboard. #3199 stays OPEN. #3120 remains the wider
+development-to-production activation documentation owner; #3198/#3203 retain
+their wider diagnostic/assessment ownership. No next runtime failure appeared
+through the planned J1 controls. The next boundary is closeout, not another
+runtime repair. Observed native J1 evidence does not complete the separate
+S0-SHEG-02 global S1 consumer certification. WSL2 reconstructions remain
+diagnostics; ephemeral hosted container identities are represented by retained
+restorable bytes. No additional merge, release or deployment was performed.
