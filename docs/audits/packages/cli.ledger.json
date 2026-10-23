@@ -47,7 +47,7 @@
         },
         {
             "question": "Installation profiles",
-            "answer": "Source, kernel and framework closure are distinguished from standalone split and generated-application qualification. Fresh installed evidence is incomplete.",
+            "answer": "Minimal J1 installed dev/no-dev and generated-application composition is qualified by the alpha.308 supplement. Standalone split and wider package profiles remain incomplete; source review and qualification stay distinct.",
             "evidence": "Distribution checklist and J1 #3199."
         }
     ],
@@ -4214,9 +4214,9 @@
     "uncertainties": [
         {
             "id": "U1",
-            "uncertainty": "Fresh installed/no-dev, generated-application and supported closure qualification is not established.",
+            "uncertainty": "Beyond the qualified minimal J1 alpha.308 dev/no-dev composition, standalone split and wider package/generator lifecycle qualification remains unestablished.",
             "findings": [],
-            "what_would_settle_it": "Owning package and #3199 run the supported profile matrix at an immutable candidate with declared dependencies only.",
+            "what_would_settle_it": "waaseyaa/cli #3117 and generator #2844/#2850 qualify their remaining supported profiles. Reuse the bounded J1 witness without treating it as full package convergence or S0-SHEG-02 certification.",
             "status": "open",
             "resolution": null
         },
@@ -4456,17 +4456,17 @@
         },
         {
             "profile": "framework closure",
-            "supported": "yes",
-            "evidence_class": "none",
-            "evidence": "Current docs-only CI 39295771289 succeeded; behavior and installed-profile jobs were skipped and do not qualify this profile.",
+            "supported": "yes (minimal J1 composition only)",
+            "evidence_class": "installed consumer",
+            "evidence": "Qualified minimal J1 production dev/no-dev ConsoleKernel/HTTP composition, own field activation, repeat content and refusal controls on observed Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider package closure behavior remains unqualified.",
             "gap_owner": "waaseyaa/cli #3117"
         },
         {
             "profile": "generated application",
-            "supported": "undecided",
-            "evidence_class": "none",
-            "evidence": "No fresh generated application was qualified; coordinate J1 #3199 and generator program #2844.",
-            "gap_owner": "waaseyaa/framework #3199"
+            "supported": "yes (minimal J1 only)",
+            "evidence_class": "generated application",
+            "evidence": "Qualified minimal generated J1 application only: actual published Skeleton c83a410bbae6ce9d491c733be7e339b540ec42fd, alpha.308 cohort, lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; cold/warm/restarted Twig homepage and refusal controls in separate dev/no-dev apps. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider generation profiles remain #2844/#2850.",
+            "gap_owner": "waaseyaa/cli #3117; wider generation #2844/#2850"
         }
     ],
     "probes": [
@@ -4496,6 +4496,15 @@
             "host": "native Windows",
             "proves": "Synthetic source composition with real command adapters, runner checkpoints and filesystem outcomes. No installed profile.",
             "result": "33 invocations; all expected defect and control assertions passed; no external or production data."
+        },
+        {
+            "command": "Canonical published J1 manual qualification: Skeleton Smoke run39985296383, tools/j1-published-s1/qualify.php; exact argv/exits retained in its artifact12515073064 and FW-J1-PUBLISHED-S1-01.",
+            "base": "baead2150a78883b82536282d1181cf5b7a92a10",
+            "dependency_identity": "Actual consumer lock SHA-256 6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; each installed alpha.308 source/dist ref and original archive byte match independently verified.",
+            "runner": "PHP-FPM8.5.12 / Apache2.4.58 / Composer2.10.3 / SQLite3.45.1; harness c0fe3e35acf487b781ce472227c45473f2eb8748",
+            "host": "Native hosted Ubuntu24.04 x86_64, local ext4; WSL2 recovery is separate diagnostic evidence.",
+            "proves": "Bounded minimal generated/installed J1 dev/no-dev activation, HTTP, repeat persistence and refusal controls only. No standalone split, wider package lifecycle or global consumer certification claim.",
+            "result": "PASS both fresh profiles; 29 focused hosted tests/5019 assertions; actual names-only preflights ready, 226 dev/187 no-dev fields; own restricted artifact producers, cold/warm/restarted Twig42, planned refusal and restoration controls. Portable summary: docs/audits/packages/evidence/j1/published-alpha308.json."
         }
     ],
     "not_reviewed": [

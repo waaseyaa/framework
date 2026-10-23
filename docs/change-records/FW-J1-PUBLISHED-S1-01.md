@@ -296,3 +296,112 @@ runtime repair. Observed native J1 evidence does not complete the separate
 S0-SHEG-02 global S1 consumer certification. WSL2 reconstructions remain
 diagnostics; ephemeral hosted container identities are represented by retained
 restorable bytes. No additional merge, release or deployment was performed.
+
+## J1-F integration and reconciliation plan, 2026-10-23
+
+Russell subsequently authorized: "have Find the next roadmap task continue with
+J1-F integration and reconciliation, and update the tracker." This authorizes
+landing this reviewed harness batch and reconciling demonstrated issue/Project
+acceptance. It does not authorize another release, package publication or
+deployment. Orchestrate retains ACTION-ITEMS-TEMP.md and WORKBOARD.md ownership.
+
+Starting reviewed record candidate: 171b76387053b07a28d373e2b9bff7b76d558e0f.
+Live main and the alpha.308 peeled tag remain
+baead2150a78883b82536282d1181cf5b7a92a10. The task branch is clean and descends
+from that main. No release split/fan-out is running. Other open PRs are separate
+dependency work; do not alter them or advance their branches.
+
+The integration owner owns this record, the existing harness/workflow/test and
+its governance inventories, the bounded Foundation/CLI installed-profile
+supplements, and the program's J1 result pointer. No runtime or activation
+contract changes are intended. All prior candidates, applications, containers
+and evidence packets remain unchanged.
+
+1. Revalidate live J1 acceptance and #3120, package ledgers, main rules/checks and
+   Project fields/items. Keep unrelated findings under their existing owners.
+2. Reconcile the generated-application evidence in the existing Foundation/CLI
+   ledgers and records, retaining package-wide uncertainty, standalone split
+   gaps, wider generator/lifecycle audits and S0-SHEG-02 ownership. Retain the
+   sanitized names/identities/results as portable package evidence.
+3. Reuse run39985296383 only after proving every harness, test, runtime,
+   dependency and execution input unchanged from qualified c0fe3e35. The two
+   failed runs remain failures. Recheck existing missing/stale/malformed/blocker
+   activation controls rather than adding another artifact producer.
+4. Review the immutable integration candidate independently, especially its
+   scope, evidence equivalence, J1/#3120 closure and execution safeguards. Run
+   ledger/document consistency checks and governed preflight. New source or
+   execution changes invalidate their affected evidence and require regression
+   proof and re-review before integration.
+5. Run one full exact-candidate hosted CI graph for the new harness integration,
+   after excluding an equivalent running/completed dispatch. Use the normal
+   fast-forward batch path permitted by commit-qualification.md, preserving the
+   exact reviewed head and hooks. Re-read main/rules/release activity immediately
+   before landing; never force or bypass a rejected update. Observe the actual
+   integrated main-feedback run. An identical ref movement needs no duplicate
+   full qualification or new published-consumer installation.
+6. Reconcile each J1 criterion and #3120's own requirements with the actual
+   accepted source/result links. Close an issue only after all of its current
+   acceptance is supported. Synchronize only their Project lifecycle/readiness
+   axes; preserve priority, milestone, stage and unrelated issues. A complete
+   board audit currently reports unrelated intake drift, so do not apply that
+   broad plan as a side effect of J1. Record exact current item/field/option
+   identities and review a bounded CLI mutation plan before applying it.
+7. Preserve command argv/exits, review, exact qualification/integration SHAs,
+   issue/Project before/after state and any next failure in packet
+   `20261023-j1-f-integration-3199`. Its final receipt is the adapter closeout
+   witness; it must not recast WSL2 evidence as published/S1 certification.
+
+The existing canonical producer remains field-access:preflight. No artifact
+readiness edit, fabricated classification, relaxed guard, installer-produced
+artifact or persistence change is part of J1-F. Native Windows focused evidence
+remains development/source evidence; the production result is the observed
+native Ubuntu24/ext4/Apache2.4/PHP-FPM8.5 published tuple. Global S1 certification
+and wider #3198/#3203/#2859/#2844 acceptance remain separate.
+
+### Criterion evidence and existing repair ownership
+
+The portable result is
+`docs/audits/packages/evidence/j1/published-alpha308.json`, copied byte for byte
+from the independently reviewed run summary. It supplements the existing
+Foundation/CLI ledgers; it does not replace their source inventories or change
+their assessed/not-converged state. Original raw streams, full names-only scans,
+archives, input inventories and custody receipts remain in the sealed packet.
+
+| Criterion | Demonstrated witness | Closeout discriminator |
+| --- | --- | --- |
+| J1-A | Actual create-project template dev-main at c83a410bbae6ce9d491c733be7e339b540ec42fd; original archive bytes, exported files and normal scripts/plugins; 67 dev/63 no-dev published first-party members; exact shared consumer lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001 and repeat locked installation. | No path repositories, overlays, aliases, borrowed dependencies or suppressed scripts; missing SQLite extension Composer exit2. |
+| J1-B | Canonical minimal site:init, production install:init, own read-only ready preflight then restricted --write-artifact, ordinary CLI boot in both apps; 226 dev/187 no-dev fields and distinct artifact identities. | Repeat initialization preserves authored entity, activation ledger and artifact bytes. Ordinary absent DB/artifact refuses CLI1/HTTP500 and recovers only after exact restoration; no empty DB workaround. |
+| J1-C | Real public/index.php through kernel, middleware/principal, route/access, configuration/storage and Twig; app-owned rendered marker42 at cold/warm/restarted GET / in both apps. | Twig source expression absent; Apache and FPM master PIDs change; no static/framework fallback success. |
+| J1-D | Missing required secret/database/artifact CLI1/HTTP500, generated and unmatched404, stranger401, controlled generic500 with safe private RuntimeException/code3199 and previous LogicException/[REDACTED]. | Actual statuses/bodies and safe private chain retained; restoration recovers200, artifact bytes and authored state. Separate platform refusal leaves serving configuration intact. |
+| J1-E | Separate fresh no-dev vendor/application, same locked production packages, own scan/artifact and all HTTP/refusal controls under production/debug=false/fallback=false. | Actual FPM has no PHPUnit; dev verification runs only in dev app, no-dev uses canonical strict doctor. Native Ubuntu24/ext4/Apache2.4/FPM8.5 is observed, not inferred from WSL2. |
+| J1-F | Earlier repair records settle authority and retain red/green/negative controls; runtime repairs are in published baead2150a78883b82536282d1181cf5b7a92a10; final applicable journey run39985296383 passes. Existing package ledgers and program evidence now point to that witness. | Harness landing, exact integration checks and issue/Project updates are pending execution checkpoints in this candidate. Final adapter receipt must bind their actual accepted SHA/state before issue closure. |
+
+| Observed failure | Owning contract and bounded disposition |
+| --- | --- |
+| Generated collection hid skeleton / | CLI recipe/SSR homepage, FW-J1-HOMEPAGE-01; #3231 merged. No rewrite of existing authored URLs. |
+| Production install:init refused its absent SQLite DB | Foundation installation lifecycle, FW-J1-PRODUCTION-INSTALL-01; explicit installation intent owns creation, ordinary production boot still refuses absent DB. #3110 retains wider schema authority. |
+| Activation step omitted, then generated body/summary metadata blocked preflight | #3120 consumer instructions plus CLI published-content definitions, FW-J1-FIELD-ACTIVATION-01; corrected owning metadata with recipe digest/regression, retained sole restricted producer and all guard refusals. |
+| Generated slug closure failed before a useful404 | CLI recipe binding/SSR, FW-J1-UNKNOWN-ROUTE-01; corrected declared slug parameter without weakening dispatch or field access. |
+| Whole-message redaction lost safe exception identity | Foundation names/code/previous-chain witness, FW-J1-UNKNOWN-ROUTE-01; bounded repair and private disclosure controls. #3198/#3203 remain wider assessment owners. |
+| First published qualification rejected an unbacked temp schema | Harness topology discriminator only, failed run39980925409; real PRAGMA witness and red/green regression, independent diagnosis/re-review. |
+| Second published qualification misread canonical TextFormatter output | Harness private-log parser only, failed run39983367262; actual formatter regression and independent diagnosis/re-review. No runtime logging/redactor change. |
+
+#3120's six requirements are traceable to the released Skeleton README's
+quick-start production link and Production activation section, explicit
+site-verify limits, CLI/Bimaaji composition and skill-install link, actual clean
+released-cohort production dev/no-dev HTTP proof above, and existing
+FieldAccessActivationFailsClosedTest / FieldAccessActivationPreflightTest
+missing/stale/malformed/blocker controls. The subsequent immutable-directory
+authority requirement is explicit in that documentation; no real consumer
+migration or traffic switch is claimed. Its closure must use that own acceptance,
+not the fact that J1 passes alone.
+
+Prior native Windows development evidence remains FW-J1-HOMEPAGE-01's bounded
+candidate proof; no fresh alpha.308 Windows consumer qualification is claimed.
+The J1 closing decision must state the observed Linux production tuple and the
+separate native development limits. Wider native-host parity is #2676/#2681,
+generation/upgrade is #2844/#2850, kernel lifecycle is #2859, diagnostics is
+#3198/#3203, and package convergence is #3123/#3117 under #3118. S0-SHEG-02 still
+needs its real disposable-consumer observation and certification authority;
+the present task does not assign a named certification operator or enlarge
+the support matrix.

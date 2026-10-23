@@ -1,6 +1,6 @@
 # Waaseyaa roadmap
 
-Updated 20 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
+Updated 23 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
 released capability. [Specs](specs/workflow.md) own contracts, change records own
 durable scope/evidence, and [GitHub issues](https://github.com/waaseyaa/framework/issues)
 own execution status. Product roadmaps and adoption decisions belong downstream.
@@ -28,16 +28,21 @@ and [Admin SPA validation](https://github.com/waaseyaa/framework/actions/runs/39
 passed, including typecheck, contract/schema checks, build, unit tests and browser
 integration. The accepted distribution contains 99 files / 597,692 bytes.
 The broader [bot-approval follow-up #2707](https://github.com/waaseyaa/framework/issues/2707)
-remains open; package convergence and J1 qualification remain open.
+remains open; wider package convergence remains open.
 
-## Next sprint: installation to homepage
+## Installation-to-homepage journey
 
-[#3199](https://github.com/waaseyaa/framework/issues/3199) is ready for assessment:
-empty-directory Composer creation, initialization, cold/warm homepage, failure
-controls and production no-dev composition. Read the [journey contract](specs/framework-audit-journeys.md)
-and [Sprint 1 handoff](change-records/FW-PACKAGE-CONVERGENCE-01.md#sprint-1-contract).
-Runtime execution has not begun. Existing urgent repairs continue; later feature
-design does not block the baseline. Package coverage and journeys are complementary.
+[#3199](https://github.com/waaseyaa/framework/issues/3199) has actual published
+alpha.308 J1-A through J1-E evidence for separate native Linux production dev/no-dev
+applications: creation, initialization/field activation, cold/warm/restarted
+Twig homepage and failure/refusal controls. The
+[published record and J1-F integration plan](change-records/FW-J1-PUBLISHED-S1-01.md)
+own remaining harness landing and issue/Project reconciliation; issue closure
+requires those actual checkpoints. The [journey contract](specs/framework-audit-journeys.md)
+and [Sprint 1 handoff](change-records/FW-PACKAGE-CONVERGENCE-01.md#sprint-1-contract)
+retain scope. The observed tuple does not complete global S1 certification,
+wider package audits or native-host parity. Package coverage and journeys remain
+complementary.
 
 ## Cross-cutting audit: failure handling
 

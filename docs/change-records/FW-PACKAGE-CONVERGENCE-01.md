@@ -358,3 +358,23 @@ The synchronizer remains #2667; a manual reconciliation is not automatic upkeep.
 
 Readiness preparation does not claim that J1 currently passes. Unknown runtime
 findings are the work of the sprint, not a reason to postpone its start.
+
+### 2026-10-23 J1 published qualification and integration handoff
+
+[FW-J1-PUBLISHED-S1-01](FW-J1-PUBLISHED-S1-01.md) now records the actual published
+alpha.308 dev/no-dev journey, the earlier first failures and their existing
+repair owners, independent reviews and the bounded J1-F integration plan.
+[Portable names/identity/result evidence](../audits/packages/evidence/j1/published-alpha308.json)
+is retained with the existing Foundation/CLI ledgers. Their assessed audit state,
+source rosters and wider open uncertainty remain distinct from this supplement.
+
+J1-A through J1-E pass on the observed native Ubuntu24/ext4/Apache2.4/PHP-FPM8.5
+tuple in run39985296383. Harness landing and canonical issue/Project
+reconciliation are the remaining J1-F checkpoints, not another runtime defect.
+The integration receipt must establish those actual operations before #3199
+closure. #3120 has its own documentation/production-proof criteria; #3198/#3203
+and S0-SHEG-02 retain their wider ownership. Prior Windows candidate development
+and WSL2 diagnostic evidence do not become global consumer certification.
+
+No new release, package publication or deployment is part of this integration.
+Orchestrate owns the external action-item/workboard reconciliation.

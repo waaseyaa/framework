@@ -4,9 +4,9 @@
 - **Audit state:** assessed. **Remediation state:** planned
 - **Base:** `3161864a5d1af57621e4819e9720f12e12ccdae7`, audited `2026-10-19`
 - **Dependency identity:** `composer.lock` SHA-256 `8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc`; PHP 8.5.5, native Windows.
-- **Evidence freshness:** current at `3161864a5d1af57621e4819e9720f12e12ccdae7`.
+- **Evidence freshness:** Original assessment at `3161864a5d1af57621e4819e9720f12e12ccdae7`; bounded J1 supplement at published alpha.308 below. Other assessment scope is not refreshed.
 - **Owner:** `waaseyaa/framework#3123`
-- **Structured ledger:** `docs/audits/packages/foundation.ledger.json`: 9 findings, 4 refuted leads, 188 checklist answers, 0 handoffs, 1 decisions (1 open), 3 uncertainties (3 open), 3 probe entries, 4 evidence runs.
+- **Structured ledger:** `docs/audits/packages/foundation.ledger.json`: 9 findings, 4 refuted leads, 188 checklist answers, 0 handoffs, 1 decisions (1 open), 3 uncertainties (3 open), 3 probe entries, 5 evidence runs.
 
 ## Summary
 
@@ -22,7 +22,7 @@ Foundation supplies composition, lifecycle, migration authority, HTTP infrastruc
 - **Consumers:** 56 declared inbound packages, HTTP/Console/MCP kernels, generated applications and metapackages. Evidence: Composer inbound inventory and source entrypoints.
 - **Dependencies:** DBAL, PSR interfaces, Symfony Dotenv/EventDispatcher/HttpFoundation/ServiceContracts/UID and cache/database/queue. Higher-layer composition has explicit architectural exceptions and development-only closure edges. Evidence: packages/foundation/composer.json
 - **Public surface:** Provider contracts, runtime/schema/security/diagnostic primitives, kernels and route metadata. Primitive-only use and full kernel composition require distinct installation evidence. Evidence: packages/foundation/public-surface.php and actual source callers.
-- **Installation profiles:** Source, kernel and framework closure are distinguished from standalone split and generated-application qualification. Fresh installed evidence is incomplete. Evidence: Distribution checklist and J1 #3199.
+- **Installation profiles:** Minimal J1 installed dev/no-dev and generated-application composition is qualified by the alpha.308 supplement. Standalone split and wider package profiles remain incomplete. Evidence: FW-J1-PUBLISHED-S1-01 and the portable published summary below.
 
 ## Roster
 
@@ -71,8 +71,8 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 | --- | --- | --- | --- | --- |
 | kernel composition | yes | source | Source composition reviewed at the base; exact scope and test outcomes are recorded separately. | waaseyaa/foundation #3123 |
 | standalone split | undecided | none | No fresh isolated no-dev installation was qualified. Decide supported primitive and kernel closure, then exercise declared dependencies without root autoload help. | waaseyaa/foundation #3123 |
-| framework closure | yes | none | Current docs-only CI 39295771289 succeeded; behavior and installed-profile jobs were skipped and do not qualify this profile. | waaseyaa/foundation #3123 |
-| generated application | undecided | none | No fresh generated application was qualified; coordinate J1 #3199 and generator program #2844. | waaseyaa/framework #3199 |
+| framework closure | yes (minimal J1 composition only) | installed consumer | Qualified minimal J1 production dev/no-dev ConsoleKernel/HTTP composition, own field activation, repeat content and refusal controls on observed Ubuntu24/ext4/Apache2.4/PHP-FPM8.5. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider package closure behavior remains unqualified. | waaseyaa/foundation #3123 |
+| generated application | yes (minimal J1 only) | generated application | Qualified minimal generated J1 application only: actual published Skeleton c83a410bbae6ce9d491c733be7e339b540ec42fd, alpha.308 cohort, lock6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001; cold/warm/restarted Twig homepage and refusal controls in separate dev/no-dev apps. FW-J1-PUBLISHED-S1-01; docs/audits/packages/evidence/j1/published-alpha308.json; run39985296383 at harness c0fe3e35acf487b781ce472227c45473f2eb8748, published alpha.308 baead2150a78883b82536282d1181cf5b7a92a10. Wider generation profiles remain #2844/#2850. | waaseyaa/foundation #3123; wider generation #2844/#2850 |
 
 ## Profile and structural review
 
@@ -101,7 +101,7 @@ GitHub intake captured all open issues and PRs with pagination, plus all 343 Fra
 | ID | Status | Decision or uncertainty | Resolution or next evidence |
 | --- | --- | --- | --- |
 | D1 | open | Choose clear construction-time refusal or a correctly addressed fallback for an invalid explicitly selected logging default. | Foundation maintainer selects the policy and retains terminal sink controls for direct logging, unknown channel lookup and valid configurations. |
-| U1 | open | Fresh installed/no-dev, generated-application and supported closure qualification is not established. | Owning package and #3199 run the supported profile matrix at an immutable candidate with declared dependencies only. |
+| U1 | open | Beyond the qualified minimal J1 alpha.308 dev/no-dev composition, standalone split and wider package/generator lifecycle qualification remains unestablished. | waaseyaa/foundation #3123 and generator #2844/#2850 qualify their remaining supported profiles. Reuse the bounded J1 witness without treating it as full package convergence or S0-SHEG-02 certification. |
 | U2 | open | Some historical issue acceptance and specification traceability remains unreconciled. | Owning package completes per-item source/spec/test reconciliation from the captured issue, Project and document inventories. |
 | U3 | open | Maintained-component equivalence is unqualified for the custom container, logging and filesystem/cache infrastructure. | Foundation #3123 compares Symfony DI against provider admission/order/lifetime/refusal controls, maintained logging against level/processor/sanitizer/channel controls, and Filesystem against exact bytes/atomicity/failure controls in supported no-dev profiles. Adopt equivalent generic mechanics and remove superseded implementation only in an authorized repair; retain a custom mechanism only with an evidenced capability gap and review trigger. Unicode-preserving slug policy remains domain-owned. |
 
@@ -137,6 +137,26 @@ Every ordinary finding now has a filed issue linked in its destination above. Is
 | Five absolute-path router and SQLite exactness test files; --no-coverage --no-progress | Bounded source channel/cursor/lifecycle and SQLite parser/refusal contracts; no installed-profile or concurrency qualification. | PASS: 240 tests, 437 assertions; PHP 8.5.5 / PHPUnit 13.1.14 native Windows. foundation/root-supplement-tests.xml. Initial relative-path invocation ran no tests and is not a pass. |
 | Independent opt-in http-probe.php | Actual middleware composition and terminal response semantics using synthetic handlers; no installed profile. | All stated HTTP defect and refusal controls passed; all three source reconciliation claims independently checked. |
 | Independent foundation-diagnostics/probe.php | Synthetic real adapter/controller, local logging sink, and read-only diagnostic rendering. No installed-profile or production proof. | 39 checks passed, exit0, empty stderr. One initial floating timestamp fixture assertion corrected before final run. |
+
+## J1 installed-profile supplement, 2026-10-23
+
+The [portable published summary](evidence/j1/published-alpha308.json) and
+[FW-J1-PUBLISHED-S1-01](../../change-records/FW-J1-PUBLISHED-S1-01.md) retain
+actual release, template, cohort/lock, per-installation activation and HTTP
+identities. [Run39985296383](https://github.com/waaseyaa/framework/actions/runs/39985296383)
+passed for separate native Linux production dev/no-dev applications. Independent
+source and final custody/claims review passed. The two earlier failed runs remain
+preserved harness failures, not repaired original applications.
+
+This supplements the installation evidence only. The original audit base,
+findings, source roster, open decisions/uncertainties and package convergence
+state remain distinct. Standalone split, wider lifecycle/generator contracts,
+#3198/#3203 diagnostics assessment and S0-SHEG-02 consumer certification retain
+their own acceptance. No WSL2 serving certification is inferred.
+
+| Command or probe | Proves | Result |
+| --- | --- | --- |
+| Canonical published J1 manual qualification, run39985296383, harness c0fe3e35 | Minimal generated/installed dev/no-dev activation, HTTP, repeat persistence and refusals on the observed native tuple only. | PASS both profiles; 29 hosted tests/5019 assertions. Own names-only scan/artifact, 226 dev/187 no-dev fields, Twig42 cold/warm/restarted and planned refusal/restoration controls. |
 
 ## Scorecard
 

@@ -1,0 +1,299 @@
+{
+  "result": "PASS",
+  "run": 39985296383,
+  "harness_sha": "c0fe3e35acf487b781ce472227c45473f2eb8748",
+  "release": "v0.1.0-alpha.308",
+  "release_sha": "baead2150a78883b82536282d1181cf5b7a92a10",
+  "profiles": [
+    {
+      "profile": "dev",
+      "result": "PASS",
+      "first_party_members": 67,
+      "lock_sha256": "6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001",
+      "template_version": "dev-main",
+      "template_source": "c83a410bbae6ce9d491c733be7e339b540ec42fd",
+      "runtime": {
+        "php": "8.5.12",
+        "sapi": "fpm-fcgi",
+        "sqlite": {
+          "versionString": "3.45.1",
+          "versionNumber": 3045001
+        },
+        "environment": "production",
+        "debug": "false",
+        "fallback": "false",
+        "secret_present": true,
+        "phpunit_present": true
+      },
+      "activation": {
+        "ready": true,
+        "canonical_framework_identity": "dev@6bac4a1c9dec43a8@classification-4f53cda18c2baa0c",
+        "schema_fingerprint": "0fb780325b583e4101f3e2d59f1a5b90912b0475a7d58b4533e351ef830d5da9",
+        "scanner_version": 2,
+        "field_count": 226,
+        "checksum": "beedf5f18e854d5d27dd55738207b4e9b2dfde026768577a8be6b9e053864fc9",
+        "artifact_sha256": "10ee6f93eb378f21e97f5628b73dc56fbca052e4fdea4c1529710ae99c8dd2d0"
+      },
+      "repeat_content_and_ledger_equal": true,
+      "http": [
+        {
+          "request": "home-cold",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "home-warm",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "home-restarted",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "generated404",
+          "status": 404,
+          "body_sha256": "e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31"
+        },
+        {
+          "request": "unmatched404",
+          "status": 404,
+          "body_sha256": "603fe4e1962a6e09ac888a539f08dff7fd787c9d4fefe0bea172edcffcdf4e6a"
+        },
+        {
+          "request": "stranger",
+          "status": 401,
+          "body_sha256": "0511c43109679caf0368dba6071bc1c0226d06567fc1a61d652157298f725ccb"
+        },
+        {
+          "request": "controlled500",
+          "status": 500,
+          "body_sha256": "7ea629daa89207aeac6877fc5f6421a3fa8ceda4ac9562dcd7983e45fc2f7611"
+        },
+        {
+          "request": "missing-secret",
+          "status": 500,
+          "body_sha256": "45d5049de8d8b6f5130f049ff5143d8121bd8e1a2c5f8d7ad8dd37509946234d"
+        },
+        {
+          "request": "missing-secret-recovered",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "missing-database",
+          "status": 500,
+          "body_sha256": "1d2e353771e4ed8b69f894024345cf2dcac4019ff98a6c2357c8f01a2ad1ddfd"
+        },
+        {
+          "request": "missing-database-recovered",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "missing-artifact-http",
+          "status": 500,
+          "body_sha256": "45d5049de8d8b6f5130f049ff5143d8121bd8e1a2c5f8d7ad8dd37509946234d"
+        },
+        {
+          "request": "artifact-recovered",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        }
+      ],
+      "cli": [
+        {
+          "operation": "site-init",
+          "exit": 0
+        },
+        {
+          "operation": "install-init",
+          "exit": 0
+        },
+        {
+          "operation": "readonly-preflight",
+          "exit": 0
+        },
+        {
+          "operation": "write-artifact",
+          "exit": 0
+        },
+        {
+          "operation": "ordinary-cli",
+          "exit": 0
+        },
+        {
+          "operation": "install-repeat",
+          "exit": 0
+        },
+        {
+          "operation": "missing-secret-cli",
+          "exit": 1
+        },
+        {
+          "operation": "missing-database-cli",
+          "exit": 1
+        },
+        {
+          "operation": "missing-artifact-cli",
+          "exit": 1
+        },
+        {
+          "operation": "platform-negative",
+          "exit": 2
+        }
+      ]
+    },
+    {
+      "profile": "no-dev",
+      "result": "PASS",
+      "first_party_members": 63,
+      "lock_sha256": "6bac4a1c9dec43a8796fc36abefc25670bc2aef319709ee7d1efff6444aa8001",
+      "template_version": "dev-main",
+      "template_source": "c83a410bbae6ce9d491c733be7e339b540ec42fd",
+      "runtime": {
+        "php": "8.5.12",
+        "sapi": "fpm-fcgi",
+        "sqlite": {
+          "versionString": "3.45.1",
+          "versionNumber": 3045001
+        },
+        "environment": "production",
+        "debug": "false",
+        "fallback": "false",
+        "secret_present": true,
+        "phpunit_present": false
+      },
+      "activation": {
+        "ready": true,
+        "canonical_framework_identity": "dev@6bac4a1c9dec43a8@classification-4f53cda18c2baa0c",
+        "schema_fingerprint": "9098e7873762fb3c9d0aa8a0036c79c0a37d2b950827208b0d0ecda0cc8a9646",
+        "scanner_version": 2,
+        "field_count": 187,
+        "checksum": "624666d5b69d462d35ce8c07380974082f4f63feb7846aae12df5a09dadf3f26",
+        "artifact_sha256": "b6f7411b143c4c648f6ab5ced91daac29a466af6406c27954e7ef2e99cafd704"
+      },
+      "repeat_content_and_ledger_equal": true,
+      "http": [
+        {
+          "request": "home-cold",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "home-warm",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "home-restarted",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "generated404",
+          "status": 404,
+          "body_sha256": "e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31"
+        },
+        {
+          "request": "unmatched404",
+          "status": 404,
+          "body_sha256": "603fe4e1962a6e09ac888a539f08dff7fd787c9d4fefe0bea172edcffcdf4e6a"
+        },
+        {
+          "request": "stranger",
+          "status": 401,
+          "body_sha256": "0511c43109679caf0368dba6071bc1c0226d06567fc1a61d652157298f725ccb"
+        },
+        {
+          "request": "controlled500",
+          "status": 500,
+          "body_sha256": "7ea629daa89207aeac6877fc5f6421a3fa8ceda4ac9562dcd7983e45fc2f7611"
+        },
+        {
+          "request": "missing-secret",
+          "status": 500,
+          "body_sha256": "45d5049de8d8b6f5130f049ff5143d8121bd8e1a2c5f8d7ad8dd37509946234d"
+        },
+        {
+          "request": "missing-secret-recovered",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "missing-database",
+          "status": 500,
+          "body_sha256": "1d2e353771e4ed8b69f894024345cf2dcac4019ff98a6c2357c8f01a2ad1ddfd"
+        },
+        {
+          "request": "missing-database-recovered",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        },
+        {
+          "request": "missing-artifact-http",
+          "status": 500,
+          "body_sha256": "45d5049de8d8b6f5130f049ff5143d8121bd8e1a2c5f8d7ad8dd37509946234d"
+        },
+        {
+          "request": "artifact-recovered",
+          "status": 200,
+          "body_sha256": "00e3c1f3e3758531565e73d634da3ca2c131168018db74b64c3bb8dfc6cfb710"
+        }
+      ],
+      "cli": [
+        {
+          "operation": "site-init",
+          "exit": 0
+        },
+        {
+          "operation": "install-init",
+          "exit": 0
+        },
+        {
+          "operation": "readonly-preflight",
+          "exit": 0
+        },
+        {
+          "operation": "write-artifact",
+          "exit": 0
+        },
+        {
+          "operation": "ordinary-cli",
+          "exit": 0
+        },
+        {
+          "operation": "install-repeat",
+          "exit": 0
+        },
+        {
+          "operation": "missing-secret-cli",
+          "exit": 1
+        },
+        {
+          "operation": "missing-database-cli",
+          "exit": 1
+        },
+        {
+          "operation": "missing-artifact-cli",
+          "exit": 1
+        },
+        {
+          "operation": "platform-negative",
+          "exit": 2
+        }
+      ]
+    }
+  ],
+  "custody": "PASS: GitHub ZIP/ciphertext/plaintext hashes and complete passive restoration data/metadata comparison verified",
+  "j1_disposition": {
+    "A": "proven on the observed published J1 tuple",
+    "B": "proven with independent canonical activation",
+    "C": "proven cold warm restarted",
+    "D": "proven planned refusals privacy and recoveries",
+    "E": "proven separate no-dev vendor and actual requests",
+    "F": "pending harness landing and issue/Project reconciliation"
+  },
+  "s1_certification": "Separate S0-SHEG-02/global consumer certification remains pending; WSL2 restores are diagnostics only"
+}
