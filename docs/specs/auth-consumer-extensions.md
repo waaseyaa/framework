@@ -2,6 +2,14 @@
 
 Status: LIVE. Change record: `FW-AUTH-EXT-01`. Forge mirror: #2437.
 
+## Planned signup protection
+
+The [draft signup-protection contract](signup-protection.md), tracked in
+[#3234](https://github.com/waaseyaa/framework/issues/3234), proposes admission and
+challenge handling beyond the current registration allow/deny/approval policy.
+It is planning only, not a live extension slot. Existing security ownership and
+composition rules below remain unchanged.
+
 ## Security ownership
 
 Framework packages exclusively own authentication controllers, the `User`

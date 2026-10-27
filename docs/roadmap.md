@@ -1,9 +1,24 @@
 # Waaseyaa roadmap
 
-Updated 23 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
+Updated 26 October 2026. Waaseyaa is alpha; this roadmap sequences work, not
 released capability. [Specs](specs/workflow.md) own contracts, change records own
 durable scope/evidence, and [GitHub issues](https://github.com/waaseyaa/framework/issues)
 own execution status. Product roadmaps and adoption decisions belong downstream.
+
+## Planned: reusable signup protection
+
+[#3234](https://github.com/waaseyaa/framework/issues/3234) and
+[FW-SIGNUP-PROTECTION-01](change-records/FW-SIGNUP-PROTECTION-01.md) own the
+[draft signup-protection contract](specs/signup-protection.md). Plan one shared
+registration admission boundary, quiet form signals, optional maintained
+challenge validation, existing-limiter qualification and bounded decision
+evidence. Preserve Framework ownership of authentication and consumer ownership
+of product thresholds and verification policy.
+
+Resolve the contract and component fit first. Implementation, security review,
+installed/no-dev qualification and published adoption follow only under their
+own authorization. This is a missing-capability proposal, not a claimed defect
+or shipped protection; it does not block unrelated convergence work.
 
 ## Current: Framework convergence
 
