@@ -7,6 +7,7 @@ namespace Waaseyaa\User;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
@@ -66,6 +67,7 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
         return $entityTypeId === 'user';
     }
 
+    /** @param AccountInterface $account Direct legacy callers still require runtime principal narrowing. */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         if ($account->hasPermission('administer users')) {
@@ -79,13 +81,13 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
         assert($entity instanceof User);
 
-        if ($operation === 'update'
+        if ($operation === 'update' && $account instanceof AuthorizationPrincipalInterface
             && $account->isAuthenticated()
             && $this->managementDelegate?->canUpdate($entity, $account)) {
             return AccessResult::allowed('Consumer delegate admits this actor and account target.');
         }
 
-        if ($operation === 'change_active_status'
+        if ($operation === 'change_active_status' && $account instanceof AuthorizationPrincipalInterface
             && $account->isAuthenticated()
             && $this->managementDelegate?->canUpdate($entity, $account)
             && $this->managementDelegate->canChangeActiveStatus($entity, $account)) {
