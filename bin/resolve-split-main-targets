@@ -20,6 +20,7 @@ $allowlist = [
     'auth' => ['local' => 'packages/auth', 'remote' => 'auth'],
     'bimaaji' => ['local' => 'packages/bimaaji', 'remote' => 'bimaaji'],
     'user' => ['local' => 'packages/user', 'remote' => 'user'],
+    'mail' => ['local' => 'packages/mail', 'remote' => 'mail'],
     'mcp' => ['local' => 'packages/mcp', 'remote' => 'mcp'],
     'relationship' => ['local' => 'packages/relationship', 'remote' => 'relationship'],
     'foundation' => ['local' => 'packages/foundation', 'remote' => 'foundation'],
