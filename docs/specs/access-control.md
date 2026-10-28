@@ -147,8 +147,12 @@ without granting `administer users`. Decisions receive an authenticated immutabl
 authorization principal and, for update, the exact target User. The consumer
 must use audited target inputs and its own consent/roster scope.
 
-The delegate may admit target update and active `status` edits. Status needs
-both update admission and explicit status admission. Generic account creation
+The delegate may admit target update and the dedicated change_active_status
+operation. The generic status field remains administrator-only. The
+UserAccountLifecycle::setActive boundary checks both update and lifecycle
+admission, forbids self-administration, and saves status with an incremented
+session generation when disabling. Re-enabling does not restore old sessions.
+Consumer consent and group changes share the callers transaction. Generic account creation
 stays administrator-only: an actor-only create predicate cannot establish a
 consumer's verified consent intake. A separate approved-intake provisioning
 boundary is required for that workflow. The delegate cannot authorize

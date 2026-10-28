@@ -49,10 +49,12 @@ final class DelegatedUserManagementTest extends TestCase
         $target = new User(['uid' => 20]);
         $clerk = $this->principal();
         $policy = new UserAccessPolicy($this->delegate());
-        self::assertFalse($policy->fieldAccess($target, 'status', 'edit', $clerk)->isForbidden());
+        self::assertTrue($policy->fieldAccess($target, 'status', 'edit', $clerk)->isForbidden());
+        self::assertTrue($policy->access($target, 'change_active_status', $clerk)->isAllowed());
         self::assertTrue($policy->fieldAccess(new User(['uid' => 21]), 'status', 'edit', $clerk)->isForbidden());
         $readOnly = new UserAccessPolicy($this->delegate(false));
         self::assertTrue($readOnly->fieldAccess($target, 'status', 'edit', $clerk)->isForbidden());
+        self::assertFalse($readOnly->access($target, 'change_active_status', $clerk)->isAllowed());
     }
 
     public function testDelegateNeverGrantsPrivilegeCredentialsOrDeletion(): void
@@ -72,10 +74,16 @@ final class DelegatedUserManagementTest extends TestCase
 
     private function delegate(bool $updates = true): UserManagementDelegateInterface
     {
-        return new class($updates) implements UserManagementDelegateInterface {
+        return new class ($updates) implements UserManagementDelegateInterface {
             public function __construct(private readonly bool $updates) {}
-            public function canUpdate(User $target, AuthorizationPrincipalInterface $actor): bool { return $this->updates && $actor->id() === 10 && $target->id() === 20; }
-            public function canChangeActiveStatus(User $target, AuthorizationPrincipalInterface $actor): bool { return true; }
+            public function canUpdate(User $target, AuthorizationPrincipalInterface $actor): bool
+            {
+                return $this->updates && $actor->id() === 10 && $target->id() === 20;
+            }
+            public function canChangeActiveStatus(User $target, AuthorizationPrincipalInterface $actor): bool
+            {
+                return true;
+            }
         };
     }
 }

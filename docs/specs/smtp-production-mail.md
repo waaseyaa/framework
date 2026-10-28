@@ -31,6 +31,13 @@ Transport/auth failures propagate as a sanitized delivery exception with no
 SMTP transcript, credential, message body, reset token or previous exception.
 Headers cannot change envelope routing, sender, subject or MIME structure.
 
+The SMTP guard requires a successful AUTH result in every new handshake,
+including reconnects after a failed NOOP. Prior capabilities or authentication
+cannot authorize a replacement connection. EHLO-to-HELO fallback is refused.
+Loopback acceptance covers both retained-connection cases, with trust configured
+before the client PHP process starts rather than relying on cached OpenSSL
+environment state in a long-running test runner.
+
 Plan: reproduce missing SMTP/config-aware auth behavior, implement the minimal
 adapter and shared configuration authority, then test envelope mapping, TLS and
 auth settings, refused configuration, delivery failure, auth-mail provider wiring

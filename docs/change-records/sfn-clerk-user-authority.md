@@ -1,5 +1,16 @@
 # SFN clerk account authority
 
+October 28 continuation: the production closeout also adds
+`UserAccountLifecycle::setActive`. It checks the immutable actor, exact target,
+entity update and status-field policy before saving. Disabling increments the
+canonical session generation in that same save; re-enabling never restores an
+old generation. It refuses self-administration and overflow. The consumer owns
+the consent/group/history transaction and calls this boundary rather than
+writing credential/session fields. Tests cover refusal, unchanged status and
+disable/re-enable. This is domain authorization and session policy, not a
+replacement for Symfony infrastructure. Independent review is assigned in the
+current delivery session before integration.
+
 Local candidate, October 14, 2026. Owner: Russell Jones. No merge, split,
 release or deployment is authorized by this record.
 

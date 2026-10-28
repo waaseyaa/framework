@@ -718,6 +718,8 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Authentication\AuthenticationStage` | enum | public | — |
 | `RegisteredRoleAssignment` | final readonly class | public | Canonical registered-role membership and flattened permission union |
 | `RegisteredRoleAssignmentService` | final readonly class | public | Shared registered-role replacement/removal and permission-union authority |
+| `UserAccountLifecycle` | final readonly class | public | Policy-checked status mutation with persistent session revocation |
+| `UserManagementDelegateInterface` | interface | public | Exact consumer actor and target scope for canonical profile and lifecycle policy |
 
 ## Layer 2: Content Types
 

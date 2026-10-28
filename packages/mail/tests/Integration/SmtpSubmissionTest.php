@@ -6,10 +6,6 @@ namespace Waaseyaa\Mail\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Mail\Envelope;
-use Waaseyaa\Mail\MailConfiguration;
-use Waaseyaa\Mail\Mailer;
-use Waaseyaa\Mail\Transport\SmtpTransport;
 
 final class SmtpSubmissionTest extends TestCase
 {
@@ -26,29 +22,39 @@ final class SmtpSubmissionTest extends TestCase
         $certificate = openssl_csr_sign($csr, null, $key, 1, ['config' => $config, 'x509_extensions' => 'v3', 'digest_alg' => 'sha256']);
         openssl_x509_export_to_file($certificate, $directory . '/cert.pem');
         openssl_pkey_export_to_file($key, $directory . '/key.pem');
-        $oldCa = getenv('SSL_CERT_FILE');
-        putenv($trusted ? 'SSL_CERT_FILE=' . $directory . '/cert.pem' : 'SSL_CERT_FILE');
         $process = proc_open([PHP_BINARY, __DIR__ . '/../Fixtures/smtp-server.php', $mode, $directory . '/cert.pem', $directory . '/key.pem'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         $mailer = null;
         try {
             $port = json_decode(fgets($pipes[1]), true, flags: JSON_THROW_ON_ERROR)['port'];
-            $settings = MailConfiguration::fromArray(['transport' => 'smtp', 'from_address' => 'sender@example.test', 'smtp' => [
-                'host' => '127.0.0.1', 'port' => $port, 'username' => 'test-user', 'password' => 'test-secret', 'auth' => $auth,
-            ]]);
-            $mailer = new Mailer(SmtpTransport::fromConfiguration($settings), 'sender@example.test');
-            $failure = null;
-            try {
-                $mailer->send(new Envelope(['member@example.test'], '', 'Welcome', 'Test message', '<p>Test message</p>'));
-            } catch (\RuntimeException $error) {
-                $failure = $error;
+            // OpenSSL trust is set before PHP starts, independently of cached
+            // SSL_CERT_FILE state in the long-running PHPUnit process.
+            $command = [PHP_BINARY];
+            if ($trusted) {
+                $command[] = '-d';
+                $command[] = 'openssl.cafile=' . $directory . '/cert.pem';
             }
-            self::assertSame($success, $failure === null);
-            if ($failure !== null) {
-                self::assertSame('SMTP delivery failed.', $failure->getMessage());
-                self::assertNull($failure->getPrevious());
+            array_push($command, __DIR__ . '/../Fixtures/smtp-client.php', (string) $port, $auth, $mode);
+            $client = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $clientPipes);
+            fclose($clientPipes[0]);
+            $output = stream_get_contents($clientPipes[1]);
+            $error = stream_get_contents($clientPipes[2]);
+            fclose($clientPipes[1]);
+            fclose($clientPipes[2]);
+            self::assertSame(0, proc_close($client), $error);
+            $attempts = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+            $last = $attempts[array_key_last($attempts)];
+            self::assertSame($success, $last['sent']);
+            if (!$success) {
+                self::assertSame('SMTP delivery failed.', $last['error']);
+                self::assertFalse($last['previous']);
             }
-            $mailer = null;
-            $result = json_decode(fgets($pipes[1]), true, flags: JSON_THROW_ON_ERROR);
+            $connections = json_decode(fgets($pipes[1]), true, flags: JSON_THROW_ON_ERROR);
+            if (str_starts_with($mode, 'reconnect-')) {
+                self::assertCount(2, $attempts);
+                self::assertTrue($attempts[0]['sent']);
+                self::assertTrue($connections[0]['authenticated']);
+            }
+            $result = $connections[array_key_last($connections)];
             self::assertFalse($result['auth_before_tls']);
             self::assertSame($success, $result['mail_seen']);
             if ($success) {
@@ -64,7 +70,6 @@ final class SmtpSubmissionTest extends TestCase
                 fclose($pipe);
             }
             proc_close($process);
-            putenv($oldCa === false ? 'SSL_CERT_FILE' : 'SSL_CERT_FILE=' . $oldCa);
             foreach (glob($directory . '/*') as $path) {
                 unlink($path);
             }
@@ -75,6 +80,9 @@ final class SmtpSubmissionTest extends TestCase
     public static function submissions(): array
     {
         return [
+            'Reconnected AUTH required' => ['reconnect-no-auth', 'login', true, false],
+            'Reconnected EHLO downgrade refused' => ['reconnect-helo', 'login', true, false],
+            'Initial EHLO downgrade refused' => ['helo', 'login', true, false],
             'LOGIN' => ['ok', 'login', true, true],
             'XOAUTH2' => ['ok', 'xoauth2', true, true],
             'STARTTLS required' => ['no-tls', 'login', true, false],

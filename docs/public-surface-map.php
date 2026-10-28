@@ -825,6 +825,8 @@ return [
     'Waaseyaa\User\Authentication\AuthenticationStage' => 'public',
     'Waaseyaa\User\RegisteredRoleAssignment' => 'public',
     'Waaseyaa\User\RegisteredRoleAssignmentService' => 'public',
+    'Waaseyaa\User\UserAccountLifecycle' => 'public',
+    'Waaseyaa\User\UserManagementDelegateInterface' => 'public',
     'Waaseyaa\Workflows\Event\WorkflowEvents' => 'public',
     'Waaseyaa\Workflows\WorkflowPermissions' => 'public',
 ];

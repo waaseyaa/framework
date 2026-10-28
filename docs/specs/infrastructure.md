@@ -1,5 +1,15 @@
 # Infrastructure
 
+## Authenticated SMTP
+
+The shared Mail provider supports explicitly selected authenticated SMTP through
+maintained Symfony Mailer/Mime. Transport selection and auth-mail readiness use
+one MailConfiguration authority; local logging never represents delivery.
+Required verified STARTTLS and a successful AUTH exchange apply to every
+connection, including reconnects and refusal of EHLO downgrade. Provider failures
+are sanitized without chaining transcripts or credentials. See
+[SMTP production mail](smtp-production-mail.md) for configuration and acceptance.
+
 Controller dispatch logs unexpected failures as a fixed event with structured
 Throwable context through the existing LogManager final sink sanitizer. That
 sanitizer retains type/code and individually sanitized message/previous context;
