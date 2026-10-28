@@ -7,6 +7,7 @@ namespace Waaseyaa\Mail\Transport;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\Transport\Smtp\Auth\LoginAuthenticator;
 use Symfony\Component\Mailer\Transport\Smtp\Auth\XOAuth2Authenticator;
+use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 use Symfony\Component\Mailer\Transport\TransportInterface as SymfonyTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -33,8 +34,12 @@ final class SmtpTransport implements TransportInterface
         $transport->setRequireTls(true);
         $transport->setUsername($smtp['username']);
         $transport->setPassword($smtp['password']);
-        $transport->getStream()->setTimeout(10);
-        $transport->getStream()->setStreamOptions(['ssl' => [
+        $stream = $transport->getStream();
+        if (!$stream instanceof SocketStream) {
+            throw new \LogicException('SMTP requires a socket stream.');
+        }
+        $stream->setTimeout(10);
+        $stream->setStreamOptions(['ssl' => [
             'verify_peer' => true, 'verify_peer_name' => true, 'peer_name' => $smtp['host'], 'allow_self_signed' => false,
             'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT,
         ]]);

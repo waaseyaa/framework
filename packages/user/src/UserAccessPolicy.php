@@ -7,7 +7,6 @@ namespace Waaseyaa\User;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
@@ -80,13 +79,13 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
         assert($entity instanceof User);
 
-        if ($operation === 'update' && $account instanceof AuthorizationPrincipalInterface
+        if ($operation === 'update'
             && $account->isAuthenticated()
             && $this->managementDelegate?->canUpdate($entity, $account)) {
             return AccessResult::allowed('Consumer delegate admits this actor and account target.');
         }
 
-        if ($operation === 'change_active_status' && $account instanceof AuthorizationPrincipalInterface
+        if ($operation === 'change_active_status'
             && $account->isAuthenticated()
             && $this->managementDelegate?->canUpdate($entity, $account)
             && $this->managementDelegate->canChangeActiveStatus($entity, $account)) {
