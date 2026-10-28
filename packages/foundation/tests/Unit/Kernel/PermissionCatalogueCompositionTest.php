@@ -158,11 +158,15 @@ final class PermissionCatalogueCompositionTest extends TestCase
     public function the_validated_role_repository_is_collected_once_and_served_by_identity(): void
     {
         StatefulRolesFixtureProvider::$rolesCalls = 0;
+        StatefulRolesFixtureProvider::$beforeComposition = null;
+        StatefulRolesFixtureProvider::$atBoot = null;
         $this->writeRootComposer([StatefulRolesFixtureProvider::class]);
         $kernel = $this->newKernel();
         $kernel->publicBoot();
 
         $repository = $kernel->roleRepository();
+        self::assertNull(StatefulRolesFixtureProvider::$beforeComposition, 'providers cannot resolve an unvalidated catalogue');
+        self::assertSame($repository, StatefulRolesFixtureProvider::$atBoot, 'provider factories receive the validated kernel instance');
         self::assertSame(1, StatefulRolesFixtureProvider::$rolesCalls, 'roles() consulted exactly once during boot');
         self::assertSame([StatefulRolesFixtureProvider::PERMISSION], $repository->get('curator')?->permissions, 'the validated first answer is retained');
 

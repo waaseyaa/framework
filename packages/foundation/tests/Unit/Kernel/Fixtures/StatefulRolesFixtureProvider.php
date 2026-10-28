@@ -8,6 +8,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\User\Role;
+use Waaseyaa\User\RoleRepository;
 
 /**
  * A provider whose roles() answer changes on every call: the first call
@@ -23,7 +24,21 @@ final class StatefulRolesFixtureProvider extends ServiceProvider implements Prov
 
     public static int $rolesCalls = 0;
 
-    public function register(): void {}
+    public static ?RoleRepository $beforeComposition = null;
+
+    public static ?RoleRepository $atBoot = null;
+
+    public function register(): void
+    {
+        self::$beforeComposition = $this->resolveOptional(RoleRepository::class);
+    }
+
+    public function boot(): void
+    {
+        $roles = $this->resolve(RoleRepository::class);
+        assert($roles instanceof RoleRepository);
+        self::$atBoot = $roles;
+    }
 
     public function roles(): iterable
     {

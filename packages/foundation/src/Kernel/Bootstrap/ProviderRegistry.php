@@ -83,6 +83,8 @@ final class ProviderRegistry
         ?RouteExposureInputs $routeExposureInputs = null,
         /** @var (\Closure(): \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot)|null */
         ?\Closure $routeSnapshotAccessor = null,
+        /** @var (\Closure(): ?\Waaseyaa\User\RoleRepository)|null */
+        ?\Closure $roleRepositoryAccessor = null,
     ): array {
         $this->providers = [];
 
@@ -103,6 +105,7 @@ final class ProviderRegistry
             healthCheckerAccessor: $healthCheckerAccessor,
             routeExposureInputs: $routeExposureInputs,
             routeSnapshotAccessor: $routeSnapshotAccessor,
+            roleRepositoryAccessor: $roleRepositoryAccessor,
         );
 
         foreach ($manifest->providers as $providerClass) {

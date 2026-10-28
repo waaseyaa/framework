@@ -51,6 +51,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         ?\Closure $healthCheckerAccessor = null,
         ?RouteExposureInputs $routeExposureInputs = null,
         ?\Closure $routeSnapshotAccessor = null,
+        ?\Closure $roleRepositoryAccessor = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -68,7 +69,28 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             healthCheckerAccessor: $healthCheckerAccessor,
             routeExposureInputs: $routeExposureInputs,
             routeSnapshotAccessor: $routeSnapshotAccessor,
+            roleRepositoryAccessor: $roleRepositoryAccessor,
         );
+    }
+
+    #[Test]
+    public function role_registry_is_kernel_owned_lazy_and_unavailable_before_composition(): void
+    {
+        $database = $this->createStub(DatabaseInterface::class);
+        $provider = new class extends ServiceProvider {
+            public function register(): void
+            {
+                $this->singleton(\Waaseyaa\User\RoleRepository::class, static fn() => new \Waaseyaa\User\RoleRepository());
+            }
+        };
+        $provider->register();
+        $current = null;
+        $services = $this->services($database, providers: [$provider], roleRepositoryAccessor: static function () use (&$current) { return $current; });
+        self::assertNull($services->get(\Waaseyaa\User\RoleRepository::class));
+        $current = new \Waaseyaa\User\RoleRepository();
+        self::assertSame($current, $services->get(\Waaseyaa\User\RoleRepository::class));
+        self::assertSame($current, $services->get(\Waaseyaa\User\RoleRepository::class));
+        self::assertNull($this->services($database, providers: [$provider])->get(\Waaseyaa\User\RoleRepository::class));
     }
 
     public function testRouteAuthorityAccessorIsLazyLiveAndPropagatesRefusal(): void

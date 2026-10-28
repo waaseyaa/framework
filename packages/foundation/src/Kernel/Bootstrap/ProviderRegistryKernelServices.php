@@ -120,6 +120,8 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         private readonly ?RouteExposureInputs $routeExposureInputs = null,
         /** @var (\Closure(): \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot)|null */
         private readonly ?\Closure $routeSnapshotAccessor = null,
+        /** @var (\Closure(): ?\Waaseyaa\User\RoleRepository)|null */
+        private readonly ?\Closure $roleRepositoryAccessor = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -128,6 +130,11 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     public function get(string $abstract): ?object
     {
+        if ($abstract === \Waaseyaa\User\RoleRepository::class) {
+            // Only the kernel's validated catalogue is authority. A provider
+            // must not replace it or reconstruct roles before composition.
+            return $this->roleRepositoryAccessor !== null ? ($this->roleRepositoryAccessor)() : null;
+        }
         if ($abstract === \Waaseyaa\Foundation\Routing\Metadata\RouteSnapshot::class) {
             // Kernel authority precedes provider overrides. Never cache a read:
             // completed snapshots retain live custody/refusal checks.

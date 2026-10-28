@@ -596,6 +596,7 @@ abstract class AbstractKernel
             validateCapabilities: !$this->restrictedDiscoveryOnly,
             routeExposureInputs: $this->routeExposureInputsForProviders(),
             routeSnapshotAccessor: fn(): RouteSnapshot => $this->getRouteSnapshot(),
+            roleRepositoryAccessor: fn(): ?\Waaseyaa\User\RoleRepository => $this->roleRepository,
         );
     }
 
@@ -953,6 +954,7 @@ abstract class AbstractKernel
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
             secretResolverRegistry: $this->secretResolverRegistry(),
+            roleRepositoryAccessor: fn(): ?\Waaseyaa\User\RoleRepository => $this->roleRepository,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -989,6 +991,7 @@ abstract class AbstractKernel
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
             secretResolverRegistry: $this->secretResolverRegistry(),
+            roleRepositoryAccessor: fn(): ?\Waaseyaa\User\RoleRepository => $this->roleRepository,
         );
         $scope = $kernelServices->get(AccountFieldReadScopeInterface::class);
         if (!$scope instanceof AccountFieldReadScopeInterface) {
@@ -1044,6 +1047,7 @@ abstract class AbstractKernel
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
             secretResolverRegistry: $this->secretResolverRegistry(),
+            roleRepositoryAccessor: fn(): ?\Waaseyaa\User\RoleRepository => $this->roleRepository,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -1075,6 +1079,7 @@ abstract class AbstractKernel
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
             secretResolverRegistry: $this->secretResolverRegistry(),
+            roleRepositoryAccessor: fn(): ?\Waaseyaa\User\RoleRepository => $this->roleRepository,
         );
         $gatewayAudit = $kernelServices->get(StrictFieldStorageGatewayAuditInterface::class);
         $gatewayAudit = $gatewayAudit instanceof StrictFieldStorageGatewayAuditInterface
