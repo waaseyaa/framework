@@ -14,6 +14,7 @@ final class ResolveSplitMainTargetsTest extends TestCase
 {
     private string $script = '';
 
+    #[Test]
     public function testReviewedProductionMailAndUserSelectionIsBounded(): void
     {
         [$exit, $output, $error] = $this->runScript('mail,user');

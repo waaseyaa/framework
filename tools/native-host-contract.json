@@ -215,6 +215,7 @@
                 "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::construction_is_refused_in_a_production_shaped_runtime_out_of_process",
                 "Waaseyaa\\Tests\\Integration\\LocalOperator\\LocalOperatorTrustBoundaryTest::the_out_of_process_harness_constructs_under_an_explicit_development_config",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::resolves_allowlisted_targets_as_a_deterministic_matrix",
+                "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::testReviewedProductionMailAndUserSelectionIsBounded",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::rejects_an_unknown_or_path_shaped_target",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::resolves_the_complete_page_builder_delivery_set",
                 "Waaseyaa\\Tests\\Integration\\ReleaseTooling\\ResolveSplitMainTargetsTest::resolves_the_foundation_database_delivery_set",
