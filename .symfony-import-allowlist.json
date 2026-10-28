@@ -10,6 +10,8 @@
     "packages/http-client/"
   ],
   "rationales": {
+    "packages/mail/src/Transport/SmtpTransport.php": "smtp-production-mail-20261028: minimal adapter to the declared maintained Symfony Mailer/Mime transport, envelope and TLS mechanisms. Waaseyaa owns selection and sanitized failures. Review trigger: transport or envelope boundary changes.",
+    "packages/mail/src/Transport/AuthenticatedEsmtpTransport.php": "smtp-production-mail-20261028: require AUTH before MAIL FROM through maintained EsmtpTransport lifecycle hooks; Symfony owns the SMTP exchange. Review trigger: Symfony lifecycle or submission policy changes.",
     "packages/http-client/": "FW-AIV-EXECUTION-01: generic maintained Symfony HttpClient mechanics belong to the existing HTTP infrastructure owner; Waaseyaa policy remains in its consumers.",
     "packages/entity/src/Validation/EntityReferenceExistenceConstraintBuilder.php": "Composes the canonical EntityExists constraint with Symfony All for repository validation; the existing entity validation boundary consumes Symfony Constraint lists.",
     "packages/access/src/Middleware/FieldReadContextMiddleware.php": "Implements the established HTTP middleware contract, whose request and response types are Symfony HttpFoundation objects.",
@@ -26,6 +28,8 @@
     "packages/admin-surface/src/Http/AdminSpaHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes."
   },
   "legacy_files": [
+    "packages/mail/src/Transport/SmtpTransport.php",
+    "packages/mail/src/Transport/AuthenticatedEsmtpTransport.php",
     "packages/entity/src/Validation/EntityReferenceExistenceConstraintBuilder.php",
     "packages/access/src/Middleware/FieldReadContextMiddleware.php",
     "packages/access/src/AccessChecker.php",

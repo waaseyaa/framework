@@ -9,6 +9,7 @@ use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Mail\MailConfiguration;
 use Waaseyaa\Mail\MailerInterface;
 
 final class UserServiceProvider extends ServiceProvider
@@ -31,8 +32,7 @@ final class UserServiceProvider extends ServiceProvider
 
         $config = $this->config ?? [];
         $mailConfig = $config['mail'] ?? [];
-        $authEmailConfigured = trim((string) ($mailConfig['sendgrid_api_key'] ?? '')) !== ''
-            && trim((string) ($mailConfig['from_address'] ?? '')) !== '';
+        $authEmailConfigured = MailConfiguration::fromArray($mailConfig)->canDeliver();
 
         $this->singleton(AuthMailer::class, function () use ($authEmailConfigured, $config): AuthMailer {
             // Resolve the Twig renderer from the container rather than reaching

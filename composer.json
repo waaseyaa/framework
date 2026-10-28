@@ -318,6 +318,7 @@
         "symfony/console": "^8.0",
         "symfony/dotenv": "^8.0",
         "symfony/html-sanitizer": "^8.0",
+        "symfony/mailer": "^8.0",
         "waaseyaa/access": "self.version",
         "waaseyaa/admin-surface": "self.version",
         "waaseyaa/ai-pipeline": "self.version",

@@ -8,6 +8,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mail\Transport\ArrayTransport;
 use Waaseyaa\Mail\Transport\LocalTransport;
 use Waaseyaa\Mail\Transport\SendGridTransport;
+use Waaseyaa\Mail\Transport\SmtpTransport;
 use Waaseyaa\Mail\Transport\TransportInterface;
 
 final class MailServiceProvider extends ServiceProvider
@@ -15,18 +16,17 @@ final class MailServiceProvider extends ServiceProvider
     public function register(): void
     {
         $mailConfig = $this->config['mail'] ?? [];
-        $transportType = $mailConfig['transport'] ?? 'local';
-        $fromAddress = trim((string) ($mailConfig['from_address'] ?? ''));
-        $fromName = (string) ($mailConfig['from_name'] ?? '');
-        $sendgridKey = trim((string) ($mailConfig['sendgrid_api_key'] ?? ''));
+        $configuration = MailConfiguration::fromArray($mailConfig);
+        $fromAddress = $configuration->fromAddress;
 
-        $this->singleton(TransportInterface::class, fn(): TransportInterface => match (true) {
-            $sendgridKey !== '' && $fromAddress !== '' => new SendGridTransport(
-                apiKey: $sendgridKey,
+        $this->singleton(TransportInterface::class, fn(): TransportInterface => match ($configuration->transport) {
+            'smtp' => SmtpTransport::fromConfiguration($configuration),
+            'sendgrid' => new SendGridTransport(
+                apiKey: $configuration->sendgridKey,
                 fromAddress: $fromAddress,
-                fromName: $fromName,
+                fromName: $configuration->fromName,
             ),
-            $transportType === 'array' => new ArrayTransport(),
+            'array' => new ArrayTransport(),
             default => new LocalTransport(
                 $mailConfig['log_path'] ?? $this->projectRoot . '/var/mail.log',
             ),
