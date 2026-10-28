@@ -787,6 +787,13 @@ See [route-metadata.md](route-metadata.md) and the execution ledger.
 
 The kernel supplies one `RouteExposureInputs` instance through the provider registry's optional trailing argument. `ProviderRegistryKernelServices` returns that exact instance for its class identifier. Bare registry callers may omit it. The API provider publishes the effective map from its existing exposure policy during ordinary boot. After all providers and finalizers complete, the kernel freezes the publication against the finalized entity roster; missing, duplicate or stale publication refuses canonical route inputs. An admitted roster without the API provider produces an all-false exposure map.
 
+The provider registry also accepts an optional trailing role-repository accessor.
+The kernel supplies its single validated catalogue after permission composition;
+provider factories, policy dependencies and handler consumers receive that same
+instance. Resolution before composition, or without the accessor, returns null
+without falling through to a provider replacement. Resolving this authority never
+enumerates `roles()` again.
+
 Route participation compilation admits the known neutral metadata protocol classes and projector during bootstrap source validation. Projection and subsequent inspection do not discover or autoload classes. This handoff neither invokes route contributors nor changes legacy route registration. Package presence alone does not establish active API participation.
 
 The admitted protocol roster includes `FoundationRouteDefinitions`, whose source digest participates in compiler identity. After input freezing the kernel admits this complete builtin/terminal authority and the exact registered provider/context roster to its lazy composition epoch. Bootstrap does not invoke contributors. Legacy classifications refuse complete snapshot inspection without any hook call; declarative providers are collected once only when the snapshot is requested.
