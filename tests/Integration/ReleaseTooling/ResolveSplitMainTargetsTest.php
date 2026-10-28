@@ -16,14 +16,8 @@ final class ResolveSplitMainTargetsTest extends TestCase
 
     public function testReviewedProductionMailAndUserSelectionIsBounded(): void
     {
-        $command = [PHP_BINARY, dirname(__DIR__, 3).'/bin/resolve-split-main-targets', 'mail,user'];
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]);
-        $error = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        self::assertSame(0, proc_close($process), $error);
+        [$exit, $output, $error] = $this->runScript('mail,user');
+        self::assertSame(0, $exit, $error);
         self::assertSame(['include' => [
             ['local' => 'packages/mail', 'remote' => 'mail'],
             ['local' => 'packages/user', 'remote' => 'user'],

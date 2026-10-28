@@ -6,6 +6,7 @@ namespace Waaseyaa\Mail\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 final class SmtpSubmissionTest extends TestCase
 {
@@ -22,10 +23,17 @@ final class SmtpSubmissionTest extends TestCase
         $certificate = openssl_csr_sign($csr, null, $key, 1, ['config' => $config, 'x509_extensions' => 'v3', 'digest_alg' => 'sha256']);
         openssl_x509_export_to_file($certificate, $directory . '/cert.pem');
         openssl_pkey_export_to_file($key, $directory . '/key.pem');
-        $process = proc_open([PHP_BINARY, __DIR__ . '/../Fixtures/smtp-server.php', $mode, $directory . '/cert.pem', $directory . '/key.pem'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        $mailer = null;
+        $process = new Process([PHP_BINARY, __DIR__ . '/../Fixtures/smtp-server.php', $mode, $directory . '/cert.pem', $directory . '/key.pem'], timeout: 20);
+        $process->start();
         try {
-            $port = json_decode(fgets($pipes[1]), true, flags: JSON_THROW_ON_ERROR)['port'];
+            $ready = '';
+            self::assertTrue($process->waitUntil(static function (string $type, string $output) use (&$ready): bool {
+                if ($type === Process::OUT) {
+                    $ready .= $output;
+                }
+                return str_contains($ready, "\n");
+            }), $process->getErrorOutput());
+            $port = json_decode(explode("\n", $ready)[0], true, flags: JSON_THROW_ON_ERROR)['port'];
             // OpenSSL trust is set before PHP starts, independently of cached
             // SSL_CERT_FILE state in the long-running PHPUnit process.
             $command = [PHP_BINARY];
@@ -34,21 +42,17 @@ final class SmtpSubmissionTest extends TestCase
                 $command[] = 'openssl.cafile=' . $directory . '/cert.pem';
             }
             array_push($command, __DIR__ . '/../Fixtures/smtp-client.php', (string) $port, $auth, $mode);
-            $client = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $clientPipes);
-            fclose($clientPipes[0]);
-            $output = stream_get_contents($clientPipes[1]);
-            $error = stream_get_contents($clientPipes[2]);
-            fclose($clientPipes[1]);
-            fclose($clientPipes[2]);
-            self::assertSame(0, proc_close($client), $error);
-            $attempts = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+            $client = new Process($command, timeout: 20);
+            self::assertSame(0, $client->run(), $client->getErrorOutput());
+            $attempts = json_decode($client->getOutput(), true, flags: JSON_THROW_ON_ERROR);
             $last = $attempts[array_key_last($attempts)];
             self::assertSame($success, $last['sent']);
             if (!$success) {
                 self::assertSame('SMTP delivery failed.', $last['error']);
                 self::assertFalse($last['previous']);
             }
-            $connections = json_decode(fgets($pipes[1]), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame(0, $process->wait(), $process->getErrorOutput());
+            $connections = json_decode(explode("\n", trim($process->getOutput()))[1], true, flags: JSON_THROW_ON_ERROR);
             if (str_starts_with($mode, 'reconnect-')) {
                 self::assertCount(2, $attempts);
                 self::assertTrue($attempts[0]['sent']);
@@ -65,11 +69,7 @@ final class SmtpSubmissionTest extends TestCase
                 self::assertStringContainsString('Subject: Welcome', $result['data']);
             }
         } finally {
-            $mailer = null;
-            foreach ($pipes as $pipe) {
-                fclose($pipe);
-            }
-            proc_close($process);
+            $process->stop(0.2);
             foreach (glob($directory . '/*') as $path) {
                 unlink($path);
             }
