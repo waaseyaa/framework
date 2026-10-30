@@ -112,7 +112,9 @@ final class EnqueueAndConsumeTest extends TestCase
         $events = $this->broadcaster->eventsFor((string) $run->get('id'));
         self::assertContains('run_started', $events);
         self::assertContains('run_completed', $events);
-        foreach ($this->broadcastStorage->poll(0, ['agent.run.' . $run->get('id')]) as $row) {
+        $rows = $this->broadcastStorage->poll(0, ['agent.run.' . $run->get('id')]);
+        self::assertCount(2, $rows, 'Both worker events must reach the real broadcast log.');
+        foreach ($rows as $row) {
             self::assertTrue($this->openApiAccepts('AgentRunEvent', $row), 'Actual worker SSE row must match OpenAPI.');
         }
     }
