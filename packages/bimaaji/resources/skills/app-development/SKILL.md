@@ -20,10 +20,11 @@ This skill ensures consistent, framework-compliant application development acros
 **Before writing ANY new code, complete these checks:**
 
 1. Search waaseyaa specs: does the framework already provide this?
-   - `rg -n "<capability-or-symbol>" docs/specs/` in the framework repo, or browse `docs/specs/` from the orchestration table in `CLAUDE.md`
+   - In a Composer consumer, search `vendor/waaseyaa/framework/docs/specs/` when that installed distribution is present. In a Framework checkout, search `docs/specs/` and use `AGENTS.md` for subsystem routing.
+   - A split-package-only consumer may not ship the full specs. Report that limitation and inspect the installed package source/public contracts; do not assume a Framework checkout exists.
 2. Search sibling apps: has minoo or claudriel already solved this?
-   - Search the `src/` trees in both consumer application checkouts
-   - Check their specs in `docs/specs/`
+   - Only search sibling checkouts made available within the authorized workspace, including their `src/` and `docs/specs/` trees.
+   - Ordinary consumers do not include maintainer sibling apps. If absent, record prior art as unavailable and proceed with available framework contracts. Do not search outside the workspace or invent findings.
 3. If prior art exists:
    - Same pattern needed? → Follow the existing implementation
    - Both apps need it? → Nominate for framework extraction (use `waaseyaa:framework-extraction` skill)
@@ -54,8 +55,14 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
+#[ContentEntityType(id: 'goal', label: 'Goal')]
+#[ContentEntityKeys(id: 'gid', uuid: 'uuid', label: 'title')]
 final class Goal extends ContentEntityBase
 {
     protected string $entityTypeId = 'goal';
@@ -64,6 +71,20 @@ final class Goal extends ContentEntityBase
         'uuid' => 'uuid',
         'label' => 'title',
     ];
+
+    // This example deliberately exposes these nonsensitive planning fields.
+    // Choose Public, Protected or Internal for each real application's fields.
+    #[Field(label: 'Title', required: true, read: FieldReadLevel::Public)]
+    public string $title = '';
+
+    #[Field(type: 'text_long', label: 'Description', read: FieldReadLevel::Public)]
+    public string $description = '';
+
+    #[Field(label: 'Status', default: 'draft', read: FieldReadLevel::Public)]
+    public string $status = 'draft';
+
+    #[Field(type: 'datetime', label: 'Due Date', read: FieldReadLevel::Public)]
+    public ?\DateTimeImmutable $due_date = null;
 
     public function __construct(array $values = [])
     {
@@ -90,24 +111,14 @@ final class Goal extends ContentEntityBase
 ```php
 public function register(): void
 {
-    $this->entityType(new EntityType(
-        id: 'goal',
-        label: 'Goal',
-        class: Goal::class,
-        keys: ['id' => 'gid', 'uuid' => 'uuid', 'label' => 'title'],
-        group: 'planning',
-        fieldDefinitions: [
-            'description' => ['type' => 'text_long', 'label' => 'Description'],
-            'status' => ['type' => 'string', 'label' => 'Status'],
-            'due_date' => ['type' => 'datetime', 'label' => 'Due Date'],
-        ],
-    ));
+    $this->entityType(EntityType::fromClass(Goal::class, group: 'planning'));
 }
 ```
 
 **Rules:**
-- Use named constructor parameters
-- Always include `fieldDefinitions` — they drive admin UI, JSON Schema, and validation
+- Import `App\Entity\Goal` and `Waaseyaa\Entity\EntityType` in the `ServiceProvider` subclass.
+- Declare content metadata with `#[ContentEntityType]`, `#[ContentEntityKeys]` and typed `#[Field]` properties, then register `EntityType::fromClass()`.
+- Field metadata drives admin UI, JSON Schema and validation. Declare a reviewed `read:` level on each field. Neither `fieldDefinitions:` nor the internal `_fieldDefinitions:` constructor slot is an application registration API.
 - Group related entity types with `group:`
 - One provider per domain (not one giant provider for all types)
 - `register()` = DI bindings + entity types. `boot()` = event subscriptions, Twig globals, cache warming
@@ -125,7 +136,7 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\User\AccountInterface;
+use Waaseyaa\Access\AccountInterface;
 
 #[PolicyAttribute(entityType: 'goal')]
 final class GoalAccessPolicy implements AccessPolicyInterface
@@ -142,12 +153,25 @@ final class GoalAccessPolicy implements AccessPolicyInterface
                 : AccessResult::neutral(),
         };
     }
+
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return $this->appliesTo($entityTypeId) && $account->hasPermission('administer goals')
+            ? AccessResult::allowed()
+            : AccessResult::neutral();
+    }
+
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'goal';
+    }
 }
 ```
 
 **Rules:**
 - Always use `#[PolicyAttribute(entityType: '...')]` — auto-discovery depends on it
-- Type-hint `AccountInterface`, never `mixed`
+- Implement all three methods: `access()`, `createAccess()` and `appliesTo()`.
+- Import `Waaseyaa\Access\AccountInterface`, never `mixed`. Kernel access decisions supply an immutable authorization principal; do not pass a live User entity as the decision account.
 - Return `AccessResult` — `::allowed()`, `::neutral()`, `::forbidden()`
 - Add `FieldAccessPolicyInterface` (intersection type) only if field-level control needed
 - Entity-level: `isAllowed()` (deny unless granted). Field-level: `!isForbidden()` (allow unless denied)
@@ -162,8 +186,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Routing\SsrResponse;
-use Waaseyaa\User\AccountInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Waaseyaa\Access\AccountInterface;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 
 final class GoalController
@@ -177,10 +201,11 @@ final class GoalController
         array $query,
         AccountInterface $account,
         HttpRequest $request,
-    ): SsrResponse {
-        $storage = $this->entityTypeManager->getStorage('goal');
-        $entities = $storage->loadMultiple();
-        // Return appropriate response (JSON API or SSR)
+    ): JsonResponse {
+        // Minimal response demonstrating the controller signature.
+        // Before returning entity values, enforce entity access and use a
+        // framework serializer/presenter with this request's principal.
+        return new JsonResponse(['entity_type' => 'goal']);
     }
 }
 ```
@@ -188,21 +213,19 @@ final class GoalController
 **Rules:**
 - Type-hint `AccountInterface $account`, not `mixed $account = null`
 - Controller signature: `(array $params, array $query, AccountInterface $account, HttpRequest $request)`
-- Use `EntityTypeManager::getStorage()` to access entity storage
+- Use `EntityTypeManager::getRepository()` for application reads and writes through the canonical repository lifecycle. Direct storage drivers belong to reviewed framework composition, not application persistence.
 - For JSON API: use `ResourceSerializer` with paired nullable `?EntityAccessHandler` + `?AccountInterface`
 
 ### Route Registration
 
 ```php
-public function routes(): void
+public function routes(\Waaseyaa\Routing\WaaseyaaRouter $router, \Waaseyaa\Entity\EntityTypeManager $entityTypeManager): void
 {
-    $this->route('goal.list', '/api/goals', GoalController::class, 'list')
-        ->methods(['GET'])
-        ->option('_permission', 'access content');
-
-    $this->route('goal.show', '/api/goals/{gid}', GoalController::class, 'show')
-        ->methods(['GET'])
-        ->option('_permission', 'access content');
+    $router->addRoute('goal.list', \Waaseyaa\Routing\RouteBuilder::create('/api/goals')
+        ->controller([\App\Controller\GoalController::class, 'list'])
+        ->methods('GET')
+        ->requirePermission('access content')
+        ->build());
 }
 ```
 
@@ -221,13 +244,13 @@ When reviewing app code, verify:
 | Entity constructor | Takes `(array $values = [])`, hardcodes entityTypeId/Keys |
 | Entity base class | Extends `ContentEntityBase` or `ConfigEntityBase` |
 | Entity class | `final class` with `declare(strict_types=1)` |
-| EntityType registration | Named params, includes fieldDefinitions |
+| EntityType registration | Attribute-derived `EntityType::fromClass()`, classified `#[Field]` properties |
 | Provider separation | register() for DI/entities, boot() for events/globals |
 | Provider scope | One per domain, not one monolithic provider |
-| Access policy | `#[PolicyAttribute]`, implements `AccessPolicyInterface` |
+| Access policy | `#[PolicyAttribute]`, implements all three `AccessPolicyInterface` methods |
 | Controller typing | `AccountInterface $account`, not `mixed` |
 | Route access | Uses `_public`/`_permission`/`_role`/`_gate` options |
-| Anti-duplication | Checked framework and sibling apps before implementing |
+| Anti-duplication | Checked available framework contracts and authorized prior art; records unavailable references |
 
 ## Red Flags
 
@@ -244,7 +267,7 @@ These rationalizations indicate the checklist is being bypassed:
 ## Common Mistakes
 
 - Using `mixed $account` instead of `AccountInterface` — breaks type safety and access checking
-- Omitting `fieldDefinitions` — admin UI and JSON Schema can't discover fields
+- Passing `fieldDefinitions:` or `_fieldDefinitions:` to `EntityType` instead of declaring attributes and using `EntityType::fromClass()`
 - Registering all entity types in one provider — makes code hard to navigate and test
 - Skipping `#[PolicyAttribute]` — auto-discovery silently fails, policy never activates
 - Not running `waaseyaa optimize:manifest` after adding providers/policies
