@@ -42,6 +42,16 @@ canonical, so there is no build-time sync step and no freshness gate to
 keep honest (contrast `bin/check-admin-dist-fresh`, which exists because
 `packages/admin-surface/dist` is a copy).
 
+Application-development examples are executable guidance contracts.
+`AppDevelopmentExamplesTest` loads the canonical Markdown PHP blocks in
+isolated processes against installed APIs: attribute-derived content registration
+and classified fields, all access-policy methods with permission refusal/grant,
+the account/response types, and route permission requirements. Consumer examples
+use `EntityType::fromClass()` rather than internal constructor field slots.
+Installed full-distribution specs live at `vendor/waaseyaa/framework/docs/specs`;
+split-only installations and unavailable maintainer sibling apps must be reported
+as unavailable references, not searched outside the authorized workspace.
+
 ### Failure diagnostics
 
 `SkillSetParser::parse()` raises `SkillResourceException` rather than
