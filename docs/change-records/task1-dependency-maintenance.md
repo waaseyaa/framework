@@ -59,6 +59,15 @@ Live observations and detailed receipts are retained outside the checkout in
 `C:/dev/waaseyaa/task1-evidence/20261030/`. Final outcomes and portable source
 links will be appended before review.
 
+The first complete hosted test plan after the Composer pin also exposed one
+obsolete dependency-hazard assertion: `SessionCookiePolicyAttributeInjectionR2Test`
+expected HttpFoundation to serialize an injected cookie path. The patched
+component correctly refuses it. The repair changes that single discriminator
+to require the upstream refusal and preserves all Waaseyaa policy-level refusal
+and valid-cookie serialization controls. It does not relax session behavior.
+The failing hosted shard and focused local red receipt are retained alongside
+the repaired focused run; a new exact-head qualification owns the final result.
+
 ## PHP candidate outcome
 
 Root HttpFoundation/Yaml move from 7.4.13 to 7.4.22. Root ExpressionLanguage
