@@ -47,8 +47,8 @@
     ],
     "require": {
         "php": ">=8.5",
-        "symfony/expression-language": "^7.0",
-        "symfony/http-foundation": "^7.0",
+        "symfony/expression-language": "^7.4.21",
+        "symfony/http-foundation": "^7.4.22",
         "waaseyaa/entity": "^0.1.0-alpha.308",
         "waaseyaa/access": "^0.1.0-alpha.308",
         "waaseyaa/i18n": "^0.1.0-alpha.308",

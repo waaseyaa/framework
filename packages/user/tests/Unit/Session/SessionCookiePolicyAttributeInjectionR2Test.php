@@ -131,15 +131,15 @@ final class SessionCookiePolicyAttributeInjectionR2Test extends TestCase
     }
 
     #[Test]
-    public function cookie_create_with_injected_path_would_serialize_extra_attribute(): void
+    public function cookie_create_rejects_an_injected_path_before_serialization(): void
     {
-        // Document the Symfony serialization hazard that the policy must reject.
-        $cookie = Cookie::create('XSRF-TOKEN')
+        // Patched HttpFoundation also rejects the delimiter at its own boundary.
+        // The policy-level refusal and valid serialization controls above remain required.
+        $this->expectException(\InvalidArgumentException::class);
+        Cookie::create('XSRF-TOKEN')
             ->withValue('token')
             ->withPath('/admin; HttpOnly')
             ->withHttpOnly(false)
             ->withSameSite('lax');
-        $header = (string) $cookie;
-        $this->assertMatchesRegularExpression('/path=\/admin;\s*httponly/i', $header);
     }
 }
