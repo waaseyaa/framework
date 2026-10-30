@@ -42,7 +42,7 @@ Framework main `624c70328e07e9c41f362305370ebf07cd0909c8` passed hosted CI
 and selected development split
 [40774854789](https://github.com/waaseyaa/framework/actions/runs/40774854789).
 Exact selected package refs are recorded in
-[the A36 reconciliation record](FW-A36-DELIVERY-RECONCILIATION-01.md#framework-ci-and-split-refs).
+[the SMTP delivery record](../qa/smtp-production-mail-20261028.md#framework-ci-and-split-refs).
 Earlier Mail and User development refs from reviewed source `4d639223...` are
 `ec2a1731837e14615cbf8472bc1b05bd8e19c2a2` and
 `253ec1f498f174d23b745aa49ecb91ebc88be636` respectively.
