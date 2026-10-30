@@ -94,3 +94,23 @@ critical entries; npm's aggregate counts are not GitHub's advisory-alert counts.
 Keep the remaining-disposition table above. Local preflight and exact-commit
 hosted CI results are recorded in the PR and external task evidence; this
 receipt does not label a pending or failed gate as passed.
+
+## Admin integration runner correction
+
+Separate Admin SPA workflow run [41132239620](https://github.com/waaseyaa/framework/actions/runs/41132239620),
+job `124326055593` (`admin/integration`), selected Ubuntu 26.04 through
+`ubuntu-latest`. Playwright 1.60.0 failed its Chromium install before the test
+step with `Playwright does not support chromium on ubuntu26.04-x64`; the retry
+summary then lacked `results.json` because tests never started. Pin only this
+integration job to `ubuntu-24.04`, matching the existing Framework CI runner
+and `support/s1-v1.json` framework OS point. Keep the locked Playwright version
+and browser revisions unchanged.
+
+The workflow edit changes no Admin source, dependency lock, or D6 signature
+input. On this candidate, `bin/check-admin-dist-fresh` still reports source
+signature `400f0b0087fa4d6136134a86387071f14bc797af4b5864723b9e24e726de2c55`,
+and `bin/admin-dist-acceptance verify` confirms the committed dist matches its
+manifest. No distribution rebuild or signature rewrite is indicated. The
+edited workflow inventory is regenerated from source. The next exact hosted
+Admin workflow run owns confirmation on Ubuntu 24.04; this correction does not
+claim broader runner or browser support.
