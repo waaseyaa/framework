@@ -32,7 +32,7 @@
             },
             {
                 "file": "admin.yml",
-                "sha256": "288fc73997f659152cb2cd4e9b0339f05137d84c37d438f58a9c6217120159a6"
+                "sha256": "dcafd4437931b7e0afda416bc4af1dd6203dc5147955ae7f98a810fbda6c9bf4"
             },
             {
                 "file": "auto-merge.yml",
@@ -423,7 +423,7 @@
         {
             "file": "admin.yml",
             "name": "Admin SPA",
-            "source_sha256": "288fc73997f659152cb2cd4e9b0339f05137d84c37d438f58a9c6217120159a6",
+            "source_sha256": "dcafd4437931b7e0afda416bc4af1dd6203dc5147955ae7f98a810fbda6c9bf4",
             "triggers": {
                 "events": [
                     "pull_request",
@@ -778,7 +778,7 @@
                     "reusable_workflow": null,
                     "runs_on": {
                         "kind": "literal",
-                        "value": "ubuntu-latest"
+                        "value": "ubuntu-24.04"
                     },
                     "timeout_minutes": {
                         "kind": "literal",
