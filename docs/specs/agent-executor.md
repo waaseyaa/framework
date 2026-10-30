@@ -528,8 +528,9 @@ for all HTTP outcomes. Bare `\RuntimeException` is not used for HTTP status code
 and `ClientErrorException` are siblings. Callers may catch any of the three typed
 subclasses or the abstract base `ProviderException` to handle all provider errors.
 
-See also: `packages/api/openapi.yaml` — the `pending_approval` schema shape is
-documented there and aligns with what `AgentRunBroadcaster` emits on the SSE channel.
+See also: `packages/api/openapi.yaml` for the current broadcast-log envelope and
+the `approval_resolved` payload emitted by the approval controller. The planned
+approval-required notification has a separate implementation gap below.
 
 ## Lifecycle Event Dispatch
 
@@ -561,8 +562,19 @@ of `packages/ai-agent/composer.json`).
 
 `AgentRunBroadcaster` writes directly to `BroadcastStorage` and is responsible
 for all SSE event emission on channel `agent.run.<id>` (see SSE event vocabulary
-section above). The `pending_approval` event shape is documented in
-`packages/api/openapi.yaml`.
+section above). The current broadcast-log envelope and `approval_resolved`
+payload are documented in `packages/api/openapi.yaml`.
+
+October 30, 2026 implementation observation (A39): the current producers emit
+`run_started`, `run_completed`, `run_failed`, `run_cancelled` and
+`approval_resolved`. `hitlInteractive()` persists awaiting-approval state and
+writes an `approval_required` audit entry, but does not push an SSE notification.
+There is no runtime `pending_approval` event or the former OpenAPI
+`state/iteration/tool_calls/requires/timestamp` payload. The planned approval,
+iteration, tool and provider notifications in the design vocabulary remain
+unimplemented requirements, not claims made by the current OpenAPI document.
+The AI-agent maintainer follow-up and acceptance boundary are recorded in
+[FW-A39-OPENAPI-CLEANUP-01](../change-records/FW-A39-OPENAPI-CLEANUP-01.md).
 
 ## CLI --watch
 
@@ -577,8 +589,13 @@ written directly to stdout as the run proceeds and no SSE consumer is spawned.
 ## OpenAPI document
 
 `packages/api/openapi.yaml` is a hand-maintained OpenAPI 3.1.0 **sub-spec** scoped to
-the agent-run SSE surface: the `/api/agent-run/{id}/{events,approve,deny}` endpoints and
-the `pending_approval` payload shape. It was bootstrapped in mission
+the shared `GET /broadcast` stream (with `channels=agent.run.{id}`) and
+`POST /api/ai/agent/run/{id}/approve` with `call_id` and `decision: approve|deny`.
+There are no separate per-run events or deny routes. The approval controller
+requires the existing authentication, permission and ownership gates and returns
+204 for either accepted decision. The broadcast stream retains its separate
+shared channel ACL; this cleanup adds no run-ownership gate to that stream.
+It was bootstrapped in mission
 `agent-executor-v1-1-audit-followups` (WP02/T018). It is **not** a full description of the
 Waaseyaa Framework API — the framework's broader JSON:API entity surface is modelled at
 runtime by `Waaseyaa\Api\OpenApi\OpenApiGenerator` (see `docs/specs/api-layer.md`
@@ -590,6 +607,13 @@ of the hand-maintained sub-spec only; it does **not** introspect the route table
 against live routes, or enforce route/schema parity. Treat the agent-run entries here as
 documentation that must be updated by hand when the agent-run SSE contract changes — the
 gate will not catch drift between this file and the actual routes.
+
+SSE is represented as a string. The media type's `x-agent-run-event-schema`
+extension describes the JSON data of agent-run message frames only: the full
+`id/channel/event/data/created_at` broadcast-log row, with `run_id` inside `data`.
+Opening `connected`, `error` control frames and other channels remain outside
+that extension. `approval_resolved` uses a conditional payload reference; other
+lifecycle payloads remain open to their existing producer-specific fields.
 
 ## Provider error handling
 
