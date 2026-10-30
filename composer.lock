@@ -1924,16 +1924,16 @@
         },
         {
             "name": "symfony/expression-language",
-            "version": "v7.4.18",
+            "version": "v7.4.21",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/expression-language.git",
-                "reference": "b73866506ff02800836a40fa1f95614a71064f35"
+                "reference": "51c52817a02119ecd46a3369a2b38fc7f24dbf5e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/expression-language/zipball/b73866506ff02800836a40fa1f95614a71064f35",
-                "reference": "b73866506ff02800836a40fa1f95614a71064f35",
+                "url": "https://api.github.com/repos/symfony/expression-language/zipball/51c52817a02119ecd46a3369a2b38fc7f24dbf5e",
+                "reference": "51c52817a02119ecd46a3369a2b38fc7f24dbf5e",
                 "shasum": ""
             },
             "require": {
@@ -1968,7 +1968,7 @@
             "description": "Provides an engine that can compile and evaluate expressions",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/expression-language/tree/v7.4.18"
+                "source": "https://github.com/symfony/expression-language/tree/v7.4.21"
             },
             "funding": [
                 {
@@ -1988,7 +1988,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-08-30T00:47:26+00:00"
+            "time": "2026-10-09T13:57:53+00:00"
         },
         {
             "name": "symfony/filesystem",
@@ -2385,16 +2385,16 @@
         },
         {
             "name": "symfony/http-foundation",
-            "version": "v7.4.13",
+            "version": "v7.4.22",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/http-foundation.git",
-                "reference": "bc354f47c62301e990b7874fa662326368508e2c"
+                "reference": "63eda1d0c4de229d6b3e825709e49dd5c149699a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/bc354f47c62301e990b7874fa662326368508e2c",
-                "reference": "bc354f47c62301e990b7874fa662326368508e2c",
+                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/63eda1d0c4de229d6b3e825709e49dd5c149699a",
+                "reference": "63eda1d0c4de229d6b3e825709e49dd5c149699a",
                 "shasum": ""
             },
             "require": {
@@ -2443,7 +2443,7 @@
             "description": "Defines an object-oriented layer for the HTTP specification",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/http-foundation/tree/v7.4.13"
+                "source": "https://github.com/symfony/http-foundation/tree/v7.4.22"
             },
             "funding": [
                 {
@@ -2463,7 +2463,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-05-24T11:20:33+00:00"
+            "time": "2026-10-27T13:26:03+00:00"
         },
         {
             "name": "symfony/mailer",
@@ -4095,16 +4095,16 @@
         },
         {
             "name": "symfony/yaml",
-            "version": "v7.4.13",
+            "version": "v7.4.22",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/yaml.git",
-                "reference": "a7ec3b1156faf8815db7683ec7c1e7338e6f977c"
+                "reference": "1ed6afa13d48c579c51cbf32e38f50686313497b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/yaml/zipball/a7ec3b1156faf8815db7683ec7c1e7338e6f977c",
-                "reference": "a7ec3b1156faf8815db7683ec7c1e7338e6f977c",
+                "url": "https://api.github.com/repos/symfony/yaml/zipball/1ed6afa13d48c579c51cbf32e38f50686313497b",
+                "reference": "1ed6afa13d48c579c51cbf32e38f50686313497b",
                 "shasum": ""
             },
             "require": {
@@ -4147,7 +4147,7 @@
             "description": "Loads and dumps YAML files",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/yaml/tree/v7.4.13"
+                "source": "https://github.com/symfony/yaml/tree/v7.4.22"
             },
             "funding": [
                 {
@@ -4167,7 +4167,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-05-25T06:06:12+00:00"
+            "time": "2026-10-18T14:39:27+00:00"
         },
         {
             "name": "twig/twig",
@@ -4255,11 +4255,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "aa5f9714bacd22dd699dcab3549ee2842fa51e8a"
+                "reference": "0d7cb1af323c108d8514ec3d2882c3ff143010e3"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/http-foundation": "^7.0",
+                "symfony/http-foundation": "^7.4.22",
                 "symfony/routing": "^7.0",
                 "waaseyaa/entity": "^0.1.0-alpha.308",
                 "waaseyaa/foundation": "^0.1.0-alpha.308",
@@ -4306,11 +4306,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "13f0c2fb80b9c28058a98f001470dc14dbb676f7"
+                "reference": "0d051fe599f8e64c9031e25d87c21ef445d7c7dc"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/http-foundation": "^7.0",
+                "symfony/http-foundation": "^7.4.22",
                 "waaseyaa/access": "^0.1.0-alpha.308",
                 "waaseyaa/api": "^0.1.0-alpha.308",
                 "waaseyaa/audit": "^0.1.0-alpha.308",
@@ -4637,11 +4637,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/attachment",
-                "reference": "d9f034a475b974fddae6977946fd4df3d6c772eb"
+                "reference": "55839d0d4b5acb8aee423d995eeebf737e571486"
             },
             "require": {
                 "php": "^8.5",
-                "symfony/http-foundation": "^7.0",
+                "symfony/http-foundation": "^7.4.22",
                 "waaseyaa/access": "^0.1.0-alpha.308",
                 "waaseyaa/audit": "^0.1.0-alpha.308",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.308",
@@ -5077,12 +5077,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/config",
-                "reference": "38dec8e4382aaaba179b15dead2f0aefb887ceff"
+                "reference": "48042d7905fb919cdae16316563e5350c5d11617"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/event-dispatcher": "^7.0",
-                "symfony/yaml": "^7.0",
+                "symfony/yaml": "^7.4.22",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.308",
                 "waaseyaa/foundation": "^0.1.0-alpha.308"
             },
@@ -5476,7 +5476,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "a70f75b78fa4f3abc5c09770b5a013e8abb2e725"
+                "reference": "67e47fc3f32b9999757fb4a16aa3eaf7f5961827"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -5486,7 +5486,7 @@
                 "symfony/dotenv": "^8.0",
                 "symfony/event-dispatcher": "^7.0",
                 "symfony/filesystem": "^8.0",
-                "symfony/http-foundation": "^7.0",
+                "symfony/http-foundation": "^7.4.22",
                 "symfony/polyfill-intl-normalizer": "^1.30",
                 "symfony/polyfill-mbstring": "^1.30",
                 "symfony/service-contracts": "^3.0",
@@ -6793,12 +6793,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
-                "reference": "d73811b167e33ffab4576d852480a453df5edae1"
+                "reference": "5da90ae9da422cbe7a49cd7976f6aaeb3bebf49a"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/expression-language": "^7.0",
-                "symfony/http-foundation": "^7.0",
+                "symfony/expression-language": "^7.4.21",
+                "symfony/http-foundation": "^7.4.22",
                 "symfony/routing": "^7.0",
                 "waaseyaa/access": "^0.1.0-alpha.308",
                 "waaseyaa/auth": "^0.1.0-alpha.308",
@@ -7002,11 +7002,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/site-contract",
-                "reference": "ecabc23cdbe9a9cfbeaf92295b9d8e7957d5819a"
+                "reference": "f1539576288e399f2aba5d65a142bb5d16b7feec"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/yaml": "^7.0"
+                "symfony/yaml": "^7.4.22"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0"
@@ -7327,11 +7327,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/user",
-                "reference": "79dd9cbd0b1773fe4ee3b428577591b877d71950"
+                "reference": "5d3a68f7ca9ed9fe478b063e45db5edd93e89ac8"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/http-foundation": "^7.0",
+                "symfony/http-foundation": "^7.4.22",
                 "twig/twig": "^3.0",
                 "waaseyaa/access": "^0.1.0-alpha.308",
                 "waaseyaa/entity": "^0.1.0-alpha.308",

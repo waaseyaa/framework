@@ -75,7 +75,7 @@
     ],
     "require": {
         "php": ">=8.5",
-        "symfony/http-foundation": "^7.0",
+        "symfony/http-foundation": "^7.4.22",
         "waaseyaa/access": "^0.1.0-alpha.308",
         "waaseyaa/api": "^0.1.0-alpha.308",
         "waaseyaa/audit": "^0.1.0-alpha.308",

@@ -19,7 +19,7 @@
     ],
     "require": {
         "php": ">=8.5",
-        "symfony/http-foundation": "^7.0",
+        "symfony/http-foundation": "^7.4.22",
         "waaseyaa/entity": "^0.1.0-alpha.308",
         "waaseyaa/foundation": "^0.1.0-alpha.308",
         "waaseyaa/routing": "^0.1.0-alpha.308"
