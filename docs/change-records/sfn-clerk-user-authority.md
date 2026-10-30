@@ -17,10 +17,10 @@ The immutable Framework review at
 `4d6392237781a68bbf39bfc8ce74a5340d31e9c3` is recorded in
 Sheguiandah's `migration/production-2026-10-28/independent-review.md`. It
 approved SMTP behavior and delegated user/session authorization before the
-consumer adopted the reviewed source. It predates the later provider-role fix
+consumer adopted the reviewed source. The reviewed source does not contain the later provider-role fix
 `e5d77f88d1da1bc91a19180aa0fe717d23f6ab29` and its coupled specification at
-`624c70328e07e9c41f362305370ebf07cd0909c8`; it is not evidence of review for
-those commits.
+`624c70328e07e9c41f362305370ebf07cd0909c8`; that source binding does not
+establish review timing or independent approval of those later commits.
 
 The Sheguiandah task thread reports that the provider-role binding fix passed
 independent review and was proceeding through Framework CI before publication.
