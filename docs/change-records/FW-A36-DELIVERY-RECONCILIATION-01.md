@@ -57,8 +57,8 @@ proposed correction is `C:/dev/waaseyaa/task1-evidence/20261030/a36/issue-3205-c
 The live organization Project queried on 2026-10-30 was `Waaseyaa Framework
 Roadmap` (Project 4); the filtered observation was saved in the task evidence bundle. Item #2667 was present as In Progress / P2 / Delivery & CI;
 #3205 was not present among the 343 listed Project items. A36 did not synchronize
-or edit any Project fields. Proposed #2667 Delivery note correction is saved at
-a local proposed correction; the
+or edit any Project fields. The proposed #2667 Delivery note correction is in
+`C:/dev/waaseyaa/task1-evidence/20261030/a36/project-2667-correction.md`. The
 board-wide synchronization remains owned by #2667.
 
 ## Record links

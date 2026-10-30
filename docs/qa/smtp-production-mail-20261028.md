@@ -14,9 +14,14 @@ Independent review of immutable Framework source
 `4d6392237781a68bbf39bfc8ce74a5340d31e9c3` is recorded in Sheguiandah's
 `migration/production-2026-10-28/independent-review.md`. The reviewer approved
 the SMTP authentication/reconnect behavior, sanitized failures, readiness
-wiring, delegated authorization and session-generation revocation. This review
-predates the later provider-role commits `e5d77f88d1da1bc91a19180aa0fe717d23f6ab29`
-and `624c70328e07e9c41f362305370ebf07cd0909c8`; it does not cover them.
+wiring, delegated authorization and session-generation revocation. The reviewed
+source `4d639223...` is an ancestor of the later provider-role fix
+`e5d77f88d1da1bc91a19180aa0fe717d23f6ab29` and coupled spec commit
+`624c70328e07e9c41f362305370ebf07cd0909c8`, so that review source does not
+contain those later changes. This source relationship does not establish when
+the review itself occurred. The private receipt also reports that e5d77f88 was
+independently approved, but provides no reviewer identity, exact bound verdict
+or timestamp; the provider-role review gate remains unverified.
 
 The Sheguiandah task thread reports that the provider-role binding fix passed
 independent review and was proceeding through Framework CI before publication.
