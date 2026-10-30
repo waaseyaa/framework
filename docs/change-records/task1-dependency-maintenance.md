@@ -122,3 +122,32 @@ the existing native-host contract job. Keep the support contract's Composer
 range and `bin/check-support-contract` fail-closed feature-line assertion
 unchanged. The hosted runner's next exact-head result owns verification of the
 selected Composer runtime; this source change does not claim that rerun passed.
+
+### S1 SQLite dependency authority refresh
+
+The October 30 PHP candidate 34e8b86aa19fed4498af658107df71d367efa1bd
+changed the root lock from SHA-256
+bf699a63209edc849cbbcc2f25be1579da1f08c293b0e1a109419ac2b2152b7c (the
+base 624c70328e07e9c41f362305370ebf07cd0909c8, which the existing authority
+correctly matched) to
+0ab117f37e98e8fb24bb9710e0409fa9bfce509a8eaa5dac4b8906a3d7c19e92. The
+full CI shard and random-order receipts at
+C:/dev/waaseyaa/task1-evidence/20261030/php-ci-shard1-failure.log and
+C:/dev/waaseyaa/task1-evidence/20261030/php-ci-random1-failure.log report the
+two S1 installed-artifact failures: the schema artifact rejected the stale
+root-lock binding, and the SQLite artifact rejected dependency bytes or lock
+identities differing from the reviewed authority.
+
+The base-to-candidate lock delta contains three Symfony package updates and
+eight first-party path-package reference changes. All four external packages
+sealed by the S1 dependency-byte authority retain their exact name, version,
+source and dist references in both locks: doctrine/dbal 4.4.3,
+doctrine/deprecations 1.1.6, psr/cache 3.0.0 and psr/log 3.0.2. Refresh the
+authority only with the canonical command
+bash tests/PackagedForm/check-s1-sqlite-artifact --write-dependency-authority
+after the candidate dependencies are installed. On Git for Windows Bash, that
+writer produced the new root-lock digest while preserving all four package
+rows, including their computed byte digests. This updates evidence binding
+only; it does not broaden the S1 contract or claim global S1 certification.
+The exact candidate's hosted full qualification still owns the two observed
+hosted failures.
