@@ -48,7 +48,7 @@
             },
             {
                 "file": "ci.yml",
-                "sha256": "be8de6063e0136dbf08c37e49b8a383cd40e8cb21d7308f5414191c657fe3230"
+                "sha256": "7b509177c786b2eb2890c8d0744fdcc6c97b9ba28af8a932fb9a6cf73a0f1a94"
             },
             {
                 "file": "dependabot-admin-dist.yml",
@@ -1379,7 +1379,7 @@
         {
             "file": "ci.yml",
             "name": "CI",
-            "source_sha256": "be8de6063e0136dbf08c37e49b8a383cd40e8cb21d7308f5414191c657fe3230",
+            "source_sha256": "7b509177c786b2eb2890c8d0744fdcc6c97b9ba28af8a932fb9a6cf73a0f1a94",
             "triggers": {
                 "events": [
                     "pull_request",

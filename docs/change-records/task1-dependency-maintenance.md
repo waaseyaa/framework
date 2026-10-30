@@ -99,3 +99,17 @@ existing source checkout and old dependency cohort (6 tests / 16 assertions).
 Those receipts are retained; Linux PR CI owns their supported-host result.
 Both root and consumer locked audits must remain clear. No release or deployed
 consumer claim follows from these local results.
+
+### Hosted support-contract runner repair
+
+The October 30 hosted run [41127995362](https://github.com/waaseyaa/framework/actions/runs/41127995362)
+failed only in `support/s1-contract`: setup-php selected Composer 2.11.1 from its
+current default, while the unchanged `support/s1-v1.json` contract requires the
+2.10 feature line. The adjacent `check-dead-code` job passed; full-suite planning
+was skipped after the support-contract prerequisite failed.
+
+Pin only the `support-contract` job's setup-php tools to `composer:2.10`, matching
+the existing native-host contract job. Keep the support contract's Composer
+range and `bin/check-support-contract` fail-closed feature-line assertion
+unchanged. The hosted runner's next exact-head result owns verification of the
+selected Composer runtime; this source change does not claim that rerun passed.
