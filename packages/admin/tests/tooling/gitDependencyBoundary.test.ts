@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import packageLock from '../../package-lock.json'
 
 type LockPackage = {
   name?: string
@@ -9,7 +8,7 @@ type LockPackage = {
   optionalDependencies?: Record<string, string>
 }
 
-const lock = JSON.parse(readFileSync(fileURLToPath(new URL('../../package-lock.json', import.meta.url)), 'utf8')) as {
+const lock = packageLock as {
   packages: Record<string, LockPackage>
 }
 const wrappers = ['simple-git', '@simple-git/argv-parser']
