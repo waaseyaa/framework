@@ -59,10 +59,13 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
 #[CoversNothing]
 final class EnqueueAndConsumeTest extends TestCase
 {
+    use \Waaseyaa\Tests\Support\AgentRunOpenApiAssertions;
+
     private DBALDatabase $database;
     private AgentRunRepository $runRepository;
     private AgentAuditLogRepository $auditRepository;
     private CapturingBroadcaster $broadcaster;
+    private \Waaseyaa\Api\Controller\BroadcastStorage $broadcastStorage;
 
     protected function setUp(): void
     {
@@ -79,7 +82,11 @@ final class EnqueueAndConsumeTest extends TestCase
 
         $this->runRepository = $this->buildRunRepository();
         $this->auditRepository = $this->buildAuditRepository();
-        $this->broadcaster = new CapturingBroadcaster();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($this->database);
+        $this->broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($this->database);
+        $this->broadcaster = new CapturingBroadcaster(
+            new \Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcaster($this->broadcastStorage),
+        );
     }
 
     #[Test]
@@ -105,6 +112,63 @@ final class EnqueueAndConsumeTest extends TestCase
         $events = $this->broadcaster->eventsFor((string) $run->get('id'));
         self::assertContains('run_started', $events);
         self::assertContains('run_completed', $events);
+        $rows = $this->broadcastStorage->poll(0, ['agent.run.' . $run->get('id')]);
+        self::assertCount(2, $rows, 'Both worker events must reach the real broadcast log.');
+        foreach ($rows as $row) {
+            self::assertTrue($this->openApiAccepts('AgentRunEvent', $row), 'Actual worker SSE row must match OpenAPI.');
+        }
+    }
+
+    #[Test]
+    public function eventSchemaPreservesOtherProducersAndRejectsMalformedApproval(): void
+    {
+        $runId = 'aebfef20-ae10-4a15-b54c-4eb234ec6a66';
+        // Representative failure/cancellation shapes from handler, controller and reaper.
+        foreach ([
+            ['run_failed', ['error_code' => null, 'error_message' => null]],
+            ['run_cancelled', ['cancelled_at' => '2026-10-30T12:00:00+00:00']],
+            ['run_cancelled', ['error_code' => 'cancelled', 'error_message' => 'Cancelled']],
+            ['approval_resolved', ['call_id' => 'call_1', 'decision' => 'approve']],
+            ['approval_resolved', ['call_id' => 'call_2', 'decision' => 'deny']],
+        ] as [$event, $data]) {
+            $this->broadcaster->push($runId, $event, $data);
+        }
+        $rows = $this->broadcastStorage->poll(0, ['agent.run.' . $runId]);
+        self::assertCount(5, $rows);
+        foreach ($rows as $row) {
+            self::assertTrue($this->openApiAccepts('AgentRunEvent', $row));
+        }
+
+        $approval = $rows[3];
+        unset($approval['data']['call_id']);
+        self::assertFalse($this->openApiAccepts('AgentRunEvent', $approval));
+        $approval = $rows[3];
+        $approval['data']['decision'] = 'allow';
+        self::assertFalse($this->openApiAccepts('AgentRunEvent', $approval));
+        $approval = $rows[3];
+        unset($approval['data']['run_id']);
+        self::assertFalse($this->openApiAccepts('AgentRunEvent', $approval));
+        self::assertFalse($this->openApiAccepts('AgentRunEvent', [
+            'run_id' => $runId, 'event' => 'pending_approval', 'payload' => [],
+        ]));
+    }
+
+    #[Test]
+    public function approvalSchemaAgreesWithRuntimeDecisionValidation(): void
+    {
+        $validator = new \Waaseyaa\AI\Agent\Controller\AgentRunRequestValidator();
+        foreach ([
+            ['call_id' => 'call_1', 'decision' => 'approve'],
+            ['call_id' => 'call_1', 'decision' => 'deny'],
+            ['call_id' => 'call_1'],
+            ['call_id' => '', 'decision' => 'approve'],
+            ['call_id' => '   ', 'decision' => 'approve'],
+            ['call_id' => "\0\x0B\t\r\n ", 'decision' => 'approve'],
+            ['call_id' => "\f", 'decision' => 'approve'],
+            ['call_id' => 'call_1', 'decision' => 'allow'],
+        ] as $body) {
+            self::assertSame($validator->validateApprove($body) === null, $this->openApiAccepts('ApprovalRequest', $body));
+        }
     }
 
     #[Test]
@@ -281,11 +345,14 @@ final class EnqueueAndConsumeTest extends TestCase
  */
 final class CapturingBroadcaster implements AgentRunBroadcasterInterface
 {
+    public function __construct(private readonly AgentRunBroadcasterInterface $delegate) {}
+
     /** @var array<string, list<string>> */
     private array $events = [];
 
     public function push(string $runId, string $event, array $data): void
     {
+        $this->delegate->push($runId, $event, $data);
         $this->events[$runId][] = $event;
     }
 

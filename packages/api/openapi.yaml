@@ -1,49 +1,77 @@
 openapi: "3.1.0"
 info:
-  title: "Waaseyaa Framework API"
+  title: "Waaseyaa agent-run streaming and approval API"
   version: "0.1.0"
   description: >
-    Canonical OpenAPI 3.1.0 document for the Waaseyaa Framework public API surface.
-    Bootstrap document created by WP02 (mission agent-executor-v1-1-audit-followups-01KS3S5M).
-    Pending-approval shape verified against AgentRunBroadcaster runtime emission (FR-007).
+    Hand-maintained subset for agent-run messages on the shared broadcast stream
+    and approval decisions. This is not the full Framework API.
+    The consuming application supplies the origin and authentication session.
+  contact:
+    name: "Waaseyaa Framework maintainers"
+    url: "https://github.com/waaseyaa/framework/issues"
+
+servers:
+  - url: /
+    description: "Consuming application's origin; paths are relative to its root."
+
+tags:
+  - name: Agent runs
+    description: "Agent-run lifecycle messages and human approval decisions."
 
 paths:
-  /api/agent-run/{id}/events:
+  /broadcast:
     get:
-      summary: "SSE stream of agent-run lifecycle events"
+      operationId: streamAgentRunEvents
+      tags: [Agent runs]
+      summary: "Subscribe to agent-run messages on the shared SSE stream"
       description: >
-        Server-Sent Events stream for a given agent run.
-        Clients subscribe via /broadcast?channels=agent.run.{id}.
-        Event types: run_started, run_completed, run_failed, run_cancelled,
-        and pending_approval (emitted when a destructive tool call requires human approval).
+        Requires an authenticated session. Subscribe with channels=agent.run.{id}.
+        Channel selection follows the shared broadcast ACL; this endpoint does
+        not perform the approval controller's per-run ownership check.
+        SSE frames contain id, event and data lines. Message data is the complete
+        broadcast-log row, with the agent payload nested inside its data field.
+        The stream also sends connected and error control frames and may carry
+        other channels; x-agent-run-event-schema describes only agent-run rows.
+        No pending_approval event is currently emitted by the runtime.
       parameters:
-        - name: id
-          in: path
-          required: true
+        - name: channels
+          in: query
+          description: >
+            Comma-separated channel names. Select agent.run.{id} for a run.
+            Omission uses the shared broadcast default and its existing ACL.
           schema:
             type: string
-            format: uuid
+          example: "agent.run.aebfef20-ae10-4a15-b54c-4eb234ec6a66"
+        - name: Last-Event-ID
+          in: header
+          description: "Broadcast-log cursor for reconnecting clients."
+          schema:
+            type: integer
       responses:
         "200":
-          description: "SSE stream — text/event-stream"
+          description: "Bounded SSE connection; clients reconnect to resume."
           content:
             text/event-stream:
               schema:
+                type: string
+              x-agent-run-event-schema:
                 $ref: "#/components/schemas/AgentRunEvent"
         "401":
           description: "Unauthenticated"
-        "403":
-          description: "Forbidden — caller does not have access to this run"
-        "404":
-          description: "Run not found"
+        "503":
+          description: "Broadcast storage unavailable or concurrent-stream cap reached"
 
-  /api/agent-run/{id}/approve:
+  /api/ai/agent/run/{id}/approve:
     post:
-      summary: "Approve a pending destructive tool call"
+      operationId: resolveAgentRunApproval
+      tags: [Agent runs]
+      summary: "Approve or deny a pending destructive tool call"
       description: >
-        Transitions the run from awaiting_approval → running, unblocking the
-        executor's HITL poll loop. The request body must include the
-        pending_approval_call_id to guard against stale-approval races.
+        Requires an authenticated session, agent.run.approve permission and
+        update access to this run. Both decisions use this endpoint.
+        call_id must match the persisted pending_approval_call_id.
+        Approval resumes the run; denial fails it with approval_denied.
+        An accepted decision emits approval_resolved with call_id and decision.
       parameters:
         - name: id
           in: path
@@ -58,167 +86,87 @@ paths:
             schema:
               $ref: "#/components/schemas/ApprovalRequest"
       responses:
-        "200":
-          description: "Approval accepted; run will resume"
+        "204":
+          description: "Decision accepted; no response body"
         "400":
-          description: "call_id mismatch or run not awaiting approval"
+          description: "Malformed JSON or invalid call_id/decision"
         "401":
           description: "Unauthenticated"
         "403":
-          description: "Forbidden"
+          description: "Missing permission or update access to the run"
         "404":
-          description: "Run not found"
-
-  /api/agent-run/{id}/deny:
-    post:
-      summary: "Deny a pending destructive tool call"
-      description: >
-        Marks the run as failed with error_code=approval_denied, unblocking
-        the executor's HITL poll loop and triggering the run_failed SSE event.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApprovalRequest"
-      responses:
-        "200":
-          description: "Denial accepted; run will terminate"
-        "400":
-          description: "call_id mismatch or run not awaiting approval"
-        "401":
-          description: "Unauthenticated"
-        "403":
-          description: "Forbidden"
-        "404":
-          description: "Run not found"
+          description: "Run not found or not awaiting approval"
+        "409":
+          description: "call_id mismatch or concurrent run-state change"
 
 components:
   schemas:
     AgentRunEvent:
       type: object
       description: >
-        Wrapper for all SSE events on the agent.run.{id} channel.
-        The payload field shape depends on the event type.
-      required:
-        - run_id
-        - event
+        JSON data of a broadcast message on agent.run.{id}, as returned by
+        BroadcastStorage::poll and framed by BroadcastRouter. AgentRunBroadcaster
+        places run_id in data. Other lifecycle payload fields vary by producer;
+        cancellation may carry cancelled_at or reaper error fields.
+      required: [id, channel, event, data, created_at]
       properties:
-        run_id:
+        id:
+          type: integer
+          description: "Broadcast-log sequence cursor."
+        channel:
           type: string
-          format: uuid
-          description: "UUID of the agent run."
+          pattern: '^agent\.run\.'
         event:
           type: string
-          enum:
-            - run_started
-            - run_completed
-            - run_failed
-            - run_cancelled
-            - pending_approval
-          description: "SSE event type identifier."
-        payload:
+          enum: [run_started, run_completed, run_failed, run_cancelled, approval_resolved]
+        data:
           type: object
-          nullable: true
-          description: >
-            Event-specific payload. Shape varies by event type —
-            see AgentRunPendingApprovalEvent for the pending_approval shape.
+          required: [run_id]
+          properties:
+            run_id:
+              type: string
+              format: uuid
+          additionalProperties: true
+        created_at:
+          type: number
+          description: "Unix timestamp in seconds, including fractional seconds."
+      allOf:
+        - if:
+            properties:
+              event:
+                const: approval_resolved
+            required: [event]
+          then:
+            properties:
+              data:
+                $ref: "#/components/schemas/AgentRunApprovalResolvedPayload"
 
-    AgentRunPendingApprovalEvent:
+    AgentRunApprovalResolvedPayload:
       type: object
-      description: >
-        SSE payload emitted on the agent.run.{id} channel when a destructive
-        tool call enters the HITL approval gate (HitlMode=Interactive).
-        Shape verified against AgentRunBroadcaster::push() runtime emission
-        and the design-time contract
-        kitty-specs/.../contracts/openapi-pending-approval-shape.yaml (FR-007).
-        Drift corrections vs. pre-mission draft:
-          1. "id" → "run_id" (canonical field name from AgentRunBroadcaster)
-          2. tool_calls[].name was nullable in draft; non-nullable here (broadcaster always sets it)
-          3. requires.approval_kind enum was missing from draft
-          4. "timestamp" field was entirely absent from draft
-      required:
-        - run_id
-        - state
-        - iteration
-        - tool_calls
-        - requires
-        - timestamp
+      description: "Payload emitted by AgentRunController after an accepted decision."
+      required: [run_id, call_id, decision]
       properties:
         run_id:
           type: string
           format: uuid
-          description: "UUID of the agent run record."
-        state:
+        call_id:
           type: string
-          enum:
-            - pending_approval
-          description: "Always pending_approval for this payload type."
-        iteration:
-          type: integer
-          minimum: 1
-          description: "Which executor iteration triggered the approval gate."
-        tool_calls:
-          type: array
-          items:
-            $ref: "#/components/schemas/ToolCallSummary"
-          description: "Tool calls awaiting human approval."
-        requires:
-          $ref: "#/components/schemas/ApprovalRequirement"
-        timestamp:
+          pattern: '[^ \t\n\r\x00\x0B]'
+        decision:
           type: string
-          format: date-time
-          description: "ISO 8601 UTC timestamp when the event was emitted."
-
-    ToolCallSummary:
-      type: object
-      description: "Summary of a single tool call pending approval."
-      required:
-        - name
-        - input
-      properties:
-        name:
-          type: string
-          description: "Tool name (non-nullable — broadcaster always sets this)."
-        input:
-          type: object
-          additionalProperties: true
-          description: "Tool input parameters as key-value pairs."
-
-    ApprovalRequirement:
-      type: object
-      description: "Describes what kind of human approval is required."
-      required:
-        - approval_kind
-        - prompt
-      properties:
-        approval_kind:
-          type: string
-          enum:
-            - tool_call
-            - escalation
-          description: >
-            "tool_call" — a specific tool call needs operator approval.
-            "escalation" — the agent has reached a threshold requiring human judgement.
-        prompt:
-          type: string
-          description: "Human-readable description of what requires approval."
+          enum: [approve, deny]
 
     ApprovalRequest:
       type: object
-      description: "Request body for approve/deny endpoints."
-      required:
-        - call_id
+      description: "Decision body for the shared approve/deny endpoint."
+      required: [call_id, decision]
       properties:
         call_id:
           type: string
+          pattern: '[^ \t\n\r\x00\x0B]'
           description: >
-            The pending_approval_call_id from the AgentRun row.
-            Must match to prevent stale-approval races.
+            Must be non-empty after PHP trim and match the persisted
+            pending_approval_call_id. The pattern uses PHP trim's character set.
+        decision:
+          type: string
+          enum: [approve, deny]

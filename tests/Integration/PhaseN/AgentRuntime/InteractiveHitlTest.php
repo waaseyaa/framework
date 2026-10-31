@@ -53,6 +53,8 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
 #[CoversNothing]
 final class InteractiveHitlTest extends TestCase
 {
+    use \Waaseyaa\Tests\Support\AgentRunOpenApiAssertions;
+
     private DBALDatabase $database;
     private AgentRunRepository $runRepository;
     private AgentAuditLogRepository $auditRepository;
@@ -348,6 +350,7 @@ final class InteractiveHitlTest extends TestCase
     {
         $events = [];
         foreach ($this->broadcastStorage->poll(0, [$channel]) as $row) {
+            self::assertTrue($this->openApiAccepts('AgentRunEvent', $row), 'Actual approval SSE row must match OpenAPI.');
             $events[] = (string) ($row['event'] ?? '');
         }
 
