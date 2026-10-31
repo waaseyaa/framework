@@ -1,5 +1,11 @@
 # FW-DEPENDENCY-MAINTENANCE-20261030: Admin candidate
 
+Current Git-toolchain follow-up:
+[FW-A35-GIT-TOOLCHAIN-01](FW-A35-GIT-TOOLCHAIN-01.md) records fresh evidence that
+DevTools 3.4.4 fits Nuxt 4.5.2's owner range and removes the affected wrappers.
+The earlier candidate/disposition below is retained as historical evidence;
+it must not be read as a fresh assertion that no supported owner fix exists.
+
 Observed October 30, 2026 against base
 `624c70328e07e9c41f362305370ebf07cd0909c8`.
 Owner: Complete dependency and delivery reconciliation,
