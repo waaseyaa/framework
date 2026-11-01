@@ -58,7 +58,8 @@ resource-loading control. No production targets or sensitive data.
 Clean installed Happy DOM is 21.0.4, within Nuxt test-utils and Vitest peer ranges
 and the supported Node 24 runtime. Complete lock comparison shows no closure
 change: only the root dev declaration and Happy DOM version/archive/integrity
-change; 937 other package records remain identical. Nuxt, DevTools and Undici
+change; 936 other dependency records remain identical. The root project record
+changes only its declared Happy DOM devDependency. Nuxt, DevTools and Undici
 pins remain intact. Both target advisory IDs disappear from the candidate audit,
 while non-target direct advisory URLs are unchanged. Aggregate npm records are
 52 -> 51, high 6 -> 5, critical 0 -> 0. Remaining findings still exit nonzero.
