@@ -8,9 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Bimaaji\BimaajiServiceProvider;
 use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
+use Waaseyaa\Bimaaji\Install\Client\CodexClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\CursorClientTransformer;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\InstalledManifest;
@@ -20,6 +23,7 @@ use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Install\TargetFile;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\CLI\WaaseyaaConsoleApplication;
 
 /**
  * Unit coverage for the install command's write loop.
@@ -136,6 +140,31 @@ final class BimaajiInstallCommandTest extends TestCase
         self::assertSame("Hand written, no markers.\n", file_get_contents($this->tempDir . '/.cursorrules'));
         self::assertStringContainsString(ManagedRegion::BEGIN, $tester->getOutput());
         self::assertStringContainsString('pass --force to overwrite', $tester->getOutput());
+    }
+
+    #[Test]
+    public function realArgvNonInteractiveCollisionPreservesHumanOwnedTargetAndFails(): void
+    {
+        $target = $this->tempDir . '/AGENTS.md';
+        $humanContent = "Hand written, no markers.\n";
+        file_put_contents($target, $humanContent);
+        chdir($this->tempDir);
+
+        $handler = new BimaajiInstallCommand(
+            transformers: [new CodexClientTransformer()],
+            skillSetParser: new SkillSetParser($this->tempDir . '/skills', configuredOverride: true),
+        );
+        $application = new WaaseyaaConsoleApplication('test');
+        $application->addCommand($this->installDefinition()->withContainer($this->container($handler)));
+        $output = new BufferedOutput();
+
+        $exitCode = $application->run(
+            new ArgvInput(['waaseyaa', 'bimaaji:install', '--client=codex', '--no-interaction']),
+            $output,
+        );
+
+        self::assertSame(1, $exitCode, $output->fetch());
+        self::assertSame($humanContent, file_get_contents($target));
     }
 
     #[Test]

@@ -5,6 +5,19 @@ released capability. [Specs](specs/workflow.md) own contracts, change records ow
 durable scope/evidence, and [GitHub issues](https://github.com/waaseyaa/framework/issues)
 own execution status. Product roadmaps and adoption decisions belong downstream.
 
+## Planned: basic app starter with default AI
+
+[FW-BASIC-APP-STARTER-01](change-records/FW-BASIC-APP-STARTER-01.md) and the
+[draft contract](specs/basic-app-starter.md) plan two starters sharing setup
+infrastructure, with AI included by default and no CMS packages in the basic
+app. The [core/starter checklist](audits/packages/core-starter-readiness.md)
+connects package assessment and remediation under #3118 to starter readiness.
+Complete the core roster and the final CLI/AI development/production dependency
+coverage alongside bounded implementation, reusing existing findings and owners.
+Installed-app success cannot replace audits. Planning only; no assignments,
+implementation, publication or deployment are dispatched by this entry. Active
+convergence priorities and existing release holds are unchanged.
+
 ## Planned: reusable signup protection
 
 [#3234](https://github.com/waaseyaa/framework/issues/3234) and

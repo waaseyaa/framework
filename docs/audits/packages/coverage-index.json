@@ -75,27 +75,53 @@
             "package": "waaseyaa/ai-agent",
             "path": "packages/ai-agent",
             "form": "library",
-            "audit_state": "not assessed",
+            "audit_state": "in progress",
             "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_base": "bff4b104d29ba484307dc6655796be10837ff85e",
+            "audit_date": "2026-10-11",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/change-records/FW-AI-FIRST-DELIVERY-01.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-agent.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-agent.ledger.json"
+                }
+            ],
+            "notes": "Bounded #2653 local-operator and adapter supplement with 95 non-test files inventoried. HTTP/outbound MCP, models, persistence and unresolved exports need full #3118 assessment. Reconciled November 1 against c4aff57585: source unchanged except first-party manifest floors .305 to .308. Historical assessment only; current dependency cohort and CMS-free starter closure require delta assessment under FW-BASIC-APP-STARTER-01."
         },
         {
             "package": "waaseyaa/ai-development",
             "path": "packages/ai-development",
             "form": "metapackage",
-            "audit_state": "not assessed",
-            "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_state": "assessed",
+            "remediation_state": "no action required",
+            "audit_base": "bff4b104d29ba484307dc6655796be10837ff85e",
+            "audit_date": "2026-10-11",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-development.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-development.ledger.json"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/change-records/FW-AI-FIRST-DELIVERY-01.md"
+                }
+            ],
+            "notes": "Two-file metapackage fully assessed at the recorded base; no package-owned repair. #2653 installed-client and upgrade acceptance remains separate. Reconciled November 1 against c4aff57585: source unchanged except first-party manifest floors .305 to .308. Historical assessment only; current dependency cohort and CMS-free starter closure require delta assessment under FW-BASIC-APP-STARTER-01."
         },
         {
             "package": "waaseyaa/ai-observability",
@@ -140,14 +166,27 @@
             "package": "waaseyaa/ai-tools",
             "path": "packages/ai-tools",
             "form": "library",
-            "audit_state": "not assessed",
+            "audit_state": "in progress",
             "remediation_state": "not triaged",
-            "audit_base": null,
-            "audit_date": null,
-            "dependency_identity": null,
-            "owner_issue": null,
-            "evidence": [],
-            "notes": ""
+            "audit_base": "bff4b104d29ba484307dc6655796be10837ff85e",
+            "audit_date": "2026-10-11",
+            "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+            "owner_issue": "#3118",
+            "evidence": [
+                {
+                    "kind": "repository-path",
+                    "path": "docs/change-records/FW-AI-FIRST-DELIVERY-01.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-tools.md"
+                },
+                {
+                    "kind": "repository-path",
+                    "path": "docs/audits/packages/ai-tools.ledger.json"
+                }
+            ],
+            "notes": "Bounded #2653 registry, dispatch and search supplement with 57 non-test files inventoried. Full exports, adapters and installed HTTP compatibility need #3118 assessment. Reconciled November 1 against c4aff57585: source unchanged except first-party manifest floors .305 to .308. Historical assessment only; current dependency cohort and CMS-free starter closure require delta assessment under FW-BASIC-APP-STARTER-01."
         },
         {
             "package": "waaseyaa/ai-vector",

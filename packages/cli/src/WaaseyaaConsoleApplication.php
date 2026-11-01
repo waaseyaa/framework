@@ -36,7 +36,7 @@ final class WaaseyaaConsoleApplication extends Application
         $output ??= new \Symfony\Component\Console\Output\ConsoleOutput();
 
         try {
-            return $this->normalizeExitCode($this->doRun($input, $output));
+            return $this->normalizeExitCode(parent::run($input, $output));
         } catch (\Throwable $e) {
             return $this->renderWaaseyaaThrowable($e, $output);
         }

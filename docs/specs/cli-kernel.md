@@ -881,6 +881,11 @@ Commands use Symfony Console input/output:
 - `SymfonyStyle` for interactive questions and structured operator output where appropriate.
 - `QuestionHelper` and `InputInterface::isInteractive()` for prompt behavior.
 
+`WaaseyaaConsoleApplication::run()` enters Symfony's application IO lifecycle
+before dispatch. Real argv `--no-interaction` and `-n` set the command input
+noninteractive, so commands must not prompt on either spelling. Waaseyaa's
+exception rendering and exit-code mapping still wrap that lifecycle.
+
 Command implementations must preserve established stdout/stderr behavior for script-facing commands, especially JSON output modes and concise error messages.
 
 ## Error Handling

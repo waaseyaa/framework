@@ -1,0 +1,829 @@
+{
+  "schema_version": 1,
+  "package": "waaseyaa/ai-tools",
+  "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+  "audit_date": "2026-10-11",
+  "dependency_identity": {
+    "composer_lock_sha256": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+    "php": "8.5.5",
+    "host": "native Windows",
+    "evidence_freshness": "Bounded source review current at base; full package and split assessment pending.",
+    "consumers": []
+  },
+  "milestone": {
+    "assessed": false,
+    "repair_ready": false,
+    "converged": null,
+    "reasons": [
+      "57 files inventoried but only #2653 catalogue/dispatch/search path reviewed deeply.",
+      "Installed candidate split, HTTP and generated consumer profiles and full structural/public surface review remain pending."
+    ]
+  },
+  "charter": [
+    {
+      "question": "Owns",
+      "answer": "Transport-neutral agent-tool descriptors, attribute/manifest discovery, registry visibility, principal-bound schema dispatch, audited dispatch and optional content/search/resource adapters.",
+      "evidence": "packages/ai-tools/composer.json; README.md; src/Catalogue; src/Dispatch"
+    },
+    {
+      "question": "Excludes",
+      "answer": "Agent runs and LLM providers, stdio/HTTP wire framing, client configuration, corpus provenance and application content policy.",
+      "evidence": "packages/ai-agent; packages/cli; packages/mcp; packages/bimaaji"
+    },
+    {
+      "question": "Consumers",
+      "answer": "ai-agent AgentExecutor, CLI mcp:serve, HTTP MCP bridge, full metapackage and opt-in applications.",
+      "evidence": "packages/ai-agent/composer.json; packages/cli/src/Command/Mcp/McpServeCommand.php; packages/mcp/composer.json; packages/full/composer.json"
+    },
+    {
+      "question": "Dependencies",
+      "answer": "Required access, entity, entity-storage, foundation, media and publishing; optional search suggested and lazy. Root candidate lock includes Symfony DependencyInjection 7.4.13 for comparison.",
+      "evidence": "packages/ai-tools/composer.json; composer.lock; src/ContentSearch"
+    },
+    {
+      "question": "Public surface",
+      "answer": "Ten declared public symbols, 33 @api-only and ten unclassified source exports at the base. Full caller and lifecycle review remains open.",
+      "evidence": "packages/ai-tools/public-surface.php; source roster"
+    },
+    {
+      "question": "Installation profiles",
+      "answer": "Source kernel and framework closure are exercised. Standalone split, full metapackage and generated application need exact candidate installed qualification.",
+      "evidence": "composer.json; packages/full/composer.json; Framework #2653 journey"
+    },
+    {
+      "question": "Evidence",
+      "answer": "Focused source tests and the local profile gate cover shared catalogue/dispatch paths; no exact candidate split package or actual packaged client is claimed.",
+      "evidence": "2026-10-11 ai-boundaries lane report and candidate-local commands"
+    }
+  ],
+  "roster": [
+    {
+      "file": "packages/ai-tools/composer.json",
+      "role": "Composer identity and dependency contract",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/public-surface.php",
+      "role": "public surface declaration",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/README.md",
+      "role": "consumer documentation",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/resources/vector-search.schema.json",
+      "role": "distributed schema resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/AbstractAgentTool.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/AgentTool.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/AgentToolInterface.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/AgentToolResult.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/AiToolsServiceProvider.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/DuplicateToolNameException.php",
+      "role": "package core and composition",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ProvidesAgentToolsInterface.php",
+      "role": "package core and composition",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ToolDependencyUnavailableException.php",
+      "role": "package core and composition",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ToolNotFoundException.php",
+      "role": "package core and composition",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ToolRegistryInterface.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Attribute/AsAgentTool.php",
+      "role": "Attribute",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Catalogue/AttributeToolRegistry.php",
+      "role": "Catalogue",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Catalogue/AutowiringToolContainer.php",
+      "role": "Catalogue",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Content/AssetRejectedException.php",
+      "role": "Content",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Content/AssetStoreInterface.php",
+      "role": "Content",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Content/ContentOperationTool.php",
+      "role": "Content",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Content/ContentToolSet.php",
+      "role": "Content",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Content/MediaAssetStore.php",
+      "role": "Content",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ContentSearch/ContentSearchBoundaryException.php",
+      "role": "ContentSearch",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ContentSearch/ContentSearchTool.php",
+      "role": "ContentSearch",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/ContentSearch/SearchPackageContentSearchAdapter.php",
+      "role": "ContentSearch",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Dispatch/AgentToolDispatcher.php",
+      "role": "Dispatch",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Dispatch/AuditedToolDispatcher.php",
+      "role": "Dispatch",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Dispatch/ToolDispatcherInterface.php",
+      "role": "Dispatch",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Dispatch/ToolDispatchOutcome.php",
+      "role": "Dispatch",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityCreateTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityDeleteTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityFieldRedaction.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityKeyGuard.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityListRevisionsTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityListTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityReadTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityRollbackTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntitySearchTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntitySetCurrentRevisionTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Entity/EntityUpdateTool.php",
+      "role": "Entity",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Error/SanitizedToolError.php",
+      "role": "Error",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Registry/CapabilityScopedToolRegistry.php",
+      "role": "Registry",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Registry/ToolIdAllowlistRegistry.php",
+      "role": "Registry",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Relationship/RelationshipTraverseTool.php",
+      "role": "Relationship",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceContent.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceDescriptor.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceListPage.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceListResume.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceProviderInterface.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceRegistry.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceRegistryListPage.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/ContentResourceTemplate.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/MalformedContentResourceUriException.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Resource/SearchPackageContentResourceProvider.php",
+      "role": "Resource",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Schema/ToolInputSchemaValidator.php",
+      "role": "Schema",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Focused #2653 boundary reviewed; full package assessment pending. Source surface marker: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-tools/src/Vector/VectorSearchTool.php",
+      "role": "Vector",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "inventoried",
+      "notes": "Role and source annotation inventoried only; no behavior verdict. Source surface marker: @api only.",
+      "findings": []
+    }
+  ],
+  "checklists": [
+    {
+      "profile": "identity",
+      "item": "Identity, dependency and split export",
+      "status": "answered",
+      "answer": "waaseyaa/ai-tools is a PHP >=8.5 library with PSR-4 namespace and a provider; its declared public-surface file is source authority.",
+      "evidence": "composer.json; public-surface.php",
+      "findings": []
+    },
+    {
+      "profile": "public surface",
+      "item": "Export declaration and callers",
+      "status": "gap",
+      "answer": "Ten declared public symbols; 33 @api-only and ten unclassified exports still need complete installed consumer and lifecycle disposition.",
+      "evidence": "public-surface.php; production-roster.json",
+      "findings": []
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "Manifest discovery and provider order",
+      "status": "answered",
+      "answer": "The sampled registry lazily hydrates manifest tools, refuses duplicate names and distinguishes optional-dependency skip from other resolution errors.",
+      "evidence": "AttributeToolRegistry.php; focused unit tests",
+      "findings": []
+    },
+    {
+      "profile": "introspection-cli",
+      "item": "Visibility and principal forwarding",
+      "status": "answered",
+      "answer": "Allowlist and capability-scoped registries narrow visibility; dispatch retains the caller principal for the tool's own capability enforcement.",
+      "evidence": "ToolIdAllowlistRegistry.php; AgentToolDispatcher.php; focused unit tests",
+      "findings": []
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Schema and audit refusal",
+      "status": "answered",
+      "answer": "Advertised input schema is validated before execution; audited dispatch refuses absent/null ledgers and records or refuses terminal paths.",
+      "evidence": "ToolInputSchemaValidator.php; AuditedToolDispatcher.php; focused unit tests",
+      "findings": []
+    },
+    {
+      "profile": "adapter necessity",
+      "item": "CLI and HTTP adapter truth",
+      "status": "gap",
+      "answer": "The HTTP bridge preserves live envelope/log compatibility and delegates shared dispatch, but exact candidate installed HTTP and terminal side effects were not qualified.",
+      "evidence": "packages/mcp/src/Bridge; ai-boundaries lane report",
+      "findings": []
+    },
+    {
+      "profile": "Symfony reuse",
+      "item": "Custom reflection autowiring",
+      "status": "gap",
+      "answer": "Symfony DependencyInjection 7.4.13 is installed; lazy manifest and provider-order equivalence needs a bounded comparison before a retain or replace verdict.",
+      "evidence": "AutowiringToolContainer.php; composer.lock; Symfony autowiring documentation",
+      "findings": []
+    },
+    {
+      "profile": "structural quality",
+      "item": "Cohesion, repetition, navigation and unused paths",
+      "status": "gap",
+      "answer": "Catalogue and dispatch are coherent in sampled maintainer paths. The remaining entity, content, vector and resource implementations, annotations and unused state were not exhaustively reviewed.",
+      "evidence": "src roster; ai-boundaries lane report",
+      "findings": []
+    },
+    {
+      "profile": "SDD trace",
+      "item": "Spec to code and test alignment",
+      "status": "gap",
+      "answer": "The live ai-integration spec still names removed registry/executor surfaces and does not consistently locate ai-tools as registry owner.",
+      "evidence": "docs/specs/ai-integration.md; docs/specs/agent-executor.md",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Candidate-local and installed profiles",
+      "status": "gap",
+      "answer": "Candidate-local source checks passed. Exact candidate standalone split, full metapackage, generated app and actual clients remain unqualified.",
+      "evidence": "candidate-local test runs; published alpha.305 consumer has distinct lock",
+      "findings": []
+    }
+  ],
+  "intake": [],
+  "findings": [],
+  "refuted": [],
+  "handoffs": [
+    {
+      "id": "H1",
+      "lead": "Default bimaaji_search_specs is discoverable with no packaged corpus; synthetic directory success is not cited version-matched search acceptance.",
+      "owner": "waaseyaa/bimaaji",
+      "co_owners": [
+        "waaseyaa/ai-agent"
+      ],
+      "affected_consumers": [
+        "Local developer stdio client",
+        "Fresh generated application"
+      ],
+      "issue": "#2661 and #2662",
+      "blocks_assessment": false
+    },
+    {
+      "id": "H2",
+      "lead": "Live AI specs describe absent AgentInterface, old registry/executor locations and contradictory lifecycle claims; reconcile current contract with ai-tools ownership.",
+      "owner": "waaseyaa/framework",
+      "co_owners": [
+        "waaseyaa/ai-agent",
+        "waaseyaa/ai-tools"
+      ],
+      "affected_consumers": [
+        "Framework maintainers",
+        "AI integration implementers"
+      ],
+      "issue": "#3118",
+      "blocks_assessment": false
+    }
+  ],
+  "decisions": [],
+  "uncertainties": [
+    {
+      "id": "U1",
+      "uncertainty": "Whether maintained Symfony DependencyInjection can replace the custom reflection resolver while preserving lazy optional-tool behavior and provider order.",
+      "findings": [],
+      "what_would_settle_it": "Compare supported Symfony autowiring against current kernel/provider contracts and run normal, missing dependency, early provider, duplicate and split consumer equivalence controls.",
+      "status": "open",
+      "resolution": null
+    },
+    {
+      "id": "U2",
+      "uncertainty": "Whether all remaining exports, adapters and production files are coherent in supported installation profiles.",
+      "findings": [],
+      "what_would_settle_it": "Complete the 57-file structural and caller assessment and exact candidate standalone split, HTTP bridge and generated-consumer qualification under #3118.",
+      "status": "open",
+      "resolution": null
+    }
+  ],
+  "issue_reconciliation": [
+    {
+      "issue": "#3118",
+      "claim": "Framework convergence umbrella and ai-tools package assessment owner.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "coverage-index row; FW-PACKAGE-CONVERGENCE-01"
+    },
+    {
+      "issue": "#2653",
+      "claim": "AI-first local-development journey consumes shared tool boundary.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "ADR-022; FW-AI-FIRST-DELIVERY-01"
+    },
+    {
+      "issue": "#2657",
+      "claim": "Shared transport-neutral dispatch extraction.",
+      "status": "closed with source implementation at base",
+      "evidence": "AgentToolDispatcher; AuditedToolDispatcher; MCP bridge delegation and focused source tests"
+    },
+    {
+      "issue": "#2659",
+      "claim": "CLI stdio server and tool discovery.",
+      "status": "closed with source implementation at base; candidate packaged qualification still open",
+      "evidence": "cli mcp:serve; local profile gate; #2653 journey ledger"
+    },
+    {
+      "issue": "#2661 and #2662",
+      "claim": "Versioned corpus and cited search remain distinct acceptance.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "SearchSpecsTool synthetic-directory test; BimaajiServiceProvider explicit specs_directory"
+    },
+    {
+      "issue": "#2663",
+      "claim": "Client configuration and descriptor design.",
+      "status": "open, design-ready boundary",
+      "evidence": "ADR-022; #2653 reconciliation"
+    },
+    {
+      "issue": "#2665",
+      "claim": "Full packaged local-development acceptance.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "published alpha.305 consumer is not exact candidate or actual client qualification"
+    }
+  ],
+  "remediation_plan": [],
+  "qualification": [
+    {
+      "profile": "kernel composition",
+      "supported": "yes",
+      "evidence_class": "source",
+      "evidence": "candidate-local unit/integration tests and local profile gate; not installed qualification",
+      "gap_owner": "#3118 full ai-tools assessment"
+    },
+    {
+      "profile": "framework closure",
+      "supported": "yes",
+      "evidence_class": "source",
+      "evidence": "candidate-local Composer install with root lock; package source paths; not packaged form",
+      "gap_owner": "#3118 installed closure"
+    },
+    {
+      "profile": "metapackage (full)",
+      "supported": "yes",
+      "evidence_class": "none",
+      "evidence": "No exact candidate full split metapackage exercise.",
+      "gap_owner": "#3118 distribution"
+    },
+    {
+      "profile": "standalone split",
+      "supported": "undecided",
+      "evidence_class": "none",
+      "evidence": "No isolated exact candidate split proof.",
+      "gap_owner": "#3118 distribution"
+    },
+    {
+      "profile": "generated application",
+      "supported": "yes",
+      "evidence_class": "none",
+      "evidence": "Published alpha.305 consumer has separate dependency identity; cannot qualify this candidate.",
+      "gap_owner": "#2665 journey and #3118 ai-tools split"
+    }
+  ],
+  "probes": [],
+  "evidence_runs": [
+    {
+      "command": "composer install --no-interaction --prefer-dist --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "candidate-local PHP 8.5.5",
+      "host": "native Windows",
+      "proves": "Candidate-local locked dependency installation.",
+      "result": "exit 0; vendor resolves candidate package source."
+    },
+    {
+      "command": "php vendor/bin/phpunit --testsuite Unit --filter LocalOperator --no-coverage --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "candidate-local PHP 8.5.5",
+      "host": "native Windows",
+      "proves": "Cross-package local principal boundary.",
+      "result": "74 tests, 142 assertions passed."
+    },
+    {
+      "command": "Focused registry, dispatch and SearchSpecs unit filters",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "candidate-local PHP 8.5.5",
+      "host": "native Windows",
+      "proves": "Shared catalogue, dispatcher and synthetic search path.",
+      "result": "70 tests, 218 assertions passed; no packaged corpus qualification."
+    },
+    {
+      "command": "Focused autowiring, attribute registry and schema filters",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "candidate-local PHP 8.5.5",
+      "host": "native Windows",
+      "proves": "Sampled lazy resolution and schema validation.",
+      "result": "38 tests, 117 assertions passed."
+    },
+    {
+      "command": "php bin/check-local-operator-tool-profile",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "candidate-local PHP 8.5.5",
+      "host": "native Windows",
+      "proves": "Local tool discovery and default/dynamic/withheld sets.",
+      "result": "pass; 25 tools: 3 default, 3 dynamic, 19 withheld."
+    },
+    {
+      "command": "php bin/generate-surface-map --check; php bin/check-package-layers",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "candidate-local PHP 8.5.5",
+      "host": "native Windows",
+      "proves": "Declared surface generation and source layer graph.",
+      "result": "pass; accepted same-layer cycle warning remains."
+    }
+  ],
+  "not_reviewed": [
+    "Entity/editorial mutations, content resources, relationship/vector tools, outbound consumers and all public PHPDoc beyond the sampled path.",
+    "Complete production file structural quality, unused state, duplicated authorities and adapter necessity.",
+    "Actual packaged coding clients, exact candidate split packages and installed HTTP consumer.",
+    "Exhaustive intake and Project reconciliation remain in the #3118 and #2653 owning records."
+  ],
+  "host_limits": [
+    "Six StdioMcpConformanceTest fixture setups could not create symlinks on native Windows; hosted Linux owns the real-pipe setup gate."
+  ],
+  "scorecard": {
+    "elapsed": "Bounded lane observed 2026-10-11 20:27 EDT; exact elapsed unavailable.",
+    "agent_count": 1,
+    "subagent_tokens": "unavailable",
+    "source_files": 53,
+    "source_lines": 6850,
+    "production_files": 57,
+    "consumers": "Source CLI and HTTP delegation inspected; no exact candidate installed ai-tools consumer qualified.",
+    "intake_items": 0,
+    "profiles": [
+      "kernel-runtime",
+      "introspection-cli",
+      "domain-contracts",
+      "distribution"
+    ],
+    "findings": "No ai-tools-owned finding accepted in bounded #2653 supplement; two cross-package leads handed off.",
+    "verification_reversals": [],
+    "record_lines": 107,
+    "record_words": 1682,
+    "ledger_bytes": 37854,
+    "probes_written": 0,
+    "probes_retained": 0,
+    "open": {
+      "decisions": 0,
+      "uncertainties": 2
+    },
+    "unfiled_findings": [],
+    "critic": "Independent #2653 readiness review covers shared CLI and guidance leads; full ai-tools audit review remains pending."
+  }
+}

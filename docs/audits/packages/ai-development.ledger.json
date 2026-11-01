@@ -1,0 +1,433 @@
+{
+  "schema_version": 1,
+  "package": "waaseyaa/ai-development",
+  "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+  "audit_date": "2026-10-11",
+  "dependency_identity": {
+    "composer_lock_sha256": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+    "php": "8.5.5",
+    "host": "Native Windows 11",
+    "evidence_freshness": "Both package production files current at the base and byte-identical to published split v0.1.0-alpha.305. Installed consumer uses a distinct skeleton dev-main and split package lock; its journey evidence is not exact-candidate-wide.",
+    "consumers": [
+      "Disposable published skeleton dev-main b6e839972f1e6eb0e241d4492faeeb31ebfc8952, composer.lock sha256:6c4cb9d48444651dcb704fd1f06326de2d6e3b947beea562d99e71757c0ac27a, split ai-development ref bf8338a4508eaaf15eccb237304260dc15720947."
+    ]
+  },
+  "milestone": {
+    "assessed": true,
+    "repair_ready": true,
+    "converged": null,
+    "reasons": [
+      "Every production file and package contract was assessed; no package-owned repair remains. Full AI-first journey and candidate-wide installed qualification remain #2653/#2665 obligations, so convergence is not claimed."
+    ]
+  },
+  "charter": [
+    {
+      "question": "Owns",
+      "answer": "Composer identity and direct-member selection for the opt-in local development plane, plus package-level install guidance.",
+      "evidence": "packages/ai-development/composer.json; packages/ai-development/README.md; ADR-022 D-1/D-2"
+    },
+    {
+      "question": "Does not own",
+      "answer": "Runtime principal, tool catalogue, stdio transport, HTTP routes, generated client configuration, docs corpus, project lifecycle, or production behavior.",
+      "evidence": "No src/resources/providers under packages/ai-development; ADR-022 D-1/D-9; #2653 child ownership"
+    },
+    {
+      "question": "Consumers",
+      "answer": "The skeleton and root aggregate require it only under require-dev. Applications may explicitly require it with Composer; actual stdio requires application CLI composition supplied outside this metapackage.",
+      "evidence": "skeleton/composer.json; composer.json; packages/cli/src/Provider/McpStdioServiceProvider.php; published generated-consumer lock"
+    },
+    {
+      "question": "Dependencies",
+      "answer": "Direct waaseyaa/ai-agent and waaseyaa/testing at the alpha.305 floor, with matching local path repositories. No direct Symfony dependency, optional dependency, or custom runtime adapter.",
+      "evidence": "packages/ai-development/composer.json; VERSION; CP007/CP009"
+    },
+    {
+      "question": "Public surface",
+      "answer": "Composer package name and dependency graph only. No PHP export, command, event, route, wire message, alias, compatibility bridge or service provider.",
+      "evidence": "complete two-file roster; docs/public-surface-map.php; packages/ai-development/composer.json"
+    },
+    {
+      "question": "Installation profiles",
+      "answer": "Supported as an opt-in dev metapackage within a Waaseyaa application, including generated skeleton. Standalone boot and primitive use do not apply. Runtime closure inclusion is forbidden.",
+      "evidence": "ADR-022 D-1/D-2; skeleton/composer.json; CP009; distribution profile"
+    },
+    {
+      "question": "Evidence it works",
+      "answer": "Candidate source gates and real derived-closure route sweep pass; both package files equal published alpha.305 split bytes. Published generated consumer installed the dev graph and removed dev-only members under no-dev. Full client journey remains unqualified at this candidate.",
+      "evidence": "seven evidence runs below; split tag content SHA-256 comparison; published consumer lock"
+    }
+  ],
+  "roster": [
+    {
+      "file": "packages/ai-development/composer.json",
+      "role": "Composer identity, direct dependency selection, version floor and path repositories",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "30 lines. type metapackage, GPL license, require ai-agent/testing only, matching path repositories, no provider or autoload. Byte-identical to published alpha.305 split tag; SHA-256 f3a5f6d8ba77fd342f10ac35dab0ab502f9aafa0932494e715cbc2938b839816.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-development/README.md",
+      "role": "Opt-in install and containment guidance",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "45 lines. Describes require-dev, direct members, excluded HTTP MCP, CP009 and no-dev behavior. 'Three read-only Bimaaji introspection tools' is broad terminology for two graph reads and one specs search; #2661/#2662 own useful corpus/search. Byte-identical to published tag; SHA-256 6ccf00a1217afeeb66be683a1e1deacaa15797c08a978bfcd98622e184f1d45a.",
+      "findings": []
+    }
+  ],
+  "checklists": [
+    {
+      "profile": "identity",
+      "item": "Package identity, license, version and split target",
+      "status": "answered",
+      "answer": "waaseyaa/ai-development is GPL-2.0-or-later type metapackage, with alpha.305 internal floors matching VERSION; split.yml selects packages/ai-development.",
+      "evidence": "manifest; VERSION; .github/workflows/split.yml; composer validate",
+      "findings": []
+    },
+    {
+      "profile": "identity",
+      "item": "Production-file and export roster",
+      "status": "answered",
+      "answer": "Two tracked non-test files, manifest 30 lines and README 45 lines. There is no src, resources, provider, public-surface declaration or build output.",
+      "evidence": "git file inventory; both package files; docs/public-surface-map.php",
+      "findings": []
+    },
+    {
+      "profile": "charter",
+      "item": "Cohesion and single responsibility",
+      "status": "answered",
+      "answer": "One native Composer dependency-selection contract plus its guidance. Tool execution and transport live in owning packages.",
+      "evidence": "manifest; README; ADR-022 D-1/D-2",
+      "findings": []
+    },
+    {
+      "profile": "charter",
+      "item": "Human navigation and documentation accuracy",
+      "status": "answered",
+      "answer": "Both production files are short and adjacent; README traces the manifest and CP009. The third admitted read tool searches specs; it does not imply a shipped corpus before #2661/#2662.",
+      "evidence": "manifest; README; support/local-operator-tool-profile-roster.json; ADR-022 D-7",
+      "findings": []
+    },
+    {
+      "profile": "charter",
+      "item": "PHPDoc, comments, unused paths and dead state",
+      "status": "does not apply",
+      "answer": "No PHP source, PHPDoc, class, state or executable branch exists. Manifest branch-alias and path repositories serve Composer development/release wiring.",
+      "evidence": "complete roster; manifest",
+      "findings": []
+    },
+    {
+      "profile": "charter",
+      "item": "Repeated logic and competing authorities",
+      "status": "answered",
+      "answer": "No algorithm is duplicated. The two path repositories correspond to the two direct requirements under CP007; Composer remains dependency authority.",
+      "evidence": "manifest; bin/check-composer-policy CP007",
+      "findings": []
+    },
+    {
+      "profile": "charter",
+      "item": "Adapter necessity and maintained Symfony fit",
+      "status": "does not apply",
+      "answer": "No runtime adapter or custom generic infrastructure exists. Composer's own resolver selects packages; no Symfony replacement subject exists in this metapackage.",
+      "evidence": "complete roster; governance maintained infrastructure rule",
+      "findings": []
+    },
+    {
+      "profile": "public surface",
+      "item": "API, extension seams and lifecycle",
+      "status": "answered",
+      "answer": "Only package name, type and requirements are exported. No PHP symbol, event, extension hook or wire protocol originates here.",
+      "evidence": "manifest; no src/resources/provider; docs/public-surface-map.php",
+      "findings": []
+    },
+    {
+      "profile": "closure",
+      "item": "Direct members and opt-in boundary",
+      "status": "answered",
+      "answer": "ai-agent and testing are direct dependencies; skeleton and root use require-dev, and no production first-party require block contains ai-development.",
+      "evidence": "manifest; skeleton/composer.json; root composer.json; CP009",
+      "findings": []
+    },
+    {
+      "profile": "closure",
+      "item": "Production exclusion and principal home package",
+      "status": "answered",
+      "answer": "CP009 traverses framework/core/cms/full production require closures and refuses ai-development or ai-agent; direct gate passed on the candidate.",
+      "evidence": "php bin/check-composer-policy; tests/Architecture/DevelopmentPlaneClosureGateTest.php",
+      "findings": []
+    },
+    {
+      "profile": "closure",
+      "item": "HTTP MCP absence and negative control",
+      "status": "answered",
+      "answer": "Metapackage closure excludes waaseyaa/mcp. A derived provider sweep returns no MCP routes; adding the HTTP MCP provider yields discovery card, /mcp and /mcp/write.",
+      "evidence": "LocalPlaneNoMcpRouteTest: 7 tests, 149 assertions pass",
+      "findings": []
+    },
+    {
+      "profile": "failure",
+      "item": "Seeded closure-gate refusal on this host",
+      "status": "gap",
+      "answer": "The seeded CP009 subprocess test cannot run natively because its POSIX ROOT_DIR launcher is interpreted as cmd syntax; hosted Linux owns it. Direct CP009 passes here.",
+      "evidence": "focused 38-case run: 9 Windows launcher/executable failures; ci/unit-tests Linux",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Published split file equivalence",
+      "status": "answered",
+      "answer": "Both candidate production files exactly equal the published v0.1.0-alpha.305 split tag bytes. This supports reuse of published package-manifest evidence without equating other package or skeleton identities.",
+      "evidence": "GitHub contents API tag; SHA-256 comparisons recorded in roster",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Development install resolution",
+      "status": "answered",
+      "answer": "Disposable published skeleton dev-main lock places ai-development, ai-agent and testing in packages-dev at split alpha.305. Site init, install init and stdio ran through the installed application.",
+      "evidence": "consumer lock sha256:6c4cb9d4; published consumer run; real stdio probe",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "No-dev exclusion",
+      "status": "answered",
+      "answer": "After literal composer install --no-dev, ai-development, ai-agent and testing were absent from vendor. Bimaaji and CLI remained because the framework runtime graph independently requires them.",
+      "evidence": "published consumer no-dev install; vendor/waaseyaa directory inventory",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Exact candidate closure artifact",
+      "status": "gap",
+      "answer": "No sealed exact-candidate closure artifact was installed or booted in this package lane. #2665 and hosted split-artifact acceptance own candidate-wide qualification.",
+      "evidence": "candidate preflight receipt; tests/PackagedForm/split-artifact-acceptance.php; #2665",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Metapackage and generated application profile",
+      "status": "answered",
+      "answer": "The supported profile is opt-in development use inside a Framework application. Published skeleton create-project installed the bundle and no-dev removed the dev-only members.",
+      "evidence": "skeleton/composer.json; consumer lock; generated consumer run",
+      "findings": []
+    },
+    {
+      "profile": "SDD",
+      "item": "ADR and issue traceability",
+      "status": "answered",
+      "answer": "ADR-022 D-1/D-2/D-9/D-10 map to #2655 and source controls; #2655, #2738 and #2649 are closed. #2653/#2665 retain integrated journey acceptance.",
+      "evidence": "ADR-022; issues #2655/#2738/#2649/#2653/#2665; FW-AI-FIRST-DELIVERY-01",
+      "findings": []
+    },
+    {
+      "profile": "SDD",
+      "item": "Later capability boundaries",
+      "status": "answered",
+      "answer": "Client descriptors, corpus/search, upgrades and output removal are owned by #2663, #2661/#2662 and #2664. A metapackage no-code assessment does not count those as shipped.",
+      "evidence": "#2661/#2662/#2663/#2664; docs/specs/spec-corpus.md; program roadmap",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Supported host and packaged client limits",
+      "status": "gap",
+      "answer": "Native Windows source route and manifest checks pass and a real stdio process passed in a published consumer. No packaged coding client was exercised; #2665 owns actual client qualification, and Linux owns POSIX split gates.",
+      "evidence": "published stdio probe; native-host-support.md; #2665",
+      "findings": []
+    }
+  ],
+  "intake": [],
+  "findings": [],
+  "refuted": [],
+  "handoffs": [],
+  "decisions": [],
+  "uncertainties": [],
+  "issue_reconciliation": [
+    {
+      "issue": "#2655",
+      "claim": "Register empty metapackage, direct testing member, require-dev skeleton and CP009 containment",
+      "status": "closed 2026-08-31; package shape and source guards present at base",
+      "evidence": "live issue body 2026-10-11; manifest; skeleton/composer.json; CP009; LocalPlaneNoMcpRouteTest"
+    },
+    {
+      "issue": "#2738",
+      "claim": "Make development-main split target reachable and publish first mirror",
+      "status": "closed 2026-08-31; published alpha.305 tag has same package files at this base",
+      "evidence": "live issue body; split.yml; GitHub tag byte comparison"
+    },
+    {
+      "issue": "#2649",
+      "claim": "Split-shaped package acceptance gate",
+      "status": "closed 2026-08-30; development-metapackage surface live in roster; hosted exact-head run not reused here",
+      "evidence": "live issue state; tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json"
+    },
+    {
+      "issue": "#2658",
+      "claim": "Least-privilege principal and tool catalogue",
+      "status": "closed 2026-08-30; ai-agent owns runtime code, outside this package's production files",
+      "evidence": "live issue state; support/local-operator-tool-profile-roster.json; ADR-022 D-3/D-7"
+    },
+    {
+      "issue": "#2653",
+      "claim": "AI-first local-development delivery program",
+      "status": "open; this assessment proves bundle shape, not full journey",
+      "evidence": "live program issue; FW-AI-FIRST-DELIVERY-01"
+    },
+    {
+      "issue": "#2665",
+      "claim": "Packaged fresh/upgraded application acceptance",
+      "status": "open; candidate-wide installed client and lifecycle qualification remains",
+      "evidence": "live issue state; FW-AI-FIRST-DELIVERY-01"
+    }
+  ],
+  "remediation_plan": [],
+  "qualification": [
+    {
+      "profile": "primitive-only",
+      "supported": "no: no primitives exported",
+      "evidence_class": "none",
+      "evidence": "Metapackage owns no PHP source or autoload section.",
+      "gap_owner": null
+    },
+    {
+      "profile": "standalone split",
+      "supported": "no: no bootable standalone runtime",
+      "evidence_class": "none",
+      "evidence": "Split artifact is a metapackage manifest and README only.",
+      "gap_owner": null
+    },
+    {
+      "profile": "kernel composition",
+      "supported": "yes: transitive development composition",
+      "evidence_class": "source",
+      "evidence": "Source derived-closure provider sweep passed with MCP positive control; exact-candidate installed composition remains a #2665 gap.",
+      "gap_owner": "#2665"
+    },
+    {
+      "profile": "metapackage",
+      "supported": "yes: opt-in development",
+      "evidence_class": "generated application",
+      "evidence": "Published alpha.305 generated skeleton installed ai-development under packages-dev and removed its dev-only members under no-dev; both candidate package files equal split-tag bytes.",
+      "gap_owner": null
+    },
+    {
+      "profile": "framework closure",
+      "supported": "no: production closure inclusion forbidden",
+      "evidence_class": "source",
+      "evidence": "CP009 passed on candidate; seeded refusal test is Linux-owned and no runtime inclusion is claimed.",
+      "gap_owner": null
+    },
+    {
+      "profile": "generated application",
+      "supported": "yes: skeleton require-dev",
+      "evidence_class": "generated application",
+      "evidence": "Published skeleton dev-main at b6e839972f1e6eb0e241d4492faeeb31ebfc8952 resolved split alpha.305 and executed initialization and stdio; final candidate-wide lifecycle remains #2665.",
+      "gap_owner": "#2665"
+    }
+  ],
+  "probes": [],
+  "evidence_runs": [
+    {
+      "command": "composer validate --strict packages/ai-development/composer.json",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "package audit lane",
+      "host": "native Windows 11",
+      "proves": "Current manifest shape and Composer validity",
+      "result": "exit 0, valid"
+    },
+    {
+      "command": "php bin/check-composer-policy",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "package audit lane",
+      "host": "native Windows 11",
+      "proves": "Current CP007/CP009 closure and dependency policy",
+      "result": "exit 0"
+    },
+    {
+      "command": "php bin/check-package-layers",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "package audit lane",
+      "host": "native Windows 11",
+      "proves": "Metapackage/layer policy",
+      "result": "exit 0; unrelated accepted cycle warnings"
+    },
+    {
+      "command": "php vendor/bin/phpunit tests/Architecture/LocalPlaneNoMcpRouteTest.php --no-coverage",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "package audit lane",
+      "host": "native Windows 11",
+      "proves": "Derived local closure route exclusion, injected provider and closure controls",
+      "result": "7 tests, 149 assertions pass"
+    },
+    {
+      "command": "php vendor/bin/phpunit tests/Integration/Phase23/MetapackageSmokeTest.php --no-coverage",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "package audit lane",
+      "host": "native Windows 11",
+      "proves": "Metapackage declarations and autoload smoke",
+      "result": "15 tests, 15 assertions pass"
+    },
+    {
+      "command": "gh api repos/waaseyaa/ai-development/contents/{composer.json,README.md}?ref=v0.1.0-alpha.305; SHA-256 compare",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "published split tag v0.1.0-alpha.305; candidate package bytes",
+      "runner": "package audit lane",
+      "host": "native Windows 11",
+      "proves": "Candidate manifest and README byte equivalence to published split package",
+      "result": "Both byte comparisons true; sha256 f3a5f6d8... and 6ccf00a1..."
+    },
+    {
+      "command": "composer create-project waaseyaa/waaseyaa --stability=dev; site:init; install:init; real MCP stdio probe; composer install --no-dev",
+      "base": "skeleton dev-main b6e839972f1e6eb0e241d4492faeeb31ebfc8952; split alpha.305",
+      "dependency_identity": "consumer composer.lock sha256:6c4cb9d48444651dcb704fd1f06326de2d6e3b947beea562d99e71757c0ac27a",
+      "runner": "program audit root",
+      "host": "native Windows 11",
+      "proves": "Published generated consumer dev graph, runtime stdio and removal of dev-only package members",
+      "result": "Published consumer passed within scope; no-dev vendor excludes ai-development/ai-agent/testing"
+    }
+  ],
+  "not_reviewed": [
+    "Other packages' production files are outside this two-file assessment. #2653 bounded boundary review and existing #3117/#3123/#3124 package owners retain their work.",
+    "Actual packaged coding-client configuration, upgrades, generated-state removal and corpus-backed cited search are not claimed here; #2661/#2662/#2663/#2664/#2665 own them."
+  ],
+  "host_limits": [
+    "Native Windows focused architecture selection 38 tests/365 assertions had nine launcher/executable failures from ROOT_DIR or Bash executable semantics; do not count it as a pass. Hosted Linux ci/unit-tests owns seeded subprocess behavior.",
+    "SplitTargetReachabilityGateTest depends on POSIX rm and shell variable syntax; hosted Linux owns that split reachability gate. Native Windows source policy, route sweep and metapackage smoke passed."
+  ],
+  "scorecard": {
+    "elapsed": "Unavailable from per-agent harness; candidate checks completed 2026-10-11.",
+    "agent_count": 1,
+    "subagent_tokens": "unavailable",
+    "source_files": 0,
+    "source_lines": 0,
+    "production_files": 2,
+    "consumers": "Skeleton require-dev and explicit development-bundle consumers; disposable published skeleton dev-main, split alpha.305; no external live app qualified.",
+    "intake_items": 0,
+    "profiles": [
+      "identity",
+      "charter",
+      "closure",
+      "distribution",
+      "SDD"
+    ],
+    "findings": "0 package-owned, 0 cross-package.",
+    "verification_reversals": [],
+    "record_lines": 116,
+    "record_words": 1828,
+    "ledger_bytes": 22360,
+    "probes_written": 0,
+    "probes_retained": 0,
+    "open": {
+      "decisions": 0,
+      "uncertainties": 0
+    },
+    "unfiled_findings": [],
+    "critic": "Program independent immutable review pending; no new finding requires tier A/B/C verification."
+  }
+}

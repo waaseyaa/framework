@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\ApplicationTester;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -34,6 +37,61 @@ use Waaseyaa\Foundation\Log\LogLevel;
 #[CoversClass(SymfonyCommandIO::class)]
 final class SymfonyConsoleRuntimeTest extends TestCase
 {
+    #[DataProvider('nonInteractiveFlags')]
+    public function testGlobalNonInteractiveFlagReachesCommand(string $flag): void
+    {
+        $application = new WaaseyaaConsoleApplication('test');
+        $application->addCommand(new class extends Command {
+            public function __construct()
+            {
+                parent::__construct('probe:interaction');
+            }
+
+            protected function execute(InputInterface $input, OutputInterface $output): int
+            {
+                $output->writeln($input->isInteractive() ? 'interactive' : 'non-interactive');
+
+                return Command::SUCCESS;
+            }
+        });
+
+        $input = new ArgvInput(['waaseyaa', 'probe:interaction', $flag]);
+        $output = new BufferedOutput();
+
+        self::assertSame(0, $application->run($input, $output));
+        self::assertFalse($input->isInteractive());
+        self::assertSame('non-interactive', trim($output->fetch()));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nonInteractiveFlags(): iterable
+    {
+        yield '--no-interaction' => ['--no-interaction'];
+        yield '-n' => ['-n'];
+    }
+
+    public function testRealArgvKeepsInteractiveJsonOutputAndInterruptedExitCode(): void
+    {
+        $application = new WaaseyaaConsoleApplication('test');
+        $application->addCommand(new class extends Command {
+            public function __construct()
+            {
+                parent::__construct('probe:json');
+            }
+
+            protected function execute(InputInterface $input, OutputInterface $output): int
+            {
+                $output->writeln(json_encode(['interactive' => $input->isInteractive()], JSON_THROW_ON_ERROR));
+
+                return 130;
+            }
+        });
+
+        $output = new BufferedOutput();
+        self::assertSame(130, $application->run(new ArgvInput(['waaseyaa', 'probe:json']), $output));
+        self::assertJsonStringEqualsJsonString('{"interactive":true}', trim($output->fetch()));
+    }
+
     public function testBareInvocationPrintsShortHint(): void
     {
         $tester = new ApplicationTester(new WaaseyaaConsoleApplication('test'));

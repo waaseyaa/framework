@@ -1,0 +1,1331 @@
+{
+  "schema_version": 1,
+  "package": "waaseyaa/ai-agent",
+  "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+  "audit_date": "2026-10-11",
+  "dependency_identity": {
+    "composer_lock_sha256": "8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+    "php": "8.5.5",
+    "host": "native Windows",
+    "evidence_freshness": "Current source at the exact base; published alpha.305 consumer evidence is separate and does not qualify this candidate.",
+    "consumers": [
+      "Published skeleton dev-main b6e839972f1e6eb0e241d4492faeeb31ebfc8952, consumer composer.lock sha256 6c4cb9d48444651dcb704fd1f06326de2d6e3b947beea562d99e71757c0ac27a, ai-agent split ref 7bc2de4a0c6adfaa2d5327e4aa7907ebe7273a08 (alpha.305); no-dev removed ai-agent. Different from candidate base."
+    ]
+  },
+  "milestone": {
+    "assessed": false,
+    "repair_ready": false,
+    "converged": null,
+    "reasons": [
+      "This is a bounded #2653 local operator and Bimaaji adapter supplement, not the full package audit.",
+      "Many exports, outbound MCP, provider execution, persistence and HTTP surfaces remain inventory-only.",
+      "The two package-owned leads lack their required independent finding verification.",
+      "Supported split and generated application profiles are not qualified at the exact candidate base."
+    ]
+  },
+  "charter": [
+    {
+      "question": "Capability owned",
+      "answer": "Agent definitions and execution, run persistence, model-provider and outbound MCP integration, and the opt-in local operator principal plus Bimaaji agent tool adapters. The #2653 supplement reviews only the local operator and adapter boundary.",
+      "evidence": "packages/ai-agent/composer.json; package provider manifest; src/LocalOperator; Tool/Bimaaji"
+    },
+    {
+      "question": "Excluded capability",
+      "answer": "CLI stdio framing, client configuration, project initialization and the transport-neutral shared tool catalogue belong to cli, bimaaji/ai-development, site-contract and ai-tools.",
+      "evidence": "packages/cli/src/Command/Mcp/McpServeCommand.php; packages/ai-tools/src; docs/adr/022-ai-development-package-and-local-operator-trust-boundary.md"
+    },
+    {
+      "question": "Consumers and composition",
+      "answer": "Kernel provider discovery composes the optional agent runtime in development installations; CLI stdio uses LocalOperatorPrincipal. Generated applications and split users need independent qualification. The no-dev root closure removes ai-agent.",
+      "evidence": "composer.json extra.waaseyaa.providers; cli McpServeCommand; #2658; candidate-local tests"
+    },
+    {
+      "question": "Dependencies and adapters",
+      "answer": "Requires ai-tools, bimaaji, access, foundation, audit, persistence and HTTP clients, among others; wayfinding is suggested. Agent adapters delegate to Bimaaji services. HTTP MCP delegation is outbound and outside this supplement.",
+      "evidence": "packages/ai-agent/composer.json; Tool/Bimaaji; Mcp"
+    },
+    {
+      "question": "Public surface and lifecycle",
+      "answer": "The editable declaration names 18 public and one internal symbol. Many other exports are @api-only or unclassified; their caller and lifecycle obligations are not settled. LocalOperatorPrincipal requires explicit CLI development transport attestation and refuses serialization or ambient account context.",
+      "evidence": "packages/ai-agent/public-surface.php; src/LocalOperator; bin/generate-surface-map --check"
+    },
+    {
+      "question": "Supported profiles and observable evidence",
+      "answer": "Source-local local-operator tests pass and no-dev removes the optional package in a published consumer. Exact-base generated application, standalone split and packaged coding-client qualification are pending. Do not infer installed success from source tests.",
+      "evidence": "candidate-local PHPUnit filters; #2653 journey evidence; distribution profile"
+    }
+  ],
+  "roster": [
+    {
+      "file": "packages/ai-agent/composer.json",
+      "role": "Composer identity and dependency contract",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/public-surface.php",
+      "role": "public surface declaration",
+      "classification": "necessary but under-specified",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: not a PHP export. Editable export declaration; many @api-only and unclassified exports still require caller and lifecycle review.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/README.md",
+      "role": "consumer documentation",
+      "classification": "duplicated or drifting contract",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: not a PHP export. Current Bimaaji table names four adapters; source contains five including search.",
+      "findings": [
+        "AIAG-DOC-001"
+      ]
+    },
+    {
+      "file": "packages/ai-agent/migrations/2026_05_18_000001_create_agent_run.php",
+      "role": "schema migration",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/migrations/2026_07_14_000001_add_approval_expires_at.php",
+      "role": "schema migration",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/migrations/2026_09_01_000001_add_entity_base_columns.php",
+      "role": "schema migration",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: not a PHP export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AgentAction.php",
+      "role": "package core and composition",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AgentContext.php",
+      "role": "package core and composition",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AgentDefinition.php",
+      "role": "package core and composition",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AgentDefinitionRegistry.php",
+      "role": "package core and composition",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AgentExecutor.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AgentResult.php",
+      "role": "package core and composition",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AiAgentEntityServiceProvider.php",
+      "role": "package core and composition",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/AiAgentServiceProvider.php",
+      "role": "package core and composition",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/MessagingServiceProvider.php",
+      "role": "package core and composition",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": [
+        "AIAG-RUN-001"
+      ]
+    },
+    {
+      "file": "packages/ai-agent/src/Access/AgentRunAccessPolicy.php",
+      "role": "Access",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Account/InitiatorAccountLoaderInterface.php",
+      "role": "Account",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Account/StubInitiatorAccountLoader.php",
+      "role": "Account",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Attribute/AsAgentDefinition.php",
+      "role": "Attribute",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Broadcast/AgentRunBroadcaster.php",
+      "role": "Broadcast",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Broadcast/AgentRunBroadcasterInterface.php",
+      "role": "Broadcast",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Broadcast/AgentRunBroadcasterServiceProvider.php",
+      "role": "Broadcast",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Controller/AgentRunController.php",
+      "role": "Controller",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Controller/AgentRunRequestValidator.php",
+      "role": "Controller",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Entity/AgentAuditLog.php",
+      "role": "Entity",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Entity/AgentRun.php",
+      "role": "Entity",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Enum/EventType.php",
+      "role": "Enum",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Enum/HitlMode.php",
+      "role": "Enum",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Enum/RunStatus.php",
+      "role": "Enum",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/LocalOperator/LocalOperatorAccountContextGuard.php",
+      "role": "LocalOperator",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/LocalOperator/LocalOperatorPrincipal.php",
+      "role": "LocalOperator",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/LocalOperator/LocalOperatorRefusal.php",
+      "role": "LocalOperator",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/LocalOperator/LocalOperatorToolProfile.php",
+      "role": "LocalOperator",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/LocalOperator/LocalOperatorTransportAttestation.php",
+      "role": "LocalOperator",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpCapabilitiesSource.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpClientToolSource.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpCredentialOperation.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpCredentialOutcome.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpCredentialUnavailableException.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpIntegrationHealth.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpReadinessException.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpRemoteErrorException.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpRemoteToolDescriptor.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpRemoteToolResult.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpServerInfo.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpServerUnavailableException.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/McpServiceProvider.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/NullConfigStorage.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Mcp/StreamableHttpMcpClient.php",
+      "role": "Mcp",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Message/RunAgent.php",
+      "role": "Message",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Message/RunAgentHandler.php",
+      "role": "Message",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/AnthropicCredentialOperation.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/AnthropicProvider.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ClientErrorException.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/LlmConversationRequest.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/MaxIterationsException.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/MessageRequest.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/MessageResponse.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/NullLlmProvider.php",
+      "role": "Provider",
+      "classification": "missing refusal, lifecycle, compatibility or distribution evidence",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: unclassified export.",
+      "findings": [
+        "AIAG-RUN-001"
+      ]
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/OpenAiCompatibleCredentialOperation.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/OpenAiCompatibleProvider.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ProviderCredentialOutcome.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ProviderException.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ProviderInterface.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ProviderTimeouts.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/RateLimitException.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/StreamChunk.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/StreamingProviderInterface.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ToolResultBlock.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/ToolUseBlock.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: unclassified export.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Provider/TransportException.php",
+      "role": "Provider",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Reaper/StalledRunCandidate.php",
+      "role": "Reaper",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @internal only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Reaper/StalledRunReaper.php",
+      "role": "Reaper",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Repository/AgentAuditLogRepository.php",
+      "role": "Repository",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Repository/AgentRunRepository.php",
+      "role": "Repository",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Routing/AgentRouteServiceProvider.php",
+      "role": "Routing",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Security/AccountScopedAgentRunProjectionReader.php",
+      "role": "Security",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Security/AgentRunAccountProjection.php",
+      "role": "Security",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Security/AgentRunAccountProjectionReaderInterface.php",
+      "role": "Security",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Security/AgentRunWorkerFields.php",
+      "role": "Security",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Security/AgentRunWorkerReaderInterface.php",
+      "role": "Security",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared public.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Security/AuditedAgentRunWorkerReader.php",
+      "role": "Security",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Service/AgentRunDraft.php",
+      "role": "Service",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Service/AgentRunService.php",
+      "role": "Service",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Bimaaji/GeneratePatchTool.php",
+      "role": "Tool/Bimaaji",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php",
+      "role": "Tool/Bimaaji",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Bimaaji/IntrospectSectionTool.php",
+      "role": "Tool/Bimaaji",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Bimaaji/ProposeMutationTool.php",
+      "role": "Tool/Bimaaji",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php",
+      "role": "Tool/Bimaaji",
+      "classification": "owned and coherent",
+      "evidence_level": "reviewed",
+      "notes": "Bounded #2653 review of local operator/composition boundary. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Wayfinding/AbstractTrailTool.php",
+      "role": "Tool/Wayfinding",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: declared internal.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Wayfinding/EditTrailTool.php",
+      "role": "Tool/Wayfinding",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Wayfinding/EmitBeaconTool.php",
+      "role": "Tool/Wayfinding",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Wayfinding/GetTrailTool.php",
+      "role": "Tool/Wayfinding",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Wayfinding/RecordTrailTool.php",
+      "role": "Tool/Wayfinding",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    },
+    {
+      "file": "packages/ai-agent/src/Tool/Wayfinding/ReRecordTrailTool.php",
+      "role": "Tool/Wayfinding",
+      "classification": "necessary but under-specified",
+      "evidence_level": "inventoried",
+      "notes": "Inventory only; provisional classification records missing audit evidence, not a proved product defect. Surface: @api only.",
+      "findings": []
+    }
+  ],
+  "checklists": [
+    {
+      "profile": "identity",
+      "item": "Composer identity, dependencies and provider manifest",
+      "status": "answered",
+      "answer": "waaseyaa/ai-agent is a PHP>=8.5 library; its manifest registers six providers and policy/migrations. Direct imports and no-dev closure need full audit.",
+      "evidence": "packages/ai-agent/composer.json",
+      "findings": []
+    },
+    {
+      "profile": "public surface",
+      "item": "Declared versus annotation-only exports",
+      "status": "gap",
+      "answer": "18 declared public and one internal export; many annotation-only and unclassified symbols remain without caller/lifecycle disposition.",
+      "evidence": "packages/ai-agent/public-surface.php; production-roster.json",
+      "findings": []
+    },
+    {
+      "profile": "structural",
+      "item": "Cohesion and package boundary",
+      "status": "answered",
+      "answer": "Local operator principal belongs with opt-in agent runtime; CLI owns stdio and ai-tools owns the shared registry. This answer is bounded to the #2653 boundary.",
+      "evidence": "LocalOperator classes; CLI McpServeCommand; ai-tools dispatcher",
+      "findings": []
+    },
+    {
+      "profile": "structural",
+      "item": "Human navigation, PHPDoc and comments",
+      "status": "gap",
+      "answer": "The local operator directory is navigable, but comments and PHPDoc across the remaining 95-file roster were not exhaustively checked.",
+      "evidence": "source roster",
+      "findings": []
+    },
+    {
+      "profile": "structural",
+      "item": "Unused paths and state",
+      "status": "gap",
+      "answer": "Outbound MCP, HTTP run, provider, persistence and Wayfinding paths need caller, reachability and lifecycle review before dead-code conclusions.",
+      "evidence": "source roster",
+      "findings": []
+    },
+    {
+      "profile": "structural",
+      "item": "Duplicated logic and competing authorities",
+      "status": "gap",
+      "answer": "The local profile has one authority for allowed tool IDs; whole-package provider and outbound registry authorities were not fully traced.",
+      "evidence": "LocalOperatorToolProfile; ai-tools registry",
+      "findings": []
+    },
+    {
+      "profile": "structural",
+      "item": "Adapter necessity and terminal behavior",
+      "status": "gap",
+      "answer": "Bimaaji adapters and shared dispatcher are live at source. Outbound HTTP MCP and optional provider adapters require installed consumer trace before replacement or removal.",
+      "evidence": "Tool/Bimaaji; Mcp",
+      "findings": []
+    },
+    {
+      "profile": "kernel-runtime",
+      "item": "Provider discovery and local operator registration",
+      "status": "answered",
+      "answer": "Package manifest registers providers; CLI composes the local principal under exact transport attestation. Source tests cover refusal of non-cli/non-dev construction.",
+      "evidence": "composer.json; LocalOperator unit tests",
+      "findings": []
+    },
+    {
+      "profile": "introspection-cli",
+      "item": "Least-privilege default local profile",
+      "status": "answered",
+      "answer": "Three default tools and bimaaji.read only; 25-tool roster gate reports three default, three dynamic and nineteen withheld.",
+      "evidence": "bin/check-local-operator-tool-profile",
+      "findings": []
+    },
+    {
+      "profile": "introspection-cli",
+      "item": "Search corpus and cited answer contract",
+      "status": "gap",
+      "answer": "SearchSpecsTool is discoverable but without explicit specs_directory its provider has no files. #2661 and #2662 own corpus and cited retrieval acceptance.",
+      "evidence": "BimaajiServiceProvider; SearchSpecsToolTest; #2661; #2662",
+      "findings": []
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Local principal identity, lifetime and refusal",
+      "status": "answered",
+      "answer": "Never-persisted local principal refuses non-cli/non-development attestation, serialization and ambient account-context use in focused tests.",
+      "evidence": "LocalOperatorPrincipal; LocalOperator unit tests",
+      "findings": []
+    },
+    {
+      "profile": "domain-contracts",
+      "item": "Agent execution and no-model outcome",
+      "status": "finding",
+      "answer": "The default NullLlmProvider produces success-shaped end_turn; #1608 remains open. Independent tier-A verification is pending.",
+      "evidence": "MessagingServiceProvider; NullLlmProvider; #1608",
+      "findings": [
+        "AIAG-RUN-001"
+      ]
+    },
+    {
+      "profile": "persistence-execution",
+      "item": "Agent run and audit persistence",
+      "status": "gap",
+      "answer": "Run repository, migrations, worker and approval lifecycle are inventory-only in this supplement.",
+      "evidence": "migrations; Repository; Message; Security",
+      "findings": []
+    },
+    {
+      "profile": "http-ui-contracts",
+      "item": "HTTP agent and outbound MCP failure boundaries",
+      "status": "gap",
+      "answer": "HTTP controller, outbound MCP session, credential and refusal behavior were not fully audited. Do not infer them from local stdio tests.",
+      "evidence": "Controller; Mcp",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Standalone split and no-dev behavior",
+      "status": "gap",
+      "answer": "No candidate-exact standalone split installed and booted without dev dependencies. Published root no-dev excludes this optional package.",
+      "evidence": "composer.json; published consumer observation",
+      "findings": []
+    },
+    {
+      "profile": "distribution",
+      "item": "Generated application and actual client qualification",
+      "status": "gap",
+      "answer": "Source tests do not qualify candidate-exact generated app or packaged coding clients. #2665 owns complete journey proof.",
+      "evidence": "#2665; distribution profile",
+      "findings": []
+    },
+    {
+      "profile": "documentation",
+      "item": "Package README current tool inventory",
+      "status": "finding",
+      "answer": "README says four Bimaaji adapters while source has five, and search corpus availability is not explained.",
+      "evidence": "README.md; Tool/Bimaaji",
+      "findings": [
+        "AIAG-DOC-001"
+      ]
+    },
+    {
+      "profile": "sdd",
+      "item": "Live spec and implementation trace",
+      "status": "gap",
+      "answer": "ai-integration and agent-executor specs retain AgentInterface/old executor and ai-agent registry references; cross-package doc owner must reconcile.",
+      "evidence": "docs/specs/ai-integration.md; docs/specs/agent-executor.md",
+      "findings": []
+    }
+  ],
+  "intake": [],
+  "findings": [
+    {
+      "id": "AIAG-RUN-001",
+      "title": "Default null model provider can complete an agent run without a model response",
+      "area": "RUN",
+      "severity": "medium",
+      "confidence": "likely",
+      "evidence_level": "reviewed",
+      "observed": "MessagingServiceProvider binds NullLlmProvider by default; the provider returns a normal end_turn placeholder and current integration expectations allow Completed. The existing #1608 issue tracks this behavior.",
+      "expected_contract": "A run that has no configured usable model should expose an explicit unavailable/refusal outcome rather than a normal model completion.",
+      "consequence": "A caller of the optional agent runtime can treat a no-model run as completed work. Local stdio graph inspection does not invoke a model and is unaffected.",
+      "refutation": "No complete independent rederivation/refutation pair ran for this bounded pass. The placeholder could be intentional for a documented demo profile, but the normal Completed result still needs contract review.",
+      "disposition": "repair after independent verification under existing #1608",
+      "destination": [
+        {
+          "kind": "issue",
+          "ref": "https://github.com/waaseyaa/framework/issues/1608"
+        }
+      ],
+      "dependencies": "Confirm supported no-model and demo contracts before runtime change.",
+      "acceptance": "With no configured model, an installed agent run produces a distinct non-success outcome and no success-shaped content; configured model behavior and local stdio inspection remain intact.",
+      "residual_risk": "No-model production exposure and split-consumer behavior have not been qualified.",
+      "next_action": "The ai-agent audit owner obtains independent tier-A rederivation and refutation under #1608.",
+      "discovered_in": "waaseyaa/ai-agent",
+      "owned_by": "waaseyaa/ai-agent",
+      "co_owners": [],
+      "affected_consumers": [
+        "opt-in agent runtime consumers"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": "independent: this does not block local stdio inspection under #2653",
+      "merged_into": null,
+      "verification": {
+        "tier": "pending",
+        "performed": "Source and existing test expectations observed by one boundary investigator; tier-A pair pending.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": "Existing issue, not a new #2653 blocker."
+    },
+    {
+      "id": "AIAG-DOC-001",
+      "title": "Agent package README describes an obsolete four-tool Bimaaji catalogue",
+      "area": "DOC",
+      "severity": "low",
+      "confidence": "confirmed",
+      "evidence_level": "reviewed",
+      "observed": "The ai-agent README lists four Bimaaji tool adapters, while source and the local profile include SearchSpecsTool as the fifth adapter. It also does not identify the absent default corpus for search.",
+      "expected_contract": "Consumer guidance should distinguish five registered adapters, three default local inspection tools, and the corpus prerequisite for useful search.",
+      "consequence": "A developer can infer that search is not supplied or that discoverable search has a usable packaged corpus.",
+      "refutation": "The README table may describe the older embedded demo rather than the default local profile, but it says four adapters and source now contains five. The two profile counts must be stated separately.",
+      "disposition": "document in a bounded #3118 package documentation slice",
+      "destination": [
+        {
+          "kind": "slice",
+          "ref": "S1"
+        }
+      ],
+      "dependencies": "Confirm #2661 corpus packaging acceptance before describing search as usable by default.",
+      "acceptance": "README names five source adapters, identifies the three local defaults and the absent/default corpus accurately, and linked live specs use current ai-tools registry ownership.",
+      "residual_risk": "The full package public-surface and live spec review remain pending.",
+      "next_action": "The ai-agent audit owner requests one independent tier-B verification and reconciles this with the existing #3118 documentation owner.",
+      "discovered_in": "waaseyaa/ai-agent",
+      "owned_by": "waaseyaa/ai-agent",
+      "co_owners": [
+        "waaseyaa/framework"
+      ],
+      "affected_consumers": [
+        "developers using ai-agent package guidance"
+      ],
+      "blocks_assessment": false,
+      "decision": null,
+      "consumer_unblock": "independent: documentation correction is separate from first stdio descriptor slice",
+      "merged_into": null,
+      "verification": {
+        "tier": "pending",
+        "performed": "One boundary investigator compared README with package source; independent tier-B review pending.",
+        "reversals": []
+      },
+      "probes": [],
+      "notes": "Proposed slice is not filed or authorized for implementation."
+    }
+  ],
+  "refuted": [],
+  "handoffs": [
+    {
+      "id": "H1",
+      "lead": "Fresh site:init root AGENTS.md site-contract guidance collides with Codex Bimaaji managed-region installation; forced overwrite loses site ownership.",
+      "owner": "waaseyaa/site-contract",
+      "co_owners": [
+        "waaseyaa/bimaaji",
+        "waaseyaa/cli"
+      ],
+      "affected_consumers": [
+        "fresh generated development applications"
+      ],
+      "issue": "https://github.com/waaseyaa/framework/issues/2664",
+      "blocks_assessment": false
+    },
+    {
+      "id": "H2",
+      "lead": "WaaseyaaConsoleApplication bypasses Symfony run() IO configuration so --no-interaction can still prompt; an unmarked Bimaaji target can skip with exit zero.",
+      "owner": "waaseyaa/cli",
+      "co_owners": [
+        "waaseyaa/bimaaji"
+      ],
+      "affected_consumers": [
+        "noninteractive project and client installation"
+      ],
+      "issue": "https://github.com/waaseyaa/framework/issues/3117",
+      "blocks_assessment": false
+    },
+    {
+      "id": "H3",
+      "lead": "Live AI integration and executor specs still describe removed AgentInterface and old ai-agent registry ownership, while shared registry now belongs to ai-tools.",
+      "owner": "waaseyaa/framework",
+      "co_owners": [
+        "waaseyaa/ai-tools",
+        "waaseyaa/ai-agent"
+      ],
+      "affected_consumers": [
+        "spec-driven implementers"
+      ],
+      "issue": "https://github.com/waaseyaa/framework/issues/3118",
+      "blocks_assessment": false
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "decision": "Which ai-agent installation profiles beyond generated opt-in development applications are supported for independent qualification?",
+      "findings": [],
+      "what_would_settle_it": "The maintainer and #3118 owner name supported standalone split/kernel/metapackage profiles and exact consumer obligations; then run their qualification gates.",
+      "who_decides": "Framework maintainer",
+      "status": "open",
+      "resolution": null
+    }
+  ],
+  "uncertainties": [
+    {
+      "id": "U1",
+      "uncertainty": "Actual callers and lifecycle obligations for annotation-only and unclassified exports remain unresolved.",
+      "findings": [],
+      "what_would_settle_it": "Complete a file-by-file public surface and downstream consumer trace in the full #3118 package assessment.",
+      "status": "open",
+      "resolution": null
+    },
+    {
+      "id": "U2",
+      "uncertainty": "Exact-base installed application, split-package and actual coding-client qualification are unproven by this source boundary pass.",
+      "findings": [],
+      "what_would_settle_it": "Run candidate-exact sealed split and generated-app journey on supported Windows/Linux hosts with named client versions where claimed.",
+      "status": "open",
+      "resolution": null
+    }
+  ],
+  "issue_reconciliation": [
+    {
+      "issue": "#2653",
+      "claim": "AI-first local development delivery program; ai-agent supplies opt-in local identity and adapters.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "program issue and current LocalOperator/Tool/Bimaaji source"
+    },
+    {
+      "issue": "#2658",
+      "claim": "Local-only principal and default least-privilege profile.",
+      "status": "closed at 2026-10-11 intake",
+      "evidence": "public-surface declaration; focused LocalOperator tests; profile gate"
+    },
+    {
+      "issue": "#1608",
+      "claim": "Default null provider can yield success-shaped no-model run.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "MessagingServiceProvider; NullLlmProvider; current integration expectations; tier-A verification pending"
+    },
+    {
+      "issue": "#2661",
+      "claim": "Sanitized versioned documentation corpus.",
+      "status": "open with pilot work landed at 2026-10-11 intake",
+      "evidence": "SearchSpecsTool default has no packaged corpus; program reconciliation"
+    },
+    {
+      "issue": "#2662",
+      "claim": "Cited, version-matched local documentation search.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "SearchSpecsTool synthetic fixture only; program reconciliation"
+    },
+    {
+      "issue": "#3118",
+      "claim": "Framework package convergence and full ai-agent assessment owner.",
+      "status": "open at 2026-10-11 intake",
+      "evidence": "coverage index and package-convergence program"
+    }
+  ],
+  "remediation_plan": [
+    {
+      "slice": "S1",
+      "findings": [
+        "AIAG-DOC-001"
+      ],
+      "acceptance": "Correct package README tool counts, local profile and corpus readiness; reconcile linked live specs under #3118 without claiming search works by default.",
+      "depends_on": [
+        "#2661 corpus contract decision"
+      ]
+    }
+  ],
+  "qualification": [
+    {
+      "profile": "kernel composition",
+      "supported": "yes for opt-in development composition",
+      "evidence_class": "source",
+      "evidence": "Candidate-local LocalOperator tests and provider source only; no exact-base installed app qualification.",
+      "gap_owner": "#2665"
+    },
+    {
+      "profile": "generated application",
+      "supported": "yes for opt-in development installation",
+      "evidence_class": "none",
+      "evidence": "No exact-base generated application with packaged ai-agent exercised in this lane.",
+      "gap_owner": "#2665"
+    },
+    {
+      "profile": "framework closure",
+      "supported": "yes in development closure only",
+      "evidence_class": "source",
+      "evidence": "Candidate-local composer install loads package; published consumer no-dev removes it, but that is a different identity.",
+      "gap_owner": "#3118"
+    },
+    {
+      "profile": "standalone split",
+      "supported": "undecided pending D1",
+      "evidence_class": "none",
+      "evidence": "No isolated split install or boot performed.",
+      "gap_owner": "#3118"
+    }
+  ],
+  "probes": [],
+  "evidence_runs": [
+    {
+      "command": "php vendor/bin/phpunit --testsuite Unit --filter 'LocalOperator' --no-coverage --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Principal construction, ambient-context refusal and local profile source behavior",
+      "result": "passed 74 tests, 142 assertions"
+    },
+    {
+      "command": "php vendor/bin/phpunit --testsuite Unit --filter 'AttributeToolRegistry|AgentToolDispatcher|SearchSpecs' --no-coverage --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Shared catalogue and synthetic search adapter behavior",
+      "result": "passed 70 tests, 218 assertions; filter grouped by boundary investigator"
+    },
+    {
+      "command": "php vendor/bin/phpunit --testsuite Unit --filter 'McpServeCommand|StdioMcpServer|McpProtocol' --no-coverage --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "CLI source composition and legacy stdio protocol behavior",
+      "result": "passed 43 tests, 203 assertions; CLI-owned behavior"
+    },
+    {
+      "command": "php vendor/bin/phpunit --testsuite Unit --filter 'AutowiringToolContainer|AttributeToolRegistry|ToolInputSchemaValidator' --no-coverage --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Tool construction and schema boundary",
+      "result": "passed 38 tests, 117 assertions; shared ai-tools boundary"
+    },
+    {
+      "command": "php vendor/bin/phpunit --testsuite Integration --filter 'LocalOperator|HttpSapi|McpCorrelation' --no-coverage --no-progress",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Local identity integration and audit correlation in source harness",
+      "result": "passed 13 tests, 100 assertions"
+    },
+    {
+      "command": "php bin/check-local-operator-tool-profile",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Default and withheld tool roster",
+      "result": "passed: 25 discovered, three default, three dynamic, nineteen withheld"
+    },
+    {
+      "command": "php bin/generate-surface-map --check",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Declared public surface map synchronization",
+      "result": "passed"
+    },
+    {
+      "command": "php bin/check-package-layers",
+      "base": "bff4b104d29ba484307dc6655796be10837ff85e",
+      "dependency_identity": "composer.lock sha256:8719a36fb5792012ce6f08db9df52351d9339345606b882e9d07ed2bfe3461bc",
+      "runner": "AI boundary lane",
+      "host": "native Windows; PHP 8.5.5; candidate-local vendor",
+      "proves": "Static package layer dependency check",
+      "result": "passed with accepted same-layer cycle warnings"
+    }
+  ],
+  "not_reviewed": [
+    "Complete 95-file structural review, including PHPDoc/comment accuracy, unused paths, duplicated authorities and downstream callers.",
+    "Outbound HTTP MCP, model providers, agent HTTP run, worker persistence, migrations, approvals, broadcast, Wayfinding tools and seven unclassified exports.",
+    "Full committed-ledger intake search and private security intake were not performed for this bounded supplement.",
+    "Candidate-exact generated application, sealed split standalone install and actual coding-client qualification."
+  ],
+  "host_limits": [
+    "Native Windows ComposerProjectFixture symlink() denied permission for six StdioMcpConformanceTest setup cases; hosted Linux #3096 owns that test. A supported 13-test integration filter passed."
+  ],
+  "scorecard": {
+    "elapsed": "Boundary investigator began 2026-10-11 20:27 EDT; consolidated writing time unavailable.",
+    "agent_count": 1,
+    "subagent_tokens": "unavailable",
+    "source_files": 89,
+    "source_lines": "not measured for this bounded pass",
+    "production_files": 95,
+    "consumers": "Candidate source composition reviewed; Published skeleton dev-main b6e839972f1e6eb0e241d4492faeeb31ebfc8952, consumer composer.lock sha256 6c4cb9d48444651dcb704fd1f06326de2d6e3b947beea562d99e71757c0ac27a, ai-agent split ref 7bc2de4a0c6adfaa2d5327e4aa7907ebe7273a08 (alpha.305); no-dev removed ai-agent. Different from candidate base.",
+    "intake_items": 0,
+    "profiles": [
+      "kernel-runtime",
+      "introspection-cli",
+      "domain-contracts",
+      "persistence-execution",
+      "http-ui-contracts",
+      "distribution"
+    ],
+    "findings": "2 package-owned leads (one medium, one low); 3 cross-package handoffs; verification pending.",
+    "verification_reversals": [],
+    "record_lines": 127,
+    "record_words": 2125,
+    "ledger_bytes": 63162,
+    "probes_written": 0,
+    "probes_retained": 0,
+    "open": {
+      "decisions": 1,
+      "uncertainties": 2
+    },
+    "unfiled_findings": [
+      "AIAG-DOC-001"
+    ],
+    "critic": "Pending independent record critic; this is an in-progress supplement."
+  }
+}
