@@ -18,3 +18,9 @@ authentication review is required before integration and consumer deployment.
 
 No DNS changes, email sends, vendor patches or wholesale production reimport.
 Verification and exact reviewed candidate will be recorded before integration.
+
+Review correction: the consumer does install MCP. The earlier absence assumption
+was false. Extend the bounded package cohort to mcp and enforce canonical
+eligibility for durable bearer owners before declaring the consumer ready.
+The HTTP candidate remains independently reviewed; the MCP follow-up needs its
+own focused tests and independent review before publication/adoption.

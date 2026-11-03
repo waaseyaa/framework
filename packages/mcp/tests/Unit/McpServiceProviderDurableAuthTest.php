@@ -125,6 +125,13 @@ final class McpServiceProviderDurableAuthTest extends TestCase
             public function register(): void
             {
                 $this->singleton(
+                    \Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility::class,
+                    static fn(): object => new \Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility(
+                        \Waaseyaa\Auth\Config\AuthConfig::fromArray([], 'test'),
+                        new \Waaseyaa\Tests\Support\UserInternalFieldReaderFixture(),
+                    ),
+                );
+                $this->singleton(
                     \Waaseyaa\AI\Tools\ToolRegistryInterface::class,
                     fn(): object => new \Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry(
                         new \Waaseyaa\Foundation\Discovery\PackageManifest(),

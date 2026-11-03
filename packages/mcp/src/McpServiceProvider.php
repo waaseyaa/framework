@@ -731,12 +731,14 @@ final class McpServiceProvider extends ServiceProvider implements
      */
     private function resolveDurableBearerAuth(string $audience): ?Auth\DurableBearerTokenAuth
     {
+        $eligibility = $this->resolveOptional(\Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility::class);
         $store = $this->resolveOptional(\Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface::class);
         $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
         $principals = $this->resolveOptional(\Waaseyaa\Access\AccountPrincipalFactoryInterface::class);
         if ($store instanceof \Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface
             && $entityTypeManager instanceof EntityTypeManagerInterface
             && $principals instanceof \Waaseyaa\Access\AccountPrincipalFactoryInterface
+            && $eligibility instanceof \Waaseyaa\User\Authentication\AuthenticationEligibilityInterface
         ) {
             try {
                 $accounts = $entityTypeManager->getRepository('user');
@@ -752,6 +754,7 @@ final class McpServiceProvider extends ServiceProvider implements
                 store: $store,
                 accounts: $accounts,
                 principals: $principals,
+                eligibility: $eligibility,
                 audience: $audience,
                 logger: $logger instanceof LoggerInterface ? $logger : null,
             );

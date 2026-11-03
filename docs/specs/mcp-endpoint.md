@@ -1,5 +1,10 @@
 # MCP Endpoint
 
+Durable bearer owners must pass canonical authentication eligibility at
+`BearerResolution` before principal creation, including a required imported
+password change. McpServiceProvider requires the canonical policy binding.
+See [legacy-password-change.md](legacy-password-change.md).
+
 <!-- Spec reviewed 2026-09-05 - #2637: StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES is 1 MiB, matching BodySizeLimitMiddleware. mcp.transport.max_request_bytes above an enabled kernel body_size_limit.max_bytes fails closed at McpServiceProvider wiring so the advertised cap is reachable. Disabling the kernel control leaves the MCP setting as the effective ceiling. security-defaults.md records the same interaction. Acceptance: StreamableHttpTransportGuardTest::advertisedDefaultMatchesTheKernelBodyLimit and McpServiceProviderTest transport-size cases. -->
 <!-- Spec reviewed 2026-09-05 - #2638: `mcp:registry-manifest` emits official
 Registry `server.json` to stdout from the existing `McpRegistryManifest`

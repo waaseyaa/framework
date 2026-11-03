@@ -21,7 +21,8 @@ generation. SQL repository and token store must share the managed connection.
 
 This requires entity-storage's `sharesTransactionWith()` capability. Qualify the
 exact auth/routing/entity-storage package cohort in each consuming application.
-Optional MCP durable bearer is outside this HTTP policy slice; do not install
-that adapter for pending imported accounts until it consults eligibility.
+MCP durable bearer now also requires canonical authentication eligibility in its
+constructor and provider binding. Include the reviewed mcp split package in
+consumer adoption so an existing token cannot bypass required password setup.
 
 See [the contract](../specs/legacy-password-change.md).

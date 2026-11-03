@@ -46,6 +46,7 @@ final readonly class DurableBearerTokenAuth implements WriteTierAuthInterface, S
         private BearerTokenStoreInterface $store,
         private EntityRepositoryInterface $accounts,
         private AccountPrincipalFactoryInterface $principals,
+        private \Waaseyaa\User\Authentication\AuthenticationEligibilityInterface $eligibility,
         private string $audience = self::DEFAULT_AUDIENCE,
         private ?LoggerInterface $logger = null,
     ) {}
@@ -119,6 +120,9 @@ final readonly class DurableBearerTokenAuth implements WriteTierAuthInterface, S
         }
 
         try {
+            if (!$account instanceof \Waaseyaa\User\User || !$this->eligibility->allows($account, \Waaseyaa\User\Authentication\AuthenticationStage::BearerResolution)) {
+                return null;
+            }
             $principal = $this->principals->fromAccount($account);
         } catch (\Throwable $e) {
             // No audited bootstrap reader (or a snapshot failure): the owner

@@ -183,9 +183,28 @@ final class DurableBearerTokenAuthTest extends TestCase
             store: $store,
             accounts: $accounts,
             principals: $this->principals(),
+            eligibility: \Waaseyaa\Tests\Support\AuthenticationEligibilityFixture::policy(),
             audience: $audience ?? DurableBearerTokenAuth::DEFAULT_AUDIENCE,
             logger: $logger,
         );
+    }
+
+    #[Test]
+    public function a_valid_durable_token_cannot_bypass_pending_password_change(): void
+    {
+        $owner = $this->activeUser();
+        $owner->setLegacyPassword('$P$Bsynthetic-imported-credential');
+        $policy = new \Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility(
+            \Waaseyaa\Auth\Config\AuthConfig::fromArray(['legacy_passwords' => ['require_change' => true]], 'test'),
+            new \Waaseyaa\Tests\Support\UserInternalFieldReaderFixture(),
+        );
+        $auth = new DurableBearerTokenAuth($this->storeAnswering($this->record(42)), $this->accountsWith($owner), $this->principals(), $policy);
+        self::assertNull($auth->authenticateWithScopes('Bearer '.self::TOKEN));
+        $owner->setRawPassword('new-native-password');
+        $owner->setLegacyPassword(null);
+        self::assertNotNull($auth->authenticateWithScopes('Bearer '.self::TOKEN));
+        $owner->set('status', false);
+        self::assertNull($auth->authenticateWithScopes('Bearer '.self::TOKEN));
     }
 
     #[Test]
@@ -312,6 +331,7 @@ final class DurableBearerTokenAuthTest extends TestCase
             store: $this->storeAnswering($this->record(42)),
             accounts: $this->accountsWith($this->activeUser()),
             principals: new AccountPrincipalFactory(bootstrapReader: null),
+            eligibility: \Waaseyaa\Tests\Support\AuthenticationEligibilityFixture::policy(),
         );
 
         self::assertNull($auth->authenticateWithScopes('Bearer ' . self::TOKEN));

@@ -49,6 +49,7 @@ final class DurableBearerTokenLifecycleTest extends TestCase
     private DatabaseBearerTokenStore $store;
 
     private McpEndpoint $endpoint;
+    private User $owner;
 
     protected function setUp(): void
     {
@@ -58,7 +59,7 @@ final class DurableBearerTokenLifecycleTest extends TestCase
         $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseBearerTokenStore($this->database, $this->clock);
 
-        $owner = new User(['uid' => 42]);
+        $owner = $this->owner = new User(['uid' => 42]);
         $owner->enforceIsNew();
         $accounts = $this->createStub(EntityRepositoryInterface::class);
         $accounts->method('findBy')
@@ -78,7 +79,11 @@ final class DurableBearerTokenLifecycleTest extends TestCase
         });
 
         $this->endpoint = new McpEndpoint(
-            auth: new DurableBearerTokenAuth($this->store, $accounts, $principals),
+            auth: new DurableBearerTokenAuth($this->store, $accounts, $principals,
+                new \Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility(
+                    \Waaseyaa\Auth\Config\AuthConfig::fromArray(['legacy_passwords' => ['require_change' => true]], 'test'),
+                    new \Waaseyaa\Tests\Support\UserInternalFieldReaderFixture(),
+                )),
             agentRegistry: $this->registry(),
         );
     }
@@ -102,6 +107,20 @@ final class DurableBearerTokenLifecycleTest extends TestCase
         $response = $this->endpoint->handle($account, $request);
 
         return ['status' => $response->statusCode, 'body' => json_decode($response->body, true, 32, JSON_THROW_ON_ERROR)];
+    }
+
+    #[Test]
+    public function a_real_issued_token_cannot_authenticate_an_owner_pending_password_change(): void
+    {
+        $issued = $this->store->issue(42, 'mcp:write', ['wayfinding'], 3600, 'legacy-boundary');
+        $this->owner->setLegacyPassword('$P$Bsynthetic-pending-credential');
+        $payload = ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'];
+        self::assertSame(401, $this->dispatch($issued->secret, $payload)['status']);
+        $this->owner->setRawPassword('new-native-password');
+        $this->owner->setLegacyPassword(null);
+        self::assertSame(200, $this->dispatch($issued->secret, $payload)['status']);
+        $this->owner->set('status', false);
+        self::assertSame(401, $this->dispatch($issued->secret, $payload)['status']);
     }
 
     /** @return list<string> */

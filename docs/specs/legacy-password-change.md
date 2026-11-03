@@ -37,10 +37,9 @@ this small domain-specific verifier introduces no generic hashing framework.
 Existing Symfony HTTP responses and the Framework managed DBAL transaction,
 token repository, rate limiter and internal-field readers are reused.
 
-This slice covers Framework HTTP authentication. The optional MCP durable-bearer
-adapter predates the eligibility policy and does not yet consult it. That
-separate boundary is not qualified by this contract. Sheguiandah does not
-install `waaseyaa/mcp`; adopting that package requires closing the gap first.
+MCP durable bearer authentication also consults canonical eligibility before
+principal creation. The provider requires the canonical policy; a pending
+imported account cannot use an existing MCP token to bypass password setup.
 
 Verification must include both imported formats, wrong credentials, no identity
 before completion, different-password refusal, expired/reused proofs, disabled
