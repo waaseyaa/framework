@@ -30,6 +30,14 @@ final class AuthTokenRepository implements AuthTokenRepositoryInterface
         $this->clock = $clock ?? new UtcEntityClock();
     }
 
+    public function sharesTransactionWith(DatabaseInterface $database): bool
+    {
+        return $this->db === $database
+            || ($this->db instanceof \Waaseyaa\Database\DBALDatabase
+                && $database instanceof \Waaseyaa\Database\DBALDatabase
+                && $this->db->getConnection() === $database->getConnection());
+    }
+
     /** Read-only compatibility alias; schema installation belongs to migrations. */
     public function ensureSchema(): void
     {

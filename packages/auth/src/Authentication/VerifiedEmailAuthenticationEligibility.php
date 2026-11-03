@@ -25,6 +25,13 @@ final readonly class VerifiedEmailAuthenticationEligibility implements Authentic
             return false;
         }
 
+        if ($this->config->requireLegacyPasswordChange) {
+            $credentials = $this->internalFields->credentials($user);
+            if ($credentials->passwordHash === '' && ($credentials->legacyPasswordHash ?? '') !== '') {
+                return false;
+            }
+        }
+
         return !$this->config->requireVerifiedEmail
             || $verification->emailVerified;
     }

@@ -31,6 +31,7 @@ final class LoginController
         private readonly AuthenticationEligibilityInterface $eligibility,
         ?AuthExtensionRegistry $extensions = null,
         private readonly ?LegacyPasswordUpgrade $passwords = null,
+        private readonly ?\Waaseyaa\Auth\Password\LegacyPasswordChange $passwordChange = null,
     ) {
         $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
     }
@@ -70,6 +71,20 @@ final class LoginController
         $candidate = $this->identityLookup->findActiveByLogin($userRepository, $username);
         $user = $candidate instanceof User ? $candidate : null;
         $credentials = $user === null ? null : $this->internalFields->credentials($user);
+
+        if ($user !== null && $this->passwordChange !== null) {
+            $challenge = $this->passwordChange->challenge($user, $password);
+            if ($challenge !== null) {
+                $this->rateLimiter->hit($rateLimitKey, 60);
+                AuthenticatedSession::clearIdentity();
+                unset($_SESSION['waaseyaa_pending_2fa_uid']);
+                return new JsonResponse([
+                    'data' => ['type' => 'auth', 'attributes' => [
+                        'state' => 'password_change_required', 'token' => $challenge,
+                    ]],
+                ], 200, ['Cache-Control' => 'no-store, private', 'Referrer-Policy' => 'no-referrer']);
+            }
+        }
 
         // #2544: one verification decision, shared with AuthManager. It also
         // performs the one-time upgrade of a migrated credential, which is why

@@ -4,208 +4,68 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth\Tests\Unit\Controller;
 
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Auth\Controller\ResetPasswordController;
-use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
-use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
-use Waaseyaa\Access\User\UserSessionSnapshot;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
-use Waaseyaa\User\User;
-use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\Auth\Tests\Support\PasswordChangeFixture;
 
-#[CoversClass(ResetPasswordController::class)]
 final class ResetPasswordControllerTest extends TestCase
 {
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
-    private function makeStorage(mixed $user = null): EntityStorageInterface
+    private function request(array $body): Request
     {
-        $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->willReturn($user);
-        $storage->method('save')->willReturn(1);
-
-        return $storage;
+        return Request::create('/api/auth/reset-password', 'POST', content: json_encode($body));
     }
 
-    private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
+    public function testCanonicalResetValidatesInputWithoutChangingCredentialsOrToken(): void
     {
-        $storage ??= $this->makeStorage();
-        $manager = $this->createStub(EntityTypeManager::class);
-        $manager->method('getStorage')->willReturn($storage);
-        // C-22 WP3: read/write path now goes through the canonical repository.
-        $manager->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
-
-        return $manager;
+        [$repo, $manager, $fields, , $tokens, $change] = new PasswordChangeFixture()->fixture();
+        $controller = new ResetPasswordController($manager, $tokens, $change);
+        $token = $tokens->createToken(1, 'password_reset', 300);
+        foreach ([['short', 'short', 'password_too_short'], ['new-password', 'different', 'passwords_do_not_match']] as [$password, $confirmation, $error]) {
+            $response = $controller($this->request(['token' => $token, 'password' => $password, 'password_confirmation' => $confirmation]));
+            self::assertSame(422, $response->getStatusCode());
+            self::assertSame($error, json_decode($response->getContent(), true)['error']);
+            self::assertSame('', $fields->credentials($repo->find(1))->passwordHash);
+            self::assertSame(0, $fields->sessionIdentity($repo->find(1))->generation);
+            self::assertNotNull($tokens->validateToken($token, 'password_reset'));
+        }
     }
 
-    private function makeTokenRepo(?array $tokenData = ['id' => 1, 'user_id' => 42, 'meta' => null]): AuthTokenRepositoryInterface
+    public function testInvalidTokenCannotChangeCredentialsOrGeneration(): void
     {
-        $repo = $this->createStub(AuthTokenRepositoryInterface::class);
-        $repo->method('validateToken')->willReturn($tokenData);
-
-        return $repo;
-    }
-
-    private function makeController(
-        ?EntityTypeManager $entityTypeManager = null,
-        ?AuthTokenRepositoryInterface $tokenRepo = null,
-        int $generation = 0,
-    ): ResetPasswordController {
-        $internalFields = $this->createStub(UserInternalFieldReaderInterface::class);
-        $internalFields->method('sessionIdentity')->willReturn(new UserSessionSnapshot('', '', [], $generation));
-        return new ResetPasswordController(
-            entityTypeManager: $entityTypeManager ?? $this->makeEntityTypeManager(),
-            tokenRepo: $tokenRepo ?? $this->makeTokenRepo(),
-            internalFields: $internalFields,
-        );
-    }
-
-    private function makeRequest(array $body = []): Request
-    {
-        $request = Request::create(
-            '/api/auth/reset-password',
-            'POST',
-            [],
-            [],
-            [],
-            [],
-            json_encode($body, JSON_THROW_ON_ERROR),
-        );
-        $request->headers->set('Content-Type', 'application/json');
-
-        return $request;
-    }
-
-    // ------------------------------------------------------------------
-    // Tests
-    // ------------------------------------------------------------------
-
-    #[Test]
-    public function returns_422_when_password_too_short(): void
-    {
-        $controller = $this->makeController();
-
-        $response = $controller($this->makeRequest([
-            'token' => 'some-token',
-            'password' => 'short',
-            'password_confirmation' => 'short',
+        [$repo, $manager, $fields, , $tokens, $change] = new PasswordChangeFixture()->fixture();
+        $response = new ResetPasswordController($manager, $tokens, $change)($this->request([
+            'token' => 'invalid', 'password' => 'new-password', 'password_confirmation' => 'new-password',
         ]));
-
-        $this->assertSame(422, $response->getStatusCode());
-        $data = json_decode((string) $response->getContent(), true);
-        $this->assertSame('password_too_short', $data['error']);
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('', $fields->credentials($repo->find(1))->passwordHash);
+        self::assertSame(0, $fields->sessionIdentity($repo->find(1))->generation);
     }
 
-    #[Test]
-    public function returns_422_when_passwords_dont_match(): void
+    public function testTokenForMissingUserIsRejectedWithoutConsumption(): void
     {
-        $controller = $this->makeController();
-
-        $response = $controller($this->makeRequest([
-            'token' => 'some-token',
-            'password' => 'password123',
-            'password_confirmation' => 'different456',
+        [, $manager, $fields, , $tokens, $change] = new PasswordChangeFixture()->fixture();
+        $token = $tokens->createToken(999, 'password_reset', 300);
+        $response = new ResetPasswordController($manager, $tokens, $change)($this->request([
+            'token' => $token, 'password' => 'new-password', 'password_confirmation' => 'new-password',
         ]));
-
-        $this->assertSame(422, $response->getStatusCode());
-        $data = json_decode((string) $response->getContent(), true);
-        $this->assertSame('passwords_do_not_match', $data['error']);
+        self::assertSame(422, $response->getStatusCode());
+        self::assertNotNull($tokens->validateToken($token, 'password_reset'));
     }
 
-    #[Test]
-    public function returns_422_for_invalid_token(): void
+    public function testSuccessfulResetRevokesSiblingTokensAndClearsIdentity(): void
     {
-        $tokenRepo = $this->makeTokenRepo(null); // validateToken returns null
-
-        $controller = $this->makeController(tokenRepo: $tokenRepo);
-
-        $response = $controller($this->makeRequest([
-            'token' => 'bad-or-expired-token',
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123',
+        [$repo, $manager, $fields, , $tokens, $change] = new PasswordChangeFixture()->fixture();
+        $token = $tokens->createToken(1, 'password_reset', 300);
+        $_SESSION = [\Waaseyaa\User\Session\AuthenticatedSession::USER_ID_KEY => 1, 'waaseyaa_pending_2fa_uid' => 1];
+        $response = new ResetPasswordController($manager, $tokens, $change)($this->request([
+            'token' => $token, 'password' => 'new-password', 'password_confirmation' => 'new-password',
         ]));
-
-        $this->assertSame(422, $response->getStatusCode());
-        $data = json_decode((string) $response->getContent(), true);
-        $this->assertSame('invalid_or_expired_token', $data['error']);
-    }
-
-    #[Test]
-    public function returns_422_when_user_not_found(): void
-    {
-        $tokenRepo = $this->makeTokenRepo(['id' => 1, 'user_id' => 99, 'meta' => null]);
-        $storage = $this->makeStorage(null); // user not found
-
-        $controller = $this->makeController(
-            entityTypeManager: $this->makeEntityTypeManager($storage),
-            tokenRepo: $tokenRepo,
-        );
-
-        $response = $controller($this->makeRequest([
-            'token' => 'valid-token',
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123',
-        ]));
-
-        $this->assertSame(422, $response->getStatusCode());
-        $data = json_decode((string) $response->getContent(), true);
-        $this->assertSame('user_not_found', $data['error']);
-    }
-
-    #[Test]
-    public function returns_200_on_successful_password_reset(): void
-    {
-        $_SESSION = [];
-
-        $user = new User(['uid' => 42, 'mail' => 'user@example.com', 'name' => 'User']);
-        $storage = $this->makeStorage($user);
-
-        $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
-        $tokenRepo->method('validateToken')->willReturn(['id' => 7, 'user_id' => 42, 'meta' => null]);
-        $tokenRepo->expects($this->once())->method('consumeToken')->with(7);
-        $tokenRepo->expects($this->once())->method('revokeTokensForUser')->with(42, 'password_reset');
-
-        $controller = $this->makeController(
-            entityTypeManager: $this->makeEntityTypeManager($storage),
-            tokenRepo: $tokenRepo,
-        );
-
-        $response = $controller($this->makeRequest([
-            'token' => 'valid-token',
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123',
-        ]));
-
-        $this->assertSame(200, $response->getStatusCode());
-        $data = json_decode((string) $response->getContent(), true);
-        $this->assertTrue($data['ok']);
-        $this->assertStringContainsString('Password has been reset', $data['message']);
-        $this->assertSame(1, (new UserInternalFieldReaderFixture())->sessionIdentity($user)->generation);
-    }
-
-    #[Test]
-    public function invalid_token_does_not_advance_session_generation(): void
-    {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects(self::never())->method('save');
-        $controller = $this->makeController(
-            entityTypeManager: $this->makeEntityTypeManager($storage),
-            tokenRepo: $this->makeTokenRepo(null),
-            generation: 3,
-        );
-
-        $controller($this->makeRequest([
-            'token' => 'invalid',
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123',
-        ]));
-
+        self::assertSame(200, $response->getStatusCode());
+        self::assertTrue(password_verify('new-password', $fields->credentials($repo->find(1))->passwordHash));
+        self::assertSame(1, $fields->sessionIdentity($repo->find(1))->generation);
+        self::assertNull($tokens->validateToken($token, 'password_reset'));
+        self::assertArrayNotHasKey(\Waaseyaa\User\Session\AuthenticatedSession::USER_ID_KEY, $_SESSION);
+        self::assertArrayNotHasKey('waaseyaa_pending_2fa_uid', $_SESSION);
     }
 }

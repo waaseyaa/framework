@@ -40,6 +40,15 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
             $this->resolve(\Waaseyaa\Entity\EntityTypeManagerInterface::class),
             $this->resolve(Password\LegacyPasswordVerifierChain::class),
             $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class),
+            $this->resolve(Config\AuthConfig::class)->requireLegacyPasswordChange,
+        ));
+
+        $this->singleton(Password\LegacyPasswordChange::class, fn() => new Password\LegacyPasswordChange(
+            $this->resolve(Config\AuthConfig::class),
+            $this->resolve(Password\LegacyPasswordVerifierChain::class),
+            $this->resolve(UserInternalFieldReaderInterface::class),
+            $this->resolve(Token\AuthTokenRepositoryInterface::class),
+            $this->resolve(\Waaseyaa\Database\DatabaseInterface::class),
         ));
 
         $this->singleton(Authentication\VerifiedEmailAuthenticationEligibility::class, fn() => new Authentication\VerifiedEmailAuthenticationEligibility(
@@ -142,8 +151,9 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         foreach ($formats as $format) {
             $verifiers[] = match ($format) {
                 'phpass' => new Password\PhpassPasswordVerifier(),
+                'wordpress_bcrypt' => new Password\WordPressBcryptPasswordVerifier(),
                 default => throw new \InvalidArgumentException(sprintf(
-                    'Unknown auth.legacy_passwords.formats entry %s. Supported: phpass.',
+                    'Unknown auth.legacy_passwords.formats entry %s. Supported: phpass, wordpress_bcrypt.',
                     is_string($format) ? '"' . $format . '"' : get_debug_type($format),
                 )),
             };

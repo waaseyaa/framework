@@ -9,22 +9,22 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
-use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility;
+use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Controller\ForgotPasswordController;
 use Waaseyaa\Auth\Controller\LoginController;
 use Waaseyaa\Auth\Controller\LogoutController;
 use Waaseyaa\Auth\Controller\RegisterController;
-use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\ResendVerificationController;
+use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
 use Waaseyaa\Auth\EmailVerificationTransaction;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
-use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\RateLimiter;
+use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Auth\TwoFactorManager;
 use Waaseyaa\Auth\TwoFactorService;
@@ -37,9 +37,9 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\AuthOidcRouteServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use Waaseyaa\User\AuthMailer;
-use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
 use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\AuthMailer;
 
 #[CoversClass(AuthOidcRouteServiceProvider::class)]
 final class AuthOidcRouteServiceProviderTest extends TestCase
@@ -109,6 +109,7 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
             AuthExtensionRegistry::class => AuthExtensionRegistry::defaults(),
             AuthenticationEligibilityInterface::class => AuthenticationEligibilityFixture::policy(),
             VerifiedEmailAuthenticationEligibility::class => AuthenticationEligibilityFixture::policy(),
+            \Waaseyaa\Auth\Password\LegacyPasswordChange::class => new \ReflectionClass(\Waaseyaa\Auth\Password\LegacyPasswordChange::class)->newInstanceWithoutConstructor(),
             EmailVerificationTransaction::class => new \ReflectionClass(EmailVerificationTransaction::class)->newInstanceWithoutConstructor(),
         ]);
 
@@ -155,6 +156,7 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
             LoggerInterface::class => $logger,
             AuthenticationEligibilityInterface::class => $shadowEligibility,
             VerifiedEmailAuthenticationEligibility::class => $canonicalEligibility,
+            \Waaseyaa\Auth\Password\LegacyPasswordChange::class => new \ReflectionClass(\Waaseyaa\Auth\Password\LegacyPasswordChange::class)->newInstanceWithoutConstructor(),
             EmailVerificationTransaction::class => new \ReflectionClass(EmailVerificationTransaction::class)->newInstanceWithoutConstructor(),
         ]);
 
@@ -204,10 +206,10 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
 
         $resetController = $router->getRouteCollection()->get('api.auth.reset_password')?->getDefault('_controller');
         self::assertInstanceOf(ResetPasswordController::class, $resetController);
-        self::assertSame(
-            $internalFields,
-            new \ReflectionProperty(ResetPasswordController::class, 'internalFields')->getValue($resetController),
-            'Password reset must receive the audited session-generation reader used for account-wide revocation.',
+        self::assertInstanceOf(
+            \Waaseyaa\Auth\Password\LegacyPasswordChange::class,
+            new \ReflectionProperty(ResetPasswordController::class, 'passwordChange')->getValue($resetController),
+            'Password reset must receive the canonical atomic credential-change service.',
         );
 
         foreach ([

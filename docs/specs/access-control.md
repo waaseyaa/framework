@@ -1,5 +1,9 @@
 # Access Control
 
+Imported-password required-change policy and atomic credential completion are
+specified in [legacy-password-change.md](legacy-password-change.md). Pending
+accounts cannot acquire HTTP identities until they choose a new password.
+
 <!-- Spec reviewed 2026-09-01 - #2757 recovery correction: verification resend
 and forgot-password use the dedicated audited findActiveByMail boundary. They
 never resolve the general login namespace, so an email-shaped username cannot

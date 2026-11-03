@@ -28,6 +28,7 @@ final readonly class AuthConfig
         public readonly MailMissingPolicy $mailMissingPolicy,
         public readonly string $tokenSecret,
         private readonly array $tokenTtls,
+        public readonly bool $requireLegacyPasswordChange = false,
     ) {}
 
     public static function fromArray(array $config, string $appEnv = 'production'): self
@@ -40,6 +41,10 @@ final readonly class AuthConfig
         $requireVerifiedEmail = $config['require_verified_email'] ?? false;
         if (!is_bool($requireVerifiedEmail)) {
             throw new ConfigException('auth.require_verified_email must be a boolean.');
+        }
+
+        if (!is_bool(($config['legacy_passwords'] ?? [])['require_change'] ?? false)) {
+            throw new ConfigException('auth.legacy_passwords.require_change must be a boolean.');
         }
 
         $mailMissingPolicy = self::resolveMailPolicy($config['mail_missing_policy'] ?? null, $appEnv);
@@ -57,6 +62,7 @@ final readonly class AuthConfig
             mailMissingPolicy: $mailMissingPolicy,
             tokenSecret: $tokenSecret,
             tokenTtls: $tokenTtls,
+            requireLegacyPasswordChange: ($config['legacy_passwords'] ?? [])['require_change'] ?? false,
         );
     }
 

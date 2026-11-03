@@ -168,7 +168,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider implements Cont
         return new ResetPasswordController(
             entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
             tokenRepo: $this->resolve(AuthTokenRepositoryInterface::class),
-            internalFields: $this->resolve(UserInternalFieldReaderInterface::class),
+            passwordChange: $this->resolve(\Waaseyaa\Auth\Password\LegacyPasswordChange::class),
         );
     }
 
@@ -208,6 +208,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider implements Cont
             eligibility: $this->resolve(VerifiedEmailAuthenticationEligibility::class),
             extensions: $this->resolve(AuthExtensionRegistry::class),
             passwords: $this->resolve(LegacyPasswordUpgrade::class),
+            passwordChange: $this->resolve(\Waaseyaa\Auth\Password\LegacyPasswordChange::class),
         );
     }
 

@@ -80,6 +80,10 @@ final readonly class PhpassPasswordVerifier implements LegacyPasswordVerifierInt
 
     public function verify(string $password, string $legacyHash): bool
     {
+        if (strlen($password) > 4096) {
+            return false;
+        }
+
         if (!$this->supports($legacyHash)) {
             return false;
         }

@@ -2,6 +2,9 @@
 <!-- Spec reviewed 2026-09-02 - #2786 contract edge: GraphQL multi-value FormattedText resolvers distinguish list-shaped values from an associative single TextValue map, wrapping the latter as one item while recursively sanitizing both shapes. -->
 # API Layer
 
+Canonical auth routes expose the limited imported-password challenge and atomic
+reset documented in [legacy-password-change.md](legacy-password-change.md).
+
 ## Route exposure input handoff (ROUTE-METADATA-01)
 
 Ordinary `ApiServiceProvider::boot()` publishes the scalar effective map from the

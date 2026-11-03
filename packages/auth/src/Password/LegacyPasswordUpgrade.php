@@ -58,6 +58,7 @@ final readonly class LegacyPasswordUpgrade
         private EntityTypeManagerInterface $entityTypeManager,
         private LegacyPasswordVerifierChain $legacyVerifiers = new LegacyPasswordVerifierChain(),
         ?LoggerInterface $logger = null,
+        private bool $requireChange = false,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -80,6 +81,10 @@ final readonly class LegacyPasswordUpgrade
             // A current hash is present: the legacy value, if any, is stale
             // migration residue and is never consulted.
             return password_verify($password, $credentials->passwordHash);
+        }
+
+        if ($this->requireChange) {
+            return false;
         }
 
         $legacy = $credentials->legacyPasswordHash;

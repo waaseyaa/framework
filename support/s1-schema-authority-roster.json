@@ -1372,6 +1372,13 @@
             "occurrence": 3
         },
         {
+            "path": "packages/auth/tests/Unit/Password/LegacyPasswordChangeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
             "path": "packages/auth/tests/Unit/Token/AuthTokenRepositoryTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
