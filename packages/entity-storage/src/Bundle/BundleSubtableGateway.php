@@ -85,7 +85,7 @@ final class BundleSubtableGateway
      * @param array<string, mixed> $values
      * @return array{0: array<string, mixed>, 1: array<string, mixed>, 2: ?string}
      */
-    public function partition(EntityInterface $entity, array $values): array
+    public function partition(EntityInterface $entity, array $values, bool $completeSnapshot = false): array
     {
         $bundleKey = $this->entityType->getKeys()['bundle'] ?? null;
         if ($bundleKey === null) {
@@ -141,6 +141,15 @@ final class BundleSubtableGateway
                 ));
             }
             $base[$key] = $value;
+        }
+
+        if ($completeSnapshot) {
+            // A field added after this revision must not retain its later value.
+            foreach ($bundleDefs as $name => $definition) {
+                if ($definition->getStored() !== FieldStorage::Data) {
+                    $bundle[$name] ??= null;
+                }
+            }
         }
 
         return [$base, $bundle, $currentBundle];
