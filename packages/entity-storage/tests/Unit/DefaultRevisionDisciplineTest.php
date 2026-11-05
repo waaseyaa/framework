@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
@@ -457,8 +458,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         self::assertSame(true, $repo->find('1')?->toArray()['flag']);
     }
 
-    #[Test]
-    public function flagged_promotion_refreshes_column_stored_bundle_fields_from_target_revision(): void
+    private function buildBundledRepo(): EntityRepository
     {
         $registry = new FieldDefinitionRegistry();
         $registry->registerBundleFields('test_revisionable', 'article', [
@@ -468,6 +468,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
                 targetEntityTypeId: 'test_revisionable',
                 targetBundle: 'article',
             ),
+            new FieldDefinition(name: 'summary', type: 'string', targetEntityTypeId: 'test_revisionable', targetBundle: 'article'),
         ]);
         $entityType = new EntityType(
             id: 'test_revisionable',
@@ -488,7 +489,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $handler->ensureTable();
         $handler->ensureRevisionTable();
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver, fieldRegistry: $registry),
             $this->dispatcher,
@@ -496,12 +497,69 @@ final class DefaultRevisionDisciplineTest extends TestCase
             $this->db,
             fieldRegistry: $registry,
         );
+    }
 
-        $entity = new TestRevisionableEntity(
-            values: ['id' => '1', 'uuid' => 'a', 'bundle' => 'article', 'title' => 'v1', 'tagline' => 'old'],
-            entityTypeId: 'test_revisionable',
-            entityKeys: $entityType->getKeys(),
-        );
+    #[Test]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function rollback_restores_bundle_snapshot_without_changing_publication(bool $disciplined): void
+    {
+        $repo = $this->buildBundledRepo();
+        $entity = $repo->create(['id' => '1', 'uuid' => 'restore', 'bundle' => 'article', 'title' => 'First', 'tagline' => 'BODY_ONE']);
+        $entity->enforceIsNew();
+        $repo->save($entity, validate: false);
+        $entity = $repo->find('1');
+        $entity->set('title', 'Second');
+        $entity->set('tagline', 'BODY_TWO');
+        $entity->set('summary', 'Added after revision one');
+        $repo->save($entity, validate: false);
+
+        if ($disciplined) {
+            $this->alwaysApplyDefaultRevisionSemantics();
+            $repo->promotePublishedRevision('1', 2, $this->mutationToken($repo, '1'));
+        }
+
+        $restored = $repo->rollback('1', 1, $this->mutationToken($repo, '1'), expectedCurrentRevisionId: 2);
+        $reader = $this->buildBundledRepo();
+        self::assertSame(3, $restored->get('revision_id'));
+        self::assertSame('BODY_ONE', $restored->get('tagline'));
+        self::assertNull($reader->loadWorkingCopy('1')?->get('summary'));
+        self::assertSame('First', $reader->loadWorkingCopy('1')?->label());
+        self::assertSame('BODY_ONE', $reader->loadWorkingCopy('1')?->get('tagline'));
+        self::assertSame('BODY_ONE', $reader->loadRevision('1', 1)?->get('tagline'));
+        self::assertSame('BODY_TWO', $reader->loadRevision('1', 2)?->get('tagline'));
+        self::assertSame('BODY_ONE', $reader->loadRevision('1', 3)?->get('tagline'));
+        self::assertSame($disciplined ? 2 : 3, $this->rawBaseRow('1')['revision_id']);
+        self::assertSame($disciplined ? 2 : null, $reader->publishedRevisionId('1'));
+        self::assertSame($disciplined ? 'BODY_TWO' : null, $reader->loadPublishedRevision('1')?->get('tagline'));
+        self::assertSame($disciplined ? 'BODY_TWO' : 'BODY_ONE', $this->db->getConnection()->fetchOne(
+            'SELECT tagline FROM test_revisionable__article WHERE id = ?', ['1'],
+        ));
+    }
+
+    #[Test]
+    public function switching_the_current_revision_materializes_its_bundle_columns(): void
+    {
+        $repo = $this->buildBundledRepo();
+        $entity = $repo->create(['id' => '1', 'uuid' => 'switch', 'bundle' => 'article', 'tagline' => 'BODY_ONE']);
+        $entity->enforceIsNew();
+        $repo->save($entity, validate: false);
+        $entity = $repo->find('1');
+        $entity->set('tagline', 'BODY_TWO');
+        $repo->save($entity, validate: false);
+
+        $repo->setCurrentRevision('1', 1, $this->mutationToken($repo, '1'));
+        $reader = $this->buildBundledRepo();
+        self::assertSame('BODY_ONE', $reader->find('1')?->get('tagline'));
+        self::assertSame('BODY_TWO', $reader->loadWorkingCopy('1')?->get('tagline'));
+        self::assertNull($reader->publishedRevisionId('1'));
+    }
+
+    #[Test]
+    public function flagged_promotion_refreshes_column_stored_bundle_fields_from_target_revision(): void
+    {
+        $repo = $this->buildBundledRepo();
+        $entity = $repo->create(['id' => '1', 'uuid' => 'a', 'bundle' => 'article', 'title' => 'v1', 'tagline' => 'old']);
         $entity->enforceIsNew();
         $repo->save($entity, validate: false);
         $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));

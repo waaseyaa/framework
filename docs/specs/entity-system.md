@@ -1051,6 +1051,12 @@ because rollback never copies them from history. Workflow and every other writte
 privilege-bearing field remain in the set, including keys present only on the current row that
 the restore removes. Admin restore and the AI restore tools share this helper.
 
+When rollback advances the base pointer, the repository writes the successor's
+base row and column-stored bundle fields together in its mutation transaction.
+A field absent from the selected snapshot cannot retain a later bundle value.
+With default-revision discipline, rollback writes only the successor revision.
+In both cases the published pointer stays unchanged.
+
 ### Save (via SqlEntityStorage — low-level)
 
 1. `SqlEntityStorage::save()` detects `isNew() === true`

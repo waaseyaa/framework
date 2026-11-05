@@ -207,6 +207,43 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     }
 
     /**
+     * Materialize the base row and its typed bundle columns in the caller's
+     * transaction. Revision moves supply a complete historical snapshot.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function writeBaseWithBundle(string $id, array $values, ?EntityInterface $savingEntity = null): string
+    {
+        $type = $this->entityType->id();
+        $gateway = $this->bundleGateway();
+        if ($gateway === null) {
+            return $this->writeDriverRow($type, $id, $values);
+        }
+
+        $entity = $savingEntity ?? $this->instantiateEntity($this->entityType->getClass(), $values);
+        [$base, $columns, $bundle] = $gateway->partition($entity, $values, completeSnapshot: $savingEntity === null);
+        if ($bundle === null || $columns === []) {
+            return $this->writeDriverRow($type, $id, $base);
+        }
+        if (!$gateway->subtableExists($bundle)) {
+            if ($gateway->hasDeclaredUniqueKeys($bundle)) {
+                throw new \RuntimeException(\sprintf(
+                    '[S1-DB106] Bundle "%s" on entity type "%s" declares a storage unique key but subtable "%s" is unavailable. Run `waaseyaa schema:sync`; the save was refused.',
+                    $bundle,
+                    $type,
+                    $gateway->subtableName($bundle),
+                ));
+            }
+            $gateway->logMissingSubtableOnSave($bundle, \count($columns));
+            return $this->writeDriverRow($type, $id, $values);
+        }
+
+        $writtenId = $this->writeDriverRow($type, $id, $base);
+        $gateway->upsert($bundle, $id !== '' ? $id : $writtenId, $columns);
+        return $writtenId;
+    }
+
+    /**
      * Return the entity type's base-row revision pointer key.
      *
      * Revision history tables use their own fixed `revision_id` column; this
@@ -1393,34 +1430,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             // pre-partition bag above.
             $writtenId = $id;
             if ($writeBase) {
-                $baseValues = $values;
-                $bundleValues = [];
-                $bundleName = null;
-                $gateway = $this->bundleGateway();
-                if ($gateway !== null) {
-                    [$baseValues, $bundleValues, $bundleName] = $gateway->partition($entity, $values);
-                    if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
-                        if ($gateway->hasDeclaredUniqueKeys($bundleName)) {
-                            throw new \RuntimeException(\sprintf(
-                                '[S1-DB106] Bundle "%s" on entity type "%s" declares a storage unique key but subtable "%s" is unavailable. Run `waaseyaa schema:sync`; the save was refused.',
-                                $bundleName,
-                                $entityTypeId,
-                                $gateway->subtableName($bundleName),
-                            ));
-                        }
-                        $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
-                        $baseValues = $values;
-                        $bundleValues = [];
-                        $bundleName = null;
-                    }
-                }
-
-                $writtenId = $this->writeDriverRow($entityTypeId, $id, $baseValues);
-
-                if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
-                    $persistId = ($id !== '') ? $id : $writtenId;
-                    $gateway->upsert($bundleName, $persistId, $bundleValues);
-                }
+                $writtenId = $this->writeBaseWithBundle($id, $values, $entity);
             }
 
             if ($deferRevision && $writtenId !== '') {
@@ -1866,7 +1876,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $idKey = $keys['id'] ?? 'id';
                 $targetRow[$idKey] = $entityId;
                 $targetRow[$revisionKey] = $newRevisionId;
-                $this->writeDriverRow($this->entityType->id(), $entityId, $targetRow);
+                $this->writeBaseWithBundle($entityId, $targetRow);
             }
 
             // Load before releasing this transaction's savepoint, then keep
@@ -2014,7 +2024,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         try {
             $successor = $this->claimMutationForId($entityId, $expected);
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
-            $this->writeDriverRow($this->entityType->id(), $entityId, $row);
+            $this->writeBaseWithBundle($entityId, $row);
 
             // Reload the row that was actually made current while the write is
             // visible, but defer its successor token and notifications through
@@ -2306,42 +2316,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 if ($beforeEvent->materializedStatus() !== null) {
                     $targetRow['status'] = $beforeEvent->materializedStatus();
                 }
-                $outgoingRow = $targetRow;
-                $bundleValues = [];
-                $bundleName = null;
-                $gateway = $this->bundleGateway();
-                if ($gateway !== null) {
-                    $targetEntity = $this->instantiateEntity($this->entityType->getClass(), $targetRow);
-                    [$outgoingRow, $bundleValues, $bundleName] = $gateway->partition($targetEntity, $targetRow);
-                    if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
-                        if ($gateway->hasDeclaredUniqueKeys($bundleName)) {
-                            throw new \RuntimeException(\sprintf(
-                                '[S1-DB106] Bundle "%s" on entity type "%s" declares a storage unique key but subtable "%s" is unavailable. Run `waaseyaa schema:sync`; publication was refused.',
-                                $bundleName,
-                                $this->entityType->id(),
-                                $gateway->subtableName($bundleName),
-                            ));
-                        }
-                        $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
-                        $outgoingRow = $targetRow;
-                        $bundleValues = [];
-                        $bundleName = null;
-                    }
-                }
                 unset(
-                    $outgoingRow['revision_id'],
-                    $outgoingRow['revision_created'],
-                    $outgoingRow['revision_log'],
-                    $outgoingRow['revision_author'],
-                    $outgoingRow['entity_id'],
+                    $targetRow['revision_id'],
+                    $targetRow['revision_created'],
+                    $targetRow['revision_log'],
+                    $targetRow['revision_author'],
+                    $targetRow['entity_id'],
                 );
-                $outgoingRow[$idKey] = $entityId;
-                $outgoingRow[$this->revisionKey()] = $revisionId;
-                $outgoingRow['published_revision_id'] = $revisionId;
-                $this->writeDriverRow($this->entityType->id(), $entityId, $outgoingRow);
-                if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
-                    $gateway->upsert($bundleName, $entityId, $bundleValues);
-                }
+                $targetRow[$idKey] = $entityId;
+                $targetRow[$this->revisionKey()] = $revisionId;
+                $targetRow['published_revision_id'] = $revisionId;
+                $this->writeBaseWithBundle($entityId, $targetRow);
             } elseif ($this->database !== null) {
                 // Targeted single-column update: touch only the published pointer.
                 $this->database->update($this->entityType->id())
