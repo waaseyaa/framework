@@ -1030,3 +1030,16 @@ replaying legacy hooks or returning a partial builtin table. Bare direct provide
 contexts without a kernel accessor retain prior builtin listing compatibility.
 See route-metadata.md for the shared inspection contract and residual installed
 qualification. Graph JSON uses writeRaw without presentation normalization.
+
+## Artifact-bound manifest parity
+
+CLI manifest consumers use PackageManifestCompiler's canonical selection and
+public selectedManifestPath accessor, with the same archived fixed layout marker
+and fixed runtime binding as HTTP. The owning layout and witness contract is
+[infrastructure.md](infrastructure.md#artifact-bound-compiled-package-manifest-layout).
+Required binding validation precedes database initialization files and locks.
+Explicit isolated validation is a separate typed compiler context, never a
+normal ConsoleKernel mode or actual-runtime qualification. Selected cache
+clearing preserves legacy and other artifact manifests while retaining the
+existing shared configuration cache authority. Legacy projects retain their
+existing path and clear behavior.

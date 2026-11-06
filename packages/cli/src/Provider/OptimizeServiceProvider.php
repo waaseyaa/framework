@@ -56,7 +56,7 @@ final class OptimizeServiceProvider extends ServiceProvider implements ProvidesC
             ))->execute($io);
         };
 
-        $clearHandler = new OptimizeClearHandler(storagePath: $root . '/storage');
+        $clearHandler = new OptimizeClearHandler(storagePath: $root . '/storage', manifestCompiler: $manifestCompiler);
 
         $optimizeHandler = new OptimizeHandler(subHandlers: [
             'optimize:manifest' => \Closure::fromCallable([$manifestHandler, 'execute']),

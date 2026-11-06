@@ -442,6 +442,54 @@
             "classification": "optional-package-form",
             "predicate": "fixture repository has a semver tag",
             "rationale": "The legacy version-sync fallback requires an available semver tag."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Discovery/ManifestCacheLayoutTest.php",
+            "reason": "Selected artifact layout has an explicit POSIX filesystem capability; legacy portability is covered separately.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "ManifestCompilationContext::artifactBindingSupported()",
+            "rationale": "Artifact-bound mode depends on POSIX identity/link/mode custody; the Ubuntu PHP8.5 nonroot lane executes these tests, while native Windows executes ManifestCacheLegacyPortabilityTest including explicit unsupported-selection refusal."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Discovery/ManifestCacheLayoutTest.php",
+            "reason": "Permission refusal is verified under a non-root runtime principal.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "Root bypasses chmod000 lookup restrictions; this refusal must execute under the ordinary nonroot Ubuntu PHP8.5 principal and remains covered by the actual nonroot FPM proof."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Discovery/ManifestCacheLayoutTest.php",
+            "reason": "Permission refusal requires a non-root runtime principal.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "Root bypasses chmod000 file reads; the ordinary nonroot Ubuntu PHP8.5 lane must execute both fixed-control unreadability refusals."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Discovery/ManifestCacheLayoutTest.php",
+            "reason": "Concurrent compiler proof requires CLI pcntl.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(pcntl_fork)",
+            "rationale": "Actual two-process compilation requires CLI pcntl; missing support is optional locally/platform-wise, not a catch of fork failure. Ubuntu PHP8.5 CLI supplies this capability."
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "reason": "Selected artifact layout requires POSIX custody; legacy command tests remain active.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "ManifestCompilationContext::artifactBindingSupported()",
+            "rationale": "Only selected artifact-bound custody is POSIX-only; legacy db:init cases continue on native platforms and selected refusal executes on supported Ubuntu PHP8.5."
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/OptimizeClearHandlerTest.php",
+            "reason": "Selected artifact layout requires POSIX custody; legacy command tests remain active.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "ManifestCompilationContext::artifactBindingSupported()",
+            "rationale": "Only selected artifact-bound cache custody is POSIX-only; existing legacy clear command cases remain active and selected clear executes on supported Ubuntu PHP8.5."
         }
     ]
 }

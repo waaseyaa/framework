@@ -74,6 +74,8 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Community\CommunityContextInterface` | interface | public | — |
 | `Diagnostic\DiagnosticCode` | enum | public | — |
 | `Diagnostic\HealthCheckerInterface` | interface | public | Runs boot, runtime, and ingestion health checks across subsystems |
+| `Discovery\ManifestCacheLayout` | final readonly class | internal | Fixed immutable runtime binding and canonical manifest cache custody validation |
+| `Discovery\ManifestCompilationContext` | enum | public | Explicit artifact-bound versus isolated-validation manifest compilation context |
 | `Event\DomainEvent` | abstract class | public | Base class for all domain events carrying aggregate identity and actor context |
 | `Event\EventDispatcherInterface` | interface | public | — |
 | `Exception\WaaseyaaException` | abstract class | public | Base exception for all framework errors, with HTTP status code and problem type |

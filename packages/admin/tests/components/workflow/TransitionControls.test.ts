@@ -77,10 +77,10 @@ beforeEach(() => {
   runtimeAvailable.value = true
 })
 
-async function mountControls() {
+async function mountControls(disabled = false) {
   const { default: TransitionControls } = await import('~/components/workflow/TransitionControls.vue')
   const wrapper = await mountSuspended(TransitionControls, {
-    props: { entityType: 'node', entityId: '5' },
+    props: { entityType: 'node', entityId: '5', disabled },
   })
   await flushPromises()
   return wrapper
@@ -107,6 +107,21 @@ describe('TransitionControls populated path', () => {
     expect(buttons[0]!.attributes('type')).toBe('button')
     expect(buttons[0]!.attributes('disabled')).toBeUndefined()
     expect(buttons[0]!.attributes('aria-label')).toContain('Publish')
+  })
+
+  it('refuses a programmatically dispatched publication click while disabled without posting', async () => {
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [publishTransition]
+      stateRef.value = 'review'
+    })
+    const wrapper = await mountControls(true)
+    const button = wrapper.get('[data-testid="transition-btn-publish"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    button.element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(applyTransitionMock).not.toHaveBeenCalled()
+    await wrapper.setProps({ disabled: false })
+    expect(button.attributes('disabled')).toBeUndefined()
   })
 
   it('announces loading and exposes no transition button before discovery completes', async () => {

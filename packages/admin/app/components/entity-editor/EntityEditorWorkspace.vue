@@ -22,7 +22,7 @@ const emit = defineEmits<{
 }>()
 
 const { t, entityLabel: translateEntityLabel } = useLanguage()
-const { hasCapability } = useAdmin()
+const { hasCapability, getEntity } = useAdmin()
 const { remove } = useEntity()
 const { schema, fetch: fetchSchema } = useSchema(props.entityType)
 const successMessage = ref('')
@@ -31,6 +31,8 @@ const deleteError = ref('')
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
 const refreshKey = ref(0)
+const formDirty = ref(false)
+const recordLabel = ref<string | null>(null)
 
 const isCreate = computed(() => !props.entityId)
 const entityLabel = computed(() => translateEntityLabel(props.entityType, schema.value?.title ?? props.entityType))
@@ -46,7 +48,20 @@ onMounted(() => fetchSchema(props.entityId
     ? { bundle: props.initialBundle }
     : undefined))
 
+function onLoaded(resource: any) {
+  const field = getEntity(props.entityType)?.reference?.labelField
+  const value = field ? resource?.attributes?.[field] : null
+  recordLabel.value = typeof value === 'string' && value.trim() !== '' ? value.trim() : null
+}
+
+function onDirty(dirty: boolean) {
+  formDirty.value = dirty
+  emit('dirty', dirty)
+}
+
 function onSaved(resource: any) {
+  if (resource?.attributes) onLoaded(resource)
+  formDirty.value = false
   successMessage.value = isCreate.value ? t('entity_created') : t('entity_saved')
   errorMessage.value = ''
   refreshKey.value++
@@ -85,7 +100,7 @@ async function confirmDelete() {
     <header class="entity-editor-header">
       <div>
         <p>{{ isCreate ? t('create') : t('edit') }}</p>
-        <h1>{{ isCreate ? t('create_entity', { type: entityLabel }) : `${t('edit_entity', { type: entityLabel })} #${entityId}` }}</h1>
+        <h1>{{ isCreate ? t('create_entity', { type: entityLabel }) : recordLabel || t('edit_entity', { type: entityLabel }) }}</h1>
       </div>
       <div v-if="entityId" class="entity-editor-actions">
         <WorkflowTransitionControls
@@ -93,17 +108,12 @@ async function confirmDelete() {
           :key="`transitions-${refreshKey}`"
           :entity-type="entityType"
           :entity-id="entityId"
+          :disabled="formDirty"
           @transitioned="onTransitioned"
         />
-        <button
-          v-if="canDelete"
-          type="button"
-          class="btn btn-danger"
-          :disabled="deleting"
-          @click="showDeleteConfirm = true"
-        >
-          {{ t('delete') }}
-        </button>
+        <p v-if="formDirty && workflowBound" class="editor-publication-help" role="status">
+          {{ t('editor_save_before_transition') }}
+        </p>
       </div>
     </header>
 
@@ -116,12 +126,27 @@ async function confirmDelete() {
       :entity-type="entityType"
       :entity-id="entityId"
       :initial-bundle="initialBundle"
+      @loaded="onLoaded"
       @saved="onSaved"
       @error="onError"
       @ready="emit('ready')"
-      @dirty="emit('dirty', $event)"
+      @dirty="onDirty"
       @failure="emit('failure', $event)"
     />
+
+    <details v-if="entityId" class="entity-record-details">
+      <summary>{{ t('editor_record_details') }}</summary>
+      <dl><dt>{{ t('editor_record_identifier') }}</dt><dd>{{ entityId }}</dd></dl>
+        <button
+          v-if="canDelete"
+          type="button"
+          class="btn btn-danger"
+          :disabled="deleting"
+          @click="showDeleteConfirm = true"
+        >
+          {{ t('delete') }}
+        </button>
+    </details>
 
     <WorkflowTransitionHistoryTimeline
       v-if="entityId && workflowBound"
@@ -172,8 +197,13 @@ async function confirmDelete() {
   text-transform: uppercase;
 }
 
-.entity-editor-header h1 { margin: 0; }
+.entity-editor-header h1 { margin: 0; overflow-wrap: anywhere; }
 .entity-editor-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.editor-publication-help { flex-basis: 100%; font-size: 0.875rem; }
+.entity-record-details { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border, #d8d8d8); }
+.entity-record-details summary { cursor: pointer; min-height: 2.75rem; }
+.entity-record-details dl { margin: 0 0 1rem; }
+.entity-record-details dd { margin: 0.25rem 0 0; overflow-wrap: anywhere; }
 
 @media (max-width: 700px) {
   .entity-editor-header { flex-direction: column; }

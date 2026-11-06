@@ -10,7 +10,10 @@ use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Entity\AuditEvent;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityValueComparator;
+use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -99,7 +102,7 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
                     'entity_type'  => $entity->getEntityTypeId(),
                     'entity_id'    => (string) ($entity->id() ?? ''),
                     'is_new'       => $isNew,
-                    'dirty_fields' => method_exists($entity, 'getDirty') ? $entity->getDirty() : [],
+                    'dirty_fields' => $this->changedFieldNames($event),
                 ],
             ));
         } catch (\Throwable $e) {
@@ -111,6 +114,22 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
         }
     }
 
+    /** @return list<string> Metadata only; protected values never leave the comparator. */
+    private function changedFieldNames(EntityEvent $event): array
+    {
+        $current = $event->entity;
+        $original = $event->originalEntity;
+        if (!$current instanceof EntityBase || !$original instanceof EntityBase) {
+            // A missing original is not evidence that every existing value changed.
+            // Non-framework implementations have no closed comparison contract.
+            return [];
+        }
+        $fields = array_values(array_unique([
+            ...EntityValues::fieldNames($original),
+            ...EntityValues::fieldNames($current),
+        ]));
+        return new EntityValueComparator()->changedFieldNames($original, $current, $fields);
+    }
     public function onPostDelete(EntityEvent $event): void
     {
         // Guard (#1587): mirror the recursion guard from onPostSave. AuditEvent is

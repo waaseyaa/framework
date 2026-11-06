@@ -70,3 +70,23 @@ evidence for the conversion and is not a volatile policy constant.
 The gate governs skip classification only. It does not replace execution of
 the Unit, Integration, Architecture, random-order, coverage, or hosted
 FrankenPHP lanes.
+
+## Artifact manifest layout capability disposition
+
+The selected artifact-bound manifest tests (`FW-ARTIFACT-MANIFEST-LAYOUT-01`)
+require POSIX identity, link and mode custody. Their explicit capability guards
+use braced `if` bodies so the token scanner can establish lexical guard scope;
+an unbraced conditional is not a mechanically recognized governed skip. Each
+site still needs its own exact semantic roster entry. This does not broaden the
+scanner or convert fixture/runtime errors into capability absence.
+
+The supported ordinary Ubuntu PHP8.5 nonroot CLI lane executes selected layout,
+chmod000 directory/file refusal and pcntl two-process tests. Root runs only skip
+the two chmod000 refusal cases because root bypasses those permission checks;
+root results cannot replace nonroot refusal evidence. On native Windows,
+selected-layout cases have a platform disposition, while
+`ManifestCacheLegacyPortabilityTest` executes default legacy compile/cache and
+explicit unsupported-selection refusal without skips. Existing legacy command
+cases remain active. A missing pcntl function is the sole concurrency skip;
+failed fork or compiler execution remains a test failure. The required-hosted
+zero-skip roster and its owning lanes are unchanged.

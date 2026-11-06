@@ -6,7 +6,7 @@ import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { schemaFormContextKey } from './schemaFormContext'
 import { normalizeValidationFailure } from './validationErrors'
-import type { SaveAdvisory } from '~/contracts/transport'
+import type { EntityResource, SaveAdvisory } from '~/contracts/transport'
 import { classifyEmbedFailure, type EmbedFailure } from '~/runtime/embedLifecycle'
 
 const props = defineProps<{
@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   saved: [resource: any]
   error: [message: string]
+  loaded: [resource: EntityResource]
   ready: []
   dirty: [dirty: boolean]
   failure: [failure: EmbedFailure]
@@ -83,6 +84,7 @@ function valuesForSchema(
 // In edit mode the entity id scopes the schema to the record's bundle so its
 // per-bundle fields (e.g. a page's body) appear in the form.
 onMounted(async () => {
+  let loadedResource: EntityResource | null = null
   clearValidation()
   if (props.entityId) {
     // Edit mode: the bundle-scoped schema and the existing record are
@@ -94,6 +96,7 @@ onMounted(async () => {
       get(props.entityType, props.entityId),
     ])
     if (entityResult.status === 'fulfilled') {
+      loadedResource = entityResult.value
       formData.value = { ...entityResult.value.attributes }
     } else {
       const e: any = entityResult.reason
@@ -137,7 +140,10 @@ onMounted(async () => {
   loading.value = false
   if (schemaFailure.value) emit('failure', schemaFailure.value)
   else if (loadFailure.value) emit('failure', loadFailure.value)
-  else if (loadError.value === null && schema.value !== null) emit('ready')
+  else if (loadError.value === null && schema.value !== null) {
+    if (loadedResource !== null) emit('loaded', loadedResource)
+    emit('ready')
+  }
 })
 
 const editableFields = computed(() => sortedProperties(true))

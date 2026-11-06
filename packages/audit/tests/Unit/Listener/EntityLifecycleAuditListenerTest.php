@@ -23,6 +23,52 @@ use Waaseyaa\Entity\Event\EntityEvents;
 #[CoversClass(EntityLifecycleAuditListener::class)]
 final class EntityLifecycleAuditListenerTest extends TestCase
 {
+    #[Test]
+    public function sealed_node_status_changes_record_names_without_reading_or_exporting_protected_values(): void
+    {
+        $original = $this->sealedNode(1, true);
+        $saved = $this->sealedNode(1, false);
+        $recorded = [];
+        $listener = new EntityLifecycleAuditListener($this->spyWriter($recorded), accountContext: $this->contextHolding(7));
+        $listener->onPreSave(new EntityEvent($saved, $original));
+        $listener->onPostSave(new EntityEvent($saved, $original));
+        self::assertCount(1, $recorded);
+        self::assertSame(AuditEventKind::EntityWrite, $recorded[0]->kind);
+        self::assertSame(7, $recorded[0]->accountUid);
+        self::assertSame(['status'], $recorded[0]->attributes['dirty_fields']);
+        self::assertStringNotContainsString('Secret synthetic title', json_encode($recorded[0]->attributes, JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function interleaved_post_save_uses_each_events_original_and_unchanged_fields_are_absent(): void
+    {
+        $originalA = $this->sealedNode(1, true);
+        $savedA = $this->sealedNode(1, false);
+        $originalB = $this->sealedNode(2, false);
+        $savedB = $this->sealedNode(2, false);
+        $recorded = [];
+        $listener = new EntityLifecycleAuditListener($this->spyWriter($recorded));
+        $listener->onPreSave(new EntityEvent($savedA, $originalA));
+        $listener->onPreSave(new EntityEvent($savedB, $originalB));
+        $listener->onPostSave(new EntityEvent($savedB, $originalB));
+        $listener->onPostSave(new EntityEvent($savedA, $originalA));
+        self::assertSame([], $recorded[0]->attributes['dirty_fields']);
+        self::assertSame(['status'], $recorded[1]->attributes['dirty_fields']);
+        $this->assertPendingMapEmpty($listener);
+    }
+
+    private function sealedNode(int $id, bool $status): \Waaseyaa\Node\Node
+    {
+        $values = ['nid' => $id, 'type' => 'job_posting', 'uuid' => '00000000-0000-0000-0000-00000000000'.$id, 'title' => 'Secret synthetic title', 'uid' => 99, 'status' => $status];
+        $boundary = new \Waaseyaa\Entity\EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: $values,
+            layout: new \Waaseyaa\Entity\EntityReadLayout(new \Waaseyaa\Entity\EntityReadLayoutGeneration(), array_fill_keys(array_keys($values), \Waaseyaa\Entity\FieldReadLevel::Protected)),
+            structure: new \Waaseyaa\Entity\EntityStructure('node', 'job_posting', $id, $values['uuid'], fieldNames: array_keys($values)),
+            entityTypeId: 'node', entityKeys: ['id' => 'nid', 'uuid' => 'uuid', 'bundle' => 'type', 'label' => 'title'],
+        );
+        return $boundary->installer()->instantiate(\Waaseyaa\Node\Node::class, $payload);
+    }
     /**
      * @param list<AuditEventDescriptor> $recorded
      */

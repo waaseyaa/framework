@@ -391,6 +391,8 @@ crashing primary requests (NFR-001).
 | `PublishPointerAuditListener` | `RevisionPointerMovedEvent::class` (typed FQCN subscription — audit requires entity-storage, L1→L1) | `revision.publish`, `revision.revert` |
 | `RollbackAuditListener` | `BeforeRevisionPointerMoveEvent::class` (arms on `operation === 'rollback'`) + `EntityEvents::REVISION_REVERTED->value` (consumes the armed slot) | `revision.rollback` |
 
+For framework entities with a lifecycle originalEntity, dirty_fields is the exact sorted list of names changed between that original snapshot and the saved snapshot. The closed names-only entity comparator releases no compared values, including protected publication values. Missing originals and third-party entities report an empty list rather than a fabricated diff. This describes the canonical lifecycle original (the persisted base for revisioned saves), not a separately queried latest working revision. Audit remains best-effort and does not emit a direction-specific publication event.
+
 `entity.write` distinguishes create from update via `isNew()` captured at `PRE_SAVE`. That flag is keyed on the entity object (`WeakMap`) and consumed at the start of `POST_SAVE` (before the writer runs, including when the writer throws). `saveMany()` still dispatches `pre1, pre2, …, post1, post2, …`, so a listener-wide boolean would attribute every row from the last PRE event (#1856). Canonical pairing contract: `docs/specs/entity-system.md`.
 
 ### Per-listener actor source

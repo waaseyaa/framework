@@ -12,6 +12,7 @@ import { isMutationTokenAware } from '~/contracts/transport'
 const props = defineProps<{
   entityType: string
   entityId: string
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -33,7 +34,7 @@ async function load() {
 onMounted(load)
 
 async function apply(transitionId: string) {
-  if (pending.value) return
+  if (props.disabled || pending.value) return
 
   pending.value = true
   applyError.value = null
@@ -90,7 +91,7 @@ async function apply(transitionId: string) {
       :key="transition.id"
       type="button"
       class="btn btn-sm"
-      :disabled="pending"
+      :disabled="disabled || pending"
       :aria-label="`${transition.label}: ${transition.to}`"
       :data-testid="`transition-btn-${transition.id}`"
       @click="apply(transition.id)"

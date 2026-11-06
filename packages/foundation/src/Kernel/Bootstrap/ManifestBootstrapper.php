@@ -9,6 +9,12 @@ use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 
 final class ManifestBootstrapper
 {
+    private ?array $witness = null;
+    public function manifestCacheWitness(): array
+    {
+        return $this->witness ?? throw new \LogicException('Manifest not loaded.');
+    }
+
     /**
      * @param bool $freshCompile When true (dev mode), compile the manifest fresh
      *        on every boot — a full PSR-4 directory scan that discovers newly
@@ -26,6 +32,8 @@ final class ManifestBootstrapper
             storagePath: $projectRoot . '/storage',
         );
 
-        return $freshCompile ? $compiler->compile() : $compiler->load();
+        $manifest = $freshCompile ? $compiler->compile() : $compiler->load();
+        $this->witness = $compiler->manifestCacheWitness();
+        return $manifest;
     }
 }

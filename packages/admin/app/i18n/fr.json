@@ -300,5 +300,8 @@
   "history_restore_confirm": "Restaurer la révision {revision} comme nouveau brouillon? L’historique ultérieur et la version publiée seront conservés.",
   "history_restored": "La révision {revision} a été restaurée comme nouveau brouillon.",
   "preview_desktop": "Ordinateur",
-  "preview_mobile": "Mobile"
+  "preview_mobile": "Mobile",
+  "editor_record_details": "Détails du contenu",
+  "editor_record_identifier": "Identifiant",
+  "editor_save_before_transition": "Enregistrez vos modifications avant de changer la publication."
 }

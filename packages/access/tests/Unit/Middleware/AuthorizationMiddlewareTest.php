@@ -189,7 +189,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
-        $request = Request::create('/dashboard');
+        $request = Request::create('/dashboard?status=draft&type=job');
         $request->attributes->set('_account', $account);
         $request->attributes->set('_route_object', $route);
 
@@ -203,7 +203,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $response = $middleware->process($request, $next);
 
         $this->assertSame(302, $response->getStatusCode());
-        $this->assertSame('/login?redirect=%2Fdashboard', $response->headers->get('Location'));
+        $this->assertSame('/login?redirect=%2Fdashboard%3Fstatus%3Ddraft%26type%3Djob', $response->headers->get('Location'));
     }
 
     #[Test]
@@ -217,7 +217,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
-        $request = Request::create('/admin/settings');
+        $request = Request::create('/admin/settings?type=job&status=draft');
         $request->attributes->set('_account', $account);
         $request->attributes->set('_route_object', $route);
 
@@ -234,6 +234,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $this->assertStringContainsString('text/html', $response->headers->get('Content-Type'));
         $this->assertStringContainsString('Forbidden', $response->getContent());
         $this->assertStringContainsString('Sign in', $response->getContent());
+        $this->assertStringContainsString('/login?redirect=%2Fadmin%2Fsettings%3Ftype%3Djob%26status%3Ddraft', $response->getContent());
     }
 
     #[Test]
@@ -281,7 +282,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
 
-        $request = Request::create('/admin/settings');
+        $request = Request::create('/admin/settings?type=job&status=draft');
         $request->attributes->set('_account', $account);
         $request->attributes->set('_route_object', $route);
 
@@ -318,7 +319,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
 
-        $request = Request::create('/admin/settings');
+        $request = Request::create('/admin/settings?type=job&status=draft');
         $request->attributes->set('_account', $account);
         $request->attributes->set('_route_object', $route);
 
@@ -515,7 +516,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
-        $request = Request::create('/admin/settings');
+        $request = Request::create('/admin/settings?type=job&status=draft');
         $request->attributes->set('_account', $account);
         $request->attributes->set('_route_object', $route);
 

@@ -182,10 +182,13 @@ abstract class AbstractKernel
      */
     private array $missingCommunityContextWarned = [];
 
+    private ?array $loadedManifestCacheWitness = null;
+
     public function __construct(
         protected readonly string $projectRoot,
         ?LoggerInterface $logger = null,
     ) {
+        \Waaseyaa\Foundation\Discovery\ManifestCacheLayout::resolve($projectRoot, $projectRoot . '/storage');
         $this->sinkSanitizer = $logger instanceof LogManager
             ? $logger->sinkSanitizer()
             : new RedactorProcessor();
@@ -533,16 +536,25 @@ abstract class AbstractKernel
         return new CommunityScope($this->communityContext);
     }
 
+    /** @api Actual canonical kernel boot witness, not deployment authorization. */
+    public function manifestCacheWitness(): array
+    {
+        $this->boot();
+        return $this->loadedManifestCacheWitness ?? throw new \LogicException('Kernel manifest witness unavailable.');
+    }
+
     protected function compileManifest(): void
     {
         // Dev mode compiles the manifest fresh each boot so newly added app
         // entity types and access policies are discovered without
         // `composer dump-autoload -o` or `optimize:manifest`. Production uses the
         // compiled cache.
-        $this->manifest = new ManifestBootstrapper()->boot(
+        $bootstrapper = new ManifestBootstrapper();
+        $this->manifest = $bootstrapper->boot(
             $this->projectRoot,
             freshCompile: $this->isDevelopmentMode(),
         );
+        $this->loadedManifestCacheWitness = $bootstrapper->manifestCacheWitness();
     }
 
     protected function bootMigrations(): void

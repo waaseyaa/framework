@@ -101,6 +101,16 @@
             "id": "wayfinding-beacon-overlay",
             "scope": "bundle-js",
             "value": "wf-beacon"
+        },
+        {
+            "id": "structured-editor-record-details",
+            "scope": "bundle-js",
+            "value": "entity-record-details"
+        },
+        {
+            "id": "structured-editor-unsaved-publication-guard",
+            "scope": "bundle-js",
+            "value": "editor_save_before_transition"
         }
     ]
 }
