@@ -1,4 +1,9 @@
 # Middleware Pipeline
+
+Anonymous HTML authorization redirects and authenticated denial-page sign-in
+links preserve the validated request URI, including its query string. Both use
+the canonical redirect validator; query preservation grants no route access and
+retains URL encoding and HTML escaping at their existing boundaries.
 <!-- Spec reviewed 2026-08-26 - #2180 selects FrankenPHP runtime mode explicitly. `frankenphp_handle_request()` exists in worker and classic builds, and classic mode may throw or return false when it is called, so neither function existence nor first-call behaviour is a mode signal. The committed Caddy worker block sets `WAASEYAA_FRANKENPHP_WORKER=1` inside the worker process; all four front-controller copies enter the loop only for that exact marker and fail closed when an explicitly selected worker lacks its API. Classic FrankenPHP, php -S, and FPM always invoke the synchronous handler. The native harness pins the marker only in its worker block, proves repeated worker callbacks, and requires classic mode to return a non-empty 200 response. -->
 <!-- Spec reviewed 2026-08-26 - #2490 makes HttpKernel's explicit built-in factories the sole production construction path. HttpMiddlewareStackComposer combines those instances with provider contributions, rejects duplicate concrete classes, and stably sorts by AsMiddleware priority. RateLimitMiddleware (durable DatabaseRateLimiter) and BodySizeLimitMiddleware are now active by default; CompressionMiddleware, RequestLoggingMiddleware, and ETagMiddleware remain provider opt-ins pending their documented boundary audits. -->
 <!-- Spec reviewed 2026-08-29 - #2700: password-authenticated sessions bind User.session_generation; SessionMiddleware fails closed and clears identity when the generation is missing or stale. Password reset increments the generation with the credential save, revoking all older sessions. -->
