@@ -89,3 +89,24 @@ fail cannot be swallowed by its RuntimeException refusal catch.
 Selected layout declares a POSIX filesystem capability and refuses unsupported
 Windows selection before writes. A separate symlink-free legacy/default test
 runs on native Windows. Existing native-host command selections remain intact.
+
+
+## Governed skip registration correction
+
+Parent candidate ae9b821307c86e6e2656b55eb4bc4b59795e80d3 failed hosted
+ci/verify-gates: six new skip sites were unclassified, and their single-line
+unbraced predicates were not recognized as lexical guarded scopes. Correct only
+those test bodies, synchronize the exact architecture inventory assertion, and register six exact sites with platform, permission and
+pcntl predicates. Preserve runtime sources, predicate truth, required-hosted
+coverage and scanner behavior. Validate the scanner red-to-green, owning suites
+under nonroot and root, and the complete local verify-gates command set. Existing
+byte-pinned native Windows legacy evidence is reusable because its test and
+runtime sources do not change; native selected-layout availability is not claimed.
+
+Local correction evidence: all22 permanent ci/verify-gates scripts PASS with
+Node24.22.2; ordinary nonroot PHP8.5.11/PHPUnit13.1.14 owning plus skip-policy
+architecture tests PASS56tests258assertions with zero skips. Root diagnostic
+same owning50tests executes47 and skips the two new chmod000 cases plus existing
+db:init permission case,224assertions. This is the expected permission disposition,
+not a substitute for nonroot execution. The native legacy test/runtime sources
+are unchanged from the observed Windows2tests8assertions zero-skip proof.

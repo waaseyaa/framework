@@ -15,7 +15,9 @@ final class ManifestCacheLayoutTest extends TestCase
     private string $root = '';
     protected function setUp(): void
     {
-        if (!ManifestCompilationContext::artifactBindingSupported()) self::markTestSkipped('Selected artifact layout has an explicit POSIX filesystem capability; legacy portability is covered separately.');
+        if (!ManifestCompilationContext::artifactBindingSupported()) {
+            self::markTestSkipped('Selected artifact layout has an explicit POSIX filesystem capability; legacy portability is covered separately.');
+        }
         $this->root = sys_get_temp_dir() . '/manifest-layout-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o700);
     }
@@ -42,7 +44,9 @@ final class ManifestCacheLayoutTest extends TestCase
     }
     public function testUnreadableControlDirectoryCannotMasqueradeAsLegacyAbsence(): void
     {
-        if (function_exists('posix_geteuid') && posix_geteuid() === 0) self::markTestSkipped('Permission refusal is verified under a non-root runtime principal.');
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('Permission refusal is verified under a non-root runtime principal.');
+        }
         $base = $this->release();
         chmod($base . '/.waaseyaa', 0o000);
         clearstatcache();
@@ -57,7 +61,9 @@ final class ManifestCacheLayoutTest extends TestCase
         }
     }    public function testUnreadableFixedControlFilesRefuseUnderTheRuntimePrincipal(): void
     {
-        if (function_exists('posix_geteuid') && posix_geteuid() === 0) self::markTestSkipped('Permission refusal requires a non-root runtime principal.');
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('Permission refusal requires a non-root runtime principal.');
+        }
         $base = $this->release();
         foreach ([ManifestCacheLayout::LAYOUT_PATH, ManifestCacheLayout::BINDING_PATH] as $relative) {
             $path = $base . $relative;
@@ -285,7 +291,9 @@ final class ManifestCacheLayoutTest extends TestCase
     }
     public function testConcurrentDifferentLogicalManifestsRemainArtifactLocal(): void
     {
-        if (!function_exists('pcntl_fork')) self::markTestSkipped('Concurrent compiler proof requires CLI pcntl.');
+        if (!function_exists('pcntl_fork')) {
+            self::markTestSkipped('Concurrent compiler proof requires CLI pcntl.');
+        }
         $a = $this->release('a', str_repeat('a', 64));
         $b = $this->release('b', str_repeat('b', 64));
         file_put_contents($b . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Foundation\FoundationServiceProvider::class]]]], JSON_THROW_ON_ERROR));

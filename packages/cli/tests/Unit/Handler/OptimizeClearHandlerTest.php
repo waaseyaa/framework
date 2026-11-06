@@ -71,7 +71,9 @@ final class OptimizeClearHandlerTest extends TestCase
     #[Test]
     public function artifact_bound_clear_preserves_legacy_and_other_artifact_manifests(): void
     {
-        if (!\Waaseyaa\Foundation\Discovery\ManifestCompilationContext::artifactBindingSupported()) self::markTestSkipped('Selected artifact layout requires POSIX custody; legacy command tests remain active.');
+        if (!\Waaseyaa\Foundation\Discovery\ManifestCompilationContext::artifactBindingSupported()) {
+            self::markTestSkipped('Selected artifact layout requires POSIX custody; legacy command tests remain active.');
+        }
         $base = $this->tempDir . '/release';
         $runtime = $this->tempDir . '/runtime';
         $digest = str_repeat('a', 64);
