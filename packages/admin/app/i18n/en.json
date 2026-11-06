@@ -500,5 +500,8 @@
   "history_restore_confirm": "Restore revision {revision} as a new draft? Later history and the published version will be preserved.",
   "history_restored": "Revision {revision} was restored as a new draft.",
   "preview_desktop": "Desktop",
-  "preview_mobile": "Mobile"
+  "preview_mobile": "Mobile",
+  "editor_record_details": "Record details",
+  "editor_record_identifier": "Record ID",
+  "editor_save_before_transition": "Save your changes before changing publication."
 }

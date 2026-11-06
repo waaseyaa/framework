@@ -1,5 +1,21 @@
 # Admin SPA
 
+The shared entity editor derives an existing record's visible heading only from
+its catalog-declared `reference.labelField` and the authorized resource already
+loaded by SchemaForm. The additive internal `loaded` event carries that same
+resource after successful schema/entity loading; it makes no extra request and
+is not forwarded across the embed lifecycle boundary. Successful saves refresh
+the persisted label; unsaved typing does not masquerade as a committed title.
+Vue escapes the label. Missing or empty declared labels retain a generic type
+heading; the identifier and capability-gated Delete remain in native Record
+details below the form, with the existing destructive confirmation.
+
+SchemaForm dirtiness pauses the workspace's canonical workflow controls. The
+optional `disabled` input is enforced at both the button and apply handler;
+server discovery, authorization and mutation preconditions remain authoritative.
+No publication write is automatically replayed. Existing embed lifecycle event
+shapes and source/origin checks are unchanged.
+
 <!-- Spec reviewed 2026-09-02 - #2786 B1: AdminSurfaceServiceProvider now composes SchemaPresenter with the kernel's boot-scoped FieldSchemaAuthority, so manifest-discovered downstream field types retain their plugin-owned schema in generic Admin forms. Missing kernel authority refuses provider composition rather than narrowing to the built-ins-only registry. -->
 
 <!-- Spec reviewed 2026-09-02 - #2786: schema widgets consume the canonical entity-value shape. Array-valued enums read options and labels from `items.enum`, while scalar enums retain top-level `enum`; the committed Admin distribution is rebuilt through the canonical two-build acceptance operation. -->

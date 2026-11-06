@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "identityDigest": "77d1a26eb151abe8ec384783ec5ce8769f31c11c8aea73ffb1d6ba99327dd380",
+    "identityDigest": "0f30bb0c9c9dc849d90996e9ade1f1a618233c81b635624253084b2e150d7608",
     "identityExcludes": [
         "acceptance"
     ],
@@ -11,18 +11,18 @@
         "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
     },
     "source": {
-        "signature": "acf1a0fa7744025298e01a79e65ca257536d2f3d08337e4e94e54a1ae1fc6946",
-        "buildIdSignature": "bbb0044e175eeef26b424712f327003c30de9600ef6c5b416b53cd0926a515c2",
-        "buildId": "waaseyaa-bbb0044e175eeef26b424712f327003c"
+        "signature": "b238194cfccaefe6a010cb9a53acd62771c87011b7082d3ca21d965bf959c792",
+        "buildIdSignature": "d87e19f64616ea71d72abf0aab368ecc381133c15d77011af20dd15aac687f94",
+        "buildId": "waaseyaa-d87e19f64616ea71d72abf0aab368ecc"
     },
     "published": {
-        "treeDigest": "c9c860403d70d7a568de9e9343eabfcbbb48c8656fe71e93ec61bf8a26ecb475",
+        "treeDigest": "57c4679e890837465d1c70afd54fac95b9715f10da12144e3034ee0e98459925",
         "fileCount": 99,
-        "byteCount": 598319
+        "byteCount": 599825
     },
     "markers": {
         "version": 1,
-        "digest": "fc3550614f2f661af72b08f7de804f6dbd4a5e001c1dc8386aefebf56e0b0f3c",
+        "digest": "2d4e39d3ed03383d3159d01e488faf2059595601c4da65ec3f59ce3cea68226e",
         "ids": [
             "admin-design-system-tokens",
             "authoritative-transition-result",
@@ -41,6 +41,8 @@
             "public-projection-refresh-signal",
             "structured-editor-fields",
             "structured-editor-initial-bundle",
+            "structured-editor-record-details",
+            "structured-editor-unsaved-publication-guard",
             "task-oriented-form-sections",
             "wayfinding-anchors",
             "wayfinding-beacon-overlay"
@@ -52,12 +54,22 @@
         "intermediate": {
             "root": "packages/admin/.output",
             "artifactCount": 100,
-            "inventoryDigest": "5ab06676fb05c48c6adda9e653bc3b253d27b3f89ffecb2221d02b15284ebabb"
+            "inventoryDigest": "5539a667a15f8cfbdfb8348c49d991b251534d46e9f8f3e9719bd02392ed7a23"
         },
-        "previousPublishedTreeDigest": "58c483abb7fd986a5d874da7b4dac376d81bc37419c39af288fc7a0e05ff2115",
+        "previousPublishedTreeDigest": "c9c860403d70d7a568de9e9343eabfcbbb48c8656fe71e93ec61bf8a26ecb475",
         "changed": {
             "added": [
-                "_nuxt/builds/meta/waaseyaa-bbb0044e175eeef26b424712f327003c.json"
+                "_nuxt/BEWNPoNJ.js",
+                "_nuxt/BfhB1mtY.js",
+                "_nuxt/C7LMJllA.js",
+                "_nuxt/DAUs_L7h.js",
+                "_nuxt/DRV_3KG8.js",
+                "_nuxt/Dlk0Qlj4.js",
+                "_nuxt/FFqESsbM.js",
+                "_nuxt/SchemaForm.BJNbOqHU.css",
+                "_nuxt/TransitionHistoryTimeline.BmTcqxiQ.css",
+                "_nuxt/_id_.bOzUFTit.css",
+                "_nuxt/builds/meta/waaseyaa-d87e19f64616ea71d72abf0aab368ecc.json"
             ],
             "modified": [
                 "200.html",
@@ -81,7 +93,17 @@
                 "workflows/index.html"
             ],
             "removed": [
-                "_nuxt/builds/meta/waaseyaa-f7bfdef3c0b1fd9042ae0e4092e71849.json"
+                "_nuxt/B8JRkkaH.js",
+                "_nuxt/Bo9n5VBR.js",
+                "_nuxt/CiPHFsxw.js",
+                "_nuxt/Cwwcfsqo.js",
+                "_nuxt/DJLE9yTD.js",
+                "_nuxt/DJzERt2O.js",
+                "_nuxt/SchemaForm.Dhf1PAx_.css",
+                "_nuxt/TransitionHistoryTimeline.ozsSAvcB.css",
+                "_nuxt/UeFDnear.js",
+                "_nuxt/_id_.DTX74wdF.css",
+                "_nuxt/builds/meta/waaseyaa-bbb0044e175eeef26b424712f327003c.json"
             ]
         },
         "toolchain": {

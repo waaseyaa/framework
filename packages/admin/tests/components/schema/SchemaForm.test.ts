@@ -793,12 +793,13 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
   })
 
   it('loads existing entity attributes into form', async () => {
+    let recordReads = 0
     registerEndpoint('/admin/_surface/user_edit/3', {
       method: 'GET',
-      handler: () => ({
-        ok: true,
-        data: { type: 'user', id: '3', attributes: { name: 'bob' } },
-      }),
+      handler: () => {
+        recordReads++
+        return { ok: true, data: { type: 'user', id: '3', attributes: { name: 'bob' } } }
+      },
     })
     const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
     const wrapper = await mountSuspended(SchemaFormFresh, {
@@ -806,6 +807,8 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     })
     await flushPromises()
     await flushPromises()
+    expect(wrapper.emitted('loaded')?.[0]?.[0]).toMatchObject({ id: '3', attributes: { name: 'bob' } })
+    expect(recordReads).toBe(1)
     // The name field should be pre-populated
     const nameInput = wrapper.find('input[type="text"]')
     if (nameInput.exists()) {

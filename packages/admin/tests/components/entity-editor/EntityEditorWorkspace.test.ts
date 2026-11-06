@@ -3,13 +3,14 @@ import { flushPromises } from '@vue/test-utils'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { schemaRef, fetchSchemaMock, removeMock, hasCapabilityMock } = vi.hoisted(() => {
+const { schemaRef, fetchSchemaMock, removeMock, hasCapabilityMock, getEntityMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     schemaRef: ref<EntitySchema | null>(null),
     fetchSchemaMock: vi.fn(),
     removeMock: vi.fn(),
     hasCapabilityMock: vi.fn(),
+    getEntityMock: vi.fn(),
   }
 })
 
@@ -25,7 +26,7 @@ vi.mock('~/composables/useSchema', () => ({
 }))
 
 vi.mock('~/composables/useAdmin', () => ({
-  useAdmin: () => ({ hasCapability: hasCapabilityMock }),
+  useAdmin: () => ({ hasCapability: hasCapabilityMock, getEntity: getEntityMock }),
 }))
 
 vi.mock('~/composables/useEntity', () => ({
@@ -52,13 +53,16 @@ async function mountWorkspace(entityId?: string, entityType = 'node') {
     global: {
       stubs: {
         SchemaForm: {
+          name: 'SchemaForm',
           props: ['entityType', 'entityId', 'initialBundle'],
-          emits: ['saved', 'error', 'ready', 'dirty', 'failure'],
-          template: '<div data-testid="schema-form" :data-entity-id="entityId" :data-bundle="initialBundle"><button data-testid="save" @click="$emit(\'saved\', { id: entityId || \'new-id\' })">save</button><button data-testid="error" @click="$emit(\'error\', \'Save failed\')">error</button><button data-testid="ready" @click="$emit(\'ready\')">ready</button><button data-testid="dirty" @click="$emit(\'dirty\', true)">dirty</button><button data-testid="failure" @click="$emit(\'failure\', { kind: \'network\' })">failure</button></div>',
+          emits: ['saved', 'error', 'ready', 'dirty', 'failure', 'loaded'],
+          template: '<div data-testid="schema-form" :data-entity-id="entityId" :data-bundle="initialBundle"><input data-testid="working-input" /><button data-testid="save" @click="$emit(\'saved\', { id: entityId || \'new-id\' })">save</button><button data-testid="error" @click="$emit(\'error\', \'Save failed\')">error</button><button data-testid="ready" @click="$emit(\'ready\')">ready</button><button data-testid="dirty" @click="$emit(\'dirty\', true)">dirty</button><button data-testid="failure" @click="$emit(\'failure\', { kind: \'network\' })">failure</button></div>',
         },
         WorkflowTransitionControls: {
+          name: 'WorkflowTransitionControls',
+          props: ['disabled'],
           emits: ['transitioned'],
-          template: '<button data-testid="transition" @click="$emit(\'transitioned\', { transition: \'publish\', from: \'review\', to: \'published\', public_changed: true })">transition</button>',
+          template: '<button data-testid="transition" :disabled="disabled" @click="$emit(\'transitioned\', { transition: \'publish\', from: \'review\', to: \'published\', public_changed: true })">transition</button>',
         },
         WorkflowTransitionHistoryTimeline: { template: '<div data-testid="history" />' },
         EntityEditorEntityRevisionRecovery: {
@@ -86,6 +90,7 @@ describe('EntityEditorWorkspace', () => {
     fetchSchemaMock.mockReset().mockResolvedValue(undefined)
     removeMock.mockReset().mockResolvedValue(undefined)
     hasCapabilityMock.mockReset().mockReturnValue(true)
+    getEntityMock.mockReset().mockReturnValue({ reference: { labelField: 'title' } })
     revisionHistoryRequests.length = 0
   })
 
@@ -179,4 +184,76 @@ describe('EntityEditorWorkspace', () => {
     const readOnly = await mountWorkspace('43')
     expect(readOnly.find('.btn-danger').exists()).toBe(false)
   })
+  it('uses only the catalog label and escapes it while keeping identifier and Delete in secondary details', async () => {
+    getEntityMock.mockReturnValue({ reference: { labelField: 'name' } })
+    const wrapper = await mountWorkspace('42')
+    wrapper.getComponent({ name: 'SchemaForm' }).vm.$emit('loaded', {
+      id: '42', attributes: { title: 'Do not guess this field', name: 'Coordinator <img src=x>' },
+    })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('Coordinator <img src=x>')
+    expect(wrapper.find('h1 img').exists()).toBe(false)
+    expect(wrapper.get('h1').text()).not.toContain('42')
+    expect(wrapper.find('header .btn-danger').exists()).toBe(false)
+    const details = wrapper.get('details')
+    expect(details.text()).toContain('42')
+    expect(details.find('.btn-danger').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="schema-form"]').element.compareDocumentPosition(details.element)
+      & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    wrapper.getComponent({ name: 'SchemaForm' }).vm.$emit('saved', {
+      id: '42', attributes: { name: 'Saved coordinator' },
+    })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('Saved coordinator')
+  })
+
+  it('keeps a truthful generic heading for absent or empty catalog labels', async () => {
+    const wrapper = await mountWorkspace('42')
+    wrapper.getComponent({ name: 'SchemaForm' }).vm.$emit('loaded', {
+      id: '42', attributes: { title: '  ', name: 'Undeclared fallback must not be used' },
+    })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('edit_entity')
+  })
+
+  it('pauses canonical publication while the form is dirty and resumes only after it is clean', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: true, id: 'editorial' } }
+    const wrapper = await mountWorkspace('42')
+    const form = wrapper.getComponent({ name: 'SchemaForm' })
+    form.vm.$emit('dirty', true)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="transition"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('editor_save_before_transition')
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+    form.vm.$emit('dirty', false)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="transition"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('retains the same dirty form and input when a transition completes after typing begins', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: true, id: 'editorial' } }
+    const wrapper = await mountWorkspace('42')
+    const form = wrapper.getComponent({ name: 'SchemaForm' })
+    const input = form.get('[data-testid="working-input"]')
+    await input.setValue('Unsaved while publication was pending')
+    form.vm.$emit('dirty', true)
+    await flushPromises()
+    wrapper.getComponent({ name: 'WorkflowTransitionControls' }).vm.$emit('transitioned', {
+      transition: 'publish', from: 'review', to: 'published', public_changed: true,
+    })
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'SchemaForm' }).vm).toBe(form.vm)
+    expect((input.element as HTMLInputElement).value).toBe('Unsaved while publication was pending')
+    expect(wrapper.get('[data-testid="transition"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+  })
+
+  it('does not guess a label when the catalog has no reference declaration', async () => {
+    getEntityMock.mockReturnValue(undefined)
+    const wrapper = await mountWorkspace('42')
+    wrapper.getComponent({ name: 'SchemaForm' }).vm.$emit('loaded', { id: '42', attributes: { title: 'Not declared' } })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('edit_entity')
+  })
+
 })
