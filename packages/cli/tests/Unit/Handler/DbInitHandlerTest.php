@@ -579,7 +579,8 @@ final class DbInitHandlerTest extends TestCase
         try {
             $tester->execute([]);
             self::fail('Missing required binding was accepted.');
-        } catch (\RuntimeException) {
+        } catch (\RuntimeException $error) {
+            self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error);
             self::assertSame(['.', '..'], scandir($this->projectRoot . '/storage'));
         }
     }
