@@ -79,7 +79,8 @@ final class OptimizeClearHandlerTest extends TestCase
         mkdir($runtime . '/framework/manifests/' . $digest, 0o700, true);
         mkdir($runtime . '/framework/manifests/' . str_repeat('b', 64), 0o700, true);
         symlink($runtime, $base . '/storage');
-        file_put_contents($base . '/composer.json', '{"extra":{"waaseyaa":{"manifest-cache":"artifact-bound-v1"}}}');
+        file_put_contents($base . '/composer.json', '{}');
+        file_put_contents($base . '/.waaseyaa/manifest-cache-layout', "artifact-bound-v1\n");
         file_put_contents($base . '/.waaseyaa/manifest-runtime-binding.json', json_encode(['schema' => 'waaseyaa.manifest-runtime-binding.v1', 'artifact_sha256' => $digest], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
         $compiler = new \Waaseyaa\Foundation\Discovery\PackageManifestCompiler($base, $base . '/storage');
         $compiler->compileAndCache();

@@ -571,8 +571,9 @@ final class DbInitHandlerTest extends TestCase
     #[Test]
     public function missingArtifactBindingRefusesBeforeDatabaseOrLockCreation(): void
     {
-        file_put_contents($this->projectRoot . '/composer.json', '{"extra":{"waaseyaa":{"manifest-cache":"artifact-bound-v1"}}}');
+        file_put_contents($this->projectRoot . '/composer.json', '{}');
         mkdir($this->projectRoot . '/.waaseyaa', 0o700);
+        file_put_contents($this->projectRoot . '/.waaseyaa/manifest-cache-layout', "artifact-bound-v1\n");
         $tester = $this->createTester();
         try {
             $tester->execute([]);

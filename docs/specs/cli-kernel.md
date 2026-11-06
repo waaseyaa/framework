@@ -1034,7 +1034,7 @@ qualification. Graph JSON uses writeRaw without presentation normalization.
 ## Artifact-bound manifest parity
 
 CLI manifest consumers use PackageManifestCompiler's canonical selection and
-public selectedManifestPath accessor, with the same archived Composer opt-in
+public selectedManifestPath accessor, with the same archived fixed layout marker
 and fixed runtime binding as HTTP. The owning layout and witness contract is
 [infrastructure.md](infrastructure.md#artifact-bound-compiled-package-manifest-layout).
 Required binding validation precedes database initialization files and locks.

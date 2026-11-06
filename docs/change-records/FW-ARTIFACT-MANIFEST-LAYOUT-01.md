@@ -8,7 +8,7 @@ fbf377164530f353881eaef212b3a92b9846764538e25eb2a80ffee0fce8ade5.
 
 The existing shared runtime cache allows two different release manifests to
 overwrite one another during code switching. A single canonical compiler-owned
-layout resolves an immutable Composer opt-in and exact host-created binding.
+layout resolves an immutable fixed code marker and exact host-created binding.
 It keeps all ordinary runtime/configuration custody unchanged and isolates
 packages.php per artifact digest. Missing required custody fails before kernel
 or db:init creates database state. Direct private-copy compiler callers cannot
@@ -23,7 +23,7 @@ required because generic Filesystem::dumpFile follows target links and cannot
 satisfy the fixed no-follow temporary custody contract. Legacy behavior remains
 unchanged. No new dependency or operator engine is introduced.
 
-Acceptance covers strict canonical opt-in/binding and symlink refusal, missing
+Acceptance covers strict canonical marker/binding and symlink refusal, missing
 preparation, scope isolation, concurrent different logical metadata, protected
 legacy cache preservation, known-missing stamps, temporary symlink refusal,
 actual HTTP/console boot path parity, scoped CLI clear, and unchanged existing
@@ -61,3 +61,20 @@ controls separately prove success, refusal, isolation, selected clearing and
 legacy-cache preservation. Engagement evidence: Sprint1 manifest-layout-producer
 symfony-fit.php and symfony-fit-result.json; source and test pins above remain
 portable if that engagement evidence is unavailable.
+
+## Pre-publication selector correction
+
+The original unpublished Composer-extra selector changed Composer content-hash
+inputs when a release profile injected it after lock generation. The final
+contract replaces it entirely with `.waaseyaa/manifest-cache-layout`, exact
+18-byte `artifact-bound-v1` plus LF, generated only by an explicit governed
+artifact profile and included in its archive integrity map. Both reserved
+marker/binding paths must be absent from committed application source before
+assembly; the host verifies that external authority, not this producer.
+Composer files and main-lane records remain byte-identical. No metadata lock
+rewrite, main-record reinterpretation or second selector is introduced.
+
+The frozen original source/evidence remains historical. This implementation
+starts from 8ff62072d63beb5c7ff446e32cde75a129238ab0 and preserves the reviewed
+Admin source/dist and filesystem-fit documentation. Only selector, owning tests
+and this contract documentation change.

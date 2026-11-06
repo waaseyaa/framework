@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Discovery;
 /** Fixed manifest layout selection. Host artifact/custody admission remains separate. @internal */
 final readonly class ManifestCacheLayout
 {
+    public const string LAYOUT_PATH = '/.waaseyaa/manifest-cache-layout';
     public const string BINDING_PATH = '/.waaseyaa/manifest-runtime-binding.json';
 
     private function __construct(
@@ -20,59 +21,30 @@ final readonly class ManifestCacheLayout
 
     public static function resolve(string $basePath, string $storagePath, ManifestCompilationContext $context = ManifestCompilationContext::ArtifactBound): self
     {
-        $composerPath = $basePath . '/composer.json';
-        $composer = is_file($composerPath) ? json_decode((string) file_get_contents($composerPath), true, flags: JSON_THROW_ON_ERROR) : [];
-        $extra = $composer['extra']['waaseyaa'] ?? [];
-        $selected = is_array($extra) && array_key_exists('manifest-cache', $extra);
-        $mode = $selected ? $extra['manifest-cache'] : null;
+        $markerPath = $basePath . self::LAYOUT_PATH;
+        $selected = file_exists($markerPath) || is_link($markerPath);
         $bindingPath = $basePath . self::BINDING_PATH;
         if (!$selected) {
             if (file_exists($bindingPath) || is_link($bindingPath)) {
                 throw new \RuntimeException('Unexpected manifest runtime binding on a legacy project.');
             }
             if ($context !== ManifestCompilationContext::ArtifactBound) {
-                throw new \RuntimeException('Isolated manifest validation requires artifact-bound opt-in.');
+                throw new \RuntimeException('Isolated manifest validation requires the artifact-bound layout marker.');
             }
             $physicalBase = realpath($basePath);
             $physicalRuntime = realpath($basePath . '/storage');
             return new self('legacy', $physicalBase !== false ? $physicalBase : $basePath, $physicalRuntime !== false ? $physicalRuntime : $storagePath, $storagePath . '/framework/packages.php');
         }
-        if ($mode !== 'artifact-bound-v1') {
-            throw new \RuntimeException('Unsupported manifest-cache opt-in.');
-        }
         $base = self::canonicalDirectory($basePath);
+        self::canonicalDirectory($base . '/.waaseyaa');
+        if (self::readControlFile($markerPath, $base . '/.waaseyaa', 18, 18) !== "artifact-bound-v1\n") {
+            throw new \RuntimeException('Unsupported canonical manifest-cache layout marker.');
+        }
         $runtime = realpath($base . '/storage');
         if ($runtime === false || !is_dir($runtime)) {
             throw new \RuntimeException('Artifact-bound manifests require an existing canonical runtime.');
         }
-        self::canonicalDirectory($base . '/.waaseyaa');
-        clearstatcache(true, $bindingPath);
-        $stat = @lstat($bindingPath);
-        if ($stat === false || ($stat['mode'] & 0o170000) !== 0o100000 || is_link($bindingPath)
-            || $stat['size'] > 512 || $stat['nlink'] !== 1 || ($stat['mode'] & 0o022) !== 0
-            || $stat['uid'] !== fileowner($base . '/.waaseyaa')
-        ) {
-            throw new \RuntimeException('Manifest binding must be a bounded regular non-symlink custody file.');
-        }
-        $handle = fopen($bindingPath, 'rb');
-        if ($handle === false) {
-            throw new \RuntimeException('Cannot read required manifest binding.');
-        }
-        try {
-            $opened = fstat($handle);
-            $bytes = fread($handle, 513);
-        } finally {
-            fclose($handle);
-        }
-        clearstatcache(true, $bindingPath);
-        $after = @lstat($bindingPath);
-        if ($bytes === false || strlen($bytes) > 512 || $opened === false || $after === false
-            || $opened['ino'] !== $stat['ino'] || $opened['dev'] !== $stat['dev']
-            || $after['ino'] !== $stat['ino'] || $after['dev'] !== $stat['dev']
-            || ($after['mode'] & 0o170000) !== 0o100000
-        ) {
-            throw new \RuntimeException('Manifest binding custody changed while reading.');
-        }
+        $bytes = self::readControlFile($bindingPath, $base . '/.waaseyaa', 512);
         $binding = json_decode($bytes, true, flags: JSON_THROW_ON_ERROR);
         if (!is_array($binding) || array_keys($binding) !== ['schema', 'artifact_sha256']
             || $binding['schema'] !== 'waaseyaa.manifest-runtime-binding.v1'
@@ -145,6 +117,41 @@ final readonly class ManifestCacheLayout
             }
 
         }
+    }
+
+    /** Read one fixed manifest control file without accepting links or racing identity. */
+    private static function readControlFile(string $path, string $parent, int $maximum, ?int $exact = null): string
+    {
+        clearstatcache(true, $path);
+        $stat = @lstat($path);
+        if ($stat === false || ($stat['mode'] & 0o170000) !== 0o100000 || is_link($path)
+            || $stat['size'] > $maximum || ($exact !== null && $stat['size'] !== $exact)
+            || $stat['nlink'] !== 1 || ($stat['mode'] & 0o022) !== 0 || $stat['uid'] !== fileowner($parent)
+        ) {
+            throw new \RuntimeException('Manifest control must be a bounded regular non-symlink custody file.');
+        }
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            throw new \RuntimeException('Cannot read required manifest control.');
+        }
+        try {
+            $opened = fstat($handle);
+            $bytes = fread($handle, $maximum + 1);
+        } finally {
+            fclose($handle);
+        }
+        clearstatcache(true, $path);
+        $after = @lstat($path);
+        if ($bytes === false || strlen($bytes) > $maximum || ($exact !== null && strlen($bytes) !== $exact)
+            || $opened === false || $after === false
+            || $opened['ino'] !== $stat['ino'] || $opened['dev'] !== $stat['dev']
+            || $after['ino'] !== $stat['ino'] || $after['dev'] !== $stat['dev']
+            || ($after['mode'] & 0o170000) !== 0o100000 || $after['nlink'] !== 1
+            || ($after['mode'] & 0o022) !== 0 || $after['uid'] !== $stat['uid']
+        ) {
+            throw new \RuntimeException('Manifest control custody changed while reading.');
+        }
+        return $bytes;
     }
 
     private static function canonicalDirectory(string $path): string

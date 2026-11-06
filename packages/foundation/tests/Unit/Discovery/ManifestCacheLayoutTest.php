@@ -32,13 +32,48 @@ final class ManifestCacheLayoutTest extends TestCase
         if (!is_dir($this->root . '/runtime')) mkdir($this->root . '/runtime', 0o700);
         symlink($this->root . '/runtime', $base . '/storage');
         mkdir($this->root . '/runtime/framework/manifests/' . $digest, 0o700, true);
-        file_put_contents($base . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['manifest-cache' => 'artifact-bound-v1']]], JSON_THROW_ON_ERROR));
+        file_put_contents($base . '/composer.json', '{"name":"local/manifest-fixture"}');
+        file_put_contents($base . ManifestCacheLayout::LAYOUT_PATH, "artifact-bound-v1\n");
         file_put_contents($base . ManifestCacheLayout::BINDING_PATH, json_encode(['schema' => 'waaseyaa.manifest-runtime-binding.v1', 'artifact_sha256' => $digest], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
         chmod($base . ManifestCacheLayout::BINDING_PATH, 0o440);
         file_put_contents($base . '/vendor/composer/installed.json', '{"packages":[]}');
         return $base;
     }
-    public function testBindingSelectsOnlyPreparedDigestRootAndPreservesOrdinaryStorage(): void
+    public function testMarkerIsStrictBoundedRegularAndNeverChangesComposerLockOrRecords(): void
+    {
+        $base = $this->release();
+        $marker = $base . ManifestCacheLayout::LAYOUT_PATH;
+        file_put_contents($base . '/composer.lock', '{"content-hash":"synthetic-unchanged-lock"}');
+        mkdir($base . '/docs/architecture', 0o700, true);
+        file_put_contents($base . '/docs/architecture/framework-main-checkout.json', '{"fixture":"immutable-record"}');
+        $inputs = ['/composer.json', '/composer.lock', '/docs/architecture/framework-main-checkout.json'];
+        $before = array_map(static fn(string $path): string => (string) file_get_contents($base . $path), $inputs);
+        foreach (["artifact-bound-v1", "artifact-bound-v1\r\n", "artifact-bound-v2\n", " artifact-bound-v1\n", '{"mode":"artifact-bound-v1"}', str_repeat('x', 1024)] as $invalid) {
+            file_put_contents($marker, $invalid);
+            try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Noncanonical marker accepted.'); }
+            catch (\RuntimeException) { self::assertTrue(true); }
+        }
+        unlink($marker); file_put_contents($this->root . '/marker-target', "artifact-bound-v1\n"); symlink($this->root . '/marker-target', $marker);
+        try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Marker symlink accepted.'); }
+        catch (\RuntimeException) { self::assertTrue(true); }
+        unlink($marker); link($this->root . '/marker-target', $marker);
+        try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Marker hardlink accepted.'); }
+        catch (\RuntimeException) { self::assertTrue(true); }
+        unlink($marker); file_put_contents($marker, "artifact-bound-v1\n");
+        new PackageManifestCompiler($base, $base . '/storage');
+        self::assertSame($before, array_map(static fn(string $path): string => (string) file_get_contents($base . $path), $inputs));
+    }
+    public function testComposerMetadataIsNotASecondLayoutSelector(): void
+    {
+        $base = $this->release();
+        unlink($base . ManifestCacheLayout::LAYOUT_PATH);
+        unlink($base . ManifestCacheLayout::BINDING_PATH);
+        file_put_contents($base . '/composer.json', '{"extra":{"waaseyaa":{"manifest-cache":"artifact-bound-v1"}}}');
+        $compiler = new PackageManifestCompiler($base, $base . '/storage');
+        $compiler->load();
+        self::assertSame('legacy', $compiler->manifestCacheWitness()['context']);
+        self::assertSame($base . '/storage/framework/packages.php', $compiler->selectedManifestPath());
+    }    public function testBindingSelectsOnlyPreparedDigestRootAndPreservesOrdinaryStorage(): void
     {
         $base = $this->release();
         file_put_contents($this->root . '/runtime/waaseyaa.sqlite', 'database sentinel');
@@ -113,6 +148,7 @@ final class ManifestCacheLayoutTest extends TestCase
     public function testLegacyWithoutOptInRetainsItsExplicitStorageAuthorityButRejectsBinding(): void
     {
         $base = $this->release();
+        unlink($base . ManifestCacheLayout::LAYOUT_PATH);
         file_put_contents($base . '/composer.json', '{}');
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Unexpected binding accepted.'); }
         catch (\RuntimeException) { self::assertTrue(true); }
@@ -150,14 +186,14 @@ final class ManifestCacheLayoutTest extends TestCase
         $method = new \ReflectionMethod($checker, 'checkCacheDirectory');
         $result = $method->invoke($checker);
         self::assertStringContainsString('/framework/manifests/' . str_repeat('a', 64), $result->message);
-    }    public function testNullOptInMissingPreparationAndForeignCacheNeverAllocateOrFallback(): void
+    }    public function testMalformedMarkerMissingPreparationAndForeignCacheNeverAllocateOrFallback(): void
     {
         $base = $this->release();
-        $composer = file_get_contents($base . '/composer.json');
-        file_put_contents($base . '/composer.json', '{"extra":{"waaseyaa":{"manifest-cache":null}}}');
-        try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Null opt-in accepted.'); }
+        $marker = $base . ManifestCacheLayout::LAYOUT_PATH;
+        file_put_contents($marker, "artifact-bound-v2\n");
+        try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Unsupported marker accepted.'); }
         catch (\RuntimeException) { self::assertTrue(true); }
-        file_put_contents($base . '/composer.json', $composer);
+        file_put_contents($marker, "artifact-bound-v1\n");
         $dir = $this->root . '/runtime/framework/manifests/' . str_repeat('a', 64);
         rmdir($dir);
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Missing preparation allocated silently.'); }
@@ -182,7 +218,7 @@ final class ManifestCacheLayoutTest extends TestCase
     public function testKnownMissingStampStaysWithinSelectedArtifact(): void
     {
         $base = $this->release();
-        file_put_contents($base . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['manifest-cache' => 'artifact-bound-v1', 'providers' => ['UninstalledManifestLayoutTestProvider']]]], JSON_THROW_ON_ERROR));
+        file_put_contents($base . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => ['UninstalledManifestLayoutTestProvider']]]], JSON_THROW_ON_ERROR));
         file_put_contents($this->root . '/runtime/framework/packages.php', 'retained legacy sentinel');
         $compiler = new PackageManifestCompiler($base, $base . '/storage');
         $compiler->load();
@@ -198,7 +234,7 @@ final class ManifestCacheLayoutTest extends TestCase
         if (!function_exists('pcntl_fork')) self::markTestSkipped('Concurrent compiler proof requires CLI pcntl.');
         $a = $this->release('a', str_repeat('a', 64));
         $b = $this->release('b', str_repeat('b', 64));
-        file_put_contents($b . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['manifest-cache' => 'artifact-bound-v1', 'providers' => [\Waaseyaa\Foundation\FoundationServiceProvider::class]]]], JSON_THROW_ON_ERROR));
+        file_put_contents($b . '/composer.json', json_encode(['extra' => ['waaseyaa' => ['providers' => [\Waaseyaa\Foundation\FoundationServiceProvider::class]]]], JSON_THROW_ON_ERROR));
         $pid = pcntl_fork();
         self::assertNotSame(-1, $pid);
         if ($pid === 0) {
