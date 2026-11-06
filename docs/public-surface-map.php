@@ -475,6 +475,8 @@ return [
     'Waaseyaa\Foundation\Community\CommunityContextInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',
+    'Waaseyaa\Foundation\Discovery\ManifestCacheLayout' => 'internal',
+    'Waaseyaa\Foundation\Discovery\ManifestCompilationContext' => 'public',
     'Waaseyaa\Foundation\Event\DomainEvent' => 'public',
     'Waaseyaa\Foundation\Event\EventDispatcherInterface' => 'public',
     'Waaseyaa\Foundation\Exception\WaaseyaaException' => 'public',

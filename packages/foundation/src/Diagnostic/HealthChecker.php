@@ -731,7 +731,7 @@ final class HealthChecker implements HealthCheckerInterface
 
     private function checkCacheDirectory(): HealthCheckResult
     {
-        $dir = $this->projectRoot . '/storage/framework';
+        $dir = dirname(new \Waaseyaa\Foundation\Discovery\PackageManifestCompiler($this->projectRoot, $this->projectRoot . '/storage')->selectedManifestPath());
 
         if (!is_dir($dir)) {
             // Already reported by storage directory check.
@@ -739,13 +739,13 @@ final class HealthChecker implements HealthCheckerInterface
         }
 
         if (is_writable($dir)) {
-            return HealthCheckResult::pass('Cache directory', 'storage/framework/ is writable.');
+            return HealthCheckResult::pass('Cache directory', $dir . ' is writable.');
         }
 
         return HealthCheckResult::warn(
             'Cache directory',
             DiagnosticCode::CACHE_DIRECTORY_UNWRITABLE,
-            'storage/framework/ is not writable.',
+            $dir . ' is not writable.',
         );
     }
 }

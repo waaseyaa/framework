@@ -8,6 +8,8 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Foundation\\Discovery\\ManifestCompilationContext', 'disposition' => 'public', 'purpose' => 'Explicit artifact-bound versus isolated-validation manifest compilation context'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\Discovery\\ManifestCacheLayout', 'disposition' => 'internal', 'purpose' => 'Fixed immutable runtime binding and canonical manifest cache custody validation'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Kernel\\HttpRouteComposer', 'disposition' => 'internal', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\Routing\\Metadata\\FoundationRouteDefinitions', 'disposition' => 'internal', 'ref' => '#3123'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\ExplicitHandlerServices', 'disposition' => 'public', 'ref' => '#3123'],

@@ -65,6 +65,8 @@ final class PackageManifestCompiler
     private const CONTENT_ENTITY_BASE = 'Waaseyaa\\Entity\\ContentEntityBase';
 
     private readonly LoggerInterface $logger;
+    private readonly ManifestCacheLayout $cacheLayout;
+    private ?array $loadedManifestWitness = null;
 
     /**
      * Memoized result of {@see scanClasses()}. Populated on first call within this
@@ -81,14 +83,82 @@ final class PackageManifestCompiler
         private readonly string $basePath,
         private readonly string $storagePath,
         ?LoggerInterface $logger = null,
+        ManifestCompilationContext $compilationContext = ManifestCompilationContext::ArtifactBound,
     ) {
+        $this->cacheLayout = ManifestCacheLayout::resolve($basePath, $storagePath, $compilationContext);
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    /** @api The only selected compiled package-manifest path authority. */
+    public function selectedManifestPath(): string
+    {
+        $this->cacheLayout->assertSelectedPath();
+        return $this->cacheLayout->manifestPath;
+    }
+
+    /** @api Captured loaded evidence, never an activation approval. */
+    public function manifestCacheWitness(): array
+    {
+        return $this->loadedManifestWitness ?? throw new \LogicException('No manifest has been loaded by this compiler.');
+    }
+
+    public function compile(): PackageManifest
+    {
+        $manifest = $this->compileFresh();
+        $this->captureWitness($manifest, false);
+        return $manifest;
+    }
+
+    public function load(): PackageManifest
+    {
+        $this->cacheLayout->assertSelectedPath();
+        $manifest = $this->loadSelected();
+        $this->captureWitness($manifest, true);
+        return $manifest;
+    }
+
+    private function writeManifestTemporary(string $path, string $content): int|false
+    {
+        $this->cacheLayout->assertSelectedPath();
+        if ($this->cacheLayout->context === 'legacy') {
+            return file_put_contents($path, $content);
+        }
+        // Exclusive creation prevents a pre-existing temporary symlink from
+        // redirecting writes outside the admitted artifact directory.
+        $handle = @fopen($path, 'x+b');
+        if ($handle === false) {
+            return false;
+        }
+        try {
+            $written = fwrite($handle, $content);
+            if ($written !== strlen($content)) {
+                return false;
+            }
+            return $written;
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    private function captureWitness(PackageManifest $manifest, bool $cached): void
+    {
+        $path = $this->selectedManifestPath();
+        $this->loadedManifestWitness = [
+            'context' => $this->cacheLayout->context,
+            'physical_release_root' => $this->cacheLayout->physicalReleaseRoot,
+            'runtime_root' => $this->cacheLayout->runtimeRoot,
+            'binding_sha256' => $this->cacheLayout->bindingSha256,
+            'artifact_sha256' => $this->cacheLayout->artifactSha256,
+            'manifest_path' => $path,
+            'manifest_sha256' => $cached && is_file($path) ? hash_file('sha256', $path) : null,
+            'logical_manifest_sha256' => hash('sha256', json_encode($manifest->toArray(), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
     }
 
     /**
      * Compile the package manifest from composer metadata and attribute scanning.
      */
-    public function compile(): PackageManifest
+    private function compileFresh(): PackageManifest
     {
         $providers = [];
         $migrations = [];
@@ -405,7 +475,7 @@ final class PackageManifestCompiler
     {
         $manifest = $this->compile();
 
-        $dir = $this->storagePath . '/framework';
+        $dir = dirname($this->selectedManifestPath());
         if (!is_dir($dir) && !@mkdir($dir, 0o755, true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf('Failed to create cache directory: %s', $dir));
         }
@@ -416,7 +486,7 @@ final class PackageManifestCompiler
         $content = '<?php return ' . var_export($payload, true) . ';' . "\n";
         $tmpPath = $cachePath . '.tmp.' . getmypid();
 
-        if (file_put_contents($tmpPath, $content) === false) {
+        if ($this->writeManifestTemporary($tmpPath, $content) === false) {
             throw new \RuntimeException(sprintf('Failed to write package manifest cache to %s', $cachePath));
         }
 
@@ -425,15 +495,16 @@ final class PackageManifestCompiler
             throw new \RuntimeException(sprintf('Failed to atomically replace package manifest at %s', $cachePath));
         }
 
+        $this->captureWitness($manifest, true);
         return $manifest;
     }
 
     /**
      * Load from cache or compile.
      */
-    public function load(): PackageManifest
+    private function loadSelected(): PackageManifest
     {
-        $cachePath = $this->storagePath . '/framework/packages.php';
+        $cachePath = $this->selectedManifestPath();
         if (is_file($cachePath)) {
             try {
                 $data = require $cachePath;
@@ -554,7 +625,7 @@ final class PackageManifestCompiler
      */
     private function stampKnownMissing(array $missingProviders): void
     {
-        $cachePath = $this->storagePath . '/framework/packages.php';
+        $cachePath = $this->selectedManifestPath();
         if (!is_file($cachePath)) {
             $this->logger->warning('Cannot stamp known-missing providers: cache file does not exist.');
             return;
@@ -578,7 +649,7 @@ final class PackageManifestCompiler
         $content = '<?php return ' . var_export($data, true) . ';' . "\n";
         $tmpPath = $cachePath . '.tmp.' . getmypid();
 
-        if (file_put_contents($tmpPath, $content) === false) {
+        if ($this->writeManifestTemporary($tmpPath, $content) === false) {
             $this->logger->warning(sprintf('Cannot stamp known-missing providers: failed to write %s', $tmpPath));
             return;
         }

@@ -3473,3 +3473,54 @@ participation and input-custody checks. Bimaaji projects that authority via the
 existing RouteMetadataCompiler; route:list constructs its router from it.
 Neither consumer assembles HTTP execution routers or invokes legacy hooks.
 The shared refusal/compatibility contract is recorded in route-metadata.md.
+
+## Artifact-bound compiled package manifest layout
+
+Root `composer.json` may opt in with
+`extra.waaseyaa.manifest-cache: artifact-bound-v1`. The fixed generated overlay
+`.waaseyaa/manifest-runtime-binding.json` must contain only `schema` equal to
+`waaseyaa.manifest-runtime-binding.v1` and lowercase 64-character
+`artifact_sha256`, in that order as compact JSON followed by LF. It is a bounded
+regular non-symlink file under the physical release root. The host reserves
+this overlay path outside the archive, proves it absent from archived bytes,
+then attests its exact canonical bytes/hash, owner/mode and artifact identity.
+The Framework checks format and path custody; it does not invent host authority.
+
+The canonical compiler selects only
+`realpath(release/storage)/framework/manifests/<digest>/packages.php`. Required
+binding, selected directories and ordinary runtime must already exist. Unknown
+mode, malformed/missing required binding, unexpected legacy binding, symlink or
+unsafe selected cache custody refuses before writes. Legacy projects without
+opt-in or overlay retain the existing explicit storagePath behavior. Shared
+configuration cache, database/WAL, files, media, environment and sessions retain
+their existing roots and authorities.
+
+`PackageManifestCompiler::selectedManifestPath()` is the sole selected path
+accessor. Reads, recompilation, known-missing stamps and atomic temporary writes
+use it. Selected temporary creation is exclusive and never follows an existing
+symlink. `manifestCacheWitness()` captures the loaded logical metadata and
+physical cache/binding identities; `AbstractKernel::manifestCacheWitness()`
+exposes the actual canonical boot result shared by HTTP and console. Fresh
+non-cached development compilation has no physical cache digest and cannot
+stand in for an admitted cached production-runtime witness.
+
+Normal opted-in compiler construction requires explicit storagePath to resolve
+the bound canonical runtime. The typed
+`ManifestCompilationContext::IsolatedValidation` instead preserves the supplied
+canonical private storage root, refusing equality/ancestor/descendant overlap
+with live runtime or release. Its selected digest directory must already exist;
+its witness is explicitly isolated and never establishes actual kernel use.
+Kernel boot never selects that context. Thus old private-copy operator callers
+refuse until their explicit isolated-validation caller is reviewed.
+
+CLI manifest compilation and db:init use the same constructor path selection;
+db:init validates layout before database directories, locks or files. Selected
+optimize:clear removes only its selected package manifest/temporary files plus
+the existing explicitly named shared configuration cache. It preserves legacy
+and other artifact manifests. Legacy clear behavior remains unchanged.
+
+Operator activation/rollback requires separately reviewed versioned layout,
+reserved overlay roster, exclusive cache preparation, binding-vs-admitted digest
+checks and actual FPM witness. Different releases keep their own manifest roots
+while database/files/environment stay shared; no old-request drain is presumed.
+A runtime witness is evidence, never deployment authorization or recovery proof.

@@ -68,9 +68,36 @@ final class OptimizeClearHandlerTest extends TestCase
         rmdir($noFramework);
     }
 
-    private function createTester(string $storagePath): CliTester
+    #[Test]
+    public function artifact_bound_clear_preserves_legacy_and_other_artifact_manifests(): void
     {
-        $handler = new OptimizeClearHandler(storagePath: $storagePath);
+        $base = $this->tempDir . '/release';
+        $runtime = $this->tempDir . '/runtime';
+        $digest = str_repeat('a', 64);
+        mkdir($base . '/.waaseyaa', 0o700, true);
+        mkdir($base . '/vendor/composer', 0o700, true);
+        mkdir($runtime . '/framework/manifests/' . $digest, 0o700, true);
+        mkdir($runtime . '/framework/manifests/' . str_repeat('b', 64), 0o700, true);
+        symlink($runtime, $base . '/storage');
+        file_put_contents($base . '/composer.json', '{"extra":{"waaseyaa":{"manifest-cache":"artifact-bound-v1"}}}');
+        file_put_contents($base . '/.waaseyaa/manifest-runtime-binding.json', json_encode(['schema' => 'waaseyaa.manifest-runtime-binding.v1', 'artifact_sha256' => $digest], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        $compiler = new \Waaseyaa\Foundation\Discovery\PackageManifestCompiler($base, $base . '/storage');
+        $compiler->compileAndCache();
+        file_put_contents($runtime . '/framework/packages.php', 'legacy sentinel');
+        file_put_contents($runtime . '/framework/config.php', '<?php return [];');
+        $other = $runtime . '/framework/manifests/' . str_repeat('b', 64) . '/packages.php';
+        file_put_contents($other, 'other artifact sentinel');
+        $tester = $this->createTester($runtime, $compiler);
+        $tester->execute([]);
+        self::assertSame(0, $tester->getExitCode());
+        self::assertFileDoesNotExist($compiler->selectedManifestPath());
+        self::assertFileDoesNotExist($runtime . '/framework/config.php');
+        self::assertSame('legacy sentinel', file_get_contents($runtime . '/framework/packages.php'));
+        self::assertSame('other artifact sentinel', file_get_contents($other));
+    }
+    private function createTester(string $storagePath, ?\Waaseyaa\Foundation\Discovery\PackageManifestCompiler $compiler = null): CliTester
+    {
+        $handler = new OptimizeClearHandler(storagePath: $storagePath, manifestCompiler: $compiler);
         $definition = new HandlerCommand(
             name: 'optimize:clear',
             description: 'Remove all cached optimization artifacts',

@@ -568,6 +568,19 @@ final class DbInitHandlerTest extends TestCase
         }
     }
 
+    #[Test]
+    public function missingArtifactBindingRefusesBeforeDatabaseOrLockCreation(): void
+    {
+        file_put_contents($this->projectRoot . '/composer.json', '{"extra":{"waaseyaa":{"manifest-cache":"artifact-bound-v1"}}}');
+        mkdir($this->projectRoot . '/.waaseyaa', 0o700);
+        $tester = $this->createTester();
+        try {
+            $tester->execute([]);
+            self::fail('Missing required binding was accepted.');
+        } catch (\RuntimeException) {
+            self::assertSame(['.', '..'], scandir($this->projectRoot . '/storage'));
+        }
+    }
     private function createTester(?LoggerInterface $logger = null): CliTester
     {
         $handler = new DbInitHandler(projectRoot: $this->projectRoot, logger: $logger);

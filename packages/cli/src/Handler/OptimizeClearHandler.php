@@ -10,6 +10,7 @@ final class OptimizeClearHandler
 {
     public function __construct(
         private readonly string $storagePath,
+        private readonly ?\Waaseyaa\Foundation\Discovery\PackageManifestCompiler $manifestCompiler = null,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -21,8 +22,14 @@ final class OptimizeClearHandler
             return 0;
         }
 
-        $globResult = glob($frameworkPath . '/*.php');
-        $files = $globResult !== false ? $globResult : [];
+        $selected = $this->manifestCompiler?->selectedManifestPath();
+        if ($selected !== null && $selected !== $frameworkPath . '/packages.php') {
+            $files = [$selected, $frameworkPath . '/config.php', ...(glob($selected . '.tmp.*') ?: [])];
+            $files = array_values(array_filter($files, static fn(string $path): bool => is_file($path) && !is_link($path)));
+        } else {
+            $globResult = glob($frameworkPath . '/*.php');
+            $files = $globResult !== false ? $globResult : [];
+        }
         $count = 0;
 
         foreach ($files as $file) {

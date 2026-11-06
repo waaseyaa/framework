@@ -43,6 +43,8 @@ final class DbInitHandler
 
     public function execute(SymfonyCommandIO $io): int
     {
+        // Validate required manifest custody before database files, locks or directories.
+        new PackageManifestCompiler($this->projectRoot, $this->projectRoot . '/storage');
         $dryRun = (bool) $io->option('dry-run');
 
         EnvLoader::load($this->projectRoot . '/.env');
