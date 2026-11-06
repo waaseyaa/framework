@@ -351,6 +351,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
             }
         }
         self::assertSame([
+            'packages/audit/src/Listener/EntityLifecycleAuditListener.php',
             'packages/entity/src/RevisionRestoreChangedFields.php',
             'packages/entity/src/Write/EntityWritePayloadGuard.php',
         ], $callers);

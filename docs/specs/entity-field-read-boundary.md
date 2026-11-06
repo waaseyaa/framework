@@ -467,7 +467,7 @@ private closure authority and is not implemented through `toArray()`,
 
 Whole-bag comparisons use the closed `EntityValueComparator` inside the private
 containers and return only equality or changed-field-name metadata. Revision
-restoration and write-echo bookkeeping never export compared values; their
+restoration, entity lifecycle audit changed-field names and write-echo bookkeeping never export compared values; their
 legacy `toArray()` branches remain only for third-party `EntityInterface`
 implementations that cannot expose the framework container.
 
