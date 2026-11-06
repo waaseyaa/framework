@@ -1258,3 +1258,12 @@ initial-role policy, but cannot replace credential, session, token, CSRF, 2FA,
 rate-limit, controller, or authorization services. Role ids and permissions are
 expanded through the canonical `RoleRepository`; duplicate definitions and
 unknown initial assignments fail closed.
+
+## Render-route sign-in return targets
+
+Authorization middleware preserves the requested local path and query string in
+the sign-in return target, both for an unauthenticated render-route redirect and
+the default forbidden-page sign-in link. The existing RedirectValidator must
+accept the target before transport encoding; link targets remain HTML escaped.
+This preserves view filters without changing route access decisions or API
+unauthenticated and forbidden responses.

@@ -73,7 +73,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
 
         if ($result->isUnauthenticated()) {
             if ($isRenderRoute) {
-                $redirectTarget = $this->redirectValidator->sanitize($request->getPathInfo());
+                $redirectTarget = $this->redirectValidator->sanitize($request->getRequestUri());
                 $loginUrl = '/login?redirect=' . urlencode($redirectTarget);
                 return new RedirectResponse($loginUrl, 302);
             }
@@ -136,7 +136,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
 
         $loginLink = '';
         if ($statusCode === 403) {
-            $redirectTarget = $this->redirectValidator->sanitize($request->getPathInfo());
+            $redirectTarget = $this->redirectValidator->sanitize($request->getRequestUri());
             $loginHref = $esc('/login?redirect=' . urlencode($redirectTarget));
             $loginLink = sprintf('<p><a href="%s">Sign in</a> with a different account.</p>', $loginHref);
         }
