@@ -131,7 +131,26 @@ final class ManifestCacheLayoutTest extends TestCase
             catch (\RuntimeException) { self::assertFileDoesNotExist($this->root . '/runtime/waaseyaa.sqlite'); }
         }
     }
-    public function testNullOptInMissingPreparationAndForeignCacheNeverAllocateOrFallback(): void
+    public function testPrivateStorageAliasCannotMasqueradeAsNormalBoundRuntime(): void
+    {
+        $base = $this->release();
+        symlink($this->root . '/runtime', $this->root . '/private-alias');
+        $this->expectException(\RuntimeException::class);
+        new PackageManifestCompiler($base, $this->root . '/private-alias');
+    }
+    public function testDiagnosticReportsTheActualSelectedCacheDirectory(): void
+    {
+        $base = $this->release();
+        $checker = new \Waaseyaa\Foundation\Diagnostic\HealthChecker(
+            new \Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport([], [], []),
+            $this->createStub(\Waaseyaa\Database\DatabaseInterface::class),
+            $this->createStub(\Waaseyaa\Entity\EntityTypeManagerInterface::class),
+            $base,
+        );
+        $method = new \ReflectionMethod($checker, 'checkCacheDirectory');
+        $result = $method->invoke($checker);
+        self::assertStringContainsString('/framework/manifests/' . str_repeat('a', 64), $result->message);
+    }    public function testNullOptInMissingPreparationAndForeignCacheNeverAllocateOrFallback(): void
     {
         $base = $this->release();
         $composer = file_get_contents($base . '/composer.json');

@@ -86,7 +86,7 @@ final readonly class ManifestCacheLayout
             throw new \RuntimeException('Manifest storage must already exist.');
         }
         if ($context === ManifestCompilationContext::ArtifactBound) {
-            if ($storage !== $runtime) {
+            if ($storage !== $runtime || !in_array($storagePath, [$base . '/storage', $runtime], true)) {
                 throw new \RuntimeException('Artifact-bound storagePath differs from the bound runtime.');
             }
         } else {
@@ -143,12 +143,7 @@ final readonly class ManifestCacheLayout
                     throw new \RuntimeException('Selected manifest file changed write custody.');
                 }
             }
-            if (is_file($this->manifestPath)) {
-                $mode = fileperms($this->manifestPath);
-                if ($mode === false || ($mode & 0o022) !== 0 || fileowner($this->manifestPath) !== fileowner($directory) || (stat($this->manifestPath)['nlink'] ?? 0) !== 1) {
-                    throw new \RuntimeException('Selected manifest file changed write custody.');
-                }
-            }
+
         }
     }
 
