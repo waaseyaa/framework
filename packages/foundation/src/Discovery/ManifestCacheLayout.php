@@ -33,7 +33,9 @@ final readonly class ManifestCacheLayout
             if ($context !== ManifestCompilationContext::ArtifactBound) {
                 throw new \RuntimeException('Isolated manifest validation requires artifact-bound opt-in.');
             }
-            return new self('legacy', realpath($basePath) ?: $basePath, realpath($basePath . '/storage') ?: $storagePath, $storagePath . '/framework/packages.php');
+            $physicalBase = realpath($basePath);
+            $physicalRuntime = realpath($basePath . '/storage');
+            return new self('legacy', $physicalBase !== false ? $physicalBase : $basePath, $physicalRuntime !== false ? $physicalRuntime : $storagePath, $storagePath . '/framework/packages.php');
         }
         if ($mode !== 'artifact-bound-v1') {
             throw new \RuntimeException('Unsupported manifest-cache opt-in.');
@@ -108,7 +110,11 @@ final readonly class ManifestCacheLayout
         if (is_link($path) || (file_exists($path) && !is_file($path))) {
             throw new \RuntimeException('Manifest cache must be a regular non-symlink file.');
         }
-        foreach (scandir($directory) ?: [] as $name) {
+        $entries = scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException('Cannot inventory the prepared manifest directory.');
+        }
+        foreach ($entries as $name) {
             if ($name !== '.' && $name !== '..' && $name !== 'packages.php' && preg_match('/^packages\.php\.tmp\.[0-9]+$/D', $name) !== 1) {
                 throw new \RuntimeException('Unexpected file in the prepared manifest directory.');
             }

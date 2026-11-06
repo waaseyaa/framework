@@ -81,7 +81,7 @@ final class PackageManifestCompiler
 
     public function __construct(
         private readonly string $basePath,
-        private readonly string $storagePath,
+        string $storagePath,
         ?LoggerInterface $logger = null,
         ManifestCompilationContext $compilationContext = ManifestCompilationContext::ArtifactBound,
     ) {

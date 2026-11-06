@@ -24,7 +24,8 @@ final class OptimizeClearHandler
 
         $selected = $this->manifestCompiler?->selectedManifestPath();
         if ($selected !== null && $selected !== $frameworkPath . '/packages.php') {
-            $files = [$selected, $frameworkPath . '/config.php', ...(glob($selected . '.tmp.*') ?: [])];
+            $temporaryFiles = glob($selected . '.tmp.*');
+            $files = [$selected, $frameworkPath . '/config.php', ...($temporaryFiles !== false ? $temporaryFiles : [])];
             $files = array_values(array_filter($files, static fn(string $path): bool => is_file($path) && !is_link($path)));
         } else {
             $globResult = glob($frameworkPath . '/*.php');
