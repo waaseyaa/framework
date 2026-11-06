@@ -78,3 +78,14 @@ The frozen original source/evidence remains historical. This implementation
 starts from 8ff62072d63beb5c7ff446e32cde75a129238ab0 and preserves the reviewed
 Admin source/dist and filesystem-fit documentation. Only selector, owning tests
 and this contract documentation change.
+
+Independent review found a real requiredness defect: an unreadable controls
+directory could appear absent and select legacy. The fixed-name lookup now
+checks current-principal search/read access before absence fallback. The
+regression was reproduced red under non-root UID1000, then proved green.
+Negative tests explicitly reject PHPUnit assertion exceptions so a test's own
+fail cannot be swallowed by its RuntimeException refusal catch.
+
+Selected layout declares a POSIX filesystem capability and refuses unsupported
+Windows selection before writes. A separate symlink-free legacy/default test
+runs on native Windows. Existing native-host command selections remain intact.

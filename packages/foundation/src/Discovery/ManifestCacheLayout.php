@@ -21,6 +21,7 @@ final readonly class ManifestCacheLayout
 
     public static function resolve(string $basePath, string $storagePath, ManifestCompilationContext $context = ManifestCompilationContext::ArtifactBound): self
     {
+        self::assertControlLookupAccess($basePath);
         $markerPath = $basePath . self::LAYOUT_PATH;
         $selected = file_exists($markerPath) || is_link($markerPath);
         $bindingPath = $basePath . self::BINDING_PATH;
@@ -34,6 +35,9 @@ final readonly class ManifestCacheLayout
             $physicalBase = realpath($basePath);
             $physicalRuntime = realpath($basePath . '/storage');
             return new self('legacy', $physicalBase !== false ? $physicalBase : $basePath, $physicalRuntime !== false ? $physicalRuntime : $storagePath, $storagePath . '/framework/packages.php');
+        }
+        if (!ManifestCompilationContext::artifactBindingSupported()) {
+            throw new \RuntimeException('Artifact-bound manifest layouts require a POSIX filesystem host.');
         }
         $base = self::canonicalDirectory($basePath);
         self::canonicalDirectory($base . '/.waaseyaa');
@@ -119,6 +123,43 @@ final readonly class ManifestCacheLayout
         }
     }
 
+    /** Establish fixed-name lookup access before treating missing controls as legacy. */
+    private static function assertControlLookupAccess(string $basePath): void
+    {
+        $lookup = $basePath;
+        while (($physical = realpath($lookup)) === false) {
+            $parent = dirname($lookup);
+            if ($parent === $lookup) {
+                throw new \RuntimeException('Cannot establish manifest control-parent access.');
+            }
+            $lookup = $parent;
+        }
+        if (!is_dir($physical)
+            || (PHP_OS_FAMILY !== 'Windows' && !is_executable($physical))
+            || (PHP_OS_FAMILY === 'Windows' && !is_readable($physical))
+        ) {
+            throw new \RuntimeException('Cannot establish manifest control-parent access.');
+        }
+        if ($lookup !== $basePath) {
+            // A legacy not-yet-created project retains its old behavior only
+            // when the nearest existing ancestor permits actual name lookup.
+            return;
+        }
+        $controls = $physical . '/.waaseyaa';
+        clearstatcache(true, $controls);
+        if (!file_exists($controls) && !is_link($controls)) {
+            return;
+        }
+        if (PHP_OS_FAMILY !== 'Windows') {
+            self::canonicalDirectory($controls);
+        }
+        if (!is_dir($controls) || is_link($controls) || !is_readable($controls)
+            || (PHP_OS_FAMILY !== 'Windows' && !is_executable($controls))
+        ) {
+            throw new \RuntimeException('Cannot establish manifest control-parent access.');
+        }
+    }
+
     /** Read one fixed manifest control file without accepting links or racing identity. */
     private static function readControlFile(string $path, string $parent, int $maximum, ?int $exact = null): string
     {
@@ -130,7 +171,7 @@ final readonly class ManifestCacheLayout
         ) {
             throw new \RuntimeException('Manifest control must be a bounded regular non-symlink custody file.');
         }
-        $handle = fopen($path, 'rb');
+        $handle = @fopen($path, 'rb');
         if ($handle === false) {
             throw new \RuntimeException('Cannot read required manifest control.');
         }

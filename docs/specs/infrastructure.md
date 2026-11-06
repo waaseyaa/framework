@@ -3539,3 +3539,19 @@ Removing both is code/overlay tampering owned by external integrity admission,
 not something the runtime can infer from absent declarations. This replaces
 the unpublished Composer-extra selector entirely; there is no dual selector or
 lock/main-record reinterpretation.
+
+Selected artifact binding is an explicit POSIX filesystem capability, exposed
+by `ManifestCompilationContext::artifactBindingSupported()`. Windows selection
+refuses before cache writes; ordinary Windows legacy/default compilation remains
+supported and has its own native regression. Selected-mode POSIX fixture tests
+are scoped to that capability, without changing the mandatory native-host job's
+selection or skip policy. Its immutable file identity, link-count, UID/mode and
+canonical physical-path requirements are not silently weakened on Windows.
+
+Before absence can select legacy mode, the current runtime principal must be
+able to search the project/control-parent path and read/search an existing
+canonical `.waaseyaa` directory. No directory enumeration occurs. EACCES must
+not masquerade as both controls being absent. Marker and binding reads fail
+closed when unreadable. These bounded access checks do not claim atomic
+absence against arbitrary filesystem I/O failure or a same-UID adversary;
+external artifact/context/custody admission remains mandatory.

@@ -12,16 +12,17 @@ use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 final class ManifestCacheLayoutTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
     protected function setUp(): void
     {
+        if (!ManifestCompilationContext::artifactBindingSupported()) self::markTestSkipped('Selected artifact layout has an explicit POSIX filesystem capability; legacy portability is covered separately.');
         $this->root = sys_get_temp_dir() . '/manifest-layout-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o700);
     }
     protected function tearDown(): void
     {
         ProcessFieldReadRuntime::reset();
-        (new Filesystem())->remove($this->root);
+        if ($this->root !== '') (new Filesystem())->remove($this->root);
     }
     private function release(string $name = 'release', string $digest = ''): string
     {
@@ -39,6 +40,59 @@ final class ManifestCacheLayoutTest extends TestCase
         file_put_contents($base . '/vendor/composer/installed.json', '{"packages":[]}');
         return $base;
     }
+    public function testUnreadableControlDirectoryCannotMasqueradeAsLegacyAbsence(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) self::markTestSkipped('Permission refusal is verified under a non-root runtime principal.');
+        $base = $this->release();
+        chmod($base . '/.waaseyaa', 0o000);
+        clearstatcache();
+        try {
+            new PackageManifestCompiler($base, $base . '/storage');
+            self::fail('Inaccessible requiredness controls silently selected legacy.');
+        } catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error);
+            self::assertFileDoesNotExist($this->root . '/runtime/framework/packages.php');
+        } finally {
+            chmod($base . '/.waaseyaa', 0o700);
+            clearstatcache();
+        }
+    }    public function testUnreadableFixedControlFilesRefuseUnderTheRuntimePrincipal(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) self::markTestSkipped('Permission refusal requires a non-root runtime principal.');
+        $base = $this->release();
+        foreach ([ManifestCacheLayout::LAYOUT_PATH, ManifestCacheLayout::BINDING_PATH] as $relative) {
+            $path = $base . $relative;
+            $mode = fileperms($path) & 0o777;
+            chmod($path, 0o000);
+            clearstatcache();
+            try {
+                new PackageManifestCompiler($base, $base . '/storage');
+                self::fail('Unreadable required control was accepted.');
+            } catch (\RuntimeException $error) {
+                self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error);
+                self::assertFileDoesNotExist($this->root . '/runtime/framework/packages.php');
+            } finally {
+                chmod($path, $mode);
+                clearstatcache();
+            }
+        }
+    }
+    public function testControlParentAliasAndCurrentAliasCannotSelectLegacy(): void
+    {
+        $base = $this->release();
+        rename($base . '/.waaseyaa', $base . '/controls-real');
+        symlink($base . '/controls-real', $base . '/.waaseyaa');
+        try {
+            new PackageManifestCompiler($base, $base . '/storage');
+            self::fail('Aliased control parent accepted.');
+        } catch (\RuntimeException $error) {
+            self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error);
+        }
+        unlink($base . '/.waaseyaa');
+        rename($base . '/controls-real', $base . '/.waaseyaa');
+        symlink($base, $this->root . '/current');
+        $this->expectException(\RuntimeException::class);
+        new PackageManifestCompiler($this->root . '/current', $this->root . '/current/storage');
+    }
     public function testMarkerIsStrictBoundedRegularAndNeverChangesComposerLockOrRecords(): void
     {
         $base = $this->release();
@@ -51,14 +105,14 @@ final class ManifestCacheLayoutTest extends TestCase
         foreach (["artifact-bound-v1", "artifact-bound-v1\r\n", "artifact-bound-v2\n", " artifact-bound-v1\n", '{"mode":"artifact-bound-v1"}', str_repeat('x', 1024)] as $invalid) {
             file_put_contents($marker, $invalid);
             try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Noncanonical marker accepted.'); }
-            catch (\RuntimeException) { self::assertTrue(true); }
+            catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertTrue(true); }
         }
         unlink($marker); file_put_contents($this->root . '/marker-target', "artifact-bound-v1\n"); symlink($this->root . '/marker-target', $marker);
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Marker symlink accepted.'); }
-        catch (\RuntimeException) { self::assertTrue(true); }
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertTrue(true); }
         unlink($marker); link($this->root . '/marker-target', $marker);
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Marker hardlink accepted.'); }
-        catch (\RuntimeException) { self::assertTrue(true); }
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertTrue(true); }
         unlink($marker); file_put_contents($marker, "artifact-bound-v1\n");
         new PackageManifestCompiler($base, $base . '/storage');
         self::assertSame($before, array_map(static fn(string $path): string => (string) file_get_contents($base . $path), $inputs));
@@ -114,7 +168,7 @@ final class ManifestCacheLayoutTest extends TestCase
         try {
             new PackageManifestCompiler($base, $this->root . '/private');
             self::fail('Normal private-copy mismatch accepted.');
-        } catch (\RuntimeException) {
+        } catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error);
             self::assertFileDoesNotExist($this->root . '/runtime/framework/manifests/' . str_repeat('a', 64) . '/packages.php');
         }
         $isolated = new PackageManifestCompiler($base, $this->root . '/private', compilationContext: ManifestCompilationContext::IsolatedValidation);
@@ -134,11 +188,11 @@ final class ManifestCacheLayoutTest extends TestCase
             if (file_exists($path) || is_link($path)) unlink($path);
             if ($invalid !== null) file_put_contents($path, $invalid);
             try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Invalid binding accepted.'); }
-            catch (\RuntimeException|\JsonException) { self::assertFileDoesNotExist($this->root . '/runtime/framework/manifests/' . str_repeat('a', 64) . '/packages.php'); }
+            catch (\RuntimeException|\JsonException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertFileDoesNotExist($this->root . '/runtime/framework/manifests/' . str_repeat('a', 64) . '/packages.php'); }
         }
         unlink($path); file_put_contents($this->root . '/foreign-binding', $valid); symlink($this->root . '/foreign-binding', $path);
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Symlink binding accepted.'); }
-        catch (\RuntimeException) { self::assertTrue(true); }
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertTrue(true); }
         unlink($path); file_put_contents($path, $valid);
         $dir = $this->root . '/runtime/framework/manifests/' . str_repeat('a', 64);
         rmdir($dir); mkdir($this->root . '/foreign', 0o700); symlink($this->root . '/foreign', $dir);
@@ -151,7 +205,7 @@ final class ManifestCacheLayoutTest extends TestCase
         unlink($base . ManifestCacheLayout::LAYOUT_PATH);
         file_put_contents($base . '/composer.json', '{}');
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Unexpected binding accepted.'); }
-        catch (\RuntimeException) { self::assertTrue(true); }
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertTrue(true); }
         unlink($base . ManifestCacheLayout::BINDING_PATH);
         $compiler = new PackageManifestCompiler($base, $this->root . '/legacy-private');
         $compiler->load();
@@ -164,7 +218,7 @@ final class ManifestCacheLayoutTest extends TestCase
         unlink($base . ManifestCacheLayout::BINDING_PATH);
         foreach ([HttpKernel::class, ConsoleKernel::class] as $kernelClass) {
             try { new $kernelClass($base); self::fail('Kernel ignored missing required binding.'); }
-            catch (\RuntimeException) { self::assertFileDoesNotExist($this->root . '/runtime/waaseyaa.sqlite'); }
+            catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertFileDoesNotExist($this->root . '/runtime/waaseyaa.sqlite'); }
         }
     }
     public function testPrivateStorageAliasCannotMasqueradeAsNormalBoundRuntime(): void
@@ -192,12 +246,12 @@ final class ManifestCacheLayoutTest extends TestCase
         $marker = $base . ManifestCacheLayout::LAYOUT_PATH;
         file_put_contents($marker, "artifact-bound-v2\n");
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Unsupported marker accepted.'); }
-        catch (\RuntimeException) { self::assertTrue(true); }
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertTrue(true); }
         file_put_contents($marker, "artifact-bound-v1\n");
         $dir = $this->root . '/runtime/framework/manifests/' . str_repeat('a', 64);
         rmdir($dir);
         try { new PackageManifestCompiler($base, $base . '/storage'); self::fail('Missing preparation allocated silently.'); }
-        catch (\RuntimeException) { self::assertDirectoryDoesNotExist($dir); }
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error); self::assertDirectoryDoesNotExist($dir); }
         mkdir($dir, 0o700);
         file_put_contents($dir . '/foreign', 'foreign sentinel');
         $this->expectException(\RuntimeException::class);
@@ -210,7 +264,7 @@ final class ManifestCacheLayoutTest extends TestCase
         file_put_contents($this->root . '/foreign', 'foreign sentinel');
         symlink($this->root . '/foreign', $compiler->selectedManifestPath() . '.tmp.' . getmypid());
         try { $compiler->compileAndCache(); self::fail('Pre-existing temporary symlink accepted.'); }
-        catch (\RuntimeException) {
+        catch (\RuntimeException $error) { self::assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $error);
             self::assertSame('foreign sentinel', file_get_contents($this->root . '/foreign'));
             self::assertFileDoesNotExist($compiler->selectedManifestPath());
         }
