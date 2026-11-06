@@ -127,12 +127,14 @@ final readonly class ManifestCacheLayout
     private static function assertControlLookupAccess(string $basePath): void
     {
         $lookup = $basePath;
-        while (($physical = realpath($lookup)) === false) {
+        $physical = realpath($lookup);
+        while ($physical === false) {
             $parent = dirname($lookup);
             if ($parent === $lookup) {
                 throw new \RuntimeException('Cannot establish manifest control-parent access.');
             }
             $lookup = $parent;
+            $physical = realpath($lookup);
         }
         if (!is_dir($physical)
             || (PHP_OS_FAMILY !== 'Windows' && !is_executable($physical))
