@@ -36,3 +36,28 @@ No cache directory or binding is allocated by the compiler. The operator must
 prepare and attest them, use a reviewed versioned overlay/layout contract,
 validate actual FPM witness and retained rollback state, then perform any
 separately authorized activation through the maintained transaction lifecycle.
+
+## Maintained filesystem fit and bounded exception
+
+Owner: Foundation package-manifest compiler maintainer. Re-review this exception
+when Symfony offers a no-follow, no-parent-allocation publication primitive or
+when the manifest binding/custody contract changes.
+
+Checked the installed Symfony Filesystem v8.0.9 source
+[d1ec4543](https://github.com/symfony/filesystem/blob/d1ec4543d5c6c2dac78503c2fae5ea0b3608ce40/Filesystem.php),
+the supported 8.1 branch at
+[58f57b6a](https://github.com/symfony/filesystem/blob/58f57b6a33e3495f7f41e01258f1ae5ef76cccd2/Filesystem.php),
+its [dump-file tests](https://github.com/symfony/filesystem/blob/58f57b6a33e3495f7f41e01258f1ae5ef76cccd2/Tests/FilesystemTest.php),
+and the [official component contract](https://symfony.com/doc/current/components/filesystem.html#dumpfile).
+`dumpFile` is an appropriate general atomic writer. Its intentional symlink
+following and missing-parent allocation differ from this preallocated,
+no-follow manifest authority. The existing compiler therefore retains only its
+small exclusive temporary-file/rename step and domain custody checks, without
+a generic filesystem facade or new dependency. No Symfony version change is
+included. A disposable probe against installed v8.0.9 reproduced both behaviors;
+Foundation layout regressions instead require missing-parent and temporary-link
+refusal with unchanged protected state. Cached Apache/FPM and explicit CLI
+controls separately prove success, refusal, isolation, selected clearing and
+legacy-cache preservation. Engagement evidence: Sprint1 manifest-layout-producer
+symfony-fit.php and symfony-fit-result.json; source and test pins above remain
+portable if that engagement evidence is unavailable.

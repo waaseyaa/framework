@@ -24,3 +24,5 @@ through bin/build-admin-dist's two isolated Node24 builds and exact acceptance.
 Independent review qualifies the combined source and generated provenance.
 No remote publication is authorized by this change record. A new exact user
 request must include admin-surface alongside the other four reviewed packages.
+
+The generated distribution is bound by the governed source-content signature `b238194cfccaefe6a010cb9a53acd62771c87011b7082d3ca21d965bf959c792`, not the pre-build Git HEAD. `dist.manifest.json` records two byte-identical builds, inventories and Node24.22.2/npm11.19.1. The post-commit freshness and acceptance gates rederive that signature from the final component bytes. Full Admin coverage754 tests passed; all20 changed executable statements are covered. Existing PHP bootstrap/static proof is reused because this presentation delta changes no PHP source.
