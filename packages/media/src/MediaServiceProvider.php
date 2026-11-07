@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Waaseyaa\Media;
 
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Http\AuditedMediaDownloadSourceReader;
+use Waaseyaa\Media\Http\MediaDownloadResponderInterface;
 use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
 use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
 use Waaseyaa\Media\Http\Router\MediaRouter;
@@ -29,27 +32,30 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
                 accessHandler: $httpKernel->getAccessHandler(),
                 bundleExists: static fn(string $bundle): bool => $mediaTypeRepository->find($bundle) !== null,
             ),
-            new MediaDownloadRouter(
-                $httpKernel->getEntityTypeManager(),
-                $httpKernel->getAccessHandler(),
-                $this->resolveFilesRoot($httpKernel),
-                $this->resolve(MediaDownloadSourceReaderInterface::class),
-            ),
+            $this->resolve(MediaDownloadResponderInterface::class),
         ];
     }
 
-    private function resolveFilesRoot(HttpKernel $httpKernel): string
+    private function resolveFilesRoot(): string
     {
-        $config = $httpKernel->getConfig();
+        $config = $this->config;
         $configured = $config['files_root'] ?? $config['files_dir'] ?? null;
 
         return is_string($configured) && $configured !== ''
             ? $configured
-            : $httpKernel->getProjectRoot() . '/storage/files';
+            : $this->projectRoot . '/storage/files';
     }
 
     public function register(): void
     {
+        // Lazy acquisition uses the completed kernel's canonical services;
+        // the HTTP chain and application consumers share one responder.
+        $this->singleton(MediaDownloadResponderInterface::class, fn() => new MediaDownloadRouter(
+            $this->resolve(EntityTypeManagerInterface::class),
+            $this->resolve(EntityAccessHandler::class),
+            $this->resolveFilesRoot(),
+            $this->resolve(MediaDownloadSourceReaderInterface::class),
+        ));
         $this->singleton(MediaDownloadSourceReaderInterface::class, function (): MediaDownloadSourceReaderInterface {
             $capabilities = $this->resolve(CapabilityRegistryInterface::class);
             $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);

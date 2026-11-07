@@ -10,6 +10,7 @@
     "packages/http-client/"
   ],
   "rationales": {
+    "packages/media/src/Http/MediaDownloadResponderInterface.php": "FW-MEDIA-DELIVERY-SERVICE-01: exposes the existing canonical domain-router Request/Response boundary via an injectable media responder, using maintained HttpFoundation duplicate semantics without an inbound HTTP wrapper. Review trigger: request context, response ownership, or delivery authority changes.",
     "packages/mail/src/Transport/SmtpTransport.php": "smtp-production-mail-20261028: minimal adapter to the declared maintained Symfony Mailer/Mime transport, envelope and TLS mechanisms. Waaseyaa owns selection and sanitized failures. Review trigger: transport or envelope boundary changes.",
     "packages/mail/src/Transport/AuthenticatedEsmtpTransport.php": "smtp-production-mail-20261028: require AUTH before MAIL FROM through maintained EsmtpTransport lifecycle hooks; Symfony owns the SMTP exchange. Review trigger: Symfony lifecycle or submission policy changes.",
     "packages/http-client/": "FW-AIV-EXECUTION-01: generic maintained Symfony HttpClient mechanics belong to the existing HTTP infrastructure owner; Waaseyaa policy remains in its consumers.",
@@ -114,6 +115,7 @@
     "packages/mcp/src/McpEndpoint.php",
     "packages/mcp/src/McpServerCard.php",
     "packages/mcp/src/McpServiceProvider.php",
+    "packages/media/src/Http/MediaDownloadResponderInterface.php",
     "packages/media/src/Http/Router/MediaDownloadRouter.php",
     "packages/media/src/Http/Router/MediaRouter.php",
     "packages/media/src/Version/MediaCascadeDeleteSubscriber.php",
