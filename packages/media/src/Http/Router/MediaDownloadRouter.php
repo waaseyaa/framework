@@ -12,12 +12,13 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
+use Waaseyaa\Media\Http\MediaDownloadResponderInterface;
 use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
 use Waaseyaa\Media\Media;
 
 // Symfony HTTP types are required by the L0 DomainRouterInterface boundary; allowlisted with the sibling upload router.
 /** Authorized, fail-closed delivery of a media entity's public:// bytes. */
-final class MediaDownloadRouter implements DomainRouterInterface
+final class MediaDownloadRouter implements DomainRouterInterface, MediaDownloadResponderInterface
 {
     public const string CONTROLLER = 'media.download';
     public const string VIEW_CONTROLLER = 'media.view';
@@ -36,6 +37,15 @@ final class MediaDownloadRouter implements DomainRouterInterface
         private readonly MediaDownloadSourceReaderInterface $sourceReader,
     ) {
         $this->identifierResolver = new EntityIdentifierResolver($entityTypeManager);
+    }
+
+    public function download(Request $request, string $mediaId): Response
+    {
+        $download = $request->duplicate();
+        $download->attributes->set('_controller', self::CONTROLLER);
+        $download->attributes->set('id', $mediaId);
+
+        return $this->handle($download);
     }
 
     public function supports(Request $request): bool

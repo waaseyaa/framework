@@ -744,6 +744,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | Element | Type | Disposition | Purpose |
 |---------|------|-------------|---------|
 | `FileRepositoryInterface` | interface | public | CRUD operations for file value objects keyed by URI |
+| `Http\MediaDownloadResponderInterface` | interface | public | Canonical authorized managed-media download responses with explicit media identity |
 | `Http\MediaDownloadSourceReaderInterface` | interface | public | — |
 | `MediaPermissions` | final class | public | Generates canonical media-type permission ids and catalogue definitions |
 

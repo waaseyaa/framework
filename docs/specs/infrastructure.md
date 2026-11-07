@@ -3555,3 +3555,23 @@ not masquerade as both controls being absent. Marker and binding reads fail
 closed when unreadable. These bounded access checks do not claim atomic
 absence against arbitrary filesystem I/O failure or a same-UID adversary;
 external artifact/context/custody admission remains mandatory.
+
+## Injectable managed-media download response
+
+`MediaDownloadResponderInterface::download(Request, string mediaId): Response`
+provides the existing canonical media download implementation to application
+controllers. Resolve the interface through the Media provider, not by constructing
+its internal router. The provider's lazy singleton uses the completed kernel's
+canonical entity manager/access handler/source reader and configured files root
+(`files_root`, then `files_dir`, then project-root `storage/files`). The normal
+HTTP domain-router chain uses the identical responder instance.
+
+The caller still owns published-parent/reference/bundle policy. Supply the
+populated request with matching account and immutable authorization principal,
+including tenant/community context; the responder grants no new permission.
+The explicit media ID selects numeric ID or UUID without caller route-attribute
+manipulation. The producer duplicates the Request and owns its internal download
+route discriminator. Canonical entity-view authorization, strict audited source
+read, public-URI/path confinement, MIME detection, complete Range behavior and
+concealed 404s are unchanged. Populated private/unknown/missing managed sources
+never fall back to a separate legacy path. Caller attributes/headers are preserved.

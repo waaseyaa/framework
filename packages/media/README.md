@@ -53,3 +53,18 @@ iframe `src` only when the application wants an authorized PDF viewer. Neither
 route makes the backing storage URL public.
 
 The `MediaType.source` plugin id (`file`/`image`/`oembed`) remains **metadata only**; this narrow download route does not add a source-plugin system, derivatives, or private storage.
+
+## Application-owned attachment endpoints
+
+Resolve `Waaseyaa\Media\Http\MediaDownloadResponderInterface` from the Media
+provider and call `download($request, $mediaId)` for canonical managed-media
+bytes. The interface is shared with the normal media router; do not construct
+its internal implementation or copy its URI/path resolver into an application.
+The lazy singleton uses canonical kernel services and the same configured files
+root as built-in delivery. Caller account and immutable principal must match;
+tenant/community claims survive request duplication. The caller remains
+responsible for published-parent/reference/bundle policy. No permission is
+added by the responder. Entity-view authorization, audited source reads,
+public-only confined paths, complete byte responses and concealed 404s remain.
+The caller's request attributes/headers are unchanged, and there is no redirect
+or fallback from a populated managed URI to legacy storage.

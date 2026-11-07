@@ -620,6 +620,7 @@ return [
     'Waaseyaa\Mcp\Auth\ScopedMcpAuthInterface' => 'public',
     'Waaseyaa\Mcp\Auth\WriteTierAuthInterface' => 'public',
     'Waaseyaa\Media\FileRepositoryInterface' => 'public',
+    'Waaseyaa\Media\Http\MediaDownloadResponderInterface' => 'public',
     'Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface' => 'public',
     'Waaseyaa\Media\MediaPermissions' => 'public',
     'Waaseyaa\Migration\ContentModel\DerivesContentModelInterface' => 'public',

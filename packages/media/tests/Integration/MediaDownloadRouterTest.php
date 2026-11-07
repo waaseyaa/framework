@@ -14,28 +14,28 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
-use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Capability\InMemoryCapabilityRegistry;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
-use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityReadRuntime;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\Exception\FieldReadDenied;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
-use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
-use Waaseyaa\Media\Http\AuditedMediaDownloadSourceReader;
-use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
-use Waaseyaa\Media\Media;
-use Waaseyaa\Media\MediaAccessPolicy;
-use Waaseyaa\User\User;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Contract\PrivilegedReadDescriptor;
 use Waaseyaa\Audit\Contract\PrivilegedReadOutcome;
 use Waaseyaa\Audit\Contract\PrivilegedReadReceipt;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
+use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Exception\FieldReadDenied;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Media\Http\AuditedMediaDownloadSourceReader;
+use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
+use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
+use Waaseyaa\Media\Media;
+use Waaseyaa\Media\MediaAccessPolicy;
+use Waaseyaa\User\User;
 
 #[CoversClass(MediaDownloadRouter::class)]
 final class MediaDownloadRouterTest extends TestCase
@@ -344,14 +344,42 @@ final class MediaDownloadRouterTest extends TestCase
         self::assertSame(404, $this->router('public://../outside.txt', 7)->handle($this->request(7))->getStatusCode());
     }
 
+    #[Test]
+    public function public_responder_uses_explicit_identity_and_preserves_request(): void
+    {
+        $request = $this->request(accountId: 7);
+        $request->attributes->set('_controller', 'caller.other');
+        $request->attributes->set('id', 'caller-wrong-id');
+        $request->headers->set('Range', 'bytes=0-1');
+        $response = $this->router('public://teaching.txt', allowedAccountId: 7)->download($request, '10');
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('AANIIN', $response->getContent());
+        self::assertSame('none', $response->headers->get('Accept-Ranges'));
+        self::assertSame('caller.other', $request->attributes->get('_controller'));
+        self::assertSame('caller-wrong-id', $request->attributes->get('id'));
+        self::assertSame('bytes=0-1', $request->headers->get('Range'));
+    }
+
+    #[Test]
+    public function public_responder_retains_denial_and_source_path_refusals(): void
+    {
+        foreach (['private://teaching.txt', 'unknown://teaching.txt', 'public://../teaching.txt', 'public://missing.txt', ''] as $uri) {
+            self::assertSame(404, $this->router($uri, allowedAccountId: 7)->download($this->request(7), '10')->getStatusCode());
+        }
+        self::assertSame(404, $this->router('public://teaching.txt', allowedAccountId: 99)->download($this->request(7), '10')->getStatusCode());
+        self::assertSame(404, $this->router('public://teaching.txt', allowedAccountId: 7, uuidLookupFinds: false)->download($this->request(7), '')->getStatusCode());
+        $mismatch = $this->request(7);
+        $mismatch->attributes->set('_authorization_principal', new AuthorizationPrincipal(8, true, [], [], 'mismatch'));
+        self::assertSame(404, $this->router('public://teaching.txt', allowedAccountId: 7)->download($mismatch, '10')->getStatusCode());
+    }
+
     private function router(
         string $sourceUri,
         int $allowedAccountId,
         bool $uuidLookupFinds = true,
         string $storedMimeType = 'text/plain',
         string $storedFilename = 'teaching.txt',
-    ): MediaDownloadRouter
-    {
+    ): MediaDownloadRouter {
         $policy = new class ($allowedAccountId) implements AccessPolicyInterface {
             public function __construct(private readonly int $allowedAccountId) {}
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
@@ -379,8 +407,7 @@ final class MediaDownloadRouterTest extends TestCase
         bool $uuidLookupFinds = true,
         string $storedMimeType = 'text/plain',
         string $storedFilename = 'teaching.txt',
-    ): MediaDownloadRouter
-    {
+    ): MediaDownloadRouter {
         $media = new Media([
             'mid' => 10,
             'uuid' => 'e14dcf5b-042c-4d88-9f34-aeace1764b66',
@@ -425,10 +452,22 @@ final class MediaDownloadRouterTest extends TestCase
         $request->attributes->set('_controller', MediaDownloadRouter::CONTROLLER);
         $account = new class ($accountId) implements AccountInterface {
             public function __construct(private readonly int $id) {}
-            public function id(): int|string { return $this->id; }
-            public function isAuthenticated(): bool { return true; }
-            public function hasPermission(string $permission): bool { return false; }
-            public function getRoles(): array { return ['authenticated']; }
+            public function id(): int|string
+            {
+                return $this->id;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+            public function getRoles(): array
+            {
+                return ['authenticated'];
+            }
         };
         $request->attributes->set('_account', $account);
         $request->attributes->set('_authorization_principal', new AuthorizationPrincipal(
