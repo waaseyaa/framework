@@ -409,3 +409,52 @@ optional test mappings are checked against tagged source when present. The
 installed package file tree, including its actual composer.json, must still
 match the immutable release export exactly. Independent runner review and the
 actual matrix results follow; no passing matrix is claimed at this checkpoint.
+
+Exact workaround harness `34ad0d1e80ea8930ed7df820202f96b697871d4e` completed
+the entire matrix with exit **0**, using unchanged release source `76afb3f84`.
+All four fresh dev/no-dev blob/column profiles passed 46 assertions over 11
+routes each, four two-process race phases, default quota 60 then 429, and the
+50-root / 1,000-comment / ten-sample performance probe with exact counts.
+Warm p95 ranged from 14.34 to 14.70 ms on this synthetic VM fixture; it is not
+a production SLO. Before/after proofs verify all 41 Framework package file trees
+and tagged manifest bytes. Their references also match the gated producer split
+provenance. Publishing is installed; wayfinding is outside this consumer closure
+and remains an available metadata record only, without adding an optional package.
+
+Both real historical alpha.308 upgrade journeys passed ten assertions and
+zero-change replays. The historical column schema remains explicitly synthetic,
+not a stock alpha.308 column deployment. Historical consumers contain no
+repository overrides. The fresh no-dev API-without-engagement control booted
+with engagement absent and its routes omitted. PHP 8.5.4 ran on the authorized
+native Ubuntu VM with a new isolated Composer home/cache and cleared Composer
+authentication/repository overrides.
+
+Portable workaround evidence is under
+[evidence/engagement-alpha309-workaround](evidence/engagement-alpha309-workaround/README.md):
+complete results, full SQL/query plans, source/application identities, frozen
+metadata, public capture origin, all solved manifests, nine lock inputs reduced
+to three content-addressed locks, deduplicated package/third-party inventories,
+and independent cross-checks against the gated split references. The explicit
+assembler and runner success marker are retained. Raw logs remain at
+`/tmp/engagement-alpha309-workaround-matrix1`; the retained installed work is
+`/home/russell/.cache/waaseyaa-engagement-qualification/waaseyaa-engagement-installed.9GtGhm`.
+
+This completes **seven of seven workaround consumer profiles**, not ordinary
+Packagist publication. A fresh post-matrix P2 check at 19:39:35 UTC still omits
+alpha.309 for both affected packages. Standard Packagist qualification remains
+zero of seven and the guarded GitHub Release remains withheld. No source tag
+moved, package was republished, vendor was patched or application was deployed.
+The five focused teardown architecture tests passed 101 assertions; final source
+preflight passed 42 executed and one equivalent-input reuse, with no failures,
+no hosted-required and three not-applicable. Independent result review follows.
+
+Raman returned **PASS, no blocking findings** on exact candidate `34ad0d1e8`
+and the completed matrix. Independent inspection checked all 13 current-cohort
+provenance records and 532 repeated installed-package records against gated
+producer references, exact bytes, both historical manifests/cohorts, both
+ten-assertion upgrades and zero-change replays, the absence control, the 184
+fresh assertions and retained SQL/plans. The review explicitly limits coverage
+to the engagement closure and does not claim installed Wayfinding bytes or
+standard Packagist availability. Main feedback `43633234047` passed on the
+landed workaround harness. Final evidence-only preflight passed 41 executed
+gates, with zero failures/hosted-required and five not-applicable.

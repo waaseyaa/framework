@@ -1,0 +1,15 @@
+{
+  "checked_at_utc": "2026-11-14T19:39:35.371731+00:00",
+  "packages": {
+    "publishing": {
+      "alpha309_visible": false,
+      "last_modified": "Fri, 23 Oct 2026 15:12:33 GMT",
+      "response_sha256": "1148b8279926324f89a8015dfa017ce0397a9b3017a806aea630fc2c31a59111"
+    },
+    "wayfinding": {
+      "alpha309_visible": false,
+      "last_modified": "Fri, 23 Oct 2026 15:20:14 GMT",
+      "response_sha256": "00e09f82f6835ab7cbfebab7ec37006e7de37ef6d3673935bba1277a32977ef9"
+    }
+  }
+}

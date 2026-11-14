@@ -1,0 +1,23 @@
+{
+  "cohort_label": "0.1.0-alpha.309",
+  "application_files": {
+    "composer.json": "cf21850a6134b6aa11966f0a01cb7c295878aed524a752293d8c6853c802adfd",
+    "config/waaseyaa.php": "5b7d19ad586b28b71149ebbe2488fdc39e3a207bf6230bef50597ff9bbd6fc49",
+    "bootstrap.php": "2da3fca0c2702396c67dbfd1c3565f4e162c8ed1b5883f76e70b82d8253809c8",
+    "journey.php": "48b4528adf0cff0b3cd48c59669c41b70e832858007d021c6c6472e13990e007",
+    "performance.php": "e74f6737228330ec482bd2b30aff7e8fa3d4a5d5f1b5a7bfd35da709a95b8214",
+    "concurrency.php": "46c2881d876ad69d3fdb4d276153d0fddba3e0e189ea92cda1b6c77dcdf04a67",
+    "quota.php": "9de57b264986ebc42d7a7dc8f1a40b944feaf798b8825fea7966fe095c5aad1a",
+    "upgrade.php": "dc26efb68efa6affc7a4f7be571eae1eb85781449428dcc2db040b1b096f79c4",
+    "absent.php": "7e1d6cf422453cdd2484e4a4831b56da5be08264007cd2b4e2718940e547c70d"
+  },
+  "fixture_sha256": "99fc7829ef3cbb4ec42e582af106fc0fb6414e1b3dc65f983db0f367f1809999",
+  "manifest_sha256": "cf21850a6134b6aa11966f0a01cb7c295878aed524a752293d8c6853c802adfd",
+  "direct_waaseyaa_requirements": {
+    "waaseyaa/api": "0.1.0-alpha.309",
+    "waaseyaa/cli": "0.1.0-alpha.309",
+    "waaseyaa/core": "0.1.0-alpha.309"
+  },
+  "qualification_mode": "metadata-workaround",
+  "metadata_snapshot_sha256": "8abed76e2294c0df58472231d91a6e0aa607d1d8702d33e85d3c95bc43fb86a5"
+}

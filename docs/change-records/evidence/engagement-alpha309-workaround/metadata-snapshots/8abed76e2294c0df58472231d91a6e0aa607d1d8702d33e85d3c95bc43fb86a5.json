@@ -1,0 +1,109 @@
+{
+  "cohort": "0.1.0-alpha.309",
+  "packages": [
+    {
+      "name": "waaseyaa/publishing",
+      "version": "v0.1.0-alpha.309",
+      "require": {
+        "php": ">=8.5",
+        "waaseyaa/access": "^0.1.0-alpha.309",
+        "waaseyaa/audit": "^0.1.0-alpha.309",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.309",
+        "waaseyaa/entity": "^0.1.0-alpha.309",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.309",
+        "waaseyaa/foundation": "^0.1.0-alpha.309",
+        "waaseyaa/page-builder": "^0.1.0-alpha.309"
+      },
+      "require-dev": {
+        "phpunit/phpunit": "^13.0",
+        "symfony/html-sanitizer": "^8.0"
+      },
+      "autoload": {
+        "psr-4": {
+          "Waaseyaa\\Publishing\\": "src/"
+        }
+      },
+      "type": "library",
+      "license": [
+        "GPL-2.0-or-later"
+      ],
+      "description": "Agent-operable editorial content publishing: draft/preview/publish/rollback service, idempotency, signed preview links.",
+      "source": {
+        "url": "https://github.com/waaseyaa/publishing.git",
+        "type": "git",
+        "reference": "5da63931f33fe83100aca6b698c252f287b211d5"
+      },
+      "dist": {
+        "url": "https://api.github.com/repos/waaseyaa/publishing/zipball/5da63931f33fe83100aca6b698c252f287b211d5",
+        "type": "zip",
+        "shasum": "",
+        "reference": "5da63931f33fe83100aca6b698c252f287b211d5"
+      },
+      "extra": {
+        "waaseyaa": {
+          "providers": [
+            "Waaseyaa\\Publishing\\PublishingServiceProvider"
+          ],
+          "migrations": "migrations"
+        },
+        "branch-alias": {
+          "dev-main": "0.1.x-dev",
+          "dev-develop/v1.1": "0.1.x-dev"
+        }
+      }
+    },
+    {
+      "name": "waaseyaa/wayfinding",
+      "version": "v0.1.0-alpha.309",
+      "require": {
+        "php": ">=8.5",
+        "waaseyaa/access": "^0.1.0-alpha.309",
+        "waaseyaa/api": "^0.1.0-alpha.309",
+        "waaseyaa/entity": "^0.1.0-alpha.309",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.309",
+        "waaseyaa/field": "^0.1.0-alpha.309",
+        "waaseyaa/foundation": "^0.1.0-alpha.309",
+        "waaseyaa/routing": "^0.1.0-alpha.309"
+      },
+      "require-dev": {
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.309"
+      },
+      "autoload": {
+        "psr-4": {
+          "Waaseyaa\\Wayfinding\\": "src/"
+        }
+      },
+      "type": "library",
+      "license": [
+        "GPL-2.0-or-later"
+      ],
+      "description": "Wayfinding: guided, element-anchored beacons for the live UI (Phase 1: anchor registry + published catalog)",
+      "source": {
+        "url": "https://github.com/waaseyaa/wayfinding.git",
+        "type": "git",
+        "reference": "2db31c587cc65012579f88c122507923d75b580c"
+      },
+      "dist": {
+        "url": "https://api.github.com/repos/waaseyaa/wayfinding/zipball/2db31c587cc65012579f88c122507923d75b580c",
+        "type": "zip",
+        "shasum": "",
+        "reference": "2db31c587cc65012579f88c122507923d75b580c"
+      },
+      "extra": {
+        "waaseyaa": {
+          "policies": [
+            "Waaseyaa\\Wayfinding\\Access\\TrailAccessPolicy"
+          ],
+          "providers": [
+            "Waaseyaa\\Wayfinding\\WayfindingServiceProvider"
+          ]
+        },
+        "branch-alias": {
+          "dev-main": "0.1.x-dev",
+          "dev-develop/v1.1": "0.1.x-dev"
+        }
+      }
+    }
+  ]
+}

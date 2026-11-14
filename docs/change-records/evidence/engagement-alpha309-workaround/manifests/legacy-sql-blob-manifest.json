@@ -1,0 +1,20 @@
+{
+  "cohort_label": "0.1.0-alpha.308",
+  "application_files": {
+    "composer.json": "294b4db79bc50c5212d49d7e52c1245407e8eab72c5a3bdf2d63c2a000432a49",
+    "SeedLegacy.php": "88b8b99ddb83ce1dc95c2ddac7f7ff79d00dd6dbff55121a1e917089676c7aea",
+    "src/LegacyProvider.php": "db03df07d1b50dc0f0cc7a93308981c339f039d1450dd6b81125da3bc511b7e7",
+    "src/SyntheticPost.php": "5b9040d665e706e122afbd0ed67481a9d1e33da285973acfcc527cebf8699c4c",
+    "config/waaseyaa.php": "f65e8aa2719351fd702fa822f4396c76ed02394fbb0f88d1d70e1e64316bb7f9"
+  },
+  "fixture_sha256": "16c8a8f2b93286423df9427a00f25028613e41c1dc5d59fa4624598b5869639e",
+  "manifest_sha256": "294b4db79bc50c5212d49d7e52c1245407e8eab72c5a3bdf2d63c2a000432a49",
+  "direct_waaseyaa_requirements": {
+    "waaseyaa/api": "0.1.0-alpha.308",
+    "waaseyaa/cli": "0.1.0-alpha.308",
+    "waaseyaa/core": "0.1.0-alpha.308",
+    "waaseyaa/engagement": "0.1.0-alpha.308"
+  },
+  "qualification_mode": "metadata-workaround",
+  "metadata_snapshot_sha256": "8abed76e2294c0df58472231d91a6e0aa607d1d8702d33e85d3c95bc43fb86a5"
+}

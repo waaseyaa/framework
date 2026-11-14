@@ -17,3 +17,9 @@ See `packagist-incident-confirmation.json`, `packagist-post-update-changes.json`
 `packagist-post-update-http-capture.json` and `packagist-post-update-observations.jsonl`.
 Recovery tooling landed at `e02682510` with passing main CI `43625277062`;
 this does not change the blocked qualification status above.
+
+Russell subsequently authorized the separate two-package metadata workaround.
+Its [complete seven-profile consumer evidence](../engagement-alpha309-workaround/README.md)
+passes against the unchanged alpha.309 archives. It does not relabel this original
+registry refusal or satisfy standard Packagist publication. A post-matrix P2
+check still omitted both affected alpha.309 records.

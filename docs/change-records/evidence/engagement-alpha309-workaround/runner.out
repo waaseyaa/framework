@@ -1,0 +1,6 @@
+candidate=34ad0d1e80ea8930ed7df820202f96b697871d4e
+work=/home/russell/.cache/waaseyaa-engagement-qualification/waaseyaa-engagement-installed.9GtGhm
+evidence=/tmp/engagement-alpha309-workaround-matrix1
+PHP version 8.5.4 (/usr/bin/php8.5)
+Run the "diagnose" command to get more detailed diagnostics output.
+Installed engagement complete matrix passed (tag: v0.1.0-alpha.309; mode: metadata-workaround). Evidence: /tmp/engagement-alpha309-workaround-matrix1

@@ -1,0 +1,5 @@
+PHP 8.5.4 (cli) (built: Oct 19 2026 14:35:18) (NTS)
+Copyright (c) The PHP Group
+Built by Ubuntu
+Zend Engine v4.5.4, Copyright (c) Zend Technologies
+    with Zend OPcache v8.5.4, Copyright (c), by Zend Technologies

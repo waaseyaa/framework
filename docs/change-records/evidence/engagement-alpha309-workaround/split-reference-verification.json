@@ -1,0 +1,58 @@
+{
+  "release_source": "76afb3f84491476e381d9d3f17df7bf71147a131",
+  "producer_provenance_sha256": "4de66905ac15423756ff26a19f42867a7d70b72080cf016781374b89b28db3fa",
+  "profiles": [
+    {
+      "profile": "absent-provenance.json",
+      "packages_matched_to_gated_split_provenance": 40
+    },
+    {
+      "profile": "dev-sql-blob-after-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "dev-sql-blob-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "dev-sql-column-after-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "dev-sql-column-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "no-dev-sql-blob-after-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "no-dev-sql-blob-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "no-dev-sql-column-after-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "no-dev-sql-column-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "upgraded-sql-blob-before-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "upgraded-sql-blob-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "upgraded-sql-column-before-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    },
+    {
+      "profile": "upgraded-sql-column-provenance.json",
+      "packages_matched_to_gated_split_provenance": 41
+    }
+  ]
+}

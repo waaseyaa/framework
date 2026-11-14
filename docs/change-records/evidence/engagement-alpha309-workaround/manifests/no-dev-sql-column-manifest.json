@@ -1,0 +1,30 @@
+{
+  "cohort_label": "0.1.0-alpha.309",
+  "application_files": {
+    "composer.json": "72d15447b0e9419295c3d309eb920d0c48dec8e8e29a7ccd71137ae83f738e24",
+    "src/SyntheticPostAccessPolicy.php": "23f28362d39231c3035287451a20084ab6b55e0d1986cc2e0e667e9588554c72",
+    "src/SyntheticEngagementPolicy.php": "b9f67e6697a7c0b7566e93420acf72870934d8ed66b8d40be5a5fba62e45e528",
+    "src/SyntheticMasterSecretProvider.php": "eb8fae16e16c21ae20306f3325f0da19fa7583cfd2f1931b40ab0d15a350b9ff",
+    "src/EngagementConsumerServiceProvider.php": "5377a7074e01da15f4cdca2b75ddfef10a92bb4b2aff87cf8a73fa8e32eab41a",
+    "src/SyntheticPost.php": "6c177cc9d62960e26944515144d98e3b4bc353ce7e4c52c504a303376bd975cf",
+    "migrations/202611130001_fixture_policy.php": "2bbc2443772c4b20bf2b7dc785a33fbf3e55267243b9ff55c684600f9c6ae2ad",
+    "config/waaseyaa.php": "0c0963f0a030a6ca66867a4ae7514cbb8cccd03da51c9fd66e43697b4c8fa90d",
+    "bootstrap.php": "2da3fca0c2702396c67dbfd1c3565f4e162c8ed1b5883f76e70b82d8253809c8",
+    "journey.php": "48b4528adf0cff0b3cd48c59669c41b70e832858007d021c6c6472e13990e007",
+    "performance.php": "e74f6737228330ec482bd2b30aff7e8fa3d4a5d5f1b5a7bfd35da709a95b8214",
+    "concurrency.php": "46c2881d876ad69d3fdb4d276153d0fddba3e0e189ea92cda1b6c77dcdf04a67",
+    "quota.php": "9de57b264986ebc42d7a7dc8f1a40b944feaf798b8825fea7966fe095c5aad1a",
+    "upgrade.php": "dc26efb68efa6affc7a4f7be571eae1eb85781449428dcc2db040b1b096f79c4",
+    "absent.php": "7e1d6cf422453cdd2484e4a4831b56da5be08264007cd2b4e2718940e547c70d"
+  },
+  "fixture_sha256": "99fc7829ef3cbb4ec42e582af106fc0fb6414e1b3dc65f983db0f367f1809999",
+  "manifest_sha256": "72d15447b0e9419295c3d309eb920d0c48dec8e8e29a7ccd71137ae83f738e24",
+  "direct_waaseyaa_requirements": {
+    "waaseyaa/api": "0.1.0-alpha.309",
+    "waaseyaa/cli": "0.1.0-alpha.309",
+    "waaseyaa/core": "0.1.0-alpha.309",
+    "waaseyaa/engagement": "0.1.0-alpha.309"
+  },
+  "qualification_mode": "metadata-workaround",
+  "metadata_snapshot_sha256": "8abed76e2294c0df58472231d91a6e0aa607d1d8702d33e85d3c95bc43fb86a5"
+}

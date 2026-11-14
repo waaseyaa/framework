@@ -1,0 +1,22 @@
+{
+  "candidate": "34ad0d1e80ea8930ed7df820202f96b697871d4e",
+  "files_sha256": {
+    "tests/PackagedForm/check-engagement-consumer": "4c235bd38d2cb44eeb926fcc2897829220d457ec9dd5adfefa068d0f55a877da",
+    "tests/PackagedForm/engagement/published.py": "20b3322444219cb9546b07176867e97968b25cd7cd5fb10c7e741560ffa7ff9a",
+    "tests/PackagedForm/engagement/workaround.py": "e9fd29022f1ad5b59c4794cae86206d4233d250d233705546f0c4b9d4e673894"
+  },
+  "accepted": [
+    "exact two-package alpha.309 metadata",
+    "historical alpha.308 with no override"
+  ],
+  "refused": [
+    "additional package",
+    "wrong package version",
+    "noncanonical archive URL",
+    "changed production dependency",
+    "script injection",
+    "wrong full commit reference",
+    "workaround manifest passed to default published verifier"
+  ],
+  "review_note": "Focused temporary-fixture discriminators executed before matrix; runtime package bytes separately verified by complete matrix."
+}
