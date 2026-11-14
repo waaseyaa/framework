@@ -61,6 +61,7 @@ for layout in sql-blob sql-column; do
         export ENGAGEMENT_LAYOUT="$layout" ENGAGEMENT_FORM="$form" WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
         pushd "$consumer" >/dev/null
         run_bounded "$label-install" 180 php vendor/bin/waaseyaa install:init
+        run_bounded "$label-field-preflight" 120 php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json
         run_bounded "$label-upgrade" 180 php vendor/bin/waaseyaa engagement:upgrade
         run_bounded "$label-seed" 120 php bootstrap.php seed
         run_bounded "$label-boot" 120 php bootstrap.php boot
@@ -87,6 +88,7 @@ for layout in sql-blob sql-column; do
     export ENGAGEMENT_LAYOUT="${layout#sql-}" WAASEYAA_DB="$legacy/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$legacy/config/sync"
     pushd "$legacy" >/dev/null
     run_bounded "legacy-$layout-install" 180 php vendor/bin/waaseyaa install:init
+    run_bounded "legacy-$layout-field-preflight" 120 php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json
     run_bounded "legacy-$layout-seed" 120 php SeedLegacy.php
     popd >/dev/null
     cp "$legacy/composer.json" "$evidence/legacy-$layout-composer.json"
@@ -101,6 +103,7 @@ for layout in sql-blob sql-column; do
     export ENGAGEMENT_LAYOUT="$layout" WAASEYAA_DB="$upgraded/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$upgraded/config/sync"
     pushd "$upgraded" >/dev/null
     run_bounded "upgraded-$layout-install" 180 php vendor/bin/waaseyaa install:init
+    run_bounded "upgraded-$layout-field-preflight" 120 php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json
     run_bounded "upgraded-$layout-upgrade" 180 php vendor/bin/waaseyaa engagement:upgrade
     run_bounded "upgraded-$layout-seed" 120 php bootstrap.php seed
     run_bounded "upgraded-$layout-probe" 180 php upgrade.php
@@ -119,6 +122,7 @@ cp "$consumer/composer.json" "$consumer/composer.lock" "$evidence/"
 export WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
 pushd "$consumer" >/dev/null
 run_bounded absent-install 180 php vendor/bin/waaseyaa install:init
+run_bounded absent-field-preflight 120 php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json
 run_bounded absent-boot 120 php absent.php
 popd >/dev/null
 printf 'Installed engagement fresh dev/no-dev profiles passed. Evidence: %s\n' "$evidence"

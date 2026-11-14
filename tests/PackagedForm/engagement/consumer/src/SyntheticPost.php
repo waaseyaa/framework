@@ -13,12 +13,12 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title')]
 final class SyntheticPost extends ContentEntityBase
 {
-    #[Field(label: 'Publisher ID', settings: ['authorizationInput' => true])]
+    #[Field(read: \Waaseyaa\Entity\FieldReadLevel::Public, label: 'Publisher ID', settings: ['authorizationInput' => true])]
     public int $publisher_id = 0;
-    #[Field(label: 'Featured subject ID')]
+    #[Field(read: \Waaseyaa\Entity\FieldReadLevel::Public, label: 'Featured subject ID')]
     public int $featured_subject_id = 0;
-    #[Field(label: 'Title')]
+    #[Field(read: \Waaseyaa\Entity\FieldReadLevel::Public, label: 'Title')]
     public string $title = '';
-    #[Field(type: 'boolean', label: 'Published', default: true, settings: ['authorizationInput' => true])]
+    #[Field(read: \Waaseyaa\Entity\FieldReadLevel::Public, type: 'boolean', label: 'Published', default: true, settings: ['authorizationInput' => true])]
     public bool $status = true;
 }
