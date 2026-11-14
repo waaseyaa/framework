@@ -7,6 +7,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.309] - 2026-11-14
+
+### Added
+
+- Add artifact-bound compiled package manifests with a fixed archived layout marker and strict immutable runtime bindings, isolated private validation, canonical HTTP/console witnesses, and scoped cache clearing while preserving legacy and shared configuration behavior.
+
+- Expose the canonical managed-media download responder through a lazy public provider service shared with normal HTTP routes, retaining existing authorization and byte-delivery behavior.
+
+- Add authenticated SMTP submission through Symfony Mailer with required STARTTLS
+  and certificate verification. Share transport-aware delivery readiness with
+  account reset, verification and welcome email. Explicit transport selection
+  now wins over old SendGrid settings, and unknown transports refuse.
+
+- Add an explicit manual published-package J1 qualification lane with observed
+  Ubuntu24.04/ext4 Apache/PHP-FPM inputs and encrypted application snapshots,
+  keeping ordinary Skeleton Smoke and global certification separate; retain
+  portable J1 results and bounded Foundation/CLI installed-profile supplements.
+
+- Add an optional consumer-scoped User management delegate inside the canonical
+  UserAccessPolicy for immutable authenticated update and active-status
+  decisions. Creation, credential, role, permission, verification, read and deletion
+  boundaries retain their existing rules. No consumer delegate is installed by
+  default.
+
+- Added a policy-checked account lifecycle service that revokes existing sessions
+  when disabling an account and preserves revocation after re-enabling it.
+
+- Document the planning-only signup-protection proposal, current contract gaps,
+  acceptance scenarios and roadmap under FW-SIGNUP-PROTECTION-01. No runtime
+  protection, authentication default, dependency or deployed behavior changes.
+
+- Settle the likes, comments and one-level reply implementation contract, including limits, policy and repository boundaries, retries, retention, API ownership and installed qualification.
+
+- Expose optional engagement HTTP endpoints for likes, comments, replies and moderation with strict request shapes, immutable actor binding, explicit JSON CSRF, private responses and sanitized errors. Keep engagement out of the API runtime dependency closure and resolve its service lazily.
+
+- Add registry-only engagement consumer qualification using exact public tags, isolated Composer configuration and installed-package provenance checks.
+
+- Add policy-bound desired-state likes, text comments and one-level replies with sealed retry receipts, bounded pagination, revision-checked editing, removal and retention. Add resumable schema/data upgrades, durable like uniqueness and provider/console/scheduler wiring; disable generic Comment and Reaction writes.
+
+- Add opt-in mandatory repository mutation invariants for non-revisionable entities, with fail-closed kernel wiring, SQLite writer custody and rollback-safe save/delete checks independent of optional validation.
+
+### Fixed
+
+- Restore names-only changed-field metadata in canonical entity-write audits by comparing the lifecycle original and saved framework entity snapshots; preserve protected values, actor attribution and best-effort behavior.
+
+- Preserve local query filters in render-route sign-in redirects and default forbidden-page sign-in links, retaining existing redirect validation and escaping.
+
+- Register exact manifest-layout test capability skips and use scanner-visible braced predicates without weakening required hosted coverage.
+
+- Shared entity editors lead with the declared record label, keep Delete and identifiers in secondary details, and pause publication while form changes are unsaved.
+
+- **Fixed** packaged application guidance to use attribute-derived content registration, the installed account interface and complete access policies. Executable example checks cover registration, permission refusal, controller typing and route requirements; consumer references now explain installed specs and unavailable sibling checkouts.
+
+- Update the compatible Admin editor and shell-quoting toolchain patches and
+  regenerate its accepted static distribution. Retain explicit upstream and
+  major-version decisions for the remaining dependency findings. Pin the Admin
+  integration browser job to the existing Ubuntu 24.04 runner.
+
+- Raise the owning HttpFoundation and Yaml requirements and both qualification
+  locks to patched Symfony 7.4 versions. Require the complete ExpressionLanguage
+  nesting fix in Routing and the root lock, preserving the existing major line.
+  Verify that patched HttpFoundation refuses cookie-path attribute injection,
+  retaining the framework's own policy and valid-serialization checks.
+  Pin the hosted S1 support-contract Composer runtime to its supported 2.10
+  feature line, preserving the unchanged contract check's fail-closed version
+  requirement.
+  Rebind the S1 SQLite dependency-byte authority to the updated root lock
+  with its canonical artifact writer, preserving the four reviewed external
+  package identities and byte digests.
+
+- Permit the reviewed mail package in scoped main publication for Sheguiandah's
+  production SMTP integration. Exact-source CI, dispatcher permissions, fixed
+  package destinations and release-fanout exclusion remain required.
+
+- Expose the kernel's validated role repository to provider factories through the shared service bus, preserving identity and refusing pre-composition or sibling replacement registries.
+
+- Restored Symfony Console's global IO configuration for Waaseyaa CLI commands, so `--no-interaction` and `-n` reach commands and noninteractive Bimaaji collisions fail without replacing a human-owned target.
+
+- Documented the October 28 SMTP, delegated account/session, and provider-role
+  delivery status with exact integration, hosted CI, split, and consumer
+  adoption evidence. Preserved historical test receipts and recorded the
+  provider-role independent-review receipt as unverified.
+
+- Correct the hand-maintained agent-run OpenAPI subset to describe the shared
+  broadcast envelope and combined approval decision endpoint. Add deployment,
+  contact and operation metadata, remove the unimplemented pending-approval
+  payload, and validate real emitted messages without changing runtime behavior.
+
+- Refresh exact discovery and kernel route metadata inventories for engagement HTTP integration, and register its consumer runner and guarded readers with existing architecture checks. Preserve qualification exit status during cleanup.
+
+- Allow installed engagement applications to select the supported blob or column layout through validated provider configuration, retaining canonical attribute metadata and mandatory mutation guards. Add exact copied-package consumer qualification for normal and no-development installs.
+
+- Qualify optional engagement installs through their dedicated routes and opaque generic discussion refusals, preserving the generic JSON:API cutover in minimal and full skeleton smoke checks.
+
+- Declare engagement consumer result, refusal and inspection APIs and mandatory mutation context/vocabulary explicitly for package analysis; normalize two multiline match expressions for hosted style checks.
+
+- Restoring a revision now restores its column-stored bundle fields in the working copy. Later revisions stay in history and the published pointer stays unchanged.
+
+- Refreshed the Composer lock digest used to verify the SQLite and schema authority installation artifacts.
+
+### Security
+
+- Updates the Admin build and development HTTP dispatcher to Undici 8.12.2 within Nuxt's supported range, preserving custom TLS verification and addressing the seven A35 high-severity Undici findings.
+
+- Updates the Admin test DOM to Happy DOM 21.0.4, retaining safe default resource loading and fixing module import-alias injection without changing the Nuxt test environment.
+
+- Remove the vulnerable simple-git and argv-parser chain from the Admin
+  development/build dependency closure through the supported DevTools 3.4.4
+  owner update. Preserve Nuxt 4.5.2, DevTools use and the canonical static
+  distribution; no forced major dependency override is introduced.
 ## [0.1.0-alpha.308] - 2026-10-23
 
 ### Fixed
