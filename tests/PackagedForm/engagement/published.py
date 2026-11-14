@@ -31,6 +31,13 @@ def prepare(source, target, fixture, version, absent=False):
     manifest_path = target / 'composer.json'
     manifest = json.loads(manifest_path.read_text())
     manifest.pop('repositories', None)
+    # A historical cohort must not float transitive siblings to a later alpha.
+    # Conflict constraints restrict candidates without adding optional packages.
+    manifest['conflict'] = {
+        json.loads(path.read_text())['name']: '!=' + cohort
+        for path in sorted((source / 'packages').glob('*/composer.json'))
+        if json.loads(path.read_text())['name'].startswith('waaseyaa/')
+    }
     direct = manifest.get('require', {})
     waaseyaa = sorted(name for name in direct if name.startswith('waaseyaa/'))
     if not waaseyaa:
@@ -79,6 +86,12 @@ def verify(source, target, report_path, version):
     assert hashlib.sha256(manifest_bytes).hexdigest() == application['manifest_sha256'], 'Overlay manifest changed'
     manifest = json.loads(manifest_bytes)
     assert 'repositories' not in manifest, 'Consumer manifest must have no repositories'
+    expected_cohort_constraints = {
+        json.loads(path.read_text())['name']: '!=' + cohort
+        for path in sorted((source / 'packages').glob('*/composer.json'))
+        if json.loads(path.read_text())['name'].startswith('waaseyaa/')
+    }
+    assert manifest.get('conflict') == expected_cohort_constraints, 'Complete exact-cohort constraints are required'
     direct = {name: constraint for name, constraint in manifest.get('require', {}).items() if name.startswith('waaseyaa/')}
     assert direct and all(constraint == cohort for constraint in direct.values()), ('direct waaseyaa requirements are not exact cohort pins', direct)
 

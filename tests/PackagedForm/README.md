@@ -145,3 +145,5 @@ both-layout, upgrade and optional-absence journeys remain enabled. The old
 column schema remains an explicit synthetic fixture. No passing matrix can be
 claimed until the actual new cohort has been published; the command does not
 land code, cut a release, trigger a split, adopt packages in FETDER or deploy.
+
+Published mode also constrains every known Framework sibling to the selected cohort through root conflict constraints. This does not install optional packages. It prevents historical direct pins from admitting newer transitive siblings after a subsequent alpha is published; the verifier still requires uniform installed versions and exact release bytes.
