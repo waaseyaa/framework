@@ -3575,3 +3575,13 @@ route discriminator. Canonical entity-view authorization, strict audited source
 read, public-URI/path confinement, MIME detection, complete Range behavior and
 concealed 404s are unchanged. Populated private/unknown/missing managed sources
 never fall back to a separate legacy path. Caller attributes/headers are preserved.
+
+### Required entity mutation invariant resolution
+
+The kernel's repository factory lazily resolves an entity type's declared
+`requiredMutationInvariant` service through the existing handler container and
+caches the validated guard in its boot-local registry. Resolution happens before
+runtime schema inspection. Missing services and incompatible resolved objects
+fail closed. Non-opted-in entity types use the existing factory path. The
+[entity-system contract](entity-system.md#required-mutation-invariants-for-non-revisionable-entities)
+owns mutation enforcement and the first S1 SQLite support boundary.

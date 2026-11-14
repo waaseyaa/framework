@@ -55,6 +55,27 @@ class EntityTypeTest extends TestCase
         $this->assertNull($type->getBundleEntityType());
         $this->assertSame([], $type->getConstraints());
         $this->assertNull($type->getGroup());
+        $this->assertNull($type->getRequiredMutationInvariant());
+    }
+
+    public function testRequiredMutationInvariantCanBeConfigured(): void
+    {
+        $type = new EntityType(
+            id: 'test', label: 'Test', class: 'Waaseyaa\\Entity\\Tests\\Unit\\TestEntity',
+            requiredMutationInvariant: 'app.invariant',
+        );
+
+        $this->assertSame('app.invariant', $type->getRequiredMutationInvariant());
+    }
+
+    public function testRequiredMutationInvariantRejectsWhitespace(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new EntityType(
+            id: 'test', label: 'Test', class: 'Waaseyaa\\Entity\\Tests\\Unit\\TestEntity',
+            requiredMutationInvariant: "  \t",
+        );
     }
 
     public function testAllProperties(): void

@@ -2754,3 +2754,30 @@ or transaction authority and does not make policy configuration versioned.
 FW-AIV-UNINDEXED-AVAILABILITY-01 skips projection deletion only for undeclared
 identities whose indexing history proves never indexed under that same lock.
 Potentially indexed and uncertain identities retain invalidation and rollback.
+
+## Required mutation invariants for non-revisionable entities
+
+`ContentEntityType(requiredMutationInvariant: 'service-id')` and the equivalent
+`EntityType` constructor metadata opt a non-revisionable, untranslated entity
+into a mandatory repository mutation guard. `MutationInvariantEntityTypeInterface`
+exposes this optional metadata without changing `EntityTypeInterface` consumers.
+The kernel resolves and caches the registered `EntityMutationInvariantInterface`
+service. A missing registry, resolver, guard, canonical DBAL database or aggregate
+mutation authority refuses repository construction. Guarded writes currently
+support the S1 SQLite runtime.
+
+The repository acquires the writer inside its UnitOfWork before loading original
+state or invoking the guard. Save and delete guards run before hooks and again
+before content persistence, including after aggregate callbacks and immediate
+listeners. They apply with `validate: false`. A refusal rolls back the batch and
+its aggregate authority claims. `EntityMutationInvariantContext` carries original
+and proposed state, operation, the current immutable principal when available,
+the canonical database and the UnitOfWork transaction identity. A guard requiring
+an actor must refuse an absent principal. Context objects do not grant authority
+by themselves.
+
+`EntityTypeManager::getStorage()` refuses guarded types before custom backend resolution or cache access. Guarded types reject revision, translation, publication and unscoped maintenance
+entry points. This first slice does not register engagement's future domain guard
+or enable its new service. The engagement contract owns that subsequent opt-in,
+operation-scoped authority and target-policy behavior. Existing entity types with
+no required invariant retain their ordinary repository behavior.

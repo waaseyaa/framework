@@ -105,6 +105,8 @@ Existing owners remain #2756 (engagement), #1627/#2762/#1957 (groups),
 (downstream dead paths). Messaging audit D2/D3 remain explicit decisions.
 #2054 is separate AI/corpus chat, not human conversation ownership.
 
+The next bounded engagement slice is [likes, comments and replies](specs/engagement-likes-comments.md), tracked by [FW-ENGAGEMENT-LIKES-COMMENTS-01](change-records/FW-ENGAGEMENT-LIKES-COMMENTS-01.md) and #3246. One-level replies, neutral removed-parent placeholders and revision-checked edits are accepted defaults. Revision 2 settles the contract decisions. Implement target integrity under #2756, deliver coherent like/comment writes and reads, then qualify installed opt-in packages. Runtime implementation remains pending.
+
 ## Later and release boundaries
 
 No dates or new version promises are assigned here. Federation, voice/video,

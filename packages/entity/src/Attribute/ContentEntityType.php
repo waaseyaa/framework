@@ -38,7 +38,12 @@ final readonly class ContentEntityType
         public string $description = '',
         public bool $api = false,
         public string $storageBackend = '',
+        public ?string $requiredMutationInvariant = null,
     ) {
+        if ($requiredMutationInvariant !== null && trim($requiredMutationInvariant) === '') {
+            throw new \InvalidArgumentException('requiredMutationInvariant must be a non-empty class name, interface name, or service ID.');
+        }
+
         if ($storageBackend !== '' && !\in_array($storageBackend, PrimaryStorageBackend::ALL, true)) {
             throw new \InvalidArgumentException(\sprintf(
                 'Entity type "%s" declares unknown storageBackend "%s". Expected one of: %s (or omit it for the default).',

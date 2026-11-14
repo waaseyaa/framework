@@ -1,0 +1,171 @@
+# FW-ENGAGEMENT-LIKES-COMMENTS-01
+
+**Status:** Implementation in progress, 13 November 2026. First WP2 persistence-foundation slice implemented and independently reviewed. Domain service and installed qualification remain pending.
+**Scope:** Consumer-neutral Framework capability for post likes, comments, and one-level replies
+**Issue ownership:** Framework #3246 owns the supported likes/comments/replies capability under #3197. Framework #2756 remains owner of target integrity and lifecycle across reaction, comment, and follow. This record can qualify an explicitly bounded portion of #2756 only after that acceptance is recorded; it does not transfer or close the wider follow scope.
+
+## Decision summary
+
+The Framework will provide supported, policy-aware engagement operations and queries over immutable post targets. The consuming application supplies current account eligibility, blocking, moderation, and visibility policy through an explicit integration contract. The Framework must refuse an operation when a required policy decision is unavailable.
+
+Russell accepted the initial reply/removal/revision defaults and requested settlement of the remaining implementation decisions. Revision 2 of the [owning spec](../specs/engagement-likes-comments.md) now fixes text normalization and bounds, editing, quotas/storage, ordering/pages/cursors, counts, block-hidden parents, service/HTTP boundaries, mandatory repository enforcement, uniqueness/migration, retry custody, retention and maintained-component fit. Those choices define the implementation target. Runtime acceptance remains pending.
+
+This is an upstream, consumer-neutral record. Examples and qualification fixtures use synthetic actors and content. Product attribution, application identity, adult-content rules, interface layout, concrete moderation policy, and production data are outside this change.
+
+## Supported capability boundary
+
+The intended public behavior is:
+
+- Set a post's liked state to true or false, returning authoritative viewer state and a policy-permitted count.
+- Read engagement summaries for a bounded set of visible feed posts without a query per card.
+- Create a text comment with durable actor-scoped operation identity.
+- Create a reply anchored to its immutable root post and a top-level comment on that same post.
+- Edit an owned comment using its expected aggregate version, returning the new revision and edit time.
+- Remove an owned comment or remove it through explicitly authorized moderation, preserving the distinction in lifecycle/audit semantics.
+- List top-level comments and page replies using deterministic cursors and visibility-aware totals. Discussion totals include permitted comments and replies, excluding placeholders.
+
+Actor identity is derived from authenticated server context. Target, author, and reply-parent references are immutable after creation. Current target, account, and operation eligibility are checked inside the canonical write boundary. HTTP adapters additionally enforce their session, CSRF, and validation contracts; transport checks alone are insufficient. Generic entity APIs, service/repository entry points, and relevant jobs or tools must not bypass the same write authority.
+
+An inaccessible root hides its whole discussion and associated reactions from ordinary reads, pages, and counts. Restoring the root does not silently restore comments independently moderated or removed. Replaying an earlier operation cannot disclose a result after visibility is revoked.
+
+## Work packages and dependencies
+
+### WP1: Behavior, interfaces, and boundaries settled
+
+**Status:** Revision-2 contract authored. Independent agent review and focused document consistency checks apply to these settled decisions; runtime implementation has not begun.
+
+**Deliver:** Operation and transition tables; permission authority for every operation; supported query and mutation boundary; refusal/error outcomes; component fit and installation impact; the settled defaults and explicit runtime acceptance obligations. The spec/change record exist and are linked from the social contract and roadmap.
+
+**Acceptance:** Every operation and negative case has a named authority and defined result. Required policy cannot default to allow. Public API, HTTP, generic entity, and non-HTTP entry points are mapped to one canonical enforcement boundary. The owning spec supplies each previously open choice; implementation must demonstrate those decisions through focused tests.
+
+**Focused intended commands:** Inspect the relevant interfaces and callers with `rg`; inspect the applicable package metadata and supported-version constraints; run only the narrow documentation, static, or API checks selected after the repository's delivery policy and actual commands are confirmed. Record exact commands and results when run.
+
+**Review:** Independent review applies to permission/persistence and significant shared-architecture decisions before integration, following repository risk policy. Review may cover a coherent batch of work packages. The integrator records exact candidate qualification under the existing repository workflow.
+
+### WP2: Establish target integrity for this slice
+
+**Depends on:** WP1 accepted canonical write/read policy contract. Coordinate with #2756; do not imply its wider follow scope is complete.
+
+**Deliver:** Canonical target resolution and authorization; immutable target references; lifecycle/read behavior; existing-row inventory and an explicit remediation or refusal strategy for unresolved references and duplicate reactions; enforcement for generic HTTP and trusted non-HTTP writes; support for both `sql-blob` and `sql-column` layouts.
+
+**Acceptance:** Missing, hidden, and removed targets refuse unauthorized writes and are hidden from ordinary reads, pages, and counts. Actor spoofing and target reassignment fail. No generic HTTP, service/repository, or relevant job/tool path bypasses canonical authority. Both layouts pass fresh and upgraded schema qualification, including mandatory invariant coverage and non-revisionable aggregate-token initialization/backfill. Any bounded #2756 acceptance is named, evidenced, and reviewed while #2756 retains wider ownership.
+
+**Focused intended commands:** The exact schema/migration checks and narrow target-integrity tests for each supported storage layout, plus focused entry-point tests discovered during WP1. Commands are selected from repository policy and actual test names; no runtime qualification is claimed by this record.
+
+
+### WP3: Deliver likes with coherent reads
+
+**Depends on:** WP1 accepted policy/query contract and WP2 accepted canonical target integrity.
+
+**Deliver:** Set liked state; viewer state and permitted count; bounded multi-post summaries; durable uniqueness and transaction-safe conflict handling; cache behavior consistent with current visibility policy.
+
+**Acceptance:** Concurrent likes create one logical reaction. Repeated unlike succeeds. Actor identity is server-derived. Current permission is rechecked before returning a retry/conflict result. Overlapping like/unlike ordering is defined, and clients can reconcile authoritative state after an ambiguous response. Direct reads, summaries, counts, and warmed caches agree after target or policy changes.
+
+**Focused intended commands:** Exact like-state, uniqueness/concurrency, authorization, summary-query, and affected cache tests; narrow schema checks if WP2 did not already cover the relevant migration. Use actual discovered commands and record them with results.
+
+
+### WP4: Deliver comments, edits, removals, and replies
+
+**Depends on:** WP1 accepted lifecycle and retry contracts and WP2 accepted canonical target integrity. WP3 may proceed independently; WP4 does not depend on WP3 unless shared code introduced by implementation makes that dependency explicit and reviewed.
+
+**Deliver:** Text comment creation and durable retry identity; revision-checked owned edits; author and authorized moderation removal; one-level same-post replies; deterministic comment and reply pages; visibility-aware totals and lifecycle behavior.
+
+**Acceptance:** Identical retries return one logical comment; conflicting payloads for the same operation identity refuse without duplicate creation. Cross-post replies and excessive depth refuse. A stale edit cannot restore removed content; edit/edit and edit/remove outcomes follow the revision and removal-wins contract. Removed-parent placeholders are neutral and conceal body and author only where policy permits surviving replies to remain visible. Pages and counts remain consistent under filtering, ties, empty pages, moderation, and parent changes.
+
+**Focused intended commands:** Exact create/retry, edit revision, removal race, same-post reply, pagination/cursor, policy visibility, and affected schema tests discovered from the implementation. Use actual repository test commands and record results.
+
+
+### WP5: Qualify integrated queries and installed-consumer use
+
+**Depends on:** WP2, WP3, and WP4 completed for the capabilities claimed. A partial release must identify precisely which coherent write/query capability is included.
+
+**Deliver:** Integration evidence for visibility-aware reads, pages, counts, cache invalidation, opt-in package boot, and exact installed candidate use. Application policy adapter responsibilities and refusal behavior are documented without embedding consumer policy upstream.
+
+**Acceptance:** Direct reads, pages, counts, and warmed caches agree after block, moderation, and parent changes. The exact candidate passes real consumer journeys in normal and no-development composition. Candidate exports contain copied package bytes, one consistent affected dependency closure, locked provenance, and a fresh no-development boot. Installed-consumer evidence must exercise copied package bytes. Later published adoption requires compatible released identities in the consumer lock and repeated affected journeys.
+
+**Focused intended commands:** Exact candidate export/lock verification, fresh no-development boot, focused consumer journeys, and affected package checks. The repository delivery policy determines mandatory checks; record exact invocations, candidate identities, and outputs. Do not infer release or production qualification from this draft.
+
+
+## Review policy
+
+Apply the repository risk policy to the integrated candidate. Permission, persistence and significant shared-architecture changes require an independent reviewer who did not author them. Record findings and disposition before integration. Use the existing evidence format and integration ownership, with no additional approval or qualification role introduced by this record.
+
+## Qualification matrix
+
+Use synthetic actors and content. Cover signed-in author, stranger, anonymous, suspended, and blocked states; visible, missing, hidden, and removed targets; actor spoofing and target reassignment; simultaneous likes; repeated and conflicting create submissions; cross-post replies and excessive nesting; edit/edit and edit/remove races; partial-write rollback; cursor ties, filtered pages, and empty pages; warmed caches after policy changes; fresh and upgraded schema in both storage layouts; and actual generic HTTP, service/repository, and relevant job/tool entry points.
+
+Record expected outcomes and exact candidate, commands, results and relevant layout/entry-point coverage in the existing evidence format. Permission and persistence changes require independent review. No scenario is qualified merely by being listed here.
+
+## Settled implementation decisions
+
+The spec is the authority for exact values and interfaces. Revision 2 selects these defaults.
+
+| Area | Decision |
+| --- | --- |
+| Text | Plain UTF-8, 1–2,000 code points and at most 8,000 bytes after newline/outer-whitespace normalization. |
+| Edits | No time window while eligible, using the existing aggregate mutation version on non-revisionable comments, no-op handling and removal winning against stale writes. |
+| Ordering and pages | Oldest first with stable ID tie-breaker; 20 default, 50 maximum; 200 candidate scan budget and explicit continuation. |
+| Summaries/counts | Up to 50 roots; visible comments plus replies, excluding placeholders; exact current counts with an explicit first-slice query-cost tradeoff. |
+| Cursors/cache | Purpose-bound encrypted cursor, 15 minutes, viewer/root/policy binding; fresh reads and private/no-store transport. |
+| Block-hidden parent | Neutral placeholder for permitted surviving replies, no blocked identity/text, no new replies to invisible parents. |
+| Quotas | Fixed-window actor budgets for create, edit and like operations; Symfony RateLimiter with short canonical-database admission transactions and single-host Symfony Flock locking before the engagement writer transaction. Removal remains available without a posting quota. |
+| Integrity | Immutable resolved root UUID, mandatory configured-repository guard, service-only writes, generic Reaction/Comment CRUD cutover, both layouts. API owns HTTP routes through optional provider assembly. |
+| Retry | Sealed actor/root/parent-bound submission key, 48 hours, receipt with hashes/result reference and no body snapshot. Expired keys never recreate an operation. |
+| Retention | Immediate body/revision erasure on author/moderator removal, metadata minimization after 30 days, root-deletion purge within 24 hours, audit default 90 days under its owner. |
+| Migration | Deterministic like deduplication, eligible comments backfilled as top-level, inaccessible invalid rows quarantined for at most 30 days before erasure. |
+| Package fit | Existing provider/repository/access/transaction/keyring authorities, Symfony Validator and planned RateLimiter/Lock additions; no publishing dependency for Layer 2 retry behavior. |
+
+These are selected implementation defaults under Russell's current request. Actor/account/moderator permissions still come from the consumer's required current-policy integration. The spec separates those decisions from evidence that the implementation works.
+
+## Resource bounds and broaden triggers
+
+The spec fixes page, scan, batch, depth, text and quota bounds. Focused implementation evidence must measure exact-count query plans and latency, enforce shared-host process limits, and exercise limiter/database lock failure. Run one multi-process database qualification at a time on the development host; use synthetic data and keep existing services available. Extra broad suites follow the local testing policy and affected boundaries.
+
+Broaden review and qualification when implementation adds a new public operation or storage layout; changes account, block, moderation, visibility, or target lifecycle authority; exposes new generic entity/job/tool write paths; changes retry, retention, audit, or report-evidence semantics; adds a shared validator, limiter, cache, or idempotency mechanism; expands reply depth; or changes package dependencies, installation composition, or release identity. Such changes require the affected contract, independent review, and qualification matrix to be updated before acceptance.
+
+## Release and scope
+
+For application development, qualify an exact committed Framework/application pair through isolated installed-package exports with copied package bytes, one consistent affected dependency closure, locked provenance, and fresh no-development boot/journeys. Exercise installed package bytes separately from monorepo source tests. Published adoption requires compatible released identities in the real application lock and repeated affected journeys. Coordinated alpha timing and production authorization continue to govern publication and rollout.
+
+This record defines the settled implementation target. It does not assert that implementation, tests, security review, installed-consumer qualification, publication, or rollout have occurred. It does not close #3246 or #2756.
+
+## Initial document verification
+
+Documentation candidate based on Framework `7f632a7c298793a786158cadceba1358ad711c59`. The spec now records settled defaults and runtime acceptance obligations. This change creates those two durable records and links the existing social contract and roadmap.
+
+Run `bin/git diff --check` and a local relative-link check across the changed documents. Check accepted defaults against ENG-01 through ENG-11 and review the exact document bytes independently. Runtime tests are inapplicable to this documentation candidate. For implementation, the initial existing-package baseline is `php -d memory_limit=1G vendor/bin/phpunit packages/engagement/tests`; add focused real-storage/kernel cases for the affected operation and layouts. Final new test filenames and broader mandatory checks follow the implementation candidate and local testing policy.
+
+Final documentation checks passed on 13 November 2026 using `bin/git diff --check` and a relative-link existence check across the four changed documents. Independent document review found two status/review-policy inconsistencies; the decision-summary attribution and consolidated risk-policy text above address both. Runtime qualification remains pending.
+
+## Revision-2 review and verification
+
+The main agent owns contract integration. Two lower-cost agents mechanically inventoried existing APIs/components and independently reviewed revision 2 without authoring it. Review findings and disposition are recorded below after review completes. Focused document/link checks apply. Runtime package, storage, multi-process and installed-consumer checks remain implementation work.
+
+Final revision-2 independent review passed on 13 November 2026. Both lower-cost reviewers returned “Ready for implementation” after rechecking the corrected contract. The first reviewer covered authorization, integrity, retries, concurrency, retention and visibility. The second covered API ownership/layers, component dependencies, limiter storage/locking and cursor/keyring integration. Neither authored the spec.
+
+Corrections specify the non-revisionable comment aggregate-version source, quota admission after an initially allowed request becomes revoked, the mandatory invariant SPI and exact repository method coverage, API-owned conditional routes, atomic limiter admission/storage ordering, and explicit `CURSOR_EXPIRED` HTTP 400.
+
+Reviewed spec SHA-256 is `f400fdfea5ed848fdb8ddb2741863b7c5b3d03a1b1db2188b5889d636e01daf6`. Final whitespace and relative-link checks passed. These are document-readiness results. Runtime tests, dependency installation, schema/multi-process qualification and installed-consumer evidence remain pending.
+
+## First implementation slice, 13 November 2026
+
+Russell authorized implementation from the settled spec in chat. The first dependency is the mandatory write boundary. Work is isolated on `feat/engagement-likes-comments` from base `7f632a7c298793a786158cadceba1358ad711c59`; the earlier documentation checkout is preserved.
+
+Implemented optional entity metadata through the existing attribute reader, a minimal invariant SPI/registry/context, lazy fail-closed kernel resolution, SQLite writer acquisition, and initial/final save/delete checks independent of optional validation. Ordinary and aggregate callbacks, immediate listeners and batch rollback are covered. Revision/translation/publication and unscoped maintenance mutations refuse for guarded types. `getStorage()` refuses before custom-storage cache/factory access. Existing unguarded types retain their normal path.
+
+This slice supports non-revisionable untranslated entities on S1 SQLite in both blob and column layouts. The future engagement domain guard, operation-scoped service authority, target-policy adapter, uniqueness/migrations, likes/comments/replies service, limiter, crypto cursors/retry receipts, HTTP routes and installed-consumer acceptance remain pending. No engagement entity is opted in until that coherent domain service is available. WP2 as a whole is therefore still in progress.
+
+Focused and broadened verification used PHP 8.5.4, Composer 2.9.5 and the candidate-local locked dependency install.
+
+- `php -d memory_limit=1G vendor/bin/phpunit packages/entity-storage/tests --no-coverage` passed 1,031 tests and 3,398 assertions.
+- Focused metadata/manager/factory/invariant tests passed 179 tests and 487 assertions before the strengthened publication-driver case, which subsequently passed within the final 1,031-test storage run. Counts overlap and must not be summed.
+- Focused source PHPStan passed with no errors for the changed entity, storage mutation, repository and factory source.
+- Public surface parity, package layers, Composer policy, generated SQLite/schema rosters and whitespace checks passed. Generated declarations/maps and test-occurrence rosters are included.
+
+Two independent lower-cost agents reviewed the implementation without authoring it. Findings fixed before their final passing verdicts included misplaced repeated refusal checks, a publication flag path that could reach callbacks with an unusual supplied revision driver, and the supported custom-storage bypass. Regression coverage now supplies that non-null revision driver and verifies no callback, guard or revision-driver effects. A broader storage test exposed an undeclared database-interface call, replaced with canonical `DatabaseInterface::query()`. PHPStan also corrected the resolver return contract to match object-valued container resolution.
+
+Reviewed package-file digest (SHA-256 of sorted changed package paths, NUL, file bytes, NUL) is `be1065d163694bde9fba633f66e12fa2a679d92760cee1b3594a38c571533ce2`. Final preflight and history outcomes are recorded below. These source/test verdicts do not establish installed-consumer, release or production readiness.
+
+Additional verification passed 1,017 entity/kernel tests with 2,459 assertions. The final required-invariant tests passed 12 tests and 71 assertions, including a file-backed two-connection check proving the SQLite writer is held during both guard invocations and released after commit. The clone uses native `core.autocrlf=input`; this resolved the distribution-policy comparison failure caused by inherited CRLF checkout settings. Git history was fetched with historical blobs deferred so the history-based gates can evaluate real ancestry.
+
+The default repository preflight passed all 43 executed gates, with zero failures, zero hosted-required and three not-applicable. Command used `php bin/check-pr-preflight --base=7f632a7c298793a786158cadceba1358ad711c59`; its report is `/tmp/framework-engagement-preflight-qualified.json`. The history fetch completed, and `git rev-parse --is-shallow-repository` returns false. The final focused guard run reported 12 tests and 73 assertions. Both reviewers' final verdicts cover the corrected core source and the two-connection test. The candidate is a local persistence-foundation checkpoint, with the remaining domain work listed above.

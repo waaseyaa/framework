@@ -53,6 +53,7 @@ final class V2EntityRepositoryFactory
         ?StorageBoundary $storageBoundary = null,
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
         ?EntityIdentifierResolver $entityReferenceResolver = null,
+        ?\Waaseyaa\EntityStorage\Mutation\MutationInvariantRegistry $mutationInvariants = null,
     ): EntityRepository {
         $storageBoundary ??= new StorageBoundary();
 
@@ -78,6 +79,7 @@ final class V2EntityRepositoryFactory
             $storageBoundary,
             $fieldReadScope,
             $entityReferenceResolver,
+            $mutationInvariants,
         );
     }
 
@@ -99,6 +101,7 @@ final class V2EntityRepositoryFactory
         ?StorageBoundary $storageBoundary = null,
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
         ?EntityIdentifierResolver $entityReferenceResolver = null,
+        ?\Waaseyaa\EntityStorage\Mutation\MutationInvariantRegistry $mutationInvariants = null,
     ): EntityRepository {
         $storageBoundary ??= new StorageBoundary();
         if ($driver instanceof InMemoryStorageDriver) {
@@ -140,6 +143,7 @@ final class V2EntityRepositoryFactory
             $storageBoundary,
             $fieldReadScope,
             $entityReferenceResolver,
+            $mutationInvariants,
         );
     }
 }

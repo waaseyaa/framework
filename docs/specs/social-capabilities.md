@@ -139,3 +139,7 @@ Subsequent transition design must also settle request acceptance, block effects
 on old history and groups, membership admission, last-admin succession, message
 edit/unsend limits, attachment scope and report retention. Record coherent
 recommended defaults together; do not silently ratify them through implementation.
+
+## Bounded engagement defaults, 13 November 2026
+
+[Engagement likes, comments and replies](engagement-likes-comments.md) records the accepted defaults for the next bounded slice under #3246. [FW-ENGAGEMENT-LIKES-COMMENTS-01](../change-records/FW-ENGAGEMENT-LIKES-COMMENTS-01.md) owns its delivery sequence. The defaults include one reply level, neutral removed-parent placeholders retaining permitted replies, and revision-checked edits. Revision 2 settles the bounded interfaces, policy integration, limits, retention and persistence decisions for implementation. #2756 retains target-integrity/lifecycle ownership, including its wider follow scope. This amendment establishes design intent; runtime and installed qualification remain pending.

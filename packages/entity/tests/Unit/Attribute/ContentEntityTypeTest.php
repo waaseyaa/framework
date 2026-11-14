@@ -21,6 +21,23 @@ final class ContentEntityTypeTest extends TestCase
         self::assertSame('', $attr->label);
         self::assertSame('', $attr->description);
         self::assertFalse($attr->api);
+        self::assertNull($attr->requiredMutationInvariant);
+    }
+
+    #[Test]
+    public function it_accepts_a_required_mutation_invariant(): void
+    {
+        $attr = new ContentEntityType(id: 'foo', requiredMutationInvariant: 'App\\Security\\Invariant');
+
+        self::assertSame('App\\Security\\Invariant', $attr->requiredMutationInvariant);
+    }
+
+    #[Test]
+    public function it_rejects_an_empty_required_mutation_invariant(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new ContentEntityType(id: 'foo', requiredMutationInvariant: " \t\n");
     }
 
     #[Test]

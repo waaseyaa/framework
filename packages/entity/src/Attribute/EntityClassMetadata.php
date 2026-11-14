@@ -31,5 +31,6 @@ final readonly class EntityClassMetadata
         public array $fields = [],
         public array $storageUniqueKeys = [],
         public array $storageSchemaTransitions = [],
+        public ?string $requiredMutationInvariant = null,
     ) {}
 }

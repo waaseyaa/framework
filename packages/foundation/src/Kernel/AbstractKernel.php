@@ -403,6 +403,7 @@ abstract class AbstractKernel
             },
             fieldReadScope: $this->fieldReadScope(),
             fieldTypes: $fieldTypes,
+            mutationInvariantResolver: fn(string $id) => $this->buildHandlerContainer()->get($id),
         );
     }
 

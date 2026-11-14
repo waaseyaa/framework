@@ -23,7 +23,7 @@ use Waaseyaa\Field\FieldStorage;
  * `@internal` and is reserved for that factory plus the package-local and
  * `waaseyaa/testing` synthetic entity-type helpers.
  */
-final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface, EntityTypeStorageUniqueKeyDefinitionInterface, EntityTypeStorageSchemaTransitionDefinitionInterface
+final readonly class EntityType implements MutationInvariantEntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface, EntityTypeStorageUniqueKeyDefinitionInterface, EntityTypeStorageSchemaTransitionDefinitionInterface
 {
     /**
      * Canonical scope identifier for community-scoped tenancy.
@@ -83,7 +83,11 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         private array $_foreignKeys = [],
         private array $_storageUniqueKeys = [],
         private array $_storageSchemaTransitions = [],
+        private ?string $requiredMutationInvariant = null,
     ) {
+        if ($this->requiredMutationInvariant !== null && trim($this->requiredMutationInvariant) === '') {
+            throw new \InvalidArgumentException('requiredMutationInvariant must be a non-empty class name, interface name, or service ID.');
+        }
         // T036: revisionable entity types must declare a non-empty revision key.
         if ($this->revisionable) {
             $revisionKey = $this->keys['revision'] ?? '';
@@ -132,6 +136,11 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
     public function getStorageSchemaTransitions(): array
     {
         return $this->_storageSchemaTransitions;
+    }
+
+    public function getRequiredMutationInvariant(): ?string
+    {
+        return $this->requiredMutationInvariant;
     }
 
     /**
@@ -288,6 +297,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
             _fieldDefinitions: $metadata->fields,
             _storageUniqueKeys: $metadata->storageUniqueKeys,
             _storageSchemaTransitions: $metadata->storageSchemaTransitions,
+            requiredMutationInvariant: $metadata->requiredMutationInvariant,
         );
         $cache[$class][] = ['arguments' => $arguments, 'entityType' => $entityType];
 

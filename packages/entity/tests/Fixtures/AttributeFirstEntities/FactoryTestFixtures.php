@@ -46,6 +46,11 @@ final class EmptyFieldsFixture extends ContentEntityBase
 {
 }
 
+#[ContentEntityType(id: 'invariant_fixture', requiredMutationInvariant: 'App\\MutationInvariant')]
+final class MutationInvariantFixture extends ContentEntityBase
+{
+}
+
 /**
  * Entity with no label — fromClass() should default to ucfirst(typeId).
  */

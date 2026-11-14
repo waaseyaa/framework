@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Entity\\MutationInvariantEntityTypeInterface', 'disposition' => 'public', 'purpose' => 'Optional required mutation invariant metadata'],
         ['fqcn' => 'Waaseyaa\\Entity\\ApiExposableEntityTypeInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Entity\\Audit\\EntityAuditKey', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Entity\\Audit\\LifecycleAuditKey', 'disposition' => 'public'],

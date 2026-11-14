@@ -11,6 +11,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\MutationInvariantEntityTypeInterface;
 use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
@@ -24,6 +25,8 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationInvariantInterface;
+use Waaseyaa\EntityStorage\Mutation\MutationInvariantRegistry;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Validation\DatabaseValidationReadLedger;
 use Waaseyaa\Field\FieldDefinition;
@@ -57,6 +60,7 @@ final class EntityTypeManagerFactory
      * @param FieldTypeManagerInterface                                         $fieldTypes              The kernel's boot-scoped field-type
      *        registry (#2786 B1): every runtime SqlSchemaHandler the repository factory builds projects
      *        columns through it, so a downstream plugin the field registry admitted is materializable.
+     * @param (\Closure(string): object)|null                                   $mutationInvariantResolver
      */
     public function build(
         DatabaseInterface $database,
@@ -68,7 +72,12 @@ final class EntityTypeManagerFactory
         callable $accountContextAttacher,
         AccountFieldReadScopeInterface $fieldReadScope,
         FieldTypeManagerInterface $fieldTypes,
+        ?\Closure $mutationInvariantResolver = null,
     ): EntityTypeManager {
+        $mutationInvariants = new MutationInvariantRegistry();
+        /** @var array<string, EntityMutationInvariantInterface> $resolvedMutationInvariants */
+        $resolvedMutationInvariants = [];
+
         // Issue #1643: save-time entity validation is ON by default for every
         // kernel-built repository. One shared stateless EntityValidator is
         // captured by the repository factory closure below. The boot-time env
@@ -93,13 +102,53 @@ final class EntityTypeManagerFactory
             // it remains a "bring your own EntityStorageInterface" extension seam
             // for entity types that explicitly declare a storageClass.
             null,
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, $fieldTypes, &$entityTypeManagerRef): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, $fieldTypes, &$entityTypeManagerRef, $mutationInvariants, $mutationInvariantResolver, &$resolvedMutationInvariants): EntityRepositoryInterface {
                 if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
                     throw new \RuntimeException(\sprintf(
                         'Entity type "%s" declares custom storage "%s"; getRepository() only supports Framework SQL storage. Use getStorage() for the declared backend.',
                         $definition->id(),
                         $definition->getStorageClass(),
                     ));
+                }
+
+                $repositoryMutationInvariants = null;
+                if ($definition instanceof MutationInvariantEntityTypeInterface) {
+                    $invariantId = $definition->getRequiredMutationInvariant();
+                    if ($invariantId !== null) {
+                        if ($mutationInvariantResolver === null) {
+                            throw new \LogicException(\sprintf(
+                                'Entity type "%s" requires mutation invariant "%s", but no mutation invariant resolver is configured.',
+                                $definition->id(),
+                                $invariantId,
+                            ));
+                        }
+
+                        if (!isset($resolvedMutationInvariants[$invariantId])) {
+                            try {
+                                $invariant = $mutationInvariantResolver($invariantId);
+                            } catch (\Throwable $error) {
+                                throw new \LogicException(\sprintf(
+                                    'Unable to resolve required mutation invariant "%s" for entity type "%s".',
+                                    $invariantId,
+                                    $definition->id(),
+                                ), previous: $error);
+                            }
+
+                            if (!$invariant instanceof EntityMutationInvariantInterface) {
+                                throw new \LogicException(\sprintf(
+                                    'Required mutation invariant "%s" for entity type "%s" must implement %s.',
+                                    $invariantId,
+                                    $definition->id(),
+                                    EntityMutationInvariantInterface::class,
+                                ));
+                            }
+
+                            $resolvedMutationInvariants[$invariantId] = $invariant;
+                            $mutationInvariants->register($invariantId, $invariant);
+                        }
+
+                        $repositoryMutationInvariants = $mutationInvariants;
+                    }
                 }
 
                 $schemaHandler = $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger, $fieldTypes);
@@ -154,6 +203,7 @@ final class EntityTypeManagerFactory
                     storageBoundary: $storageBoundary,
                     fieldReadScope: $fieldReadScope,
                     entityReferenceResolver: $entityReferenceResolver,
+                    mutationInvariants: $repositoryMutationInvariants,
                 );
                 // revision-audit-provenance-01KTWY5V WP01: forward seam — the
                 // kernel's shared acting-account context is attached once

@@ -47,6 +47,7 @@ final class EntityMetadataReader
             description: $labelDescription['description'],
             api: $labelDescription['api'],
             storageBackend: $labelDescription['storageBackend'],
+            requiredMutationInvariant: $labelDescription['requiredMutationInvariant'],
             fields: $fields,
             storageUniqueKeys: $storageUniqueKeys,
             storageSchemaTransitions: $storageSchemaTransitions,
@@ -184,7 +185,7 @@ final class EntityMetadataReader
      * hierarchy and surface its label/description fields.
      *
      * @param class-string $class
-     * @return array{label: string, description: string, api: bool, storageBackend: string}
+     * @return array{label: string, description: string, api: bool, storageBackend: string, requiredMutationInvariant: ?string}
      */
     private static function resolveLabelAndDescription(string $class): array
     {
@@ -198,6 +199,7 @@ final class EntityMetadataReader
                     'description' => $instance->description,
                     'api' => $instance->api,
                     'storageBackend' => $instance->storageBackend,
+                    'requiredMutationInvariant' => $instance->requiredMutationInvariant,
                 ];
             }
             $parent = $ref->getParentClass();
@@ -207,7 +209,7 @@ final class EntityMetadataReader
             $ref = $parent;
         }
 
-        return ['label' => '', 'description' => '', 'api' => false, 'storageBackend' => ''];
+        return ['label' => '', 'description' => '', 'api' => false, 'storageBackend' => '', 'requiredMutationInvariant' => null];
     }
 
     /**

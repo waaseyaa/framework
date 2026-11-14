@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -24,6 +25,7 @@ use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldValueCanonicalizer;
+use Waaseyaa\Entity\MutationInvariantEntityTypeInterface;
 use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
@@ -60,6 +62,10 @@ use Waaseyaa\EntityStorage\Exception\EntityMutationCommittedSideEffectsFailedExc
 use Waaseyaa\EntityStorage\Exception\MissingEntityMutationTokenException;
 use Waaseyaa\EntityStorage\Exception\MutationAuthorityBackfillException;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationInvariantContext;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationInvariantInterface;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationOperation;
+use Waaseyaa\EntityStorage\Mutation\MutationInvariantRegistry;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
 
@@ -73,6 +79,8 @@ use Waaseyaa\I18n\LanguageManagerInterface;
 final class EntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface, LegacyMutationAuthorityBackfillRepositoryInterface
 {
     private readonly EntityStorageDriverV2Interface $driver;
+
+    private readonly ?EntityMutationInvariantInterface $requiredMutationInvariant;
 
     private readonly StorageRowReader $storageRowReader;
 
@@ -146,7 +154,30 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         ?StorageBoundary $storageBoundary = null,
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
         private readonly ?EntityIdentifierResolver $entityReferenceResolver = null,
+        ?MutationInvariantRegistry $mutationInvariants = null,
     ) {
+        $requiredInvariant = $entityType instanceof MutationInvariantEntityTypeInterface
+            ? $entityType->getRequiredMutationInvariant()
+            : null;
+        $resolvedInvariant = null;
+        if ($requiredInvariant !== null) {
+            if (!$database instanceof DBALDatabase || $mutationAuthority === null) {
+                throw new \LogicException('Required mutation invariants need canonical DBAL mutation authority.');
+            }
+            try {
+                iterator_to_array($database->query('SELECT sqlite_version()'));
+            } catch (\Throwable $error) {
+                throw new \LogicException('Required mutation invariants currently require S1 SQLite.', previous: $error);
+            }
+            if ($entityType->isRevisionable() || $entityType->isTranslatable()) {
+                throw new \LogicException('Required mutation invariants currently support non-revisionable, untranslated entities.');
+            }
+            if ($mutationInvariants === null) {
+                throw new \LogicException('Required mutation invariant registry is missing.');
+            }
+            $resolvedInvariant = $mutationInvariants->get($requiredInvariant);
+        }
+        $this->requiredMutationInvariant = $resolvedInvariant;
         if ($this->database instanceof DBALDatabase && $this->mutationAuthority === null) {
             throw new \LogicException('A DBAL-backed EntityRepository requires the universal entity mutation authority.');
         }
@@ -757,6 +788,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         ?\Closure $publicationFinalizer = null,
         ?\Closure $beforeCommit = null,
     ): EntityInterface {
+        if ($publishRevision) {
+            $this->refuseUnsupportedInvariantMutation();
+        }
         if ($entity->isNew()) {
             throw new \LogicException('Aggregate mutation commands require an existing persisted entity.');
         }
@@ -896,7 +930,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
         try {
             return $unitOfWork->transaction(
-                fn(): mixed => $operation($unitOfWork),
+                function () use ($operation, $unitOfWork): mixed {
+                    if ($this->requiredMutationInvariant !== null) {
+                        // Acquire the SQLite writer before reading policy/original state.
+                        // The zero-row write changes no aggregate or user content.
+                        $this->database->query(
+                            'UPDATE waaseyaa_entity_mutation_authority SET aggregate_version = aggregate_version WHERE 1 = 0',
+                        );
+                    }
+
+                    return $operation($unitOfWork);
+                },
             );
         } catch (TransactionCompletionException $failure) {
             if ($failure->committedByUnitToken() === $unitOfWork->commitmentToken()) {
@@ -936,6 +980,37 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         }
 
         return $fields;
+    }
+
+    private function assertRequiredMutationInvariant(
+        EntityMutationOperation $operation,
+        ?EntityInterface $original,
+        ?EntityInterface $proposed,
+        ?UnitOfWork $unitOfWork,
+    ): void {
+        if ($this->requiredMutationInvariant === null) {
+            return;
+        }
+        if ($unitOfWork === null || $unitOfWork->commitmentToken() === '' || $this->database === null) {
+            throw new \LogicException('Required mutation invariant invoked outside its unit of work.');
+        }
+        $account = $this->accountContext?->current();
+        $principal = $account instanceof AuthorizationPrincipalInterface ? $account : null;
+        $this->requiredMutationInvariant->assertMutation(new EntityMutationInvariantContext(
+            $operation,
+            $original,
+            $proposed,
+            $principal,
+            $this->database,
+            $unitOfWork->commitmentToken(),
+        ));
+    }
+
+    private function refuseUnsupportedInvariantMutation(): void
+    {
+        if ($this->requiredMutationInvariant !== null) {
+            throw new \LogicException('Required-invariant entities reject revision, translation, publication and unscoped maintenance mutations.');
+        }
     }
 
     /**
@@ -1031,6 +1106,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     ): int {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
+        $invariantOriginal = $this->requiredMutationInvariant !== null && !$isNew
+            ? $this->find((string) $entity->id())
+            : null;
+        $this->assertRequiredMutationInvariant(
+            $isNew ? EntityMutationOperation::Create : EntityMutationOperation::Update,
+            $invariantOriginal,
+            $entity,
+            $unitOfWork,
+        );
         if (!$isNew && $this->revisionDriver !== null) {
             $this->revisionDriver->assertEntityMutationAllowed((string) $entity->id());
         }
@@ -1241,6 +1325,14 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $this->dispatchEvent(
             new BeforeSaveEvent($entity, $resolvedContext, $createRevision, $originalEntity),
             BeforeSaveEvent::class,
+        );
+
+        // Recheck after aggregate callbacks, preSave and all immediate listeners.
+        $this->assertRequiredMutationInvariant(
+            $isNew ? EntityMutationOperation::Create : EntityMutationOperation::Update,
+            $invariantOriginal,
+            $entity,
+            $unitOfWork,
         );
 
         $values = $this->canonicalizeBooleanFieldValues(
@@ -1567,6 +1659,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
     private function doDelete(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): void
     {
+        $invariantOriginal = $this->requiredMutationInvariant !== null
+            ? $this->find((string) $entity->id())
+            : null;
+        $this->assertRequiredMutationInvariant(EntityMutationOperation::Delete, $invariantOriginal, null, $unitOfWork);
         if ($this->revisionDriver !== null) {
             $this->revisionDriver->assertEntityMutationAllowed((string) $entity->id());
         }
@@ -1595,6 +1691,8 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $this->eventFactory->create($entity, $entity),
                 EntityEvents::PRE_DELETE->value,
             );
+
+            $this->assertRequiredMutationInvariant(EntityMutationOperation::Delete, $invariantOriginal, null, $unitOfWork);
 
             if ($this->revisionDriver !== null && $this->entityType->isRevisionable()) {
                 $this->revisionDriver->deleteAllRevisions($id);
@@ -1784,6 +1882,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         ?EntityMutationToken $expected = null,
         ?int $expectedCurrentRevisionId = null,
     ): EntityInterface {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -1952,6 +2051,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2129,6 +2229,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2154,6 +2255,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2181,6 +2283,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         int|string $entityId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2424,6 +2527,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         ?string $log = null,
         ?EntityMutationToken $expected = null,
     ): int {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2487,6 +2591,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         ?string $log = null,
         ?EntityMutationToken $expected = null,
     ): array {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2658,6 +2763,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         ?string $log = null,
         ?EntityMutationToken $expected = null,
     ): int {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -2968,6 +3074,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         RevisionPruningPolicy $policy,
         ?EntityMutationToken $expected = null,
     ): RevisionPruningReport {
+        $this->refuseUnsupportedInvariantMutation();
         // #2674: reduce the accepted int|string identity domain to the
         // string domain the driver SPI addresses rows in. Total and
         // injective, so nothing is re-interpreted numerically.
@@ -3078,6 +3185,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      */
     public function backfillInitialRevisions(?string $log = null): int
     {
+        $this->refuseUnsupportedInvariantMutation();
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -3137,6 +3245,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      */
     public function backfillMutationAuthorities(string $reason): int
     {
+        $this->refuseUnsupportedInvariantMutation();
         $reason = trim($reason);
         if ($reason === '') {
             throw new \InvalidArgumentException('Mutation-authority backfill requires an audit reason.');

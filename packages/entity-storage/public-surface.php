@@ -8,6 +8,10 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Mutation\\EntityMutationInvariantInterface', 'disposition' => 'public', 'purpose' => 'Mandatory opt-in repository mutation invariant'],
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Mutation\\EntityMutationInvariantContext', 'disposition' => 'public', 'purpose' => 'Immutable mutation invariant context'],
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Mutation\\EntityMutationOperation', 'disposition' => 'public', 'purpose' => 'Mutation operation vocabulary'],
+        ['fqcn' => 'Waaseyaa\\EntityStorage\\Mutation\\MutationInvariantRegistry', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\Event\\EntityPersistedEvent', 'disposition' => 'public', 'purpose' => 'Required entity invariants after writes and hooks, before transaction commit (#2753)'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\AggregateMutationRepositoryInterface', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\EntityStorage\\BackendResolver', 'disposition' => 'public', 'purpose' => 'Resolves which backend handles a given `FieldDefinition` (M-001, WP02)'],

@@ -13,6 +13,7 @@ use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\BenchmarkFixture;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\EmptyFieldsFixture;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\FactoryChildFixture;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\MissingAttributeFixture;
+use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\MutationInvariantFixture;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\NoLabelFixture;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\RevisionableFixture;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\SimpleFixture;
@@ -53,6 +54,14 @@ final class EntityTypeFromClassTest extends TestCase
         self::assertSame('empty_fields', $type->id());
         self::assertSame([], $type->getFieldDefinitions());
         self::assertFalse($type->isApiExposed());
+    }
+
+    public function testRequiredMutationInvariantIsPropagatedFromAttribute(): void
+    {
+        $type = EntityType::fromClass(MutationInvariantFixture::class);
+
+        self::assertSame('App\\MutationInvariant', $type->getRequiredMutationInvariant());
+        self::assertNull(EntityType::fromClass(SimpleFixture::class)->getRequiredMutationInvariant());
     }
 
     public function testTenancyOverrideIsForwardedOnFirstCall(): void

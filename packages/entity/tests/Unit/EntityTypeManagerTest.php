@@ -28,6 +28,32 @@ class EntityTypeManagerTest extends TestCase
         $this->manager = new EntityTypeManager($this->eventDispatcher);
     }
 
+    public function testRequiredInvariantRefusesCustomStorageBeforeFactoryInvocation(): void
+    {
+        $called = false;
+        $manager = new EntityTypeManager(
+            $this->eventDispatcher,
+            static function () use (&$called): EntityStorageInterface {
+                $called = true;
+                throw new \LogicException('The unguarded factory must not run.');
+            },
+        );
+        $manager->registerEntityType(new EntityType(
+            id: 'guarded',
+            label: 'Guarded',
+            class: TestEntity::class,
+            requiredMutationInvariant: 'guard.service',
+        ));
+
+        try {
+            $manager->getStorage('guarded');
+            self::fail('A required invariant was bypassed through custom storage.');
+        } catch (\LogicException $error) {
+            self::assertStringContainsString('guarded canonical repository', $error->getMessage());
+        }
+        self::assertFalse($called);
+    }
+
     public function testImplementsInterface(): void
     {
         $this->assertInstanceOf(EntityTypeManagerInterface::class, $this->manager);

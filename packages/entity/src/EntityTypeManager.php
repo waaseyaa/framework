@@ -456,11 +456,15 @@ class EntityTypeManager implements EntityTypeManagerInterface
 
     public function getStorage(string $entityTypeId): Storage\EntityStorageInterface
     {
+        $definition = $this->getDefinition($entityTypeId);
+        if ($definition instanceof MutationInvariantEntityTypeInterface
+            && $definition->getRequiredMutationInvariant() !== null
+        ) {
+            throw new \LogicException('Required-invariant entity types must use the guarded canonical repository.');
+        }
         if (isset($this->storageInstances[$entityTypeId])) {
             return $this->storageInstances[$entityTypeId];
         }
-
-        $definition = $this->getDefinition($entityTypeId);
 
         if ($this->storageFactory !== null) {
             $storage = ($this->storageFactory)($definition);

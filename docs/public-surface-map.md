@@ -551,6 +551,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Hydration\FallbackChainResolver` | final readonly class | public | — |
 | `Hydration\HydratableFromStorageInterface` | interface | public | — |
 | `Hydration\HydrationContext` | final readonly class | public | — |
+| `MutationInvariantEntityTypeInterface` | interface | public | Optional required mutation invariant metadata |
 | `Repository\EntityRepositoryInterface` | interface | public | High-level CRUD API handling hydration, event dispatch, and language fallback. Adds `findTranslations(EntityInterface): array<string, EntityInterface>` (M-006, WP10) |
 | `RevisionMetadata` | final readonly class | public | — |
 | `RevisionableEntityInterface` | interface | public | — |
@@ -633,6 +634,10 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Hydration\EntityInstantiator` | final class | internal | — |
 | `LegacyMutationAuthorityBackfillRepositoryInterface` | interface | internal | — |
 | `Listing\TwoAxisFilterResolver` | final class | public | Resolves listing filters against two-axis storage: joins `<entity>__revision` to `<entity>__translation__revision` and applies langcode + revision-window selection (M-004, WP07) |
+| `Mutation\EntityMutationInvariantContext` | final readonly class | public | Immutable mutation invariant context |
+| `Mutation\EntityMutationInvariantInterface` | interface | public | Mandatory opt-in repository mutation invariant |
+| `Mutation\EntityMutationOperation` | enum | public | Mutation operation vocabulary |
+| `Mutation\MutationInvariantRegistry` | final class | internal | — |
 | `Query\DefinitionValidator` | final class | public | Validates `FieldDefinition` objects at registration time; throws `UnsupportedQueryException` (M-001, WP06) |
 | `Query\EntityQuery` | interface | public | — |
 | `RevisionPruningPolicy` | final class | public | Immutable value object describing how many revisions to keep (M-001, WP08) |

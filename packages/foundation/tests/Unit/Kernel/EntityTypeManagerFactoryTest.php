@@ -31,6 +31,9 @@ use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\RedactedInvalidValue;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationInvariantContext;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationInvariantInterface;
+use Waaseyaa\EntityStorage\Mutation\EntityMutationOperation;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\EntityStorage\Testing\EntityMutationAuthoritySchema;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
@@ -172,6 +175,132 @@ final class EntityTypeManagerFactoryTest extends TestCase
         $manager->getRepository('scope_test');
 
         $this->assertContains('scope_test', $resolvedTypes, 'communityScoreResolver must be called with the entity type definition');
+    }
+
+    #[Test]
+    public function required_mutation_invariant_without_resolver_refuses_before_schema_creation(): void
+    {
+        $manager = $this->manager();
+        $manager->registerEntityType(new EntityType(
+            id: 'missing_invariant',
+            label: 'Missing invariant',
+            class: KernelRefTargetEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            requiredMutationInvariant: 'test.missing',
+        ));
+
+        try {
+            $manager->getRepository('missing_invariant');
+            self::fail('Repository construction accepted a missing required invariant resolver.');
+        } catch (\LogicException $exception) {
+            self::assertStringContainsString('no mutation invariant resolver', $exception->getMessage());
+        }
+
+        self::assertFalse($this->database->schema()->tableExists('missing_invariant'));
+    }
+
+    #[Test]
+    public function required_mutation_invariant_with_wrong_resolved_type_refuses_before_schema_creation(): void
+    {
+        $manager = $this->manager(mutationInvariantResolver: static fn (string $id): object => new \stdClass());
+        $manager->registerEntityType(new EntityType(
+            id: 'wrong_invariant',
+            label: 'Wrong invariant',
+            class: KernelRefTargetEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            requiredMutationInvariant: 'test.wrong',
+        ));
+
+        try {
+            $manager->getRepository('wrong_invariant');
+            self::fail('Repository construction accepted a service that does not implement the invariant interface.');
+        } catch (\LogicException $exception) {
+            self::assertStringContainsString(EntityMutationInvariantInterface::class, $exception->getMessage());
+        }
+
+        self::assertFalse($this->database->schema()->tableExists('wrong_invariant'));
+    }
+
+    #[Test]
+    public function required_invariant_is_resolved_once_and_shared_across_entity_types(): void
+    {
+        $guard = new class implements EntityMutationInvariantInterface {
+            public function assertMutation(EntityMutationInvariantContext $context): void {}
+        };
+        $resolved = [];
+        $manager = $this->manager(mutationInvariantResolver: static function (string $id) use (&$resolved, $guard): EntityMutationInvariantInterface {
+            $resolved[] = $id;
+
+            return $guard;
+        });
+        $types = [
+            new EntityType(
+                id: 'invariant_shared_one',
+                label: 'Invariant shared one',
+                class: KernelRefTargetEntity::class,
+                keys: ['id' => 'id', 'uuid' => 'uuid'],
+                requiredMutationInvariant: 'test.shared',
+            ),
+            new EntityType(
+                id: 'invariant_shared_two',
+                label: 'Invariant shared two',
+                class: KernelRefTargetEntity::class,
+                keys: ['id' => 'id', 'uuid' => 'uuid'],
+                requiredMutationInvariant: 'test.shared',
+            ),
+        ];
+        foreach ($types as $type) {
+            $manager->registerEntityType($type);
+        }
+        new EntitySchemaSync($this->database, $this->fieldRegistry)->syncAll($types);
+
+        $manager->getRepository('invariant_shared_one');
+        $manager->getRepository('invariant_shared_two');
+
+        self::assertSame(['test.shared'], $resolved);
+    }
+
+    #[Test]
+    public function required_invariant_from_registry_runs_during_real_repository_save(): void
+    {
+        $guard = new class implements EntityMutationInvariantInterface {
+            /** @var list<EntityMutationInvariantContext> */
+            public array $contexts = [];
+
+            public function assertMutation(EntityMutationInvariantContext $context): void
+            {
+                $this->contexts[] = $context;
+            }
+        };
+        $manager = $this->manager(mutationInvariantResolver: static fn (string $id): EntityMutationInvariantInterface => $guard);
+        $type = new EntityType(
+            id: 'invariant_save',
+            label: 'Invariant save',
+            class: KernelRefTargetEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            requiredMutationInvariant: 'test.save',
+        );
+        $manager->registerEntityType($type);
+        new EntitySchemaSync($this->database, $this->fieldRegistry)->syncAll([$type]);
+
+        $entity = new KernelRefTargetEntity(
+            ['id' => '1', 'uuid' => 'invariant-save-uuid'],
+            'invariant_save',
+            ['id' => 'id', 'uuid' => 'uuid'],
+        );
+        $entity->enforceIsNew();
+        $manager->getRepository('invariant_save')->save($entity, validate: false);
+
+        self::assertCount(2, $guard->contexts, 'The repository checks the invariant before and after mutation callbacks.');
+        self::assertSame(EntityMutationOperation::Create, $guard->contexts[0]->operation);
+        self::assertNull($guard->contexts[0]->original);
+        self::assertSame($entity, $guard->contexts[0]->proposed);
+        self::assertSame($this->database, $guard->contexts[0]->database);
+        self::assertNotSame('', $guard->contexts[0]->transactionIdentity);
+        self::assertSame($guard->contexts[0]->transactionIdentity, $guard->contexts[1]->transactionIdentity);
+        self::assertSame(1, (int) $this->database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM invariant_save',
+        ));
     }
 
     #[Test]
@@ -519,7 +648,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
         ];
     }
 
-    private function manager(): EntityTypeManager
+    private function manager(?\Closure $mutationInvariantResolver = null): EntityTypeManager
     {
         return new EntityTypeManagerFactory()->build(
             database: $this->database,
@@ -531,6 +660,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             accountContextAttacher: static function (object $repo): void {},
             fieldReadScope: $this->fieldReadScope,
             fieldTypes: $this->fieldRegistry->fieldTypeManager(),
+            mutationInvariantResolver: $mutationInvariantResolver,
         );
     }
 }
