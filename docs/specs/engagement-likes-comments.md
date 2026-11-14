@@ -4,7 +4,7 @@ waaseyaa-spec:
 ---
 # Engagement likes, comments and replies
 
-Implementation contract, revision 2, 13 November 2026. Russell requested settlement of the remaining decisions so implementation can begin. The defaults and boundaries below are selected for this bounded slice. The service and migration source implementation now follows this contract; HTTP adapters are now implemented locally; installed-consumer qualification remains pending.
+Implementation contract, revision 2, 13 November 2026. Russell requested settlement of the remaining decisions so implementation can begin. The defaults and boundaries below are selected for this bounded slice. The service and migration source implementation now follows this contract; HTTP adapters and an exact installed synthetic-consumer candidate are qualified as recorded in the delivery record; published adoption remains separate.
 
 Tracking [#3246](https://github.com/waaseyaa/framework/issues/3246), under [shared social capabilities](social-capabilities.md). Delivery record [FW-ENGAGEMENT-LIKES-COMMENTS-01](../change-records/FW-ENGAGEMENT-LIKES-COMMENTS-01.md). [#2756](https://github.com/waaseyaa/framework/issues/2756) remains the target integrity and lifecycle owner across reaction, comment and follow.
 
@@ -141,7 +141,7 @@ Use existing audit authority for attributable moderator actions with metadata on
 
 ## Maintained component fit and package impact
 
-Use the already locked Symfony Validator 7.4.10 (`^7.0` family) for NotBlank, Length and input constraints, with explicit code-point/byte validation and plain-text normalization at the engagement boundary. Waaseyaa retains target and permission rules. Declare direct component dependencies where imported. Adopt Symfony RateLimiter `^7.4` and Lock `^7.4` for quotas and cross-process locking. They are planned dependency additions, not currently qualified installed behavior. The minimal storage adapter maps Symfony state storage to the canonical database and uses its ownership/expiry semantics; it does not recreate the limiter algorithm. S1 locking and rollback equivalence require focused multi-process tests.
+Use the already locked Symfony Validator 7.4.10 (`^7.0` family) for NotBlank, Length and input constraints, with explicit code-point/byte validation and plain-text normalization at the engagement boundary. Waaseyaa retains target and permission rules. Declare direct component dependencies where imported. Adopt Symfony RateLimiter `^7.4` and Lock `^7.4` for quotas and cross-process locking. They are installed and exercised in the exact candidate consumer; the delivery record pins the actual solved component versions and separate no-development runs. The minimal storage adapter maps Symfony state storage to the canonical database and uses its ownership/expiry semantics; it does not recreate the limiter algorithm. S1 locking and rollback equivalence require focused multi-process tests.
 
 Package manifests/path repositories must directly declare engagement's actual access, entity, entity-storage, database-legacy, foundation, audit and Symfony dependencies under the existing layer policy. Reuse provider autodiscovery and keyring custody. Do not depend on publishing or MCP for their specialized retry/cursor services. Confirm Layer 2 allowed lower-layer edges with the package-layer check while adding dependencies, and keep any higher-layer transport adapter in its existing owner. No new opt-in omnibus package is needed.
 
