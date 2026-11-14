@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Engagement;
 
+/** @api Domain refusal details for HTTP and non-HTTP engagement callers. */
 final class EngagementException extends \RuntimeException
 {
     public function __construct(

@@ -52,7 +52,7 @@ final class EngagementRateLimiter
         try {
             foreach ($this->limits[$group] as $window => $maximum) {
                 $seconds = match ($window) {
-                    'minute' => 60, 'hour' => 3600, default => throw new \InvalidArgumentException('Unsupported engagement quota window.')
+                    'minute' => 60, 'hour' => 3600, default => throw new \InvalidArgumentException('Unsupported engagement quota window.'),
                 };
                 if ($maximum < 1) {
                     throw new \InvalidArgumentException('Engagement quota limits must be positive.');

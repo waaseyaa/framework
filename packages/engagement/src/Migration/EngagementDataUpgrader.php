@@ -60,7 +60,11 @@ final readonly class EngagementDataUpgrader
         return isset($columns['id'], $columns['last_id'], $columns['complete']);
     }
 
-    /** Readiness is established only by an explicit completed CLI upgrade run. */
+    /**
+     * Readiness is established only by an explicit completed CLI upgrade run.
+     *
+     * @api Read-only progress inspection for upgrade orchestration.
+     */
     public function isReady(): bool
     {
         if (!self::schemaReady($this->database)) {

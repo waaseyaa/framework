@@ -69,7 +69,7 @@ try {
             $existing = $user;
         }
         $users[match ($uid) {
-            1 => 'alice', 2 => 'bob', default => 'featured'
+            1 => 'alice', 2 => 'bob', default => 'featured',
         }] = (int) $existing->id();
     }
 

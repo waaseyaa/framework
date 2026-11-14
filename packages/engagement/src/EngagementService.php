@@ -301,6 +301,7 @@ final class EngagementService
         return $this->page($viewer, $root, null, $cursor, $limit);
     }
 
+    /** @api Root-bound reply paging for non-HTTP callers. */
     public function replies(AuthorizationPrincipalInterface $viewer, RootReference $root, string $parent, ?string $cursor = null, int $limit = 20): CommentPage
     {
         return $this->page($viewer, $root, $parent, $cursor, $limit);

@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Engagement;
 
-/** Plain text projection. Renderers must escape text for their output context. */
+/**
+ * Plain text projection. Renderers must escape text for their output context.
+ *
+ * @api Serialized discussion projection consumed by application renderers.
+ */
 final readonly class CommentView
 {
     public function __construct(
