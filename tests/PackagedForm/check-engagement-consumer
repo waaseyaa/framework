@@ -6,11 +6,13 @@ source "$root/tests/PackagedForm/lib/run-bounded.sh"
 candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
 evidence=''
 keep=0
+published_tag=''
 for argument in "$@"; do
     case "$argument" in
         --candidate=*) candidate="${argument#*=}" ;;
         --evidence-dir=*) evidence="${argument#*=}" ;;
         --keep-work) keep=1 ;;
+        --published-tag=*) published_tag="${argument#*=}" ;;
         *) echo "Unknown argument: $argument" >&2; exit 2 ;;
     esac
 done
@@ -39,6 +41,43 @@ rm "$work/candidate.tar"
 fixture="$work/source/tests/PackagedForm/engagement"
 [[ -f "$fixture/journey.php" && -f "$fixture/bootstrap.php" ]] || { echo 'Committed candidate lacks the qualification fixture.' >&2; exit 1; }
 prepare="$work/source/tests/PackagedForm/engagement/prepare.py"
+# Published mode exports the immutable public tag for package-byte comparison,
+# while candidate continues to identify this committed qualification application.
+package_source="$work/source"
+if [[ -n "$published_tag" ]]; then
+    [[ "$published_tag" =~ ^v0\.1\.0-alpha\.[0-9]+$ ]] || { echo 'Use an exact published alpha tag.' >&2; exit 2; }
+    [[ "$("$root/bin/git" -C "$root" remote get-url origin)" == 'https://github.com/waaseyaa/framework.git' ]] || { echo 'Published mode requires the canonical Framework origin.' >&2; exit 1; }
+    # Use public package metadata with no global repository overrides or plugins.
+    export COMPOSER_HOME="$work/composer-home"
+    mkdir -p "$COMPOSER_HOME"
+    unset COMPOSER COMPOSER_REPOSITORIES
+    release_sha="$("$root/bin/git" -C "$root" rev-parse "$published_tag^{commit}")"
+    remote_sha="$("$root/bin/git" -C "$root" ls-remote origin "refs/tags/$published_tag" "refs/tags/$published_tag^{}" | sort -k2 | tail -1 | cut -f1)"
+    [[ "$release_sha" == "$remote_sha" ]] || { echo 'Local release tag differs from public origin.' >&2; exit 1; }
+    printf '%s\n' "$published_tag" > "$evidence/published-tag.txt"
+    printf '%s\n' "$release_sha" > "$evidence/published-source.txt"
+    package_source="$work/release-source"
+    mkdir -p "$package_source"
+    "$root/bin/git" -C "$root" archive --format=tar "$release_sha" > "$work/release.tar"
+    sha256sum "$work/release.tar" > "$evidence/published-archive.sha256"
+    tar --no-same-owner --no-same-permissions -xf "$work/release.tar" -C "$package_source"
+    rm "$work/release.tar"
+    [[ "$(cat "$package_source/VERSION")" == "${published_tag#v}" ]] || { echo 'Release VERSION differs from public tag.' >&2; exit 1; }
+fi
+prepare_consumer() {
+    if [[ -n "$published_tag" ]]; then
+        python3 "$fixture/published.py" prepare "$1" "$2" "$3" "$(cat "$1/VERSION")" "${4:-}"
+    else
+        python3 "$prepare" prepare "$@"
+    fi
+}
+verify_consumer() {
+    if [[ -n "$published_tag" ]]; then
+        python3 "$fixture/published.py" verify "$1" "$2" "$3" "$(cat "$1/VERSION")"
+    else
+        python3 "$prepare" verify "$@"
+    fi
+}
 export APP_ENV=production APP_DEBUG=false
 # Synthetic fixture material only; never read account credentials or production data.
 export WAASEYAA_APP_SECRET='base64:eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg='
@@ -46,7 +85,7 @@ for layout in sql-blob sql-column; do
     for form in dev no-dev; do
         label="$form-$layout"
         consumer="$work/$label"
-        python3 "$prepare" prepare "$work/source" "$consumer" "$fixture/consumer" > "$evidence/$label-manifest.json"
+        prepare_consumer "$package_source" "$consumer" "$fixture/consumer" > "$evidence/$label-manifest.json"
         cp "$fixture/bootstrap.php" "$fixture/journey.php" "$consumer/"
         cp "$fixture/performance.php" "$fixture/concurrency.php" "$fixture/quota.php" "$consumer/"
         if [[ -f "$work/dev-sql-blob/composer.lock" && "$label" != dev-sql-blob ]]; then
@@ -57,7 +96,7 @@ for layout in sql-blob sql-column; do
         run_bounded "$label-composer" 600 "$composer_bin" install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist --no-scripts "${options[@]}"
         cp "$consumer/composer.json" "$evidence/$label-composer.json"
         cp "$consumer/composer.lock" "$evidence/$label-composer.lock"
-        python3 "$prepare" verify "$work/source" "$consumer" "$evidence/$label-manifest.json" > "$evidence/$label-provenance.json"
+        verify_consumer "$package_source" "$consumer" "$evidence/$label-manifest.json" > "$evidence/$label-provenance.json"
         export ENGAGEMENT_LAYOUT="$layout" ENGAGEMENT_FORM="$form" WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
         pushd "$consumer" >/dev/null
         run_bounded "$label-install" 180 php vendor/bin/waaseyaa install:init
@@ -70,10 +109,15 @@ for layout in sql-blob sql-column; do
         run_bounded "$label-concurrency" 240 php concurrency.php
         run_bounded "$label-default-quota" 120 env ENGAGEMENT_QUOTA_PROFILE=defaults php quota.php
         popd >/dev/null
-        python3 "$prepare" verify "$work/source" "$consumer" "$evidence/$label-manifest.json" > "$evidence/$label-after-provenance.json"
+        verify_consumer "$package_source" "$consumer" "$evidence/$label-manifest.json" > "$evidence/$label-after-provenance.json"
     done
 done
 legacy_candidate='7f632a7c298793a786158cadceba1358ad711c59'
+if [[ -n "$published_tag" ]]; then
+    legacy_candidate="$("$root/bin/git" -C "$root" rev-parse 'v0.1.0-alpha.308^{commit}')"
+    legacy_remote="$("$root/bin/git" -C "$root" ls-remote origin 'refs/tags/v0.1.0-alpha.308^{}' | cut -f1)"
+    [[ "$legacy_candidate" == "$legacy_remote" ]] || { echo 'Legacy release tag differs from origin.' >&2; exit 1; }
+fi
 mkdir -p "$work/old-source"
 "$root/bin/git" -C "$root" archive --format=tar "$legacy_candidate" > "$work/legacy.tar"
 sha256sum "$work/legacy.tar" > "$evidence/legacy-archive.sha256"
@@ -82,9 +126,9 @@ tar --no-same-owner --no-same-permissions -xf "$work/legacy.tar" -C "$work/old-s
 rm "$work/legacy.tar"
 for layout in sql-blob sql-column; do
     legacy="$work/legacy-$layout"
-    python3 "$prepare" prepare "$work/old-source" "$legacy" "$fixture/legacy" > "$evidence/legacy-$layout-manifest.json"
+    prepare_consumer "$work/old-source" "$legacy" "$fixture/legacy" > "$evidence/legacy-$layout-manifest.json"
     run_bounded "legacy-$layout-composer" 600 "$composer_bin" install --working-dir="$legacy" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
-    python3 "$prepare" verify "$work/old-source" "$legacy" "$evidence/legacy-$layout-manifest.json" > "$evidence/legacy-$layout-provenance.json"
+    verify_consumer "$work/old-source" "$legacy" "$evidence/legacy-$layout-manifest.json" > "$evidence/legacy-$layout-provenance.json"
     export ENGAGEMENT_LAYOUT="${layout#sql-}" WAASEYAA_DB="$legacy/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$legacy/config/sync"
     pushd "$legacy" >/dev/null
     run_bounded "legacy-$layout-install" 180 php vendor/bin/waaseyaa install:init
@@ -98,11 +142,11 @@ for layout in sql-blob sql-column; do
     rm -r "$upgraded/src"
     # Archived path-package labels are solver metadata; force genuinely fresh candidate bytes.
     rm -r "$upgraded/vendor"
-    python3 "$prepare" prepare "$work/source" "$upgraded" "$fixture/consumer" > "$evidence/upgraded-$layout-manifest.json"
+    prepare_consumer "$package_source" "$upgraded" "$fixture/consumer" > "$evidence/upgraded-$layout-manifest.json"
     cp "$work/dev-sql-blob/composer.lock" "$upgraded/composer.lock"
     cp "$fixture/bootstrap.php" "$fixture/upgrade.php" "$upgraded/"
     run_bounded "upgraded-$layout-composer" 600 "$composer_bin" install --working-dir="$upgraded" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
-    python3 "$prepare" verify "$work/source" "$upgraded" "$evidence/upgraded-$layout-manifest.json" > "$evidence/upgraded-$layout-before-provenance.json"
+    verify_consumer "$package_source" "$upgraded" "$evidence/upgraded-$layout-manifest.json" > "$evidence/upgraded-$layout-before-provenance.json"
     export ENGAGEMENT_LAYOUT="$layout" WAASEYAA_DB="$upgraded/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$upgraded/config/sync"
     pushd "$upgraded" >/dev/null
     run_bounded "upgraded-$layout-install" 180 php vendor/bin/waaseyaa install:init
@@ -115,13 +159,13 @@ for layout in sql-blob sql-column; do
     popd >/dev/null
     cp "$upgraded/composer.json" "$evidence/upgraded-$layout-composer.json"
     cp "$upgraded/composer.lock" "$evidence/upgraded-$layout-composer.lock"
-    python3 "$prepare" verify "$work/source" "$upgraded" "$evidence/upgraded-$layout-manifest.json" > "$evidence/upgraded-$layout-provenance.json"
+    verify_consumer "$package_source" "$upgraded" "$evidence/upgraded-$layout-manifest.json" > "$evidence/upgraded-$layout-provenance.json"
 done
 consumer="$work/api-without-engagement"
-python3 "$prepare" prepare "$work/source" "$consumer" "$fixture/consumer" absent > "$evidence/absent-manifest.json"
+prepare_consumer "$package_source" "$consumer" "$fixture/consumer" absent > "$evidence/absent-manifest.json"
 cp "$fixture/absent.php" "$consumer/absent.php"
 run_bounded absent-composer 600 "$composer_bin" install --working-dir="$consumer" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
-python3 "$prepare" verify "$work/source" "$consumer" "$evidence/absent-manifest.json" > "$evidence/absent-provenance.json"
+verify_consumer "$package_source" "$consumer" "$evidence/absent-manifest.json" > "$evidence/absent-provenance.json"
 cp "$consumer/composer.json" "$consumer/composer.lock" "$evidence/"
 export WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
 pushd "$consumer" >/dev/null
@@ -129,4 +173,4 @@ run_bounded absent-install 180 php vendor/bin/waaseyaa install:init
 run_bounded absent-field-preflight 120 php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json
 run_bounded absent-boot 120 php absent.php
 popd >/dev/null
-printf 'Installed engagement fresh dev/no-dev profiles passed. Evidence: %s\n' "$evidence"
+printf 'Installed engagement complete matrix passed (published tag: %s). Evidence: %s\n' "${published_tag:-candidate-only}" "$evidence"

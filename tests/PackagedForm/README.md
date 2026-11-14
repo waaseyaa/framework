@@ -130,3 +130,18 @@ vacuously passing proof. The historical failing consumer pin is context only;
 the harness qualifies the candidate bytes.
 
 `check-engagement-consumer` qualifies the exact committed likes/comments/replies candidate in an isolated synthetic application. It uses copied path-package installs, a single recorded candidate cohort, whole-package byte checks, separate normal/no-dev consumers, both engagement layouts, historical data-upgrade fixtures and an API install without engagement. The runner retains portable manifests, locks, byte provenance, bounded process logs and journey/performance reports in its evidence directory. Use `--candidate=<40-character SHA> --evidence-dir=<outside-checkout path>`; `--keep-work` retains disposable installed bytes for independent inspection. These candidate results are distinct from published-cohort adoption and release qualification.
+
+For published engagement qualification, use the same runner with
+`--candidate=<committed-harness-SHA> --published-tag=v0.1.0-alpha.N
+--evidence-dir=<outside-checkout path>`. Fetch the immutable public release tag
+and historical `v0.1.0-alpha.308` first. The candidate identifies the synthetic
+application and runner, while the public tag identifies the package source.
+Published mode verifies the tag against canonical origin, exports its exact
+source for byte comparison, removes all consumer repository overrides, pins
+direct Framework requirements to that exact cohort, and uses an isolated
+Composer home. Every installed Framework package must match the same cohort,
+GitHub split origin, solved lock and exported package bytes. All normal/no-dev,
+both-layout, upgrade and optional-absence journeys remain enabled. The old
+column schema remains an explicit synthetic fixture. No passing matrix can be
+claimed until the actual new cohort has been published; the command does not
+land code, cut a release, trigger a split, adopt packages in FETDER or deploy.
