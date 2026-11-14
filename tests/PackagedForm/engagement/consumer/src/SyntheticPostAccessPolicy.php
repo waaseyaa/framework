@@ -11,8 +11,30 @@ use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
 
 #[PolicyAttribute(entityType: 'synthetic_post')]
-final class SyntheticPostAccessPolicy implements AccessPolicyInterface
+final class SyntheticPostAccessPolicy implements AccessPolicyInterface, \Waaseyaa\Access\ProtectedReadPolicyProviderInterface
 {
+    public function protectedEntityReadPolicy(): ?\Waaseyaa\Access\ProtectedEntityReadPolicyInterface
+    {
+        return new class implements \Waaseyaa\Access\ProtectedEntityReadPolicyInterface {
+            public function access(
+                \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
+                \Waaseyaa\Entity\EntityStructure $structure,
+                \Waaseyaa\Access\PolicySubjectViewInterface $subject,
+                string $operation,
+            ): AccessResult {
+                return $structure->entityTypeId === 'synthetic_post' && $operation === 'view'
+                    && in_array('status', $subject->fields(), true) && $subject->get('status') === true
+                    ? AccessResult::allowed('Published synthetic root.')
+                    : AccessResult::forbidden('Synthetic root is unavailable.');
+            }
+        };
+    }
+
+    public function protectedFieldReadPolicy(): ?\Waaseyaa\Access\ProtectedFieldReadPolicyInterface
+    {
+        return null;
+    }
+
     public function appliesTo(string $entityTypeId): bool
     {
         return $entityTypeId === 'synthetic_post';

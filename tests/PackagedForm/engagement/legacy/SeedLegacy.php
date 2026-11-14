@@ -95,7 +95,7 @@ try {
     if (!$publisher instanceof User) {
         throw new RuntimeException('Legacy publisher account could not be loaded.');
     }
-    $kernel->accountContext()->set($publisher);
+    $kernel->accountContext()->set(new \Waaseyaa\Access\AuthorizationPrincipal(1, true, ['authenticated'], ['access content'], 'legacy-fixture'));
 
     $roots = [];
     foreach ([

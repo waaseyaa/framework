@@ -57,7 +57,7 @@ for layout in sql-blob sql-column; do
         run_bounded "$label-composer" 600 "$composer_bin" install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist --no-scripts "${options[@]}"
         cp "$consumer/composer.json" "$evidence/$label-composer.json"
         cp "$consumer/composer.lock" "$evidence/$label-composer.lock"
-        python3 "$prepare" verify "$work/source" "$consumer" > "$evidence/$label-provenance.json"
+        python3 "$prepare" verify "$work/source" "$consumer" "$evidence/$label-manifest.json" > "$evidence/$label-provenance.json"
         export ENGAGEMENT_LAYOUT="$layout" ENGAGEMENT_FORM="$form" WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
         pushd "$consumer" >/dev/null
         run_bounded "$label-install" 180 php vendor/bin/waaseyaa install:init
@@ -70,7 +70,7 @@ for layout in sql-blob sql-column; do
         run_bounded "$label-concurrency" 240 php concurrency.php
         run_bounded "$label-default-quota" 120 env ENGAGEMENT_QUOTA_PROFILE=defaults php quota.php
         popd >/dev/null
-        python3 "$prepare" verify "$work/source" "$consumer" > "$evidence/$label-after-provenance.json"
+        python3 "$prepare" verify "$work/source" "$consumer" "$evidence/$label-manifest.json" > "$evidence/$label-after-provenance.json"
     done
 done
 legacy_candidate='7f632a7c298793a786158cadceba1358ad711c59'
@@ -84,7 +84,7 @@ for layout in sql-blob sql-column; do
     legacy="$work/legacy-$layout"
     python3 "$prepare" prepare "$work/old-source" "$legacy" "$fixture/legacy" > "$evidence/legacy-$layout-manifest.json"
     run_bounded "legacy-$layout-composer" 600 "$composer_bin" install --working-dir="$legacy" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
-    python3 "$prepare" verify "$work/old-source" "$legacy" > "$evidence/legacy-$layout-provenance.json"
+    python3 "$prepare" verify "$work/old-source" "$legacy" "$evidence/legacy-$layout-manifest.json" > "$evidence/legacy-$layout-provenance.json"
     export ENGAGEMENT_LAYOUT="${layout#sql-}" WAASEYAA_DB="$legacy/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$legacy/config/sync"
     pushd "$legacy" >/dev/null
     run_bounded "legacy-$layout-install" 180 php vendor/bin/waaseyaa install:init
@@ -111,13 +111,13 @@ for layout in sql-blob sql-column; do
     popd >/dev/null
     cp "$upgraded/composer.json" "$evidence/upgraded-$layout-composer.json"
     cp "$upgraded/composer.lock" "$evidence/upgraded-$layout-composer.lock"
-    python3 "$prepare" verify "$work/source" "$upgraded" > "$evidence/upgraded-$layout-provenance.json"
+    python3 "$prepare" verify "$work/source" "$upgraded" "$evidence/upgraded-$layout-manifest.json" > "$evidence/upgraded-$layout-provenance.json"
 done
 consumer="$work/api-without-engagement"
 python3 "$prepare" prepare "$work/source" "$consumer" "$fixture/consumer" absent > "$evidence/absent-manifest.json"
 cp "$fixture/absent.php" "$consumer/absent.php"
 run_bounded absent-composer 600 "$composer_bin" install --working-dir="$consumer" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
-python3 "$prepare" verify "$work/source" "$consumer" > "$evidence/absent-provenance.json"
+python3 "$prepare" verify "$work/source" "$consumer" "$evidence/absent-manifest.json" > "$evidence/absent-provenance.json"
 cp "$consumer/composer.json" "$consumer/composer.lock" "$evidence/"
 export WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
 pushd "$consumer" >/dev/null

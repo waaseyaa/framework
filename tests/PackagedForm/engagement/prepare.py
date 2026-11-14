@@ -45,11 +45,31 @@ def prepare(source, fixture, target, absent=False):
     (target / 'composer.json').write_text(json.dumps(manifest, indent=4) + '\n')
     for path in ['storage/framework', 'storage/files', 'config/sync']:
         (target / path).mkdir(parents=True, exist_ok=True)
-    return {'cohort_label': version, 'version_overrides': versions,
+    paths = [p.relative_to(fixture) for p in fixture.rglob('*') if p.is_file()]
+    if fixture.name == 'consumer':
+        for name in ['bootstrap.php', 'journey.php', 'performance.php', 'concurrency.php', 'quota.php', 'upgrade.php', 'absent.php']:
+            origin = fixture.parent / name
+            shutil.copyfile(origin, target / name)
+            paths.append(Path(name))
+    application_files = {p.as_posix(): hashlib.sha256((target / p).read_bytes()).hexdigest()
+        for p in paths if (target / p).is_file()}
+    return {'cohort_label': version, 'version_overrides': versions, 'application_files': application_files,
         'fixture_sha256': digest_tree(fixture)[0], 'manifest_sha256': hashlib.sha256((target / 'composer.json').read_bytes()).hexdigest()}
 
 
-def verify(source, target):
+def verify(source, target, application_report):
+    application = json.loads(application_report.read_text())
+    expected_application = application['application_files']
+    for relative, expected in expected_application.items():
+        path = target / relative
+        assert path.is_file() and not path.is_symlink(), ('application file absent or linked', relative)
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == expected, ('application candidate bytes changed', relative)
+    for directory in ['src', 'migrations']:
+        if (target / directory).is_dir():
+            assert {p.relative_to(target).as_posix() for p in (target / directory).rglob('*') if p.is_file()} == {
+                p for p in expected_application if p.startswith(directory + '/')}, ('unexpected application code', directory)
+    assert hashlib.sha256((target / 'composer.json').read_bytes()).hexdigest() == application['manifest_sha256'], 'Overlay manifest changed'
+
     lock = json.loads((target / 'composer.lock').read_text())
     installed_data = json.loads((target / 'vendor/composer/installed.json').read_text())
     assert isinstance(installed_data, dict), 'Composer 2 installed metadata is required'
@@ -85,7 +105,7 @@ def verify(source, target):
             item['installed_files'] = len(installed_rows)
         report.append(item)
     assert report, 'No candidate packages installed'
-    return {'lock_sha256': hashlib.sha256((target / 'composer.lock').read_bytes()).hexdigest(),
+    return {'application_fixture_sha256': application['fixture_sha256'], 'application_files_verified': len(expected_application), 'lock_sha256': hashlib.sha256((target / 'composer.lock').read_bytes()).hexdigest(),
         'packages': report, 'third_party': [{k: p.get(k) for k in ['name', 'version', 'source', 'dist']}
             for p in installed if not p['name'].startswith('waaseyaa/')]}
 
@@ -95,7 +115,7 @@ if __name__ == '__main__':
     if mode == 'prepare':
         value = prepare(Path(source).resolve(), Path(args[0]).resolve(), Path(target).resolve(), 'absent' in args)
     elif mode == 'verify':
-        value = verify(Path(source).resolve(), Path(target).resolve())
+        value = verify(Path(source).resolve(), Path(target).resolve(), Path(args[0]))
     else:
         raise ValueError('Unknown preparation operation')
     print(json.dumps(value, indent=2))

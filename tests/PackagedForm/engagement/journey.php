@@ -43,7 +43,7 @@ function journeyFailure(callable $operation, string $code): void
 }
 
 /** Dispatch an HTTP request using the admitted kernel snapshot and provider router. */
-function journeyHttp(HttpKernel $kernel, EngagementApiRouter $api, string $method, string $path, AuthorizationPrincipal $actor, ?string $body = null): Response
+function journeyHttp(HttpKernel $kernel, string $method, string $path, AuthorizationPrincipal $actor, ?string $body = null): Response
 {
     $request = Request::create($path, $method, server: ['CONTENT_TYPE' => 'application/json'], content: $body);
     $snapshot = $kernel->getRouteSnapshot();
@@ -51,20 +51,44 @@ function journeyHttp(HttpKernel $kernel, EngagementApiRouter $api, string $metho
     $matched = $routes->matchRequest($request);
     $request->attributes->add($matched);
     $request->attributes->set('_route_object', $routes->getRouteCollection()->get((string) $matched['_route']));
-    $request->attributes->set('_controller', static fn() => null);
     $request->attributes->set('_authorization_principal', $actor);
+    $request->attributes->set('_account', $actor);
+    $request->headers->set('X-CSRF-Token', (string) $_SESSION['_csrf_token']);
+    $definition = null;
+    foreach ($snapshot->routes as $candidate) {
+        if ($candidate->name === $matched['_route']) {
+            $definition = $candidate;
+            break;
+        }
+    }
+    if ($definition === null) {
+        throw new RuntimeException('Matched route lacks its canonical definition.');
+    }
+    $services = new \Waaseyaa\Foundation\Kernel\KernelHandlerContainer($kernel->getProviders(), [])->explicitServices($request);
+    $handler = new \Waaseyaa\Routing\RouteHandlerResolver($definition, $services)->resolveMatched();
+    $request->attributes->set('_controller', $handler);
 
-    $terminal = new class ($api) implements HttpHandlerInterface {
-        public function __construct(private readonly EngagementApiRouter $api) {}
+    $terminal = new class implements HttpHandlerInterface {
         public function handle(Request $request): Response
         {
-            return $this->api->handle($request);
+            return new \Waaseyaa\Foundation\Http\ControllerDispatcher([])->dispatch($request);
         }
     };
-    return new EngagementResponsePrivacyMiddleware()->process($request, $terminal);
+    $csrf = new class ($terminal) implements HttpHandlerInterface {
+        public function __construct(private HttpHandlerInterface $terminal) {}
+        public function handle(Request $request): Response
+        {
+            return new CsrfMiddleware()->process($request, $this->terminal);
+        }
+    };
+    return new EngagementResponsePrivacyMiddleware()->process($request, $csrf);
 }
 
 try {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+    $_SESSION['_csrf_token'] = 'synthetic-installed-journey';
     $statePath = __DIR__ . '/state.json';
     $state = json_decode((string) file_get_contents($statePath), true, flags: JSON_THROW_ON_ERROR);
     journeyAssert(is_array($state) && count($state['roots'] ?? []) >= 2, 'Fixture state must contain two seeded roots.');
@@ -140,7 +164,7 @@ try {
     $assertions++;
 
     $rootPath = '/engagement/v1/targets/' . rawurlencode($rootA->type) . '/' . $rootA->id;
-    $spoofed = journeyHttp($kernel, $api, 'POST', $rootPath . '/comments', $alice, json_encode([
+    $spoofed = journeyHttp($kernel, 'POST', $rootPath . '/comments', $alice, json_encode([
         'text' => 'spoofed author', 'submissionKey' => $service->issueCommentKey($alice, $rootA), 'user_id' => (int) $state['users']['featured'],
     ], JSON_THROW_ON_ERROR));
     journeyAssert($spoofed->getStatusCode() === 422, 'HTTP comment input must reject a forged user_id.');
@@ -154,13 +178,13 @@ try {
 
     $httpKey = $service->issueCommentKey($alice, $rootA);
     $httpBody = json_encode(['text' => 'HTTP created', 'submissionKey' => $httpKey], JSON_THROW_ON_ERROR);
-    $httpCreated = journeyHttp($kernel, $api, 'POST', $rootPath . '/comments', $alice, $httpBody);
+    $httpCreated = journeyHttp($kernel, 'POST', $rootPath . '/comments', $alice, $httpBody);
     journeyAssert($httpCreated->getStatusCode() === 201, 'First canonical HTTP comment submission must return 201.');
     $assertions++;
-    $httpReplay = journeyHttp($kernel, $api, 'POST', $rootPath . '/comments', $alice, $httpBody);
+    $httpReplay = journeyHttp($kernel, 'POST', $rootPath . '/comments', $alice, $httpBody);
     journeyAssert($httpReplay->getStatusCode() === 200, 'Canonical HTTP submission retry must return 200.');
     $assertions++;
-    $httpConflict = journeyHttp($kernel, $api, 'POST', $rootPath . '/comments', $alice, json_encode(['text' => 'different', 'submissionKey' => $httpKey], JSON_THROW_ON_ERROR));
+    $httpConflict = journeyHttp($kernel, 'POST', $rootPath . '/comments', $alice, json_encode(['text' => 'different', 'submissionKey' => $httpKey], JSON_THROW_ON_ERROR));
     journeyAssert($httpConflict->getStatusCode() === 409, 'Canonical HTTP key reuse with different text must return 409.');
     $assertions++;
 
@@ -183,7 +207,12 @@ try {
     journeyFailure(fn() => $service->comments($alice, $rootA), 'TARGET_UNAVAILABLE');
     $assertions++;
     $database->getConnection()->executeStatement('UPDATE engagement_fixture_policy SET root_visible = 1, alice_blocked = 1, generation = generation + 1 WHERE id = 1');
-    journeyAssert($service->comments($bob, $rootA)->items === [], 'Current block policy must hide Alice-authored comments from Bob.');
+    $blockedPage = $service->comments($bob, $rootA);
+    journeyAssert(
+        count($blockedPage->items) === 1 && $blockedPage->items[0]->placeholder
+        && $blockedPage->items[0]->text === null && $blockedPage->items[0]->authorId === null,
+        'A blocked parent must be neutral while a permitted reply survives.',
+    );
     $assertions++;
     $database->getConnection()->executeStatement('UPDATE engagement_fixture_policy SET alice_blocked = 0, generation = generation + 1 WHERE id = 1');
     $database->getConnection()->executeStatement('UPDATE engagement_fixture_policy SET alice_suspended = 1, generation = generation + 1 WHERE id = 1');
@@ -195,7 +224,7 @@ try {
     $moderated = $service->createComment($alice, $rootB, 'moderation target', $moderatedKey);
     $database->getConnection()->executeStatement('UPDATE engagement_fixture_policy SET bob_moderator = 1, generation = generation + 1 WHERE id = 1');
     $service->moderateRemove($bob, $moderated->uuid, 'fixture moderation');
-    journeyAssert($service->getComment($bob, $moderated->uuid)->placeholder, 'Authorized moderator must remove comment text through its lifecycle.');
+    journeyFailure(fn() => $service->getComment($bob, $moderated->uuid), 'TARGET_UNAVAILABLE');
     $assertions++;
 
     $service->removeComment($alice, $parent->uuid);

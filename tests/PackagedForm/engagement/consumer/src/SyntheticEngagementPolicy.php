@@ -26,7 +26,7 @@ final class SyntheticEngagementPolicy implements EngagementPolicyInterface
     }
     public function canViewRoot(AuthorizationPrincipalInterface $viewer, EntityInterface $root): bool
     {
-        return $root instanceof SyntheticPost && $root->status && (int) ($this->state()['root_visible'] ?? 0) === 1;
+        return $root instanceof SyntheticPost && (int) ($this->state()['root_visible'] ?? 0) === 1;
     }
     public function isEligible(AuthorizationPrincipalInterface $actor): bool
     {
