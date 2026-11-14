@@ -7,20 +7,13 @@ namespace Waaseyaa\Engagement\Tests\Integration\Migration;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\Attribute\ContentEntityKeys;
-use Waaseyaa\Entity\Attribute\ContentEntityType;
-use Waaseyaa\Entity\ContentEntityBase;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Engagement\Comment;
 use Waaseyaa\Engagement\EngagementAccess;
 use Waaseyaa\Engagement\EngagementMutationInvariant;
@@ -29,6 +22,13 @@ use Waaseyaa\Engagement\EngagementPolicyInterface;
 use Waaseyaa\Engagement\EngagementServiceProvider;
 use Waaseyaa\Engagement\Migration\EngagementDataUpgrader;
 use Waaseyaa\Engagement\Reaction;
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Testing\EntityMutationAuthoritySchema;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -57,7 +57,7 @@ final class EngagementDataUpgraderTest extends TestCase
         self::assertSame(2, $first['migrated']);
         self::assertSame(3, $first['quarantined']);
         self::assertSame(1, $first['duplicate_likes_removed']);
-        self::assertTrue($upgrader->isReady());
+        self::assertTrue(EngagementDataUpgrader::isReady($database));
 
         $commentRepository = $manager->getRepository('comment');
         $comments = $commentRepository->findBy([]);
@@ -67,7 +67,9 @@ final class EngagementDataUpgraderTest extends TestCase
                 $byBody[(string) $comment->get('body')] = $comment;
             }
             $unpublished = $byBody['legacy hidden'] ?? null;
-            if ($unpublished === null) { throw new \RuntimeException('Migrated hidden legacy comment was not found.'); }
+            if ($unpublished === null) {
+                throw new \RuntimeException('Migrated hidden legacy comment was not found.');
+            }
             return [
                 'active_root' => $byBody['legacy active']->get('root_uuid'),
                 'active_lifecycle' => $byBody['legacy active']->get('lifecycle'),
@@ -87,13 +89,13 @@ final class EngagementDataUpgraderTest extends TestCase
         self::assertSame(1, (int) $database->getConnection()->fetchOne("SELECT COUNT(*) FROM engagement_comment_index WHERE lifecycle = 'active'"));
 
         $commentLifecycle = $scope->runMigration(static function () use ($comments): array {
-            return array_map(static fn ($comment): array => [
+            return array_map(static fn($comment): array => [
                 'body' => $comment->get('body'),
                 'root_uuid' => $comment->get('root_uuid'),
                 'lifecycle' => $comment->get('lifecycle'),
             ], $comments);
         });
-        self::assertSame(3, count(array_filter($commentLifecycle, static fn (array $row): bool => $row['lifecycle'] === 'quarantined')));
+        self::assertSame(3, count(array_filter($commentLifecycle, static fn(array $row): bool => $row['lifecycle'] === 'quarantined')));
         foreach ($commentLifecycle as $row) {
             if ($row['lifecycle'] === 'quarantined') {
                 self::assertSame('', $row['root_uuid']);
@@ -119,14 +121,16 @@ final class EngagementDataUpgraderTest extends TestCase
         self::assertSame('active', $reactionFields['nonlike_lifecycle']);
         self::assertSame(4, (int) $connection->fetchOne("SELECT COUNT(*) FROM reaction WHERE reaction_type = 'love'"));
         $loveReactions = $reactions->findBy(['reaction_type' => 'love']);
-        $reactionLifecycle = $scope->runMigration(static fn (): array => array_map(static fn ($reaction): array => [
+        $reactionLifecycle = $scope->runMigration(static fn(): array => array_map(static fn($reaction): array => [
             'user_id' => (int) $reaction->get('user_id'),
             'target_type' => $reaction->get('target_type'),
             'target_id' => (int) $reaction->get('target_id'),
             'root_uuid' => $reaction->get('root_uuid'),
             'lifecycle' => $reaction->get('lifecycle'),
         ], $loveReactions));
-        $sort = static function (array &$rows): void { usort($rows, static fn (array $left, array $right): int => $left <=> $right); };
+        $sort = static function (array &$rows): void {
+            usort($rows, static fn(array $left, array $right): int => $left <=> $right);
+        };
         $expectedNonlikes = [
             ['user_id' => (int) $actor->id(), 'target_type' => 'article', 'target_id' => (int) $root->id(), 'root_uuid' => 'old', 'lifecycle' => 'active'],
             ['user_id' => (int) $actor->id(), 'target_type' => 'missing_root_type', 'target_id' => 1, 'root_uuid' => '', 'lifecycle' => 'quarantined'],
@@ -149,12 +153,12 @@ final class EngagementDataUpgraderTest extends TestCase
         [$database, $manager, $scope] = $this->environment(false);
         $upgrader = new EngagementDataUpgrader($database, $manager, $scope);
 
-        self::assertFalse($upgrader->isReady());
+        self::assertFalse(EngagementDataUpgrader::isReady($database));
         $result = $upgrader->runBatch();
 
         self::assertTrue($result['done']);
         self::assertSame(0, $result['scanned']);
-        self::assertTrue($upgrader->isReady());
+        self::assertTrue(EngagementDataUpgrader::isReady($database));
         self::assertSame(2, (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM engagement_upgrade_progress WHERE complete = 1'));
     }
 
@@ -181,7 +185,7 @@ final class EngagementDataUpgraderTest extends TestCase
         }
 
         $loaded = $manager->getRepository('comment')->find($comment->id());
-        self::assertSame('stale-root-uuid', $scope->runMigration(static fn () => $loaded->get('root_uuid')));
+        self::assertSame('stale-root-uuid', $scope->runMigration(static fn() => $loaded->get('root_uuid')));
         self::assertSame(0, (int) $database->getConnection()->fetchOne("SELECT last_id FROM engagement_upgrade_progress WHERE id = 'comment'"));
         self::assertSame(0, (int) $database->getConnection()->fetchOne("SELECT complete FROM engagement_upgrade_progress WHERE id = 'comment'"));
     }
@@ -196,13 +200,22 @@ final class EngagementDataUpgraderTest extends TestCase
         foreach ($provider->getEntityTypes() as $type) {
             if ($columnLayout && in_array($type->id(), ['comment', 'reaction'], true)) {
                 $type = new EntityType(
-                    id: $type->id(), label: $type->getLabel(), class: $type->getClass(),
-                    storageClass: $type->getStorageClass(), keys: $type->getKeys(),
-                    revisionable: $type->isRevisionable(), revisionDefault: $type->getRevisionDefault(),
-                    translatable: $type->isTranslatable(), bundleEntityType: $type->getBundleEntityType(),
-                    constraints: $type->getConstraints(), group: $type->getGroup(), description: $type->getDescription(),
-                    primaryStorageBackend: 'sql-column', tenancy: $type->getTenancy(),
-                    discoverable: $type->isDiscoverable(), api: $type->isApiExposed(),
+                    id: $type->id(),
+                    label: $type->getLabel(),
+                    class: $type->getClass(),
+                    storageClass: $type->getStorageClass(),
+                    keys: $type->getKeys(),
+                    revisionable: $type->isRevisionable(),
+                    revisionDefault: $type->getRevisionDefault(),
+                    translatable: $type->isTranslatable(),
+                    bundleEntityType: $type->getBundleEntityType(),
+                    constraints: $type->getConstraints(),
+                    group: $type->getGroup(),
+                    description: $type->getDescription(),
+                    primaryStorageBackend: 'sql-column',
+                    tenancy: $type->getTenancy(),
+                    discoverable: $type->isDiscoverable(),
+                    api: $type->isApiExposed(),
                     _fieldDefinitions: $type->getFieldDefinitions(),
                     _foreignKeys: $type->getStorageForeignKeys(),
                     _storageUniqueKeys: $type->getStorageUniqueKeys(),
@@ -220,7 +233,7 @@ final class EngagementDataUpgraderTest extends TestCase
         $scope = new EngagementMutationScope($accountContext, $fieldReadScope);
         EntityReadRuntime::installGuard(new FieldReadGuard(
             $fieldReadScope,
-            static fn (...$arguments) => AccessResult::allowed('test migration read'),
+            static fn(...$arguments) => AccessResult::allowed('test migration read'),
         ));
         $registry = new FieldDefinitionRegistry();
         $manager = null;
@@ -229,8 +242,8 @@ final class EngagementDataUpgraderTest extends TestCase
             dispatcher: new SymfonyEventDispatcherAdapter(),
             fieldRegistry: $registry,
             logger: new NullLogger(),
-            accessHandlerResolver: static fn () => null,
-            communityScoreResolver: static fn () => null,
+            accessHandlerResolver: static fn() => null,
+            communityScoreResolver: static fn() => null,
             accountContextAttacher: static function (object $repository) use ($accountContext): void {
                 $repository->setAccountContext($accountContext);
             },
@@ -251,7 +264,7 @@ final class EngagementDataUpgraderTest extends TestCase
             $manager->registerEntityType($definition);
         }
 
-        (new EntitySchemaSync($database, $registry, fieldTypes: $registry->fieldTypeManager()))
+        new EntitySchemaSync($database, $registry, fieldTypes: $registry->fieldTypeManager())
             ->syncAll($manager->getDefinitions());
         EntityMutationAuthoritySchema::ensure($database);
         $migration = require dirname(__DIR__, 3) . '/migrations/2026_11_13_000001_engagement_auxiliary_schema.php';
@@ -314,7 +327,7 @@ final class EngagementDataUpgraderTest extends TestCase
 
     private function saveInMigrationScope(DBALDatabase $database, EngagementMutationScope $scope, object $repository, object $entity): void
     {
-        $database->transactional(static fn () => $scope->runMigration(static fn () => $repository->save($entity, false)));
+        $database->transactional(static fn() => $scope->runMigration(static fn() => $repository->save($entity, false)));
     }
 }
 
@@ -341,11 +354,32 @@ final class UpgradeTestRoot extends ContentEntityBase
 final readonly class UpgradeTestPolicy implements EngagementPolicyInterface
 {
     public function __construct(private DBALDatabase $database) {}
-    public function databaseIdentity(): string { return $this->database->databaseIdentity(); }
-    public function generation(AuthorizationPrincipalInterface $viewer): string { return '1'; }
-    public function canViewRoot(AuthorizationPrincipalInterface $viewer, \Waaseyaa\Entity\EntityInterface $root): bool { return true; }
-    public function isEligible(AuthorizationPrincipalInterface $actor): bool { return true; }
-    public function canInteract(AuthorizationPrincipalInterface $actor, \Waaseyaa\Entity\EntityInterface $root, string $operation): bool { return true; }
-    public function canViewActor(AuthorizationPrincipalInterface $viewer, int $authorId, \Waaseyaa\Entity\EntityInterface $root): bool { return true; }
-    public function canModerate(AuthorizationPrincipalInterface $actor, \Waaseyaa\Entity\EntityInterface $root): bool { return true; }
+    public function databaseIdentity(): string
+    {
+        return $this->database->databaseIdentity();
+    }
+    public function generation(AuthorizationPrincipalInterface $viewer): string
+    {
+        return '1';
+    }
+    public function canViewRoot(AuthorizationPrincipalInterface $viewer, \Waaseyaa\Entity\EntityInterface $root): bool
+    {
+        return true;
+    }
+    public function isEligible(AuthorizationPrincipalInterface $actor): bool
+    {
+        return true;
+    }
+    public function canInteract(AuthorizationPrincipalInterface $actor, \Waaseyaa\Entity\EntityInterface $root, string $operation): bool
+    {
+        return true;
+    }
+    public function canViewActor(AuthorizationPrincipalInterface $viewer, int $authorId, \Waaseyaa\Entity\EntityInterface $root): bool
+    {
+        return true;
+    }
+    public function canModerate(AuthorizationPrincipalInterface $actor, \Waaseyaa\Entity\EntityInterface $root): bool
+    {
+        return true;
+    }
 }

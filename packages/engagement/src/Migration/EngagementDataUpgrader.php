@@ -60,18 +60,14 @@ final readonly class EngagementDataUpgrader
         return isset($columns['id'], $columns['last_id'], $columns['complete']);
     }
 
-    /**
-     * Readiness is established only by an explicit completed CLI upgrade run.
-     *
-     * @api Read-only progress inspection for upgrade orchestration.
-     */
-    public function isReady(): bool
+    /** Readiness is established only by an explicit completed CLI upgrade run. */
+    public static function isReady(DBALDatabase $database): bool
     {
-        if (!self::schemaReady($this->database)) {
+        if (!self::schemaReady($database)) {
             return false;
         }
         foreach (self::ENTITY_TYPES as $entityType) {
-            $complete = $this->database->getConnection()->fetchOne(
+            $complete = $database->getConnection()->fetchOne(
                 'SELECT complete FROM engagement_upgrade_progress WHERE id = ?',
                 [$entityType],
             );

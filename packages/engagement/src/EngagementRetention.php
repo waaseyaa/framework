@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Engagement;
 
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Engagement\Migration\EngagementDataUpgrader;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
@@ -55,9 +56,7 @@ final class EngagementRetention
         ) {
             return false;
         }
-        $rows = $this->database->getConnection()->fetchAllAssociative('SELECT id, complete FROM engagement_upgrade_progress');
-        $complete = array_column($rows, 'complete', 'id');
-        return (int) ($complete['comment'] ?? 0) === 1 && (int) ($complete['reaction'] ?? 0) === 1;
+        return EngagementDataUpgrader::isReady($this->database);
     }
 
     /** Drain due work in independently committed batches so other writers can proceed. */
