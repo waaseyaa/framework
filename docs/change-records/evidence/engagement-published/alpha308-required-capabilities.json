@@ -1,0 +1,10 @@
+{
+    "profile": "published-alpha308-no-dev",
+    "required_classes_present": {
+        "Waaseyaa\\Engagement\\EngagementService": false,
+        "Waaseyaa\\Engagement\\Migration\\EngagementDataUpgrader": false,
+        "Waaseyaa\\API\\Controller\\EngagementController": false
+    },
+    "phpunit_absent": true,
+    "qualification": "refused-missing-required-implementation"
+}

@@ -1,0 +1,66 @@
+{
+  "observed_at_utc": "2026-11-14T14:49:47.324212+00:00",
+  "candidate": "4682d76e4e1c5572615c025302b692e2113ade66",
+  "origin_main": "7f632a7c298793a786158cadceba1358ad711c59",
+  "status": "not-published",
+  "packages": [
+    {
+      "package": "waaseyaa/engagement",
+      "version": "v0.1.0-alpha.308",
+      "source": {
+        "url": "https://github.com/waaseyaa/engagement.git",
+        "type": "git",
+        "reference": "7cbb9f7ecf624d5b20671e918026e289ed653aee"
+      },
+      "dist": {
+        "url": "https://api.github.com/repos/waaseyaa/engagement/zipball/7cbb9f7ecf624d5b20671e918026e289ed653aee",
+        "type": "zip",
+        "shasum": "",
+        "reference": "7cbb9f7ecf624d5b20671e918026e289ed653aee"
+      },
+      "download_sha256": "098ae5760261608f199fdf45bb51af5f2a77b2d750abe41cc74040845295c788",
+      "required_files_present": {
+        "src/EngagementService.php": false,
+        "src/Migration/EngagementDataUpgrader.php": false
+      }
+    },
+    {
+      "package": "waaseyaa/api",
+      "version": "v0.1.0-alpha.308",
+      "source": {
+        "url": "https://github.com/waaseyaa/api.git",
+        "type": "git",
+        "reference": "b00c09035ed62eb786008ac7dfe60ebe44a0d5b0"
+      },
+      "dist": {
+        "url": "https://api.github.com/repos/waaseyaa/api/zipball/b00c09035ed62eb786008ac7dfe60ebe44a0d5b0",
+        "type": "zip",
+        "shasum": "",
+        "reference": "b00c09035ed62eb786008ac7dfe60ebe44a0d5b0"
+      },
+      "download_sha256": "cfed1207bf0dd3263bdffe8ad5012c1f952168b74cbaac8075804b05d0b43a25",
+      "required_files_present": {
+        "src/Controller/EngagementController.php": false
+      }
+    },
+    {
+      "package": "waaseyaa/entity",
+      "version": "v0.1.0-alpha.308",
+      "source": {
+        "url": "https://github.com/waaseyaa/entity.git",
+        "type": "git",
+        "reference": "bc304ec5375e21534bb722ba401541458db82fb9"
+      },
+      "dist": {
+        "url": "https://api.github.com/repos/waaseyaa/entity/zipball/bc304ec5375e21534bb722ba401541458db82fb9",
+        "type": "zip",
+        "shasum": "",
+        "reference": "bc304ec5375e21534bb722ba401541458db82fb9"
+      },
+      "download_sha256": "1cbfbdce381c4a5264e9662c704461a07d93ba46d741dbe1fdd3cd131312e9b2",
+      "required_files_present": {
+        "src/EntityType.php": true
+      }
+    }
+  ]
+}

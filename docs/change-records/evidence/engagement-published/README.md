@@ -1,0 +1,9 @@
+# Published engagement qualification readiness
+
+Status: **pending publication of the new implementation**. These artifacts prove the public alpha.308 baseline and its missing engagement capabilities; they do not qualify the new likes/comments/replies feature.
+
+`registry-state.json` binds the observed public metadata and downloaded archive hashes. The alpha.308 manifest/lock and provenance report record a real no-dev install with 41 Framework members and byte comparison against public Framework release source `baead2150a78883b82536282d1181cf5b7a92a10`. `alpha308-required-capabilities.json` shows the required service, upgrader and controller absent, with PHPUnit absent. The baseline installation reused the native Composer cache and did not claim anonymous fresh retrieval. It was not patched to pass. The exact runner uses an isolated cache and authentication environment in its final reviewed revision.
+
+After an authorized governed release, run `tests/PackagedForm/check-engagement-consumer --candidate=<committed-harness-SHA> --published-tag=<actual-new-alpha-tag> --evidence-dir=<external-directory>` with disk-backed TMPDIR. Fetch the public release tags first. The public tag and harness candidate are separate identities. Keep the complete seven-profile results, manifests, locks and provenance, then reconcile the owning change record. Current old-cohort refusal is a negative discriminator, never a successful feature qualification.
+
+The final exact `66c2aeae9` runner also completed a fresh normal install using an isolated empty cache and cleared Composer authentication. Its separate lock and provenance are saved as `isolated-alpha308-*`. It verified all 41 Framework members and 15 application files, completed installation, then exited 1 at field-access preflight because the old cohort lacks `EngagementTokens`. This is the expected old-cohort readiness refusal. Later profiles were not run after that fail-closed stop.

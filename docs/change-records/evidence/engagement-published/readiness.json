@@ -1,0 +1,34 @@
+{
+  "status": "pending-new-cohort-publication",
+  "harness_candidate": "66c2aeae9261de4dc090d77280e3d5f527d3fafd",
+  "baseline_release_source": "baead2150a78883b82536282d1181cf5b7a92a10",
+  "baseline_version": "0.1.0-alpha.308",
+  "baseline_lock_sha256": "38f6e76123d71e907b3b9648201cf046ecc69678351ac30cce0d0693f87264f9",
+  "baseline_install": "no-dev; dist-only Framework code packages; native cache supporting evidence",
+  "required_implementation": "absent",
+  "new_published_journeys": "not-run-unpublished",
+  "review": {
+    "Poincare": "PASS after cache/auth isolation repair at66c2aeae9",
+    "Beauvoir": "baseline evidence independently verified; publication blocker confirmed; initial stale-code finding withdrawn"
+  },
+  "preflight": {
+    "passed": 43,
+    "executed": 42,
+    "equivalent_input_reuse": 1,
+    "failed": 0,
+    "hosted_required": 0,
+    "not_applicable": 3,
+    "report": "/tmp/engagement-published-preflight.json"
+  },
+  "isolated_runner": {
+    "candidate": "66c2aeae9261de4dc090d77280e3d5f527d3fafd",
+    "published_tag": "v0.1.0-alpha.308",
+    "exit_status": 1,
+    "composer": "passed; independent temporary home/cache; COMPOSER_AUTH cleared",
+    "provenance": "passed; 41 Framework members; 15 app files; dev install",
+    "install_init": "passed",
+    "field_access_preflight": "refused; required EngagementTokens class absent",
+    "feature_qualification": "not-qualified; obsolete published implementation",
+    "lock_sha256": "38f6e76123d71e907b3b9648201cf046ecc69678351ac30cce0d0693f87264f9"
+  }
+}
