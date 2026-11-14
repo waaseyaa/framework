@@ -1,0 +1,54 @@
+{
+  "repository": "https://github.com/composer/packagist",
+  "commit": "732798cdb070f8f349dd47466add6e9ee4bd7a17",
+  "files": [
+    {
+      "path": "src/Controller/ApiController.php",
+      "sha256": "8f855b6d011865a8edca1415ac5966f68056338cfdb5e33a455c0a9181a1db34",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Controller/ApiController.php"
+    },
+    {
+      "path": "src/Controller/PackageController.php",
+      "sha256": "013a9a12f60c57b909b33566e22185a0661e0fc7a8734560ce0f7b7e5164870f",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Controller/PackageController.php"
+    },
+    {
+      "path": "src/Service/Scheduler.php",
+      "sha256": "de656a6b2bc7449841f7d791677757231089879744d2b9221c05dc46c39eb0c1",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Service/Scheduler.php"
+    },
+    {
+      "path": "src/Service/QueueWorker.php",
+      "sha256": "4c08880760f500d144c2d6f03b8715a41202c19439f73d3a43a6385e6464c5d6",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Service/QueueWorker.php"
+    },
+    {
+      "path": "src/Package/Updater.php",
+      "sha256": "98b848a2c1230959565855a0c3d5a7dbe0727d502614599a65138bbf56e724eb",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Package/Updater.php"
+    },
+    {
+      "path": "src/Entity/Package.php",
+      "sha256": "c5d76ecc6e10ccb254c9e3f9fa32f5ba39bc41db538b5797ea893c501c814eb9",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Entity/Package.php"
+    },
+    {
+      "path": "js/view.js",
+      "sha256": "c40a5fe6de32f9e204e99c3553010ea279426ca2bc3fab7efa7b063669480bae",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/js/view.js"
+    },
+    {
+      "path": "templates/package/view_package.html.twig",
+      "sha256": "8e25638626d75222c3fa9b7e2044f1432a8a60d3278f75585fed5105ccc019ea",
+      "matches_diagnostic_copy": true,
+      "url": "https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/templates/package/view_package.html.twig"
+    }
+  ]
+}

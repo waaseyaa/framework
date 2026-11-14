@@ -79,6 +79,13 @@ if [ "${#remaining[@]}" -gt 0 ]; then
         separator=','
       done
       echo ']}'
+      echo
+      echo 'If Packagist already lists this tag on its package page/API but P2 metadata remains stale, ordinary update-package retries may not force unchanged metadata to be rewritten.'
+      echo 'For that stale-metadata case, a package maintainer can use Manage → Update for each missing package:'
+      for package in "${remaining[@]}"; do
+        echo "https://packagist.org/packages/${package}"
+      done
+      echo 'This manual update requests a forced metadata dump; other causes of missing P2 metadata still need investigation.'
       if [ "$recovery_command" = true ]; then
         echo
         echo 'Recover only these packages, without republishing the rest:'
@@ -88,6 +95,12 @@ if [ "${#remaining[@]}" -gt 0 ]; then
     } >> "$GITHUB_STEP_SUMMARY"
   fi
   packagist_error "Not installable at ${tag}: ${list}"
+  packagist_error 'If Packagist already lists this tag on its package page/API but P2 metadata remains stale, ordinary update-package retries may not force unchanged metadata to be rewritten.'
+  packagist_error 'For that stale-metadata case, a package maintainer can use Manage → Update for each missing package:'
+  for package in "${remaining[@]}"; do
+    packagist_error "  https://packagist.org/packages/${package}"
+  done
+  packagist_error 'This manual update requests a forced metadata dump; other causes of missing P2 metadata still need investigation.'
   if [ "$recovery_command" = true ]; then
     packagist_error "Recover: gh workflow run packagist-recover.yml -f packages=${list} -f tag=${tag}"
   fi

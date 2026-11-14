@@ -324,3 +324,39 @@ The actual registry-only consumer attempt at `/tmp/engagement-published-alpha309
 Portable producer evidence, exact failed-consumer manifest/fixture identity, solver proof and the Composer refusal are saved under [evidence/engagement-alpha309-publication](evidence/engagement-alpha309-publication/README.md). Raw gated logs and submission/recovery receipts remain under `/tmp/engagement-release-pipeline`. This task is incomplete at the external package-availability boundary. Once both P2 records expose alpha.309, rerun only failed jobs of publication run `43616058061`, then execute the complete seven-profile matrix with harness `2df1d4160` and public tag alpha.309. Retain exact resulting locks/provenance and obtain independent result review. No FETDER adoption, browser/login qualification, deployment or production mutation occurred.
 
 Parfit independently verified the exact tag/source identity, all 77 unique package manifest hashes, CycloneDX 1.6 SBOM/provenance digests and successful producer gates, then returned **PASS for accurate blocked-outcome reporting**. Descartes independently verified the actual Composer refusal, absent lock/boot and zero completed profiles, also returning **PASS for faithful recording**. Both explicitly state that published-package qualification was not achieved. Neither authored the reviewed source/harness. Final local preflight passed all 43 applicable gates with no failures; final evidence changes only document these outcomes.
+
+## Stale P2 investigation and targeted recovery, 14 November 2026
+
+The public package JSON and package pages contain alpha.309 for both missing
+packages, with source/dist references matching the split provenance. Composer
+P2 responses omit it in both identity and gzip encodings, with identical decoded
+bytes and October 23 Last-Modified headers. Cache-busting queries and no-cache
+requests reproduce the discrepancy. This establishes stale generated/delivered
+P2 metadata, but does not identify the initial server-side failure.
+
+Investigation of official `composer/packagist` source at immutable commit
+`732798cdb070f8f349dd47466add6e9ee4bd7a17` identified why ordinary recovery
+recrawls need not repair this state: the API schedules a non-forcing update;
+unchanged content need not request a fresh dump. The signed-in maintainer's
+**Manage → Update** action sets `manualUpdate`, schedules `force_dump` and
+requests a rewrite even for identical content. **Update All**, retagging,
+repository overrides and relaxed consumer constraints are unnecessary. All
+eight inspected upstream files were refetched at that exact commit and match
+the diagnostic copies; their hashes and primary links are retained alongside
+the public-response diagnostic in the portable evidence directory.
+
+Public `/jobs/{id}` responses require special care: completion statuses expire
+after ten minutes and the absent-status fallback says `running`. The old job
+IDs therefore do not prove that jobs are still executing. The actual initial
+failure and the outcome of a new forced dump require fresh evidence.
+
+Russell reported completing Manage → Update on both package pages. The first
+post-action P2 checks still show alpha.308. A bounded propagation observation
+is in progress; no successful repair or published-consumer pass is claimed.
+The existing strict P2 gate remains unchanged. A cheaper worker repaired the
+failure guidance and final-attempt retry wording/backoff; a separate reviewer
+returned no findings on both scripts, the workflow specification and the
+upstream evidence. Shell syntax and all nine release verification fixtures
+passed; the focused architecture contract passed eight tests / 66 assertions.
+Default preflight passed 42 executed gates, with zero failures or hosted-required
+and four not-applicable. These are tooling checks, not published qualification.

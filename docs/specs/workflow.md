@@ -216,6 +216,24 @@ publication. The ordered release gate remains `split.yml#verify-packagist`.
 Both composite actions expose a no-network dry-run mode for contract testing;
 release and recovery workflows never enable it.
 
+If the package page/API already contains the exact tag but Composer P2 does
+not, investigate stale generated metadata before repeating ordinary recrawls.
+Packagist's ordinary `update-package` API request does not force a metadata
+rewrite when package content is unchanged. A signed-in package maintainer can
+open the affected package page and choose **Manage → Update** to request a
+forced metadata dump. This is distinct from **Update All** and does not require
+a new tag or source/dist URL change. Apply it only to the missing packages,
+then check P2 again after propagation. The P2 gate remains mandatory.
+
+The upstream implementation is recorded at
+[composer/packagist 732798c](https://github.com/composer/packagist/blob/732798cdb070f8f349dd47466add6e9ee4bd7a17/src/Controller/PackageController.php#L1097):
+the maintainer button supplies `manualUpdate`, which schedules `force_dump`.
+Ordinary update requests only mark changed metadata for dumping. Public
+`/jobs/{id}` status is short-lived: completed statuses expire after ten minutes,
+and a missing status returns `running`. An old `running` response therefore
+does not establish that an update is still executing. A forced dump is a
+targeted recovery path, not proof of the initial cause or eventual availability.
+
 Non-release jobs use the same rule. Ordinary static and aggregate gates receive
 5 to 20 minutes, release-readiness assembly receives up to 30 minutes, existing
 nightly and skeleton-smoke budgets remain 45 and 40 minutes, and the governed

@@ -187,10 +187,16 @@ for package in "${PACKAGIST_PACKAGE_LIST[@]}"; do
         fi
       done
       [ "$published" = true ] && break
-      echo "::warning::${package}: accepted (job ${PACKAGIST_SUBMIT_JOB_ID:-none}) but ${tag} never appeared; resubmitting."
-      sleep "$(packagist_jitter "$((attempt * 30))" "$((attempt * 30 + 14))")"
+      if [ "$attempt" -lt "$max_attempts" ]; then
+        echo "::warning::${package}: accepted (job ${PACKAGIST_SUBMIT_JOB_ID:-none}) but ${tag} never appeared; resubmitting."
+        sleep "$(packagist_jitter "$((attempt * 30))" "$((attempt * 30 + 14))")"
+      else
+        echo "::warning::${package}: accepted (job ${PACKAGIST_SUBMIT_JOB_ID:-none}) but ${tag} is still absent after the final attempt."
+      fi
     else
-      sleep "$(packagist_jitter "$((attempt * 20))" "$((attempt * 20 + 9))")"
+      if [ "$attempt" -lt "$max_attempts" ]; then
+        sleep "$(packagist_jitter "$((attempt * 20))" "$((attempt * 20 + 9))")"
+      fi
     fi
     attempt=$((attempt + 1))
   done
