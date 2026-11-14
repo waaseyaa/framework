@@ -247,6 +247,10 @@ foreach (['comment', 'reaction'] as $guardedEntity) {
         $opaqueRefusal = in_array($name, ['api.' . $guardedEntity . '.not_exposed', 'api.' . $guardedEntity . '.not_exposed_path'], true);
         $assert(!str_starts_with($name, 'api.' . $guardedEntity . '.') || $opaqueRefusal, sprintf('Guarded entity %s has generic %s exposure', $guardedEntity, $method));
         if ($opaqueRefusal) {
+            $matched->attributes->set('_account', $adminAccount);
+            if ($adminPrincipal !== null) {
+                $matched->attributes->set('_authorization_principal', $adminPrincipal);
+            }
             $response = $dispatchMatchedRequest->invoke($kernel, $matched, new BroadcastStorage($kernel->getDatabase()));
             $assert($response instanceof Response && $response->getStatusCode() === 404, sprintf('Guarded entity %s %s did not execute its opaque 404 refusal', $guardedEntity, $method));
         }
