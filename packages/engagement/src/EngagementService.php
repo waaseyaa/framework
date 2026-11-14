@@ -306,6 +306,14 @@ final class EngagementService
         return $this->page($viewer, $root, $parent, $cursor, $limit);
     }
 
+    /** Resolve the immutable root within the same read snapshot as the reply page. */
+    public function repliesForComment(AuthorizationPrincipalInterface $viewer, string $parent, ?string $cursor = null, int $limit = 20): CommentPage
+    {
+        return $this->read($viewer, function () use ($viewer, $parent, $cursor, $limit): CommentPage {
+            return $this->page($viewer, $this->reference($this->row($parent)), $parent, $cursor, $limit);
+        });
+    }
+
     private function page(AuthorizationPrincipalInterface $viewer, RootReference $reference, ?string $parent, ?string $cursor, int $limit): CommentPage
     {
         if ($limit < 1 || $limit > 50) {

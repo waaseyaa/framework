@@ -126,6 +126,7 @@ final class ApiServiceProviderTest extends TestCase
         self::assertSame([
             'api.route.content_search' => false,
             'api.route.mcp' => class_exists(\Waaseyaa\Mcp\McpServiceProvider::class),
+            'api.route.engagement' => class_exists(\Waaseyaa\Engagement\EngagementServiceProvider::class),
             'api.route.catalog' => false,
             'api.route.ai_catalog' => false,
         ], $inputs->routeCapabilities());

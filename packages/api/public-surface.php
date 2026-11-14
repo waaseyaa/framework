@@ -8,6 +8,9 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\Api\\Controller\\EngagementController', 'disposition' => 'internal', 'ref' => '#3246'],
+        ['fqcn' => 'Waaseyaa\\Api\\Http\\Router\\EngagementApiRouter', 'disposition' => 'internal', 'ref' => '#3246'],
+        ['fqcn' => 'Waaseyaa\\Api\\Middleware\\EngagementResponsePrivacyMiddleware', 'disposition' => 'internal', 'ref' => '#3246'],
         ['fqcn' => 'Waaseyaa\\Api\\Audit\\AuditQueryReadModelInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Api\\ContentSearch\\ContentSearchRateLimiterInterface', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\Api\\ContentSearch\\ContentSearchReadModelInterface', 'disposition' => 'internal'],

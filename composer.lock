@@ -4552,7 +4552,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "652fd48a7a2b6757413841c1efae9e9daf0ffa2f"
+                "reference": "e1c2fd27d2368c1d68567e6e92c8dce0a41760db"
             },
             "require": {
                 "php": ">=8.5",
@@ -4586,6 +4586,7 @@
                 "waaseyaa/auth": "^0.1.0-alpha.308",
                 "waaseyaa/config": "^0.1.0-alpha.308",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.308",
+                "waaseyaa/engagement": "^0.1.0-alpha.308",
                 "waaseyaa/mcp": "^0.1.0-alpha.308",
                 "waaseyaa/media": "^0.1.0-alpha.308",
                 "waaseyaa/node": "^0.1.0-alpha.308",

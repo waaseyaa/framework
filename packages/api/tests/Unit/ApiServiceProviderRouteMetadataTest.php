@@ -130,6 +130,9 @@ final class ApiServiceProviderRouteMetadataTest extends TestCase
                 $manager->registerEntityType(new \Waaseyaa\Entity\EntityType(id: $id, label: $id, class: \stdClass::class, api: $exposed));
             }
             $provider = new ApiServiceProvider();
+            // The frozen table records the pre-engagement optional-domain cohort.
+            // The engagement route table has independent present/absent coverage.
+            (new \ReflectionProperty(ApiServiceProvider::class, 'engagementAvailable'))->setValue($provider, false);
             $enabled = $profile === 'enabled';
             $provider->setKernelContext('/tmp/test-project', [
                 'api' => ['content_search' => ['enabled' => $enabled]],

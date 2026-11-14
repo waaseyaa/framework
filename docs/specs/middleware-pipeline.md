@@ -527,3 +527,9 @@ For event-dispatch in middleware (e.g., emitting `DomainEvent` instances during 
 ## Implementation gotchas
 
 - **Interface naming**: handler interfaces follow `{Type}HandlerInterface` (`HttpHandlerInterface`, `EventHandlerInterface`, `JobHandlerInterface`); middleware interfaces follow `{Type}MiddlewareInterface`. The attribute-discovery for `#[AsMiddleware]` only picks up classes that implement the right interface for their pipeline — naming a class `FooMiddleware` without implementing the matching `{Type}MiddlewareInterface` silently skips it during compilation.
+
+## Optional engagement response privacy
+
+When engagement is installed, `ApiServiceProvider` contributes the API-owned `EngagementResponsePrivacyMiddleware` at HTTP priority 120. It wraps the canonical session/security pipeline and replaces Cache-Control with `private, no-store` for matched routes whose canonical Route has `_engagement: true`. This includes inner CSRF, body-size, rate-limit and parsing refusals. Other routes retain their cache policy. The marker comes from route declarations, never request query data.
+
+Engagement mutation routes explicitly set `_csrf: true`, including JSON requests and submission-key issuance. The read-only summaries POST sets `_csrf: false`. Existing CSRF validation, token cookies and session/principal resolution keep their current owners. Global failures before route matching retain the kernel's existing refusal surface. The exact endpoint contract is in [engagement-likes-comments.md](engagement-likes-comments.md).

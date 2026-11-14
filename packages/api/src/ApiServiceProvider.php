@@ -77,6 +77,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvide
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ContributesRouteMetadataInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -93,7 +94,7 @@ use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\Read\ActiveWorkflows;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
-final class ApiServiceProvider extends ServiceProvider implements ContributesRouteMetadataInterface, HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface, ConfiguresHttpKernelInterface
+final class ApiServiceProvider extends ServiceProvider implements ContributesRouteMetadataInterface, HasHttpDomainRoutersInterface, HasMiddlewareInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface, ConfiguresHttpKernelInterface
 {
     private const string CONTENT_SEARCH_PROVIDER = 'Waaseyaa\\Search\\SearchProviderInterface';
     private const string CONTENT_SEARCH_LIMITER = 'Waaseyaa\\Auth\\AtomicRateLimiterInterface';
@@ -106,6 +107,8 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
     private ?bool $contentSearchAvailable = null;
 
     private ?bool $mcpAvailable = null;
+
+    private ?bool $engagementAvailable = null;
 
     /** @var list<ProvidesApiCatalogEntriesInterface> */
     private array $apiCatalogEntryProviders = [];
@@ -121,6 +124,15 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
     public function configureHttpKernel(HttpKernel $kernel): void
     {
         $this->discoveryHandler = $kernel->getDiscoveryApiHandler();
+    }
+
+    public function middleware(EntityTypeManager $entityTypeManager): array
+    {
+        if (!$this->engagementInstalled()) {
+            return [];
+        }
+
+        return [new \Waaseyaa\Api\Middleware\EngagementResponsePrivacyMiddleware()];
     }
 
     public function withApiCatalogEntryProviders(array $providers): void
@@ -295,6 +307,18 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
             }
             return new McpAdminApiRouter(new McpAdminController($registry, $config));
         });
+        $this->bind('Waaseyaa\\Api\\Http\\Router\\EngagementApiRouter', function (): object {
+            $routerClass = 'Waaseyaa\\Api\\Http\\Router\\EngagementApiRouter';
+            $router = new $routerClass(function (): object {
+                $serviceClass = 'Waaseyaa\\Engagement\\EngagementService';
+                $service = $this->resolve($serviceClass);
+                if (!$service instanceof $serviceClass) {
+                    throw new \RuntimeException('The engagement execution binding is invalid.');
+                }
+                return $service;
+            });
+            return $router;
+        });
         $this->bind(McpApprovalApiRouter::class, function (): McpApprovalApiRouter {
             // Keep the existing best-effort telemetry policy and lazy store boundary.
             $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
@@ -435,12 +459,14 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
         // disabled. Later route reads must not discover a different install.
         $contentSearchAvailable = $this->contentSearchAvailable();
         $mcpInstalled = $this->mcpInstalled();
+        $engagementInstalled = $this->engagementInstalled();
         $this->apiCatalog = $this->buildApiCatalog();
         $this->aiCatalog = $this->buildAiCatalog();
         if ($policy instanceof EntityTypeApiExposurePolicy && $routeInputs instanceof RouteExposureInputs) {
             $routeInputs->publish($policy->effectiveMap(), [
                 'api.route.content_search' => $contentSearchAvailable,
                 'api.route.mcp' => $mcpInstalled,
+                'api.route.engagement' => $engagementInstalled,
                 'api.route.catalog' => $this->apiCatalog !== null,
                 'api.route.ai_catalog' => $this->aiCatalog !== null,
             ]);
@@ -460,6 +486,10 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
 
         if ($this->contentSearchAvailable()) {
             $routers[] = $this->contentSearchRouter();
+        }
+
+        if ($this->engagementInstalled()) {
+            $routers[] = $this->resolve('Waaseyaa\\Api\\Http\\Router\\EngagementApiRouter');
         }
 
         if ($this->apiCatalog !== null) {
@@ -644,6 +674,24 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
         if ($context->capabilities['api.route.content_search']) {
             yield $this->definition($context, $ordinal++, 'api.content_search', '/api/content/search', 'Waaseyaa\Api\Controller\ContentSearchController::search', ['GET', 'HEAD'], [], ['_public' => true], 100, $requestTerminals);
         }
+        if ($context->capabilities['api.route.engagement'] ?? false) {
+            $engagementRoutes = [
+                ['summary', '/engagement/v1/targets/{type}/{id}/summary', ['GET', 'HEAD'], 'summary', ['_public' => true]],
+                ['like', '/engagement/v1/targets/{type}/{id}/like', ['PUT'], 'like', ['_csrf' => true]],
+                ['comment_keys', '/engagement/v1/targets/{type}/{id}/comment-keys', ['POST'], 'commentKey', ['_csrf' => true]],
+                ['comments', '/engagement/v1/targets/{type}/{id}/comments', ['GET', 'HEAD'], 'comments', ['_public' => true]],
+                ['create_comment', '/engagement/v1/targets/{type}/{id}/comments', ['POST'], 'createComment', ['_csrf' => true]],
+                ['replies', '/engagement/v1/comments/{uuid}/replies', ['GET', 'HEAD'], 'replies', ['_public' => true]],
+                ['comment_show', '/engagement/v1/comments/{uuid}', ['GET', 'HEAD'], 'show', ['_public' => true]],
+                ['comment_edit', '/engagement/v1/comments/{uuid}', ['PATCH'], 'edit', ['_csrf' => true]],
+                ['comment_remove', '/engagement/v1/comments/{uuid}', ['DELETE'], 'remove', ['_csrf' => true]],
+                ['moderation_remove', '/engagement/v1/comments/{uuid}/moderation-removal', ['POST'], 'moderateRemove', ['_csrf' => true]],
+                ['summaries', '/engagement/v1/summaries', ['POST'], 'summaries', ['_public' => true, '_csrf' => false]],
+            ];
+            foreach ($engagementRoutes as [$suffix, $path, $methods, $action, $routeOptions]) {
+                yield $this->definition($context, $ordinal++, 'api.engagement.' . $suffix, $path, 'Waaseyaa\\Api\\Controller\\EngagementController::' . $action, $methods, ['_engagement_action' => $action], $routeOptions + ['_engagement' => true], 0, $requestTerminals);
+            }
+        }
         foreach (JsonApiRouteProvider::routeDefinitions($context, ordinal: $ordinal, requestTerminals: $requestTerminals) as $definition) {
             yield $definition;
             $ordinal++;
@@ -721,12 +769,13 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
                 'Waaseyaa\Api\Controller\AuditQueryController' => 'Waaseyaa\Api\Http\Router\AuditApiRouter',
                 'Waaseyaa\Api\Controller\McpAdminController' => 'Waaseyaa\Api\Http\Router\McpAdminApiRouter',
                 'Waaseyaa\Api\Controller\McpApprovalController' => 'Waaseyaa\Api\Http\Router\McpApprovalApiRouter',
+                'Waaseyaa\Api\Controller\EngagementController' => 'Waaseyaa\Api\Http\Router\EngagementApiRouter',
                 'Waaseyaa\Api\Controller\OidcClientController' => 'Waaseyaa\Api\Http\Router\OidcClientApiRouter',
                 'Waaseyaa\Api\JsonApiController' => 'Waaseyaa\Foundation\Http\Router\JsonApiRouter',
                 default => throw new \LogicException('Unsupported API request terminal.'),
             };
             $method = match ($class) {
-                'Waaseyaa\Api\Http\Router\ContentSearchApiRouter', 'Waaseyaa\Api\Http\Router\ApiCatalogRouter', 'Waaseyaa\Api\Http\Router\AiCatalogRouter', 'Waaseyaa\Foundation\Http\Router\JsonApiRouter' => 'handle',
+                'Waaseyaa\Api\Http\Router\ContentSearchApiRouter', 'Waaseyaa\Api\Http\Router\ApiCatalogRouter', 'Waaseyaa\Api\Http\Router\AiCatalogRouter', 'Waaseyaa\Api\Http\Router\EngagementApiRouter', 'Waaseyaa\Foundation\Http\Router\JsonApiRouter' => 'handle',
                 'Waaseyaa\Api\Http\Router\OidcClientApiRouter' => $method === 'destroy' ? 'delete' : $method,
                 default => $method,
             };
@@ -747,6 +796,7 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
         $context = new RouteContributionContext(self::class, 0, capabilities: [
             'api.route.content_search' => $this->contentSearchAvailable(),
             'api.route.mcp' => $this->mcpInstalled(),
+            'api.route.engagement' => $this->engagementInstalled(),
             'api.route.catalog' => $this->apiCatalog !== null,
             'api.route.ai_catalog' => $this->aiCatalog !== null,
             'service:Waaseyaa\Workflows\Transition\TransitionService' => $this->resolveOptional(TransitionService::class) instanceof TransitionService,
@@ -896,6 +946,11 @@ final class ApiServiceProvider extends ServiceProvider implements ContributesRou
     private function mcpInstalled(): bool
     {
         return $this->mcpAvailable ??= class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
+    }
+
+    private function engagementInstalled(): bool
+    {
+        return $this->engagementAvailable ??= class_exists('Waaseyaa\\Engagement\\EngagementServiceProvider');
     }
 
     private function contentSearchRouter(): ContentSearchApiRouter

@@ -60,3 +60,11 @@ input is refused before rate limiting or provider execution.
 ## JSON:API metadata producer
 
 JsonApiRouteProvider::routeDefinitions generates immutable route declarations from finalized copied entity/exposure inputs. Legacy registration remains supported and projects fresh Symfony routes from a bounded immutable cache. Hidden entities retain opaque 404 behavior. ApiServiceProvider is still a legacy contributor pending complete availability and terminal adapter migration; this source preparation does not qualify installed Bimaaji.
+
+## Optional engagement endpoints
+
+When `waaseyaa/engagement` is installed, this package exposes the settled `/engagement/v1` [HTTP contract](../../docs/specs/engagement-likes-comments.md). Configure the engagement domain policy, installation identity and Foundation keyring as described in its [README](../engagement/README.md). Missing domain configuration returns sanitized 503 per request; installing API alone does not install engagement.
+
+Use JSON objects with `Content-Type: application/json` or `application/vnd.api+json`. Obtain a submission key, then create comments using `text`, `submissionKey` and optional `parentUuid`; reuse the same key after a retryable failure. Mutations require the existing session CSRF token even for JSON. Like state uses a JSON boolean, edits use an integer `expectedRevision`, and caller-supplied author/target fields are rejected. Bulk summaries POST is read-only. Comment UUID routes resolve their immutable root inside the domain service.
+
+Responses contain only policy-permitted domain projections, with JSON:API-shaped error envelopes and `private, no-store` caching. Pages expose `meta.nextCursor` and `meta.hasMore`; continue even when a page has no visible items. The API privacy middleware also covers matched-route CSRF and transport-abuse refusals. Domain quotas, removal, expiry and retention keep the same behavior for HTTP and trusted service callers.

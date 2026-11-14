@@ -976,12 +976,15 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Audit\AuditQueryReadModelInterface` | interface | public | — |
 | `ContentSearch\ContentSearchRateLimiterInterface` | interface | internal | — |
 | `ContentSearch\ContentSearchReadModelInterface` | interface | internal | — |
+| `Controller\EngagementController` | final readonly class | internal | — |
+| `Http\Router\EngagementApiRouter` | final class | internal | — |
 | `McpAdmin\ServerConfigReadModelInterface` | interface | public | — |
 | `McpAdmin\ToolRegistryReadModelInterface` | interface | public | — |
 | `Media\MediaVersionReadModelInterface` | interface | public | — |
 | `MercureMonitor\ChannelInspectorInterface` | interface | public | — |
 | `MercureMonitor\EventStreamReadModelInterface` | interface | public | — |
 | `MercureMonitor\SubscriberObserverInterface` | interface | public | — |
+| `Middleware\EngagementResponsePrivacyMiddleware` | final class | internal | — |
 | `MutableTranslatableInterface` | interface | public | Extends `TranslatableInterface` with `addTranslation()` for explicit translation creation |
 
 ### bimaaji

@@ -9,6 +9,7 @@
 # The following edges are deliberate optional integrations. Making them hard
 # requirements would restore the domain coupling tracked by #2091.
 ai-agent wayfinding  # Trail-tool source remains an optional Wayfinding integration.
+api engagement  # FW-ENGAGEMENT-LIKES-COMMENTS-01: optional typed HTTP adapters load only when the engagement provider is installed; API require-dev qualifies the contract without making core install the domain. Review trigger: router availability, package loading or service boundary changes.
 api oidc  # Client administration must not install OIDC for every API consumer.
 cli ai-agent  # AI console integration must not install Agent for every CLI consumer.
 cli ai-tools  # Local MCP console integration must not install AI Tools for every CLI consumer.

@@ -34,6 +34,10 @@
         },
         {
             "type": "path",
+            "url": "../engagement"
+        },
+        {
+            "type": "path",
             "url": "../field"
         },
         {
@@ -146,6 +150,7 @@
         "waaseyaa/auth": "^0.1.0-alpha.308",
         "waaseyaa/config": "^0.1.0-alpha.308",
         "waaseyaa/database-legacy": "^0.1.0-alpha.308",
+        "waaseyaa/engagement": "^0.1.0-alpha.308",
         "waaseyaa/mcp": "^0.1.0-alpha.308",
         "waaseyaa/media": "^0.1.0-alpha.308",
         "waaseyaa/node": "^0.1.0-alpha.308",
