@@ -50,7 +50,8 @@ if [[ -n "$published_tag" ]]; then
     # Use public package metadata with no global repository overrides or plugins.
     export COMPOSER_HOME="$work/composer-home"
     mkdir -p "$COMPOSER_HOME"
-    unset COMPOSER COMPOSER_REPOSITORIES
+    export COMPOSER_CACHE_DIR="$COMPOSER_HOME/cache"
+    unset COMPOSER COMPOSER_REPOSITORIES COMPOSER_AUTH
     release_sha="$("$root/bin/git" -C "$root" rev-parse "$published_tag^{commit}")"
     remote_sha="$("$root/bin/git" -C "$root" ls-remote origin "refs/tags/$published_tag" "refs/tags/$published_tag^{}" | sort -k2 | tail -1 | cut -f1)"
     [[ "$release_sha" == "$remote_sha" ]] || { echo 'Local release tag differs from public origin.' >&2; exit 1; }
