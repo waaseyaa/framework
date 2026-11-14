@@ -24,16 +24,16 @@ try {
     $kernel = new HttpKernel(__DIR__);
     $kernel->bootForCli();
     $normalManager = $kernel->getEntityTypeManager();
-    $resolver = $kernel->getHttpServiceResolver();
+    $resolver = $kernel->buildHandlerContainer();
     $layout = getenv('ENGAGEMENT_LAYOUT') ?: 'blob';
     if (!in_array($layout, ['blob', 'column'], true)) {
         throw new RuntimeException('ENGAGEMENT_LAYOUT must be blob or column.');
     }
 
     if ($layout === 'column') {
-        $database = $resolver->resolve(DatabaseInterface::class);
-        $logger = $resolver->resolve(LoggerInterface::class);
-        $fieldReadScope = $resolver->resolve(AccountFieldReadScopeInterface::class);
+        $database = $resolver->get(DatabaseInterface::class);
+        $logger = $resolver->get(LoggerInterface::class);
+        $fieldReadScope = $resolver->get(AccountFieldReadScopeInterface::class);
         $dispatcher = $kernel->getEventDispatcher();
         if (!$database instanceof DatabaseInterface
             || !$logger instanceof LoggerInterface
@@ -55,7 +55,7 @@ try {
             dispatcher: $dispatcher,
             fieldRegistry: $fieldRegistry,
             logger: $logger,
-            accessHandlerResolver: fn(): ?EntityAccessHandler => $resolver->resolve(EntityAccessHandler::class),
+            accessHandlerResolver: fn(): ?EntityAccessHandler => $resolver->get(EntityAccessHandler::class),
             communityScoreResolver: static fn(): null => null,
             accountContextAttacher: static function (object $repository) use ($kernel): void {
                 if (method_exists($repository, 'setAccountContext')) {
