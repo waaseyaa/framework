@@ -5719,6 +5719,181 @@
             "occurrence": 134
         },
         {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php",
+            "pattern": "legacy_schema_method",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/engagement/src/EngagementService.php",
+            "pattern": "legacy_schema_method",
+            "class": "explicit-exclusion",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/src/EngagementService.php",
+            "pattern": "legacy_schema_method",
+            "class": "explicit-exclusion",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/engagement/tests/Fixtures/ServiceEnvironment.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Fixtures/ServiceEnvironment.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/engagement/tests/Fixtures/ServiceEnvironment.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/engagement/tests/Integration/EngagementRetentionTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Integration/EngagementRetentionTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/engagement/tests/Integration/EngagementServiceTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "1ab9dbec296973a8e5b48b02a9f1b35760bc1acb51c6d88cf54b93b16ae5c2ca",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Integration/EngagementServiceTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Integration/Migration/EngagementDataUpgraderTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "1ab9dbec296973a8e5b48b02a9f1b35760bc1acb51c6d88cf54b93b16ae5c2ca",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Integration/Migration/EngagementDataUpgraderTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Integration/Migration/EngagementDataUpgraderTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Integration/Migration/EngagementDataUpgraderTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
             "path": "packages/entity-storage/migrations/2026_08_12_000001_entity_mutation_authority.php",
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",

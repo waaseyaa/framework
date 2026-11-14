@@ -736,6 +736,35 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 |---------|------|-------------|---------|
 | `Http\AttachmentDownloadMetadataReaderInterface` | interface | public | — |
 
+### engagement
+
+| Element | Type | Disposition | Purpose |
+|---------|------|-------------|---------|
+| `Command\EngagementUpgradeCommand` | final class | internal | — |
+| `Comment` | final class | public | — |
+| `CommentPage` | final readonly class | public | — |
+| `CommentText` | final class | internal | — |
+| `CommentView` | final readonly class | public | — |
+| `EngagementAccess` | final readonly class | internal | — |
+| `EngagementAccessPolicy` | final class | internal | — |
+| `EngagementException` | final class | public | — |
+| `EngagementMutationInvariant` | final readonly class | internal | — |
+| `EngagementMutationScope` | final class | internal | — |
+| `EngagementPolicyInterface` | interface | public | — |
+| `EngagementRateLimiter` | final class | internal | — |
+| `EngagementRetention` | final class | internal | — |
+| `EngagementService` | final class | public | — |
+| `EngagementServiceProvider` | final class | public | — |
+| `EngagementTokens` | final class | internal | — |
+| `Follow` | final class | public | — |
+| `LikeState` | final readonly class | public | — |
+| `Migration\EngagementDataUpgrader` | final readonly class | internal | — |
+| `RateLimit\EngagementWindowStorage` | final readonly class | internal | — |
+| `Reaction` | final class | public | — |
+| `Rekey\EngagementEphemeralTokenRekeyAdapter` | final readonly class | internal | — |
+| `RootReference` | final readonly class | public | — |
+| `Schedule\EngagementRetentionScheduleEntries` | final readonly class | internal | — |
+
 ### groups
 
 | Element | Type | Disposition | Purpose |

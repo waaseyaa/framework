@@ -69,6 +69,9 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
     public function __construct(
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly ?EngagementPolicyInterface $engagementPolicy = null,
+        private readonly ?EngagementMutationScope $mutationScope = null,
+        private readonly ?\Waaseyaa\Database\DatabaseInterface $database = null,
     ) {
         $this->policySubjectAuthority = \Closure::bind(
             static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
@@ -90,6 +93,11 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
     /** @internal */
     public function protectedAccess(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $operation): AccessResult
     {
+        if (in_array($structure->entityTypeId, ['comment', 'reaction'], true)) {
+            return $operation === 'view'
+                ? $this->domainView($principal, $structure->entityTypeId, $structure->uuid, $subject)
+                : AccessResult::forbidden('Engagement mutations use their domain service.');
+        }
         if ($principal->hasPermission('administer content')) {
             return AccessResult::allowed('Admin permission.');
         }
@@ -118,6 +126,12 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
     /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
+        if (in_array($entity->getEntityTypeId(), ['comment', 'reaction'], true)) {
+            $subject = $this->policySubject($entity);
+            return $operation === 'view' && $subject !== null
+                ? $this->domainView($account, $entity->getEntityTypeId(), $entity->uuid(), $subject)
+                : AccessResult::forbidden('Engagement mutations use their domain service.');
+        }
         if ($account->hasPermission('administer content')) {
             return AccessResult::allowed('Admin permission.');
         }
@@ -131,6 +145,9 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
 
     public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
+        if (in_array($entityTypeId, ['comment', 'reaction'], true)) {
+            return AccessResult::forbidden('Engagement creation uses its domain service.');
+        }
         if ($account->hasPermission('administer content')) {
             return AccessResult::allowed('Admin permission.');
         }
@@ -192,6 +209,74 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
         return $this->accessHandler->check($parent, 'view', $account)->isAllowed()
             ? AccessResult::allowed('Parent content is viewable by the caller.')
             : AccessResult::neutral('Parent content is not viewable by the caller.');
+    }
+
+    private function domainView(AuthorizationPrincipalInterface $viewer, string $entityType, string $uuid, PolicySubjectViewInterface $subject): AccessResult
+    {
+        if ($this->mutationScope?->permitsRead($viewer, $uuid)) {
+            return AccessResult::allowed('Scoped engagement mutation input.');
+        }
+        $fields = $subject->fields();
+        $knownReactionType = in_array('reaction_type', $fields, true) ? $subject->get('reaction_type') : null;
+        $legacyReaction = $entityType === 'reaction' && is_string($knownReactionType)
+            && $knownReactionType !== '' && $knownReactionType !== 'like';
+        if ($legacyReaction) {
+            return $this->legacyReactionView($viewer, $subject);
+        }
+        if ($entityType === 'reaction' && $knownReactionType !== 'like') {
+            return AccessResult::forbidden('Malformed or unavailable reaction type.');
+        }
+        $rootAccess = $this->mutationScope?->rootAccessHandler() ?? $this->accessHandler;
+        if ($this->engagementPolicy === null || $this->entityTypeManager === null || $rootAccess === null
+            || !$this->database instanceof \Waaseyaa\Database\DBALDatabase
+            || $this->engagementPolicy->databaseIdentity() !== $this->database->databaseIdentity()
+        ) {
+            return AccessResult::forbidden('Current engagement policy is unavailable.');
+        }
+        if (array_diff(['target_type', 'target_id', 'root_uuid', 'lifecycle', 'user_id'], $subject->fields()) !== []) {
+            return AccessResult::forbidden('This field needs a bound domain operation.');
+        }
+        if ($entityType === 'comment' && (!in_array('status', $fields, true) || $subject->get('status') !== true)) {
+            return AccessResult::forbidden('Unpublished discussion is unavailable.');
+        }
+        $type = (string) $subject->get('target_type');
+        $id = (int) $subject->get('target_id');
+        if (in_array($type, ['comment', 'reaction', 'follow'], true) || $id < 1
+            || !$this->entityTypeManager->hasDefinition($type)
+            || $subject->get('lifecycle') !== 'active'
+        ) {
+            return AccessResult::forbidden('Engagement is unavailable.');
+        }
+        $root = $this->entityTypeManager->getRepository($type)->find($id);
+        if ($root === null || $root->uuid() !== $subject->get('root_uuid')
+            || !$rootAccess->check($root, 'view', $viewer)->isAllowed()
+            || !$this->engagementPolicy->canViewRoot($viewer, $root)
+            || $this->database->getConnection()->fetchOne('SELECT 1 FROM engagement_actor_erasure WHERE actor_id = ?', [(int) $subject->get('user_id')]) !== false
+            || !$this->engagementPolicy->canViewActor($viewer, (int) $subject->get('user_id'), $root)
+        ) {
+            return AccessResult::forbidden('Engagement is unavailable.');
+        }
+        return AccessResult::allowed('Current root and actor policy allow this engagement.');
+    }
+
+    private function legacyReactionView(AuthorizationPrincipalInterface $viewer, PolicySubjectViewInterface $subject): AccessResult
+    {
+        if ($viewer->hasPermission('administer content')) {
+            return AccessResult::allowed('Legacy reaction administrative read.');
+        }
+        if (array_diff(['target_type', 'target_id'], $subject->fields()) !== [] || $this->entityTypeManager === null) {
+            return AccessResult::forbidden('Legacy reaction target cannot be resolved.');
+        }
+        $handler = $this->mutationScope?->rootAccessHandler() ?? $this->accessHandler;
+        $type = (string) $subject->get('target_type');
+        $id = (int) $subject->get('target_id');
+        if ($handler === null || $id < 1 || !$this->entityTypeManager->hasDefinition($type)) {
+            return AccessResult::forbidden('Legacy reaction target cannot be resolved.');
+        }
+        $parent = $this->entityTypeManager->getRepository($type)->find($id);
+        return $parent !== null && $handler->check($parent, 'view', $viewer)->isAllowed()
+            ? AccessResult::allowed('Legacy reaction inherits its parent visibility.')
+            : AccessResult::forbidden('Legacy reaction target is unavailable.');
     }
 
     private function isPublished(EntityInterface $entity): bool

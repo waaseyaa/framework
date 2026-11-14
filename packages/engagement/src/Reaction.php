@@ -9,12 +9,21 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'reaction', label: 'Reaction', api: true)]
+#[ContentEntityType(id: 'reaction', label: 'Reaction', api: false, requiredMutationInvariant: EngagementMutationInvariant::class)]
 #[ContentEntityKeys(id: 'rid', uuid: 'uuid', label: 'reaction_type')]
 final class Reaction extends ContentEntityBase
 {
-    #[Field(label: 'Reaction Type', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Reaction Type', settings: ['weight' => 0, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $reaction_type = '';
+
+    #[Field(label: 'Root UUID', settings: ['weight' => 1, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public string $root_uuid = '';
+
+    #[Field(label: 'Lifecycle', settings: ['weight' => 2, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public string $lifecycle = 'active';
+
+    #[Field(type: 'integer', label: 'Quarantined', settings: ['weight' => 3, 'subtype' => 'timestamp', 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public ?int $quarantined_at = null;
 
     #[Field(label: 'User ID', settings: ['weight' => 1, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $user_id = 0;
@@ -25,7 +34,7 @@ final class Reaction extends ContentEntityBase
     #[Field(label: 'Target Entity ID', settings: ['weight' => 3, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $target_id = 0;
 
-    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp', 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $created_at = null;
 
     /**
@@ -54,6 +63,15 @@ final class Reaction extends ContentEntityBase
 
         if (!array_key_exists('created_at', $values)) {
             $values['created_at'] = time();
+        }
+        foreach ([
+            'root_uuid' => '',
+            'lifecycle' => 'active',
+            'quarantined_at' => null,
+        ] as $field => $default) {
+            if (!array_key_exists($field, $values)) {
+                $values[$field] = $default;
+            }
         }
 
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);

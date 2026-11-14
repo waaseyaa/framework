@@ -221,7 +221,7 @@
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/Bootstrap/DatabaseBootstrapperTest.php",
-            "reason": "tempnam() failed — cannot proceed",
+            "reason": "tempnam() failed \u2014 cannot proceed",
             "occurrence": 1,
             "classification": "platform-capability",
             "predicate": "tempnam() returns a path",
@@ -385,7 +385,7 @@
             "occurrence": 1,
             "classification": "platform-capability",
             "predicate": "function_exists(pcntl_signal) && defined(SIGTERM)",
-            "rationale": "The #3064 TERM→KILL marker proof uses PHP_BINARY + pcntl_signal to record SIGTERM then ignore further TERMs until KILL; hosts without ext-pcntl cannot preserve that discriminator without inventing a Perl (or other) dependency."
+            "rationale": "The #3064 TERM\u2192KILL marker proof uses PHP_BINARY + pcntl_signal to record SIGTERM then ignore further TERMs until KILL; hosts without ext-pcntl cannot preserve that discriminator without inventing a Perl (or other) dependency."
         },
         {
             "path": "tests/Architecture/SkeletonDockerSecretExclusionTest.php",
@@ -429,7 +429,7 @@
         },
         {
             "path": "tests/Integration/Policy/CheckComposerPolicyTest.php",
-            "reason": "No vX.Y.Z git tag found in repo — CP-NEW cannot resolve an expected constraint. ",
+            "reason": "No vX.Y.Z git tag found in repo \u2014 CP-NEW cannot resolve an expected constraint. ",
             "occurrence": 1,
             "classification": "optional-package-form",
             "predicate": "fixture repository has a semver tag",
@@ -490,6 +490,14 @@
             "classification": "platform-capability",
             "predicate": "ManifestCompilationContext::artifactBindingSupported()",
             "rationale": "Only selected artifact-bound cache custody is POSIX-only; existing legacy clear command cases remain active and selected clear executes on supported Ubuntu PHP8.5."
+        },
+        {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "reason": "pcntl is required for the cross-process quota contract.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(pcntl_fork)",
+            "rationale": "Real forked limiter contention requires pcntl; single-process quota and held-lock refusal remain covered on other package runners."
         }
     ]
 }

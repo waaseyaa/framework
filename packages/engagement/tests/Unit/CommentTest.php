@@ -31,6 +31,12 @@ final class CommentTest extends TestCase
             $this->assertSame('Great post!', $comment->get('body'));
             $this->assertSame(1, (int) $comment->get('status'));
             $this->assertNotNull($comment->get('created_at'));
+            $this->assertSame('', $comment->get('root_uuid'));
+            $this->assertSame('active', $comment->get('lifecycle'));
+            $this->assertNull($comment->get('parent_comment_uuid'));
+            $this->assertNull($comment->get('edited_at'));
+            $this->assertNull($comment->get('removed_at'));
+            $this->assertNull($comment->get('quarantined_at'));
         });
     }
 

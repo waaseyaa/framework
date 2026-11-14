@@ -31,6 +31,9 @@ final class ReactionTest extends TestCase
             $this->assertSame(1, (int) $reaction->get('user_id'));
             $this->assertSame('like', $reaction->get('reaction_type'));
             $this->assertNotNull($reaction->get('created_at'));
+            $this->assertSame('', $reaction->get('root_uuid'));
+            $this->assertSame('active', $reaction->get('lifecycle'));
+            $this->assertNull($reaction->get('quarantined_at'));
         });
     }
 

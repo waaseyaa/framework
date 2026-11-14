@@ -74,6 +74,9 @@ function s1SchemaClass(string $path): string
         'packages/audit/src/Storage/AppendOnlySchema.php' => 'read-only-or-declaration',
         'packages/audit/src/Storage/ApprovalEventSchema.php' => 'read-only-or-declaration',
         'packages/audit/src/Storage/StrictAuditLedgerSchema.php' => 'read-only-or-declaration',
+        'packages/engagement/migrations/2026_11_13_000001_engagement_auxiliary_schema.php' => 'coordinator-plan-or-executor',
+        // Domain repository create calls are entity construction, not schema DDL.
+        'packages/engagement/src/EngagementService.php' => 'explicit-exclusion',
         'packages/auth/src/DatabaseRateLimiter.php' => 'authoritative-bypass-remediation-required',
         'packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php' => 'coordinator-plan-or-executor',
         'packages/cache/migrations/2026_08_12_000001_cache_items_schema.php' => 'coordinator-plan-or-executor',

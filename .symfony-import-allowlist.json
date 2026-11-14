@@ -26,7 +26,12 @@
     "packages/site-contract/src/Management/ManagementManifestParser.php": "FW-AGENT-MANAGEMENT-01: the closed companion parser reuses its declared Symfony Yaml dependency solely to refuse duplicate JSON mapping keys and maps ParseException into SiteManifestValidationException; no Symfony type enters its public contract. Review trigger: any parser or exception-boundary change.",
     "packages/admin-surface/src/Http/AdminSurfaceHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes.",
     "packages/admin-surface/src/Http/PageBuilderHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes.",
-    "packages/admin-surface/src/Http/AdminSpaHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes."
+    "packages/admin-surface/src/Http/AdminSpaHttpController.php": "ROUTE-METADATA-01: package-owned request terminals implement the existing Symfony HttpFoundation dispatcher and host contracts using the already declared dependency; no equivalent Waaseyaa inbound HTTP wrapper exists. Review trigger: dispatcher, host contract, or terminal response ownership changes.",
+    "packages/engagement/src/EngagementRateLimiter.php": "FW-ENGAGEMENT-LIKES-COMMENTS-01: Symfony Lock and RateLimiter implement the settled fixed-window admission and single-host Flock mechanics. Review trigger: admission, validation, CLI or entity identity ownership changes.",
+    "packages/engagement/src/CommentText.php": "FW-ENGAGEMENT-LIKES-COMMENTS-01: Symfony Validator owns Unicode text-length validation. Review trigger: admission, validation, CLI or entity identity ownership changes.",
+    "packages/engagement/src/RateLimit/EngagementWindowStorage.php": "FW-ENGAGEMENT-LIKES-COMMENTS-01: Implements the maintained Symfony limiter state/storage interface using canonical database scalar state. Review trigger: admission, validation, CLI or entity identity ownership changes.",
+    "packages/engagement/src/Command/EngagementUpgradeCommand.php": "FW-ENGAGEMENT-LIKES-COMMENTS-01: Implements the existing Symfony Console command entry contract without depending on the higher CLI layer. Review trigger: admission, validation, CLI or entity identity ownership changes.",
+    "packages/engagement/src/EngagementService.php": "FW-ENGAGEMENT-LIKES-COMMENTS-01: Symfony Uid supplies UUIDs for canonical domain entity creation. Review trigger: admission, validation, CLI or entity identity ownership changes."
   },
   "legacy_files": [
     "packages/mail/src/Transport/SmtpTransport.php",
@@ -178,6 +183,11 @@
     "packages/workspace/src/WorkspaceAssetController.php",
     "packages/admin-surface/src/Http/AdminSurfaceHttpController.php",
     "packages/admin-surface/src/Http/PageBuilderHttpController.php",
-    "packages/admin-surface/src/Http/AdminSpaHttpController.php"
+    "packages/admin-surface/src/Http/AdminSpaHttpController.php",
+    "packages/engagement/src/EngagementRateLimiter.php",
+    "packages/engagement/src/CommentText.php",
+    "packages/engagement/src/RateLimit/EngagementWindowStorage.php",
+    "packages/engagement/src/Command/EngagementUpgradeCommand.php",
+    "packages/engagement/src/EngagementService.php"
   ]
 }
