@@ -18,6 +18,20 @@ use Waaseyaa\User\AnonymousUser;
 
 final class AdminSurfaceKernelRouteMetadataTest extends TestCase
 {
+    private const ENGAGEMENT_ROUTES = [
+        'api.engagement.summary',
+        'api.engagement.like',
+        'api.engagement.comment_keys',
+        'api.engagement.comments',
+        'api.engagement.create_comment',
+        'api.engagement.replies',
+        'api.engagement.comment_show',
+        'api.engagement.comment_edit',
+        'api.engagement.comment_remove',
+        'api.engagement.moderation_remove',
+        'api.engagement.summaries',
+    ];
+
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
     #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
     public function testRealKernelAdmitsAdminWithoutLoadingExecutionServicesDuringInspection(): void
@@ -57,7 +71,12 @@ final class AdminSurfaceKernelRouteMetadataTest extends TestCase
             }
             self::assertSame($snapshot, $repeated);
             self::assertSame([], $autoloads);
-            self::assertCount(50, $snapshot->routes);
+            self::assertCount(61, $snapshot->routes);
+            $engagementRoutes = array_values(array_filter(
+                array_column($snapshot->routes, 'name'),
+                static fn(string $name): bool => str_starts_with($name, 'api.engagement.'),
+            ));
+            self::assertSame(self::ENGAGEMENT_ROUTES, $engagementRoutes);
             $kinds = array_column($kernel->getRouteParticipation()->records, 'kind', 'provider');
             self::assertSame('declarative', $kinds[AdminSurfaceServiceProvider::class]);
             self::assertSame('declarative', $kinds[ApiServiceProvider::class]);

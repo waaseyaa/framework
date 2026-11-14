@@ -33,7 +33,9 @@ const PRODUCTION_FLOOR = [
     'policies' => 18,
     'agent_tools' => 11,
     'formatters' => 6,
-    'middleware' => 17,
+    // #3246: waaseyaa/api's ApiServiceProvider contributes the discovered
+    // EngagementResponsePrivacyMiddleware for installed engagement routes.
+    'middleware' => 18,
     'schedule_entries' => 4,
 ];
 

@@ -23,8 +23,11 @@ mkdir -p "$evidence"
 evidence="$(cd "$evidence" && pwd)"
 BOUNDED_LOG_DIR="$evidence"
 cleanup() {
+    # Teardown must preserve the qualification exit status, including cleanup failure.
+    local qualification_status=$?
     reap_bounded_owned_child
     if [[ "$keep" -eq 0 ]]; then rm -r -- "$work" || echo "Could not remove owned qualification directory $work" >&2; fi
+    return "$qualification_status"
 }
 trap cleanup EXIT
 printf 'candidate=%s\nwork=%s\nevidence=%s\n' "$candidate" "$work" "$evidence"

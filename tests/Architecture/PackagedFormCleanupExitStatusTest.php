@@ -56,6 +56,7 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
         'check-cli-sync-rules',
         'check-community-events-starter',
         'check-custom-field-admission',
+        'check-engagement-consumer',
         'check-fresh-install-boot',
         'check-production-install-genesis',
         'check-s1-configuration-archives',
@@ -124,9 +125,9 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
                 // The work-directory variable name varies by script (`$work`,
                 // `$work_root`, ...), so match any bare `"$identifier"`.
                 self::assertMatchesRegularExpression(
-                    '/rm\s+-rf\s+--\s+"\$\w+"\s*\|\|/',
+                    '/rm\s+-r(?:f)?\s+--\s+"\$\w+"\s*\|\|/',
                     $body,
-                    "{$name}: cleanup() must guard its `rm -rf -- \"\$...\"` with `||` so a failed removal "
+                    "{$name}: cleanup() must guard its recursive `rm -r[f] -- \"\$...\"` with `||` so a failed removal "
                     . 'cannot change the script exit status (#2870).',
                 );
 

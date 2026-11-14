@@ -258,11 +258,12 @@ final class KernelRouteParticipationTest extends TestCase
             'api' => true,
             'api.route.content_search' => false,
             'api.route.mcp' => true,
+            'api.route.engagement' => true,
             'api.route.catalog' => false,
             'api.route.ai_catalog' => false,
         ], array_filter($capabilities, static fn(string $name): bool => !str_starts_with($name, 'service:'), ARRAY_FILTER_USE_KEY));
-        self::assertCount(23, array_filter($capabilities, static fn(string $name): bool => str_starts_with($name, 'service:'), ARRAY_FILTER_USE_KEY));
-        foreach (['Waaseyaa\Api\EntityTypeApiExposurePolicy', 'Waaseyaa\Api\InternalFieldVisibilityPolicy', 'Waaseyaa\Api\Audit\AuditQueryReadModelInterface', 'Waaseyaa\Api\Controller\NotExposedController'] as $service) {
+        self::assertCount(24, array_filter($capabilities, static fn(string $name): bool => str_starts_with($name, 'service:'), ARRAY_FILTER_USE_KEY));
+        foreach (['Waaseyaa\Api\EntityTypeApiExposurePolicy', 'Waaseyaa\Api\InternalFieldVisibilityPolicy', 'Waaseyaa\Api\Audit\AuditQueryReadModelInterface', 'Waaseyaa\Api\Controller\NotExposedController', 'Waaseyaa\Api\Http\Router\EngagementApiRouter'] as $service) {
             self::assertTrue($capabilities['service:' . $service]);
         }
         self::assertFalse($kernel->getRouteInputs()->entities[0]['api_exposed']);

@@ -17,6 +17,20 @@ use Waaseyaa\User\AnonymousUser;
 
 final class AuthOidcKernelRouteMetadataTest extends TestCase
 {
+    private const ENGAGEMENT_ROUTES = [
+        'api.engagement.summary',
+        'api.engagement.like',
+        'api.engagement.comment_keys',
+        'api.engagement.comments',
+        'api.engagement.create_comment',
+        'api.engagement.replies',
+        'api.engagement.comment_show',
+        'api.engagement.comment_edit',
+        'api.engagement.comment_remove',
+        'api.engagement.moderation_remove',
+        'api.engagement.summaries',
+    ];
+
     public static function oidcPresenceCases(): iterable
     {
         yield 'declared OIDC bindings' => [true];
@@ -67,11 +81,16 @@ final class AuthOidcKernelRouteMetadataTest extends TestCase
             }
             self::assertSame($snapshot, $repeated);
             self::assertSame([], $autoloads);
-            self::assertCount(($oidcPresent ? 30 : 28) + ($apiPresent ? 28 : 0), $snapshot->routes);
+            self::assertCount(($oidcPresent ? 30 : 28) + ($apiPresent ? 39 : 0), $snapshot->routes);
             self::assertSame(0, AuthMetadataKernelFixtureProvider::$calls);
             self::assertSame($oidcPresent, $kernel->getRouteInputs()->capabilities['service:Waaseyaa\\Oidc\\Token\\TokenController'] ?? false);
             $apiFacts = array_filter($kernel->getRouteInputs()->capabilities, static fn(string $name): bool => str_starts_with($name, 'api.route.'), ARRAY_FILTER_USE_KEY);
-            self::assertSame($apiPresent ? ['api.route.content_search' => false, 'api.route.mcp' => true, 'api.route.catalog' => false, 'api.route.ai_catalog' => false] : [], $apiFacts);
+            self::assertSame($apiPresent ? ['api.route.content_search' => false, 'api.route.mcp' => true, 'api.route.engagement' => true, 'api.route.catalog' => false, 'api.route.ai_catalog' => false] : [], $apiFacts);
+            $engagementRoutes = array_values(array_filter(
+                array_column($snapshot->routes, 'name'),
+                static fn(string $name): bool => str_starts_with($name, 'api.engagement.'),
+            ));
+            self::assertSame($apiPresent ? self::ENGAGEMENT_ROUTES : [], $engagementRoutes);
             $kinds = array_column($kernel->getRouteParticipation()->records, 'kind', 'provider');
             self::assertSame('declarative', $kinds[AuthOidcRouteServiceProvider::class]);
             if ($apiPresent) {
