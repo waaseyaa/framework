@@ -195,9 +195,11 @@ $apiEntityIds = array_merge(
     $entityIdsByPackage['waaseyaa/engagement'],
 );
 foreach ($apiEntityIds as $entityId) {
+    // Guarded discussion entities expose only dedicated engagement operations.
+    $expectedApi = $expectedPresent && !in_array($entityId, ['comment', 'reaction'], true);
     $assert(
-        in_array($entityId, $apiDiscoveryIds, true) === $expectedPresent,
-        sprintf('%s API discovery link is %s', $entityId, $expectedPresent ? 'absent' : 'present'),
+        in_array($entityId, $apiDiscoveryIds, true) === $expectedApi,
+        sprintf('%s API discovery link is %s', $entityId, $expectedApi ? 'absent' : 'present'),
     );
 }
 
@@ -225,7 +227,7 @@ $routes = [
     'waaseyaa/mcp' => ['POST', '/mcp', 'mcp.endpoint'],
     'waaseyaa/wayfinding' => ['GET', '/.well-known/waaseyaa-anchors.json', 'wayfinding.anchor_catalog'],
     'waaseyaa/messaging' => ['GET', '/api/message_thread', 'api.message_thread.index'],
-    'waaseyaa/engagement' => ['GET', '/api/comment', 'api.comment.index'],
+    'waaseyaa/engagement' => ['GET', '/engagement/v1/targets/node/1/summary', 'api.engagement.summary'],
 ];
 foreach ($routes as $package => [$method, $path, $expectedRouteName]) {
     $routeResult = $matchRoute->invoke($kernel, $path, $method, Request::create($path, $method));
@@ -234,6 +236,39 @@ foreach ($routes as $package => [$method, $path, $expectedRouteName]) {
         ($actualRouteName === $expectedRouteName) === $expectedPresent,
         sprintf('%s route %s %s is %s', $package, $method, $path, $expectedPresent ? 'absent' : 'present'),
     );
+}
+
+// Presence must never re-enable generic write/read surfaces for guarded entities.
+foreach (['comment', 'reaction'] as $guardedEntity) {
+    foreach (['GET', 'POST', 'PATCH', 'DELETE'] as $method) {
+        $path = '/api/' . $guardedEntity . (in_array($method, ['PATCH', 'DELETE'], true) ? '/1' : '');
+        $matched = $matchRoute->invoke($kernel, $path, $method, Request::create($path, $method));
+        $name = $matched instanceof Request ? (string) $matched->attributes->get('_route') : '';
+        $opaqueRefusal = in_array($name, ['api.' . $guardedEntity . '.not_exposed', 'api.' . $guardedEntity . '.not_exposed_path'], true);
+        $assert(!str_starts_with($name, 'api.' . $guardedEntity . '.') || $opaqueRefusal, sprintf('Guarded entity %s has generic %s exposure', $guardedEntity, $method));
+        if ($opaqueRefusal) {
+            $response = $dispatchMatchedRequest->invoke($kernel, $matched, new BroadcastStorage($kernel->getDatabase()));
+            $assert($response instanceof Response && $response->getStatusCode() === 404, sprintf('Guarded entity %s %s did not execute its opaque 404 refusal', $guardedEntity, $method));
+        }
+    }
+}
+$engagementRoutes = [
+    ['GET', '/engagement/v1/targets/node/1/summary', 'summary'],
+    ['PUT', '/engagement/v1/targets/node/1/like', 'like'],
+    ['POST', '/engagement/v1/targets/node/1/comment-keys', 'comment_keys'],
+    ['GET', '/engagement/v1/targets/node/1/comments', 'comments'],
+    ['POST', '/engagement/v1/targets/node/1/comments', 'create_comment'],
+    ['GET', '/engagement/v1/comments/example/replies', 'replies'],
+    ['GET', '/engagement/v1/comments/example', 'comment_show'],
+    ['PATCH', '/engagement/v1/comments/example', 'comment_edit'],
+    ['DELETE', '/engagement/v1/comments/example', 'comment_remove'],
+    ['POST', '/engagement/v1/comments/example/moderation-removal', 'moderation_remove'],
+    ['POST', '/engagement/v1/summaries', 'summaries'],
+];
+foreach ($engagementRoutes as [$method, $path, $name]) {
+    $matched = $matchRoute->invoke($kernel, $path, $method, Request::create($path, $method));
+    $actualName = $matched instanceof Request ? $matched->attributes->get('_route') : null;
+    $assert(($actualName === 'api.engagement.' . $name) === $expectedPresent, sprintf('Dedicated engagement route %s %s differs from the selected optional shape', $method, $path));
 }
 
 $catalogRoute = $matchRoute->invoke($kernel, '/.well-known/api-catalog', 'GET', Request::create('/.well-known/api-catalog', 'GET'));
