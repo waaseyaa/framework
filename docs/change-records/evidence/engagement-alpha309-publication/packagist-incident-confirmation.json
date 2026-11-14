@@ -1,0 +1,8 @@
+{
+  "html_url": "https://github.com/composer/packagist/issues/1612#issuecomment-6875056747",
+  "created_at": "2026-11-14T09:14:56Z",
+  "updated_at": "2026-11-14T09:14:56Z",
+  "body": "Thanks, can repro for https://repo.packagist.org/p2/verdient/hyperf3-event.json and https://repo.packagist.org/p2/nexia-cloud-os/sdk-laravel.json. Reported to Bunny CDN. \n\nSeems to be a problem with replication of the storage from our main region in Germany to the replicas in Asia and US.\n\n",
+  "author": "Seldaek",
+  "author_association": "MEMBER"
+}

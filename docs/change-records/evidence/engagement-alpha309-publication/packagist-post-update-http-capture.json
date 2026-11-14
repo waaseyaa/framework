@@ -1,0 +1,671 @@
+{
+  "har_sha256": "afac3c896f83a7a26299c70e9399261501aad1b0ac43ebabe4eb99ae626d99cd",
+  "har_filename": "engagement-packagist-public-metadata.har",
+  "capture_method": "Six unauthenticated urllib GETs, HAR 1.2, no browser session. Body digests are UTF-8 response content bytes.",
+  "entries": [
+    {
+      "started_at_utc": "2026-11-14T18:15:28.261Z",
+      "url": "https://repo.packagist.org/p2/waaseyaa/publishing.json",
+      "status": 200,
+      "response_body_sha256": "1148b8279926324f89a8015dfa017ce0397a9b3017a806aea630fc2c31a59111",
+      "headers": [
+        {
+          "name": "Date",
+          "value": "Sat, 14 Nov 2026 18:15:28 GMT"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Content-Length",
+          "value": "29789"
+        },
+        {
+          "name": "Connection",
+          "value": "close"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Server",
+          "value": "BunnyCDN-IL1-1070"
+        },
+        {
+          "name": "CDN-PullZone",
+          "value": "3363232"
+        },
+        {
+          "name": "CDN-RequestCountryCode",
+          "value": "CA"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Cache-Control",
+          "value": "public, max-age=900"
+        },
+        {
+          "name": "ETag",
+          "value": "\"6adb7961-745d\""
+        },
+        {
+          "name": "Last-Modified",
+          "value": "Fri, 23 Oct 2026 15:12:33 GMT"
+        },
+        {
+          "name": "CDN-StorageServer",
+          "value": "WA-407"
+        },
+        {
+          "name": "CDN-FileServer",
+          "value": "407"
+        },
+        {
+          "name": "CDN-ProxyVer",
+          "value": "1.72"
+        },
+        {
+          "name": "CDN-RequestPullSuccess",
+          "value": "True"
+        },
+        {
+          "name": "CDN-RequestPullCode",
+          "value": "200"
+        },
+        {
+          "name": "CDN-CachedAt",
+          "value": "11/14/2026 18:08:49"
+        },
+        {
+          "name": "CDN-EdgeStorageId",
+          "value": "1233"
+        },
+        {
+          "name": "CDN-RequestId",
+          "value": "55ea77baa4bde803e03bef1de5ad8e6d"
+        },
+        {
+          "name": "CDN-Cache",
+          "value": "HIT"
+        },
+        {
+          "name": "CDN-Status",
+          "value": "200"
+        },
+        {
+          "name": "CDN-RequestTime",
+          "value": "0"
+        },
+        {
+          "name": "Accept-Ranges",
+          "value": "bytes"
+        }
+      ],
+      "alpha309_present": false,
+      "alpha309_refs": []
+    },
+    {
+      "started_at_utc": "2026-11-14T18:15:28.503Z",
+      "url": "https://repo.packagist.org/p2/waaseyaa/publishing.json?cachebuster",
+      "status": 200,
+      "response_body_sha256": "1148b8279926324f89a8015dfa017ce0397a9b3017a806aea630fc2c31a59111",
+      "headers": [
+        {
+          "name": "Date",
+          "value": "Sat, 14 Nov 2026 18:15:28 GMT"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Content-Length",
+          "value": "29789"
+        },
+        {
+          "name": "Connection",
+          "value": "close"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Server",
+          "value": "BunnyCDN-IL1-1070"
+        },
+        {
+          "name": "CDN-PullZone",
+          "value": "3363232"
+        },
+        {
+          "name": "CDN-RequestCountryCode",
+          "value": "CA"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Cache-Control",
+          "value": "public, max-age=900"
+        },
+        {
+          "name": "ETag",
+          "value": "\"6adb7961-745d\""
+        },
+        {
+          "name": "Last-Modified",
+          "value": "Fri, 23 Oct 2026 15:12:33 GMT"
+        },
+        {
+          "name": "CDN-StorageServer",
+          "value": "WA-407"
+        },
+        {
+          "name": "CDN-FileServer",
+          "value": "407"
+        },
+        {
+          "name": "CDN-ProxyVer",
+          "value": "1.72"
+        },
+        {
+          "name": "CDN-RequestPullSuccess",
+          "value": "True"
+        },
+        {
+          "name": "CDN-RequestPullCode",
+          "value": "200"
+        },
+        {
+          "name": "CDN-CachedAt",
+          "value": "11/14/2026 18:08:49"
+        },
+        {
+          "name": "CDN-EdgeStorageId",
+          "value": "1233"
+        },
+        {
+          "name": "CDN-RequestId",
+          "value": "c03de2bcf575fdf483d719ea0da89089"
+        },
+        {
+          "name": "CDN-Cache",
+          "value": "HIT"
+        },
+        {
+          "name": "CDN-Status",
+          "value": "200"
+        },
+        {
+          "name": "CDN-RequestTime",
+          "value": "0"
+        },
+        {
+          "name": "Accept-Ranges",
+          "value": "bytes"
+        }
+      ],
+      "alpha309_present": false,
+      "alpha309_refs": []
+    },
+    {
+      "started_at_utc": "2026-11-14T18:15:29.261Z",
+      "url": "https://packagist.org/packages/waaseyaa/publishing.json",
+      "status": 200,
+      "response_body_sha256": "6f47e983e012d3e60de1bd87db37e15d35a849132ed2d314383c4078a23038fd",
+      "headers": [
+        {
+          "name": "Date",
+          "value": "Sat, 14 Nov 2026 18:15:28 GMT"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Transfer-Encoding",
+          "value": "chunked"
+        },
+        {
+          "name": "Connection",
+          "value": "close"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Server",
+          "value": "BunnyCDN-IL1-1235"
+        },
+        {
+          "name": "CDN-PullZone",
+          "value": "3535225"
+        },
+        {
+          "name": "CDN-RequestCountryCode",
+          "value": "CA"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "name": "Cache-Control",
+          "value": "public, s-maxage=43200"
+        },
+        {
+          "name": "Strict-Transport-Security",
+          "value": "max-age=31104000; includeSubDomains; preload"
+        },
+        {
+          "name": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "name": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "name": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "name": "CDN-ProxyVer",
+          "value": "1.72"
+        },
+        {
+          "name": "CDN-RequestPullSuccess",
+          "value": "True"
+        },
+        {
+          "name": "CDN-RequestPullCode",
+          "value": "200"
+        },
+        {
+          "name": "CDN-CachedAt",
+          "value": "11/14/2026 17:57:15"
+        },
+        {
+          "name": "CDN-EdgeStorageId",
+          "value": "1234"
+        },
+        {
+          "name": "CDN-RequestId",
+          "value": "feeae147b60ed231e69c9eb86940b3ea"
+        },
+        {
+          "name": "CDN-Cache",
+          "value": "HIT"
+        },
+        {
+          "name": "CDN-Status",
+          "value": "200"
+        },
+        {
+          "name": "CDN-RequestTime",
+          "value": "0"
+        }
+      ],
+      "alpha309_present": true,
+      "alpha309_refs": [
+        {
+          "source": {
+            "url": "https://github.com/waaseyaa/publishing.git",
+            "type": "git",
+            "reference": "5da63931f33fe83100aca6b698c252f287b211d5"
+          },
+          "dist": {
+            "url": "https://api.github.com/repos/waaseyaa/publishing/zipball/5da63931f33fe83100aca6b698c252f287b211d5",
+            "type": "zip",
+            "shasum": "",
+            "reference": "5da63931f33fe83100aca6b698c252f287b211d5"
+          }
+        }
+      ]
+    },
+    {
+      "started_at_utc": "2026-11-14T18:15:31.619Z",
+      "url": "https://repo.packagist.org/p2/waaseyaa/wayfinding.json",
+      "status": 200,
+      "response_body_sha256": "00e09f82f6835ab7cbfebab7ec37006e7de37ef6d3673935bba1277a32977ef9",
+      "headers": [
+        {
+          "name": "Date",
+          "value": "Sat, 14 Nov 2026 18:15:29 GMT"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Content-Length",
+          "value": "72179"
+        },
+        {
+          "name": "Connection",
+          "value": "close"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Server",
+          "value": "BunnyCDN-IL1-1070"
+        },
+        {
+          "name": "CDN-PullZone",
+          "value": "3363232"
+        },
+        {
+          "name": "CDN-RequestCountryCode",
+          "value": "CA"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Cache-Control",
+          "value": "public, max-age=900"
+        },
+        {
+          "name": "ETag",
+          "value": "\"6adb7b2e-119f3\""
+        },
+        {
+          "name": "Last-Modified",
+          "value": "Fri, 23 Oct 2026 15:20:14 GMT"
+        },
+        {
+          "name": "CDN-StorageServer",
+          "value": "WA-407"
+        },
+        {
+          "name": "CDN-FileServer",
+          "value": "863"
+        },
+        {
+          "name": "CDN-ProxyVer",
+          "value": "1.72"
+        },
+        {
+          "name": "CDN-RequestPullSuccess",
+          "value": "True"
+        },
+        {
+          "name": "CDN-RequestPullCode",
+          "value": "200"
+        },
+        {
+          "name": "CDN-CachedAt",
+          "value": "11/14/2026 18:08:49"
+        },
+        {
+          "name": "CDN-EdgeStorageId",
+          "value": "1070"
+        },
+        {
+          "name": "CDN-RequestId",
+          "value": "ff24d347dfb56fc914107407e07aba41"
+        },
+        {
+          "name": "CDN-Cache",
+          "value": "HIT"
+        },
+        {
+          "name": "CDN-Status",
+          "value": "200"
+        },
+        {
+          "name": "CDN-RequestTime",
+          "value": "0"
+        },
+        {
+          "name": "Accept-Ranges",
+          "value": "bytes"
+        }
+      ],
+      "alpha309_present": false,
+      "alpha309_refs": []
+    },
+    {
+      "started_at_utc": "2026-11-14T18:15:32.039Z",
+      "url": "https://repo.packagist.org/p2/waaseyaa/wayfinding.json?cachebuster",
+      "status": 200,
+      "response_body_sha256": "00e09f82f6835ab7cbfebab7ec37006e7de37ef6d3673935bba1277a32977ef9",
+      "headers": [
+        {
+          "name": "Date",
+          "value": "Sat, 14 Nov 2026 18:15:31 GMT"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Content-Length",
+          "value": "72179"
+        },
+        {
+          "name": "Connection",
+          "value": "close"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Server",
+          "value": "BunnyCDN-IL1-1070"
+        },
+        {
+          "name": "CDN-PullZone",
+          "value": "3363232"
+        },
+        {
+          "name": "CDN-RequestCountryCode",
+          "value": "CA"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Cache-Control",
+          "value": "public, max-age=900"
+        },
+        {
+          "name": "ETag",
+          "value": "\"6adb7b2e-119f3\""
+        },
+        {
+          "name": "Last-Modified",
+          "value": "Fri, 23 Oct 2026 15:20:14 GMT"
+        },
+        {
+          "name": "CDN-StorageServer",
+          "value": "WA-407"
+        },
+        {
+          "name": "CDN-FileServer",
+          "value": "863"
+        },
+        {
+          "name": "CDN-ProxyVer",
+          "value": "1.72"
+        },
+        {
+          "name": "CDN-RequestPullSuccess",
+          "value": "True"
+        },
+        {
+          "name": "CDN-RequestPullCode",
+          "value": "200"
+        },
+        {
+          "name": "CDN-CachedAt",
+          "value": "11/14/2026 18:08:49"
+        },
+        {
+          "name": "CDN-EdgeStorageId",
+          "value": "1070"
+        },
+        {
+          "name": "CDN-RequestId",
+          "value": "74ece426cfeb84bbaa8bf560684256cb"
+        },
+        {
+          "name": "CDN-Cache",
+          "value": "HIT"
+        },
+        {
+          "name": "CDN-Status",
+          "value": "200"
+        },
+        {
+          "name": "CDN-RequestTime",
+          "value": "0"
+        },
+        {
+          "name": "Accept-Ranges",
+          "value": "bytes"
+        }
+      ],
+      "alpha309_present": false,
+      "alpha309_refs": []
+    },
+    {
+      "started_at_utc": "2026-11-14T18:15:34.199Z",
+      "url": "https://packagist.org/packages/waaseyaa/wayfinding.json",
+      "status": 200,
+      "response_body_sha256": "8b7cbbfa2aaf116fbdc03e8271087307802e3d34161d5d755d1a1a3bf00dd584",
+      "headers": [
+        {
+          "name": "Date",
+          "value": "Sat, 14 Nov 2026 18:15:32 GMT"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Transfer-Encoding",
+          "value": "chunked"
+        },
+        {
+          "name": "Connection",
+          "value": "close"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Server",
+          "value": "BunnyCDN-IL1-1235"
+        },
+        {
+          "name": "CDN-PullZone",
+          "value": "3535225"
+        },
+        {
+          "name": "CDN-RequestCountryCode",
+          "value": "CA"
+        },
+        {
+          "name": "Vary",
+          "value": "Accept-Encoding"
+        },
+        {
+          "name": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "name": "Cache-Control",
+          "value": "public, s-maxage=43200"
+        },
+        {
+          "name": "Strict-Transport-Security",
+          "value": "max-age=31104000; includeSubDomains; preload"
+        },
+        {
+          "name": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "name": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "name": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "name": "CDN-ProxyVer",
+          "value": "1.72"
+        },
+        {
+          "name": "CDN-RequestPullSuccess",
+          "value": "True"
+        },
+        {
+          "name": "CDN-RequestPullCode",
+          "value": "200"
+        },
+        {
+          "name": "CDN-CachedAt",
+          "value": "11/14/2026 16:51:10"
+        },
+        {
+          "name": "CDN-EdgeStorageId",
+          "value": "1070"
+        },
+        {
+          "name": "CDN-RequestId",
+          "value": "62429ba6dc6c977f2f3ce1286e53b534"
+        },
+        {
+          "name": "CDN-Cache",
+          "value": "HIT"
+        },
+        {
+          "name": "CDN-Status",
+          "value": "200"
+        },
+        {
+          "name": "CDN-RequestTime",
+          "value": "0"
+        }
+      ],
+      "alpha309_present": true,
+      "alpha309_refs": [
+        {
+          "source": {
+            "url": "https://github.com/waaseyaa/wayfinding.git",
+            "type": "git",
+            "reference": "2db31c587cc65012579f88c122507923d75b580c"
+          },
+          "dist": {
+            "url": "https://api.github.com/repos/waaseyaa/wayfinding/zipball/2db31c587cc65012579f88c122507923d75b580c",
+            "type": "zip",
+            "shasum": "",
+            "reference": "2db31c587cc65012579f88c122507923d75b580c"
+          }
+        }
+      ]
+    }
+  ]
+}

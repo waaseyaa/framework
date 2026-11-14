@@ -9,3 +9,11 @@ The canonical publication verifier exhausted its deadline with `waaseyaa/publish
 The complete-cohort constraint repair has a real solver discriminator: the former historical fixture mixed alpha.308/309; the corrected fixture retained the same 41-member closure entirely at alpha.308. This is harness validation, not published-feature qualification. The availability snapshot is explicitly an earlier observation; the canonical verifier's final missing-package result owns publication status.
 
 When both records become visible, rerun only the failed jobs of split/publication run `43616058061`, preserving its exact source and evidence. Then rerun the complete seven-profile consumer matrix with the recorded harness candidate and `--published-tag=v0.1.0-alpha.309`, using an external evidence directory and disk-backed TMPDIR. Retain fresh manifests/locks, package origins/bytes, normal/no-dev results in both layouts, both historical upgrade scenarios and the no-engagement control. The historical column fixture remains synthetic. No tag movement, new release, FETDER adoption, deployment or production change is implied by recovery or qualification.
+
+Latest investigation: Packagist recorded both manual updates at 18:07 UTC, but
+P2 remained stale through 18:19:17 UTC. The November 14 upstream replication
+incident is a plausible explanation, not confirmed for these two packages.
+See `packagist-incident-confirmation.json`, `packagist-post-update-changes.json`,
+`packagist-post-update-http-capture.json` and `packagist-post-update-observations.jsonl`.
+Recovery tooling landed at `e02682510` with passing main CI `43625277062`;
+this does not change the blocked qualification status above.

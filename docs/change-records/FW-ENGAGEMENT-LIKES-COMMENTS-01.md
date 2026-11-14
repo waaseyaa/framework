@@ -351,8 +351,9 @@ IDs therefore do not prove that jobs are still executing. The actual initial
 failure and the outcome of a new forced dump require fresh evidence.
 
 Russell reported completing Manage → Update on both package pages. The first
-post-action P2 checks still show alpha.308. A bounded propagation observation
-is in progress; no successful repair or published-consumer pass is claimed.
+post-action P2 checks still show alpha.308. Post-action observations through 18:19:17 UTC still show both P2 records
+missing alpha.309. Polling was stopped; no successful repair or published-consumer
+pass is claimed.
 The existing strict P2 gate remains unchanged. A cheaper worker repaired the
 failure guidance and final-attempt retry wording/backoff; a separate reviewer
 returned no findings on both scripts, the workflow specification and the
@@ -360,3 +361,30 @@ upstream evidence. Shell syntax and all nine release verification fixtures
 passed; the focused architecture contract passed eight tests / 66 assertions.
 Default preflight passed 42 executed gates, with zero failures or hosted-required
 and four not-applicable. These are tooling checks, not published qualification.
+
+The recovery tooling and diagnostic checkpoint landed as
+`e02682510169861df63e90a7175261a0fefffd8a`; main feedback `43625277062`
+passed. Subsequent upstream investigation found a directly relevant incident:
+Packagist maintainer Seldaek confirmed Germany-to-Asia/US storage replication
+trouble on November 14 at 09:14:56 UTC, reported to Bunny CDN
+([issue 1612](https://github.com/composer/packagist/issues/1612#issuecomment-6875056747)).
+That confirmation concerns other named packages. Our observed discrepancy is
+consistent with it, not an independently proven backend diagnosis for Waaseyaa.
+
+The official metadata changes feed records publishing at **18:07:37 UTC** and
+wayfinding at **18:07:57 UTC**, after Russell's manual updates. Both stable and
+development records advanced. This is stronger than an accepted update receipt,
+but the local P2 responses still need to contain alpha.309 before qualification
+can proceed. The filtered feed and upstream incident confirmation are retained
+as separate evidence, without rewriting the original failed-run artifacts.
+
+
+Post-action HTTP evidence at 18:15 UTC independently confirms alpha.309 absent
+from both normal and cache-buster P2 responses and present in both public package
+JSON records with the expected split references. The cache-buster responses are
+CDN HITs, not an origin isolation test. A separate reviewer verified the capture,
+response digests and absence of sensitive headers/cookies, and accepted the
+cautious incident inference. Compact response evidence and the observation log
+are retained here. A local upstream report draft is prepared but has not been
+sent; no third-party message was authorized. The seven-profile matrix remains
+0/7 because its registry dependency boundary is still unavailable.

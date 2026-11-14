@@ -1,0 +1,32 @@
+{
+  "source": "https://packagist.org/metadata/changes.json?since=17946792000000",
+  "observed_at_utc": "2026-11-14T18:14:42.775141+00:00",
+  "response_timestamp": 17946800530011,
+  "filter": "Only the two affected packages and their ~dev records; unrelated actions omitted.",
+  "actions": [
+    {
+      "type": "update",
+      "package": "waaseyaa/publishing",
+      "time": 1794679657,
+      "time_utc": "2026-11-14T18:07:37+00:00"
+    },
+    {
+      "type": "update",
+      "package": "waaseyaa/publishing~dev",
+      "time": 1794679657,
+      "time_utc": "2026-11-14T18:07:37+00:00"
+    },
+    {
+      "type": "update",
+      "package": "waaseyaa/wayfinding",
+      "time": 1794679677,
+      "time_utc": "2026-11-14T18:07:57+00:00"
+    },
+    {
+      "type": "update",
+      "package": "waaseyaa/wayfinding~dev",
+      "time": 1794679678,
+      "time_utc": "2026-11-14T18:07:58+00:00"
+    }
+  ]
+}
