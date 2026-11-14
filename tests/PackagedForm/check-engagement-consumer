@@ -22,7 +22,7 @@ evidence="$(cd "$evidence" && pwd)"
 BOUNDED_LOG_DIR="$evidence"
 cleanup() {
     reap_bounded_owned_child
-    if [[ "$keep" -eq 0 ]]; then rm -rf -- "$work" || echo "Could not remove owned qualification directory $work" >&2; fi
+    if [[ "$keep" -eq 0 ]]; then rm -r -- "$work" || echo "Could not remove owned qualification directory $work" >&2; fi
 }
 trap cleanup EXIT
 printf 'candidate=%s\nwork=%s\nevidence=%s\n' "$candidate" "$work" "$evidence"
