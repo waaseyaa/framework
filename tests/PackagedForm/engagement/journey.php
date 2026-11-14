@@ -264,6 +264,31 @@ try {
     journeyAssert($routeMetadata['api.engagement.comment_remove']->options['_engagement'] === true, 'Comment mutation route must retain engagement privacy metadata.');
     $assertions++;
 
+    $deletionKey = $service->issueCommentKey($bob, $rootB);
+    $deletionComment = $service->createComment($bob, $rootB, 'erase with root', $deletionKey);
+    $service->setLiked($bob, $rootB, true);
+    $rootForDeletion = $entities->getRepository($rootB->type)->find($rootB->id);
+    $entities->getRepository($rootB->type)->delete($rootForDeletion);
+    journeyFailure(fn() => $service->getComment($bob, $deletionComment->uuid), 'TARGET_UNAVAILABLE');
+    $assertions++;
+    journeyAssert(
+        (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM engagement_root_erasure WHERE root_uuid = ?', [$state['roots'][1]['uuid']]) === 1,
+        'Actual root deletion event did not queue canonical erasure.',
+    );
+    $assertions++;
+    $retention = $resolver->resolve(\Waaseyaa\Engagement\EngagementRetention::class);
+    $retention->sweep();
+    journeyAssert(
+        (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM engagement_comment_index WHERE root_uuid = ?', [$state['roots'][1]['uuid']]) === 0,
+        'Root erasure left discussion rows after the installed sweep.',
+    );
+    $assertions++;
+    journeyAssert(
+        in_array('engagement_retention', array_map(static fn($task): string => $task->name, $kernel->getSchedule()->tasks()), true),
+        'The installed scheduler did not discover the retention entry.',
+    );
+    $assertions++;
+
     echo json_encode(['result' => 'pass', 'assertions' => $assertions, 'routes' => count($routeNames)], JSON_THROW_ON_ERROR) . PHP_EOL;
 } catch (Throwable $failure) {
     fwrite(STDERR, 'engagement journey failed: ' . get_class($failure) . ': ' . $failure->getMessage() . PHP_EOL);

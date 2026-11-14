@@ -96,10 +96,13 @@ for layout in sql-blob sql-column; do
     # Upgrade this same disposable application, retaining its genuine configuration and database.
     upgraded="$legacy"
     rm -r "$upgraded/src"
+    # Archived path-package labels are solver metadata; force genuinely fresh candidate bytes.
+    rm -r "$upgraded/vendor"
     python3 "$prepare" prepare "$work/source" "$upgraded" "$fixture/consumer" > "$evidence/upgraded-$layout-manifest.json"
     cp "$work/dev-sql-blob/composer.lock" "$upgraded/composer.lock"
     cp "$fixture/bootstrap.php" "$fixture/upgrade.php" "$upgraded/"
     run_bounded "upgraded-$layout-composer" 600 "$composer_bin" install --working-dir="$upgraded" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
+    python3 "$prepare" verify "$work/source" "$upgraded" "$evidence/upgraded-$layout-manifest.json" > "$evidence/upgraded-$layout-before-provenance.json"
     export ENGAGEMENT_LAYOUT="$layout" WAASEYAA_DB="$upgraded/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$upgraded/config/sync"
     pushd "$upgraded" >/dev/null
     run_bounded "upgraded-$layout-install" 180 php vendor/bin/waaseyaa install:init

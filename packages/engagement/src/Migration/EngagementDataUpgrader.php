@@ -271,7 +271,18 @@ final readonly class EngagementDataUpgrader
                     ]);
                     $repository->delete($survivor);
                 } else {
-                    $repository->delete($reaction);
+                    // A genuine legacy row has no root UUID yet. Resolve its
+                    // identity before deletion so the mandatory guard and
+                    // canonical delete callbacks see the same valid target.
+                    $reaction->set('root_uuid', $rootUuid);
+                    $reaction->set('lifecycle', 'active');
+                    $reaction->set('quarantined_at', null);
+                    $repository->save($reaction, false);
+                    $fresh = $repository->find((string) $reaction->id());
+                    if ($fresh === null) {
+                        throw new \RuntimeException('Duplicate like could not be reloaded for canonical deletion.');
+                    }
+                    $repository->delete($fresh);
                 }
                 return ['duplicate_removed' => true, 'quarantined' => false];
             }
