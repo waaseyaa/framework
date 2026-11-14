@@ -23,8 +23,12 @@ final class EngagementServiceProvider extends ServiceProvider implements Provide
 {
     public function register(): void
     {
-        $this->entityType(EntityType::fromClass(Reaction::class, group: 'engagement'));
-        $this->entityType(EntityType::fromClass(Comment::class, group: 'engagement'));
+        $backend = $this->config['engagement']['storage_backend'] ?? 'sql-blob';
+        if (!in_array($backend, ['sql-blob', 'sql-column'], true)) {
+            throw new \InvalidArgumentException('engagement.storage_backend must be sql-blob or sql-column.');
+        }
+        $this->entityType(EntityType::fromClass(Reaction::class, group: 'engagement', primaryStorageBackend: $backend));
+        $this->entityType(EntityType::fromClass(Comment::class, group: 'engagement', primaryStorageBackend: $backend));
         $this->entityType(EntityType::fromClass(Follow::class, group: 'engagement'));
         $this->singleton(EngagementMutationScope::class, fn(): EngagementMutationScope => new EngagementMutationScope(
             $this->required(AccountContextInterface::class),

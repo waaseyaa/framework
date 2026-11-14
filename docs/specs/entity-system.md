@@ -2781,3 +2781,5 @@ entry points. This first slice does not register engagement's future domain guar
 or enable its new service. The engagement contract owns that subsequent opt-in,
 operation-scoped authority and target-policy behavior. Existing entity types with
 no required invariant retain their ordinary repository behavior.
+
+`EntityType::fromClass()` accepts an optional `primaryStorageBackend` override for package-owned install-time layout selection. It remains part of the complete factory cache identity and preserves attribute-derived keys, field definitions, API exposure and mandatory mutation invariants. Omitting it preserves the class-declared/default backend. This constructs a definition before registration; it does not replace a registered definition or migrate persisted data between backends.

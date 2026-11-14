@@ -230,6 +230,7 @@ final readonly class EntityType implements MutationInvariantEntityTypeInterface,
         ?string $group = null,
         ?array $tenancy = null,
         bool $discoverable = true,
+        ?string $primaryStorageBackend = null,
     ): self {
         $cache = &self::fromClassCacheRef();
         $arguments = [
@@ -242,6 +243,7 @@ final readonly class EntityType implements MutationInvariantEntityTypeInterface,
             'group' => $group,
             'tenancy' => $tenancy,
             'discoverable' => $discoverable,
+            'primaryStorageBackend' => $primaryStorageBackend,
         ];
         foreach ($cache[$class] ?? [] as $entry) {
             $cached = $entry['entityType'];
@@ -293,7 +295,7 @@ final readonly class EntityType implements MutationInvariantEntityTypeInterface,
             // #2157: a type may now select its primary storage backend from the
             // #[ContentEntityType] attribute. '' means "not declared", which
             // leaves the historical sql-blob default in place.
-            primaryStorageBackend: $metadata->storageBackend !== '' ? $metadata->storageBackend : null,
+            primaryStorageBackend: $primaryStorageBackend ?? ($metadata->storageBackend !== '' ? $metadata->storageBackend : null),
             _fieldDefinitions: $metadata->fields,
             _storageUniqueKeys: $metadata->storageUniqueKeys,
             _storageSchemaTransitions: $metadata->storageSchemaTransitions,

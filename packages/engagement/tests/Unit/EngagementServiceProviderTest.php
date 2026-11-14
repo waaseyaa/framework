@@ -35,6 +35,31 @@ final class EngagementServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function configured_column_backend_preserves_domain_guard_and_api_cutover(): void
+    {
+        $provider = new EngagementServiceProvider();
+        $provider->setKernelContext('/tmp', ['engagement' => ['storage_backend' => 'sql-column']], []);
+        $provider->register();
+        foreach ($provider->getEntityTypes() as $type) {
+            if (in_array($type->id(), ['comment', 'reaction'], true)) {
+                self::assertSame('sql-column', $type->getPrimaryStorageBackend());
+                self::assertSame(\Waaseyaa\Engagement\EngagementMutationInvariant::class, $type->getRequiredMutationInvariant());
+                self::assertFalse($type->isApiExposed());
+                self::assertNotEmpty($type->getFieldDefinitions());
+            }
+        }
+    }
+
+    #[Test]
+    public function unknown_backend_refuses_before_registration(): void
+    {
+        $provider = new EngagementServiceProvider();
+        $provider->setKernelContext('/tmp', ['engagement' => ['storage_backend' => 'unknown']], []);
+        $this->expectException(\InvalidArgumentException::class);
+        $provider->register();
+    }
+
+    #[Test]
     public function resolving_engagement_access_refuses_when_required_domain_policy_is_missing(): void
     {
         $provider = new EngagementServiceProvider();

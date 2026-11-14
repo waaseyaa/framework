@@ -128,3 +128,5 @@ the three Foundation rule files and 3/0/0 counts without creating application
 rules. Missing and empty installed resources are negative controls against a
 vacuously passing proof. The historical failing consumer pin is context only;
 the harness qualifies the candidate bytes.
+
+`check-engagement-consumer` qualifies the exact committed likes/comments/replies candidate in an isolated synthetic application. It uses copied path-package installs, a single recorded candidate cohort, whole-package byte checks, separate normal/no-dev consumers, both engagement layouts, historical data-upgrade fixtures and an API install without engagement. The runner retains portable manifests, locks, byte provenance, bounded process logs and journey/performance reports in its evidence directory. Use `--candidate=<40-character SHA> --evidence-dir=<outside-checkout path>`; `--keep-work` retains disposable installed bytes for independent inspection. These candidate results are distinct from published-cohort adoption and release qualification.

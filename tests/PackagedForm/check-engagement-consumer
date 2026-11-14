@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Exact committed candidate, copied Composer packages, sequential bounded consumers.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$root/tests/PackagedForm/lib/run-bounded.sh"
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+evidence=''
+keep=0
+for argument in "$@"; do
+    case "$argument" in
+        --candidate=*) candidate="${argument#*=}" ;;
+        --evidence-dir=*) evidence="${argument#*=}" ;;
+        --keep-work) keep=1 ;;
+        *) echo "Unknown argument: $argument" >&2; exit 2 ;;
+    esac
+done
+[[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use an exact candidate SHA.' >&2; exit 2; }
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-engagement-installed.XXXXXX")"
+if [[ -z "$evidence" ]]; then evidence="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-engagement-evidence.XXXXXX")"; fi
+mkdir -p "$evidence"
+evidence="$(cd "$evidence" && pwd)"
+BOUNDED_LOG_DIR="$evidence"
+cleanup() {
+    reap_bounded_owned_child
+    if [[ "$keep" -eq 0 ]]; then rm -rf -- "$work" || echo "Could not remove owned qualification directory $work" >&2; fi
+}
+trap cleanup EXIT
+printf 'candidate=%s\nwork=%s\nevidence=%s\n' "$candidate" "$work" "$evidence"
+printf '%s\n' "$candidate" > "$evidence/candidate.txt"
+printf '%s\n' "$work" > "$evidence/work-directory.txt"
+composer_bin="${COMPOSER_BIN:-$(command -v composer)}"
+php --version > "$evidence/php-version.txt"
+"$composer_bin" --version > "$evidence/composer-version.txt"
+mkdir -p "$work/source"
+"$root/bin/git" -C "$root" archive --format=tar "$candidate" > "$work/candidate.tar"
+sha256sum "$work/candidate.tar" > "$evidence/archive.sha256"
+tar --no-same-owner --no-same-permissions -xf "$work/candidate.tar" -C "$work/source"
+rm "$work/candidate.tar"
+fixture="$work/source/tests/PackagedForm/engagement"
+[[ -f "$fixture/journey.php" && -f "$fixture/bootstrap.php" ]] || { echo 'Committed candidate lacks the qualification fixture.' >&2; exit 1; }
+prepare="$work/source/tests/PackagedForm/engagement/prepare.py"
+export APP_ENV=production APP_DEBUG=false
+# Synthetic fixture material only; never read account credentials or production data.
+export WAASEYAA_APP_SECRET='base64:eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg='
+for layout in sql-blob sql-column; do
+    for form in dev no-dev; do
+        label="$form-$layout"
+        consumer="$work/$label"
+        python3 "$prepare" prepare "$work/source" "$consumer" "$fixture/consumer" > "$evidence/$label-manifest.json"
+        cp "$fixture/bootstrap.php" "$fixture/journey.php" "$consumer/"
+        cp "$fixture/performance.php" "$fixture/concurrency.php" "$fixture/quota.php" "$consumer/"
+        if [[ -f "$work/dev-sql-blob/composer.lock" && "$label" != dev-sql-blob ]]; then
+            cp "$work/dev-sql-blob/composer.lock" "$consumer/composer.lock"
+        fi
+        options=()
+        if [[ "$form" == no-dev ]]; then options+=(--no-dev); fi
+        run_bounded "$label-composer" 600 "$composer_bin" install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist --no-scripts "${options[@]}"
+        cp "$consumer/composer.json" "$evidence/$label-composer.json"
+        cp "$consumer/composer.lock" "$evidence/$label-composer.lock"
+        python3 "$prepare" verify "$work/source" "$consumer" > "$evidence/$label-provenance.json"
+        export ENGAGEMENT_LAYOUT="$layout" ENGAGEMENT_FORM="$form" WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
+        pushd "$consumer" >/dev/null
+        run_bounded "$label-install" 180 php vendor/bin/waaseyaa install:init
+        run_bounded "$label-upgrade" 180 php vendor/bin/waaseyaa engagement:upgrade
+        run_bounded "$label-seed" 120 php bootstrap.php seed
+        run_bounded "$label-boot" 120 php bootstrap.php boot
+        run_bounded "$label-journey" 180 php journey.php
+        run_bounded "$label-performance" 240 php performance.php
+        run_bounded "$label-concurrency" 240 php concurrency.php
+        run_bounded "$label-default-quota" 120 env ENGAGEMENT_QUOTA_PROFILE=defaults php quota.php
+        popd >/dev/null
+        python3 "$prepare" verify "$work/source" "$consumer" > "$evidence/$label-after-provenance.json"
+    done
+done
+legacy_candidate='7f632a7c298793a786158cadceba1358ad711c59'
+mkdir -p "$work/old-source"
+"$root/bin/git" -C "$root" archive --format=tar "$legacy_candidate" > "$work/legacy.tar"
+sha256sum "$work/legacy.tar" > "$evidence/legacy-archive.sha256"
+printf '%s\n' "$legacy_candidate" > "$evidence/legacy-candidate.txt"
+tar --no-same-owner --no-same-permissions -xf "$work/legacy.tar" -C "$work/old-source"
+rm "$work/legacy.tar"
+for layout in sql-blob sql-column; do
+    legacy="$work/legacy-$layout"
+    python3 "$prepare" prepare "$work/old-source" "$legacy" "$fixture/legacy" > "$evidence/legacy-$layout-manifest.json"
+    run_bounded "legacy-$layout-composer" 600 "$composer_bin" install --working-dir="$legacy" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
+    python3 "$prepare" verify "$work/old-source" "$legacy" > "$evidence/legacy-$layout-provenance.json"
+    export ENGAGEMENT_LAYOUT="${layout#sql-}" WAASEYAA_DB="$legacy/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$legacy/config/sync"
+    pushd "$legacy" >/dev/null
+    run_bounded "legacy-$layout-install" 180 php vendor/bin/waaseyaa install:init
+    run_bounded "legacy-$layout-seed" 120 php SeedLegacy.php
+    popd >/dev/null
+    cp "$legacy/composer.json" "$evidence/legacy-$layout-composer.json"
+    cp "$legacy/composer.lock" "$evidence/legacy-$layout-composer.lock"
+    # Upgrade this same disposable application, retaining its genuine configuration and database.
+    upgraded="$legacy"
+    rm -r "$upgraded/src"
+    python3 "$prepare" prepare "$work/source" "$upgraded" "$fixture/consumer" > "$evidence/upgraded-$layout-manifest.json"
+    cp "$work/dev-sql-blob/composer.lock" "$upgraded/composer.lock"
+    cp "$fixture/bootstrap.php" "$fixture/upgrade.php" "$upgraded/"
+    run_bounded "upgraded-$layout-composer" 600 "$composer_bin" install --working-dir="$upgraded" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
+    export ENGAGEMENT_LAYOUT="$layout" WAASEYAA_DB="$upgraded/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$upgraded/config/sync"
+    pushd "$upgraded" >/dev/null
+    run_bounded "upgraded-$layout-install" 180 php vendor/bin/waaseyaa install:init
+    run_bounded "upgraded-$layout-upgrade" 180 php vendor/bin/waaseyaa engagement:upgrade
+    run_bounded "upgraded-$layout-seed" 120 php bootstrap.php seed
+    run_bounded "upgraded-$layout-probe" 180 php upgrade.php
+    run_bounded "upgraded-$layout-replay" 180 php vendor/bin/waaseyaa engagement:upgrade
+    popd >/dev/null
+    cp "$upgraded/composer.json" "$evidence/upgraded-$layout-composer.json"
+    cp "$upgraded/composer.lock" "$evidence/upgraded-$layout-composer.lock"
+    python3 "$prepare" verify "$work/source" "$upgraded" > "$evidence/upgraded-$layout-provenance.json"
+done
+consumer="$work/api-without-engagement"
+python3 "$prepare" prepare "$work/source" "$consumer" "$fixture/consumer" absent > "$evidence/absent-manifest.json"
+cp "$fixture/absent.php" "$consumer/absent.php"
+run_bounded absent-composer 600 "$composer_bin" install --working-dir="$consumer" --no-dev --no-interaction --no-progress --prefer-dist --no-scripts
+python3 "$prepare" verify "$work/source" "$consumer" > "$evidence/absent-provenance.json"
+cp "$consumer/composer.json" "$consumer/composer.lock" "$evidence/"
+export WAASEYAA_DB="$consumer/storage/qualification.sqlite" WAASEYAA_CONFIG_SYNC_PATH="$consumer/config/sync"
+pushd "$consumer" >/dev/null
+run_bounded absent-install 180 php vendor/bin/waaseyaa install:init
+run_bounded absent-boot 120 php absent.php
+popd >/dev/null
+printf 'Installed engagement fresh dev/no-dev profiles passed. Evidence: %s\n' "$evidence"

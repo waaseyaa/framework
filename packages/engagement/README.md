@@ -15,3 +15,5 @@ The provider registers the hourly retention entry after upgrade readiness. Run t
 The supported persistence implementation is SQLite with both `sql-blob` and `sql-column` entity layouts. Mutation methods refuse caller-owned transactions, acquire canonical writer authority and recheck current policy. Admission transactions commit before releasing the external limiter lock. The optional `waaseyaa/api` HTTP adapters expose `/engagement/v1` with session principal binding, explicit mutation CSRF and private/no-store responses. Consumer adoption and installed-package qualification remain separate.
 
 See [the owning spec](../../docs/specs/engagement-likes-comments.md) for behavior and [the change record](../../docs/change-records/FW-ENGAGEMENT-LIKES-COMMENTS-01.md) for qualification evidence.
+
+For a fresh installation, `engagement.storage_backend` selects `sql-blob` (default) or `sql-column` for Comment and Reaction. Keep the selection stable for an existing database; this setting does not migrate stored content between layouts.

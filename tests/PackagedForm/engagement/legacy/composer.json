@@ -1,0 +1,29 @@
+{
+    "name": "waaseyaa/engagement-legacy-consumer",
+    "type": "project",
+    "require": {
+        "php": "^8.5",
+        "waaseyaa/core": "^0.1.0-alpha.308",
+        "waaseyaa/api": "^0.1.0-alpha.308",
+        "waaseyaa/cli": "^0.1.0-alpha.308",
+        "waaseyaa/engagement": "^0.1.0-alpha.308"
+    },
+    "autoload": {
+        "psr-4": {
+            "EngagementConsumer\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {}
+    },
+    "extra": {
+        "waaseyaa": {
+            "providers": [
+                "EngagementConsumer\\LegacyProvider"
+            ]
+        }
+    },
+    "minimum-stability": "alpha",
+    "prefer-stable": true
+}

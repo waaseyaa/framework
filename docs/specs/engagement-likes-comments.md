@@ -165,3 +165,7 @@ Official component references support this selection. [Symfony 7.4 validation](h
 | ENG-11 | An editorial root with distinct publisher and featured subject receives engagement on the root; the subject gains no acting or moderation authority. |
 
 Independent permission/persistence review is required before integration. Candidate source qualification, installed-consumer qualification, published package qualification and downstream adoption are distinct evidence states. Design decisions are settled in this revision. ENG-01 through ENG-11 and the boundary tests above remain runtime acceptance obligations, not planning blockers. No runtime implementation is authorized solely by this document.
+
+## Installed storage selection
+
+`engagement.storage_backend` selects `sql-blob` (default) or `sql-column` for Reaction and Comment when their provider constructs canonical metadata. Invalid values refuse before registration. Both retain the mandatory invariant and generic API cutover. The setting is an install-time choice for a new database; changing it is not a blob/column conversion procedure. Follow retains its existing layout. The installed-consumer fixture uses this supported setting rather than replacing entity definitions in a booted manager.
