@@ -1,0 +1,13 @@
+No composer.lock file present. Updating dependencies to latest instead of installing from lock file. See https://getcomposer.org/install for more information.
+Loading composer repositories with package information
+Updating dependencies
+Your requirements could not be resolved to an installable set of packages.
+
+  Problem 1
+    - Root composer.json requires waaseyaa/cli 0.1.0-alpha.309 -> satisfiable by waaseyaa/cli[v0.1.0-alpha.309].
+    - waaseyaa/cli v0.1.0-alpha.309 requires waaseyaa/publishing ^0.1.0-alpha.309 -> found waaseyaa/publishing[dev-main, 0.1.x-dev (alias of dev-main)] but it does not match your minimum-stability.
+  Problem 2
+    - Root composer.json requires waaseyaa/api 0.1.0-alpha.309 -> satisfiable by waaseyaa/api[v0.1.0-alpha.309].
+    - waaseyaa/api v0.1.0-alpha.309 requires waaseyaa/workflows ^0.1.0-alpha.309 -> satisfiable by waaseyaa/workflows[v0.1.0-alpha.309].
+    - waaseyaa/workflows v0.1.0-alpha.309 requires waaseyaa/publishing ^0.1.0-alpha.309 -> found waaseyaa/publishing[dev-main, 0.1.x-dev (alias of dev-main)] but it does not match your minimum-stability.
+

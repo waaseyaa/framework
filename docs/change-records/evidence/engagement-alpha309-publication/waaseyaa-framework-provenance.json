@@ -1,0 +1,710 @@
+{
+  "builder": {
+    "id": "https://github.com/waaseyaa/framework/actions/workflows/split.yml",
+    "workflow_run_id": "43616058061"
+  },
+  "evidence": {
+    "sbom": {
+      "path": "waaseyaa-framework.cdx.json",
+      "sha256": "0d3de73356593d00689cf052f163e4cf501b96c775fe13dbda123775e8b86277"
+    }
+  },
+  "locks": {
+    "composer": {
+      "path": "composer.lock",
+      "sha256": "0e401d5064abebee82eae16577d563afc95d9da960246dce0f571e212c51299f"
+    },
+    "npm": {
+      "path": "packages/admin/package-lock.json",
+      "sha256": "18ba3d2c2ca9adfb0db013d85134aff065cbd422b22eaa1e12885d00e7993d1c"
+    }
+  },
+  "packages": [
+    {
+      "manifest_path": "packages/access/composer.json",
+      "manifest_sha256": "8d7a3fddb730fb2956382e9e1d3a48090072d8438b312e6a1b078e9e83c103e4",
+      "name": "waaseyaa/access",
+      "prefix": "packages/access",
+      "split_repository": "waaseyaa/access",
+      "split_sha": "42a1880b0ef491fcc025038ab68919d58c713b48"
+    },
+    {
+      "manifest_path": "packages/admin-surface/composer.json",
+      "manifest_sha256": "525777a1a9980e96d83198d20f4808272d16e6b3d54927e889a452f4f2ec6677",
+      "name": "waaseyaa/admin-surface",
+      "prefix": "packages/admin-surface",
+      "split_repository": "waaseyaa/admin-surface",
+      "split_sha": "db9c17ec6eb07adf8f1227d3a2cff60019daa876"
+    },
+    {
+      "manifest_path": "packages/ai-agent/composer.json",
+      "manifest_sha256": "b0e41415de0e107288034625d43915b240cdd4eeae267e454efebd8267643958",
+      "name": "waaseyaa/ai-agent",
+      "prefix": "packages/ai-agent",
+      "split_repository": "waaseyaa/ai-agent",
+      "split_sha": "44452906cf1b6f6f005535d60897d6fe81643484"
+    },
+    {
+      "manifest_path": "packages/ai-development/composer.json",
+      "manifest_sha256": "8d782b2d43abcd59324eda31cbd4d56de1f34dd0c9cf018f6f4aa2a40d7911a4",
+      "name": "waaseyaa/ai-development",
+      "prefix": "packages/ai-development",
+      "split_repository": "waaseyaa/ai-development",
+      "split_sha": "fb30dcf6441f37f170395ba1a436ccf080647f6c"
+    },
+    {
+      "manifest_path": "packages/ai-observability/composer.json",
+      "manifest_sha256": "3830e21fef720c2e835307582347f666b767098e1932da86167c92e0b9e92b01",
+      "name": "waaseyaa/ai-observability",
+      "prefix": "packages/ai-observability",
+      "split_repository": "waaseyaa/ai-observability",
+      "split_sha": "231918ab469d4ecd299ee67608d5946245bf0384"
+    },
+    {
+      "manifest_path": "packages/ai-pipeline/composer.json",
+      "manifest_sha256": "4a745377e8699a8377e70e16915000211754175e36fe0aab324a1cb8f09bd5f2",
+      "name": "waaseyaa/ai-pipeline",
+      "prefix": "packages/ai-pipeline",
+      "split_repository": "waaseyaa/ai-pipeline",
+      "split_sha": "999e62a7de8347754016068a3ed6ff6a7727819c"
+    },
+    {
+      "manifest_path": "packages/ai-schema/composer.json",
+      "manifest_sha256": "cd29729ad8e815b0e350337bbe5c296501010c49fdbb03314a0180344faab4ba",
+      "name": "waaseyaa/ai-schema",
+      "prefix": "packages/ai-schema",
+      "split_repository": "waaseyaa/ai-schema",
+      "split_sha": "836883fdb14d940f12693db274afb0cd5e9d5a1e"
+    },
+    {
+      "manifest_path": "packages/ai-tools/composer.json",
+      "manifest_sha256": "d235098156eab243b6911a4e1f3b81d947cf1b2a8b1c4c7e0058235c4c852303",
+      "name": "waaseyaa/ai-tools",
+      "prefix": "packages/ai-tools",
+      "split_repository": "waaseyaa/ai-tools",
+      "split_sha": "68ea8bbf1f570730740c8198baba1ce7b90b8476"
+    },
+    {
+      "manifest_path": "packages/ai-vector/composer.json",
+      "manifest_sha256": "e38a503b71154cfd47108640a4e1c3fafb3e46a5798c09023c9c05f282e32ce8",
+      "name": "waaseyaa/ai-vector",
+      "prefix": "packages/ai-vector",
+      "split_repository": "waaseyaa/ai-vector",
+      "split_sha": "58c95ed4ce2ca00f2a1f9e3decdd5c87c4923258"
+    },
+    {
+      "manifest_path": "packages/analytics/composer.json",
+      "manifest_sha256": "08be6e0ba8e3bac959e2d5d524e006eb7f7536f9f6cd9e2b609cacf702f07972",
+      "name": "waaseyaa/analytics",
+      "prefix": "packages/analytics",
+      "split_repository": "waaseyaa/analytics",
+      "split_sha": "7b173b96f2098e92be5ac5b39bc3c55b60f70ef6"
+    },
+    {
+      "manifest_path": "packages/api/composer.json",
+      "manifest_sha256": "d96a02ea05f890ad0ed9e373c89f9daaec27ecd51a771356091663445eef508c",
+      "name": "waaseyaa/api",
+      "prefix": "packages/api",
+      "split_repository": "waaseyaa/api",
+      "split_sha": "a976e0ec9fff4348d4aef8c211ea029d079006b2"
+    },
+    {
+      "manifest_path": "packages/attachment/composer.json",
+      "manifest_sha256": "e145d90fba37558bf5238e75f07e0b8f5c34a8219e4a53e8a4d8ae6dc3ca15d4",
+      "name": "waaseyaa/attachment",
+      "prefix": "packages/attachment",
+      "split_repository": "waaseyaa/attachment",
+      "split_sha": "ada6a1ef1ad358a62e575744077ead5d82e1945f"
+    },
+    {
+      "manifest_path": "packages/audit/composer.json",
+      "manifest_sha256": "d845f53a29bee56c5551541ae5385948709b57ed26b97901a401a023ed859537",
+      "name": "waaseyaa/audit",
+      "prefix": "packages/audit",
+      "split_repository": "waaseyaa/audit",
+      "split_sha": "4723a55c08a6cf383b7bf26dc4ec8f40f7957bf3"
+    },
+    {
+      "manifest_path": "packages/auth/composer.json",
+      "manifest_sha256": "b7e366fc3faf1297c0c03faca5cfc022b4f4a7b4eb04181e4a07a8a57068175b",
+      "name": "waaseyaa/auth",
+      "prefix": "packages/auth",
+      "split_repository": "waaseyaa/auth",
+      "split_sha": "3ba87f2dced7ba6098d3aa4cfb363c8c8cf602d7"
+    },
+    {
+      "manifest_path": "packages/billing/composer.json",
+      "manifest_sha256": "20274d164c8dde0c8bc59c3420ee01417312a7fc3b9ef35dea52703227ed26e1",
+      "name": "waaseyaa/billing",
+      "prefix": "packages/billing",
+      "split_repository": "waaseyaa/billing",
+      "split_sha": "c719ed9b5fce57a7b23abcc9cbedb4d17b8817a8"
+    },
+    {
+      "manifest_path": "packages/bimaaji/composer.json",
+      "manifest_sha256": "98447fd82d29cee785cd351d001fb3edb25351eeba70bbb729e03cfabcea8224",
+      "name": "waaseyaa/bimaaji",
+      "prefix": "packages/bimaaji",
+      "split_repository": "waaseyaa/bimaaji",
+      "split_sha": "b321a16eb6211d811c8e7bce118d93dc7b928fc5"
+    },
+    {
+      "manifest_path": "packages/cache/composer.json",
+      "manifest_sha256": "1d3876501233f56ed93088c407eda3d47b9aa065b7e49531c52f995cea88d00d",
+      "name": "waaseyaa/cache",
+      "prefix": "packages/cache",
+      "split_repository": "waaseyaa/cache",
+      "split_sha": "1b0799622cbd2012a23f7b9c6e2619ed5df1f165"
+    },
+    {
+      "manifest_path": "packages/cli/composer.json",
+      "manifest_sha256": "0b9a87091ea41382e556b3111fa8d56356e6c616aa6598f6522dec3bfa2dd3c9",
+      "name": "waaseyaa/cli",
+      "prefix": "packages/cli",
+      "split_repository": "waaseyaa/cli",
+      "split_sha": "2d516e782e781dc2f7f5bde2ab135f1e67c05e27"
+    },
+    {
+      "manifest_path": "packages/cms/composer.json",
+      "manifest_sha256": "b53480edf7c29b111b5d87ee26de8caf6a224cc60ce9219c6af9ee77812a4630",
+      "name": "waaseyaa/cms",
+      "prefix": "packages/cms",
+      "split_repository": "waaseyaa/cms",
+      "split_sha": "ea4a6aed248afab2e61dd9a97ab3d34e67aca814"
+    },
+    {
+      "manifest_path": "packages/config/composer.json",
+      "manifest_sha256": "a040d0a5edf84e141460cba93ec7d6c8685347ba07bc460c9799ec1751e73465",
+      "name": "waaseyaa/config",
+      "prefix": "packages/config",
+      "split_repository": "waaseyaa/config",
+      "split_sha": "8dedefc91727867ab460bad295aa7703a1c74b45"
+    },
+    {
+      "manifest_path": "packages/core/composer.json",
+      "manifest_sha256": "971825a14052cb8ebcd40b332dc25500e6760de00df2ef7f052c4435a6319b86",
+      "name": "waaseyaa/core",
+      "prefix": "packages/core",
+      "split_repository": "waaseyaa/core",
+      "split_sha": "046d94563669fd0d17aa43907641b19ed579c392"
+    },
+    {
+      "manifest_path": "packages/database-legacy/composer.json",
+      "manifest_sha256": "b5102e570fba3ce434fcecd7d4b7b44bb49f9060822da3d53dcc1585fdb7f666",
+      "name": "waaseyaa/database-legacy",
+      "prefix": "packages/database-legacy",
+      "split_repository": "waaseyaa/database-legacy",
+      "split_sha": "6c370ca32f5b5255f2f00a18ef1ba350e08f9125"
+    },
+    {
+      "manifest_path": "packages/debug/composer.json",
+      "manifest_sha256": "d78e30476ff1cd4ad5832d30620b2f34a76b18b0cb15a4f2a0424e44aa730860",
+      "name": "waaseyaa/debug",
+      "prefix": "packages/debug",
+      "split_repository": "waaseyaa/debug",
+      "split_sha": "cebc6752675918d88c93fb139a697d8a5ccc02b9"
+    },
+    {
+      "manifest_path": "packages/deployer/composer.json",
+      "manifest_sha256": "acfb2b69e58bf5df5f857c793dcaf340862778d00d8d6b6612dc8d6bbd338bd0",
+      "name": "waaseyaa/deployer",
+      "prefix": "packages/deployer",
+      "split_repository": "waaseyaa/deployer",
+      "split_sha": "ce43cb7b8466da8697d1ce68fc1443c5582ae200"
+    },
+    {
+      "manifest_path": "packages/engagement/composer.json",
+      "manifest_sha256": "a4fae01e527b5af2cf7a92469493f64f37d1f0b17301317cc15327840dccf3a1",
+      "name": "waaseyaa/engagement",
+      "prefix": "packages/engagement",
+      "split_repository": "waaseyaa/engagement",
+      "split_sha": "60cec3d9fb2ad5b95b5f133147b5569ff7e47543"
+    },
+    {
+      "manifest_path": "packages/entity/composer.json",
+      "manifest_sha256": "dff759ffda3026d41b466da27b5b32bb68976847f5e4f307c865e44208768424",
+      "name": "waaseyaa/entity",
+      "prefix": "packages/entity",
+      "split_repository": "waaseyaa/entity",
+      "split_sha": "b46b9b1209e64d34051281c0fbdfdd67614b2419"
+    },
+    {
+      "manifest_path": "packages/entity-storage/composer.json",
+      "manifest_sha256": "b683c29dca5fc4e56814491cda80be840c8e30947817ef69a194db7040087ac9",
+      "name": "waaseyaa/entity-storage",
+      "prefix": "packages/entity-storage",
+      "split_repository": "waaseyaa/entity-storage",
+      "split_sha": "0de199d974b1fd34f8c29369507f3d626e20aebb"
+    },
+    {
+      "manifest_path": "packages/error-handler/composer.json",
+      "manifest_sha256": "3b68dc207f0342f9abd295f6d34b54181381fa90cb944af362e23dcbd6b47be3",
+      "name": "waaseyaa/error-handler",
+      "prefix": "packages/error-handler",
+      "split_repository": "waaseyaa/error-handler",
+      "split_sha": "ae8975308828d009e8ffbb7e466d2489655b91e5"
+    },
+    {
+      "manifest_path": "packages/field/composer.json",
+      "manifest_sha256": "a6f7764acb056d439150966ab49aa295f2b07a7ea48550e2239ce71069838915",
+      "name": "waaseyaa/field",
+      "prefix": "packages/field",
+      "split_repository": "waaseyaa/field",
+      "split_sha": "ad7e3387e424f217a06ed4e58893d5fad94849f8"
+    },
+    {
+      "manifest_path": "packages/foundation/composer.json",
+      "manifest_sha256": "95c8977c912adfc06f5de5ceb91e26432e1930e75d474f97aaef5c80a8a0a7ad",
+      "name": "waaseyaa/foundation",
+      "prefix": "packages/foundation",
+      "split_repository": "waaseyaa/foundation",
+      "split_sha": "f9baa66a578dbd9ca2c85c0d0f83e951fed157bd"
+    },
+    {
+      "manifest_path": "packages/frankenphp/composer.json",
+      "manifest_sha256": "a91f0bc4773ca661ed78ae1dffdd699e9e2cd3e825744f3cbe6ddb68836ee615",
+      "name": "waaseyaa/frankenphp",
+      "prefix": "packages/frankenphp",
+      "split_repository": "waaseyaa/frankenphp",
+      "split_sha": "7194d7f1527ca6e2b01d7cb17d35ef061ca82673"
+    },
+    {
+      "manifest_path": "packages/full/composer.json",
+      "manifest_sha256": "465facb5d0558bad1ab72dceabc191f1ee45c7c197b54273e5cd656895b7992f",
+      "name": "waaseyaa/full",
+      "prefix": "packages/full",
+      "split_repository": "waaseyaa/full",
+      "split_sha": "58e1075728a1314312a265a86a8e02cd70ebdc12"
+    },
+    {
+      "manifest_path": "packages/genealogy/composer.json",
+      "manifest_sha256": "78d2d4d35f3d2aec546a12c4d7ddb8006ce8d43b158afe10fb0c014a1d797880",
+      "name": "waaseyaa/genealogy",
+      "prefix": "packages/genealogy",
+      "split_repository": "waaseyaa/genealogy",
+      "split_sha": "e4ab618963f98b054e4e125e2e5ad47aec518b78"
+    },
+    {
+      "manifest_path": "packages/geo/composer.json",
+      "manifest_sha256": "49b67f962adf45399bdb8efec1be47cba45c3bb4c8c1790500f1cb51d5996c69",
+      "name": "waaseyaa/geo",
+      "prefix": "packages/geo",
+      "split_repository": "waaseyaa/geo",
+      "split_sha": "b5b139d9349540aa6464c1c372ca51b3107a4104"
+    },
+    {
+      "manifest_path": "packages/github/composer.json",
+      "manifest_sha256": "9941ca637bc74fd1d3015798f9a479c6548c67885320b6f60ec9155fafaed7d1",
+      "name": "waaseyaa/github",
+      "prefix": "packages/github",
+      "split_repository": "waaseyaa/github",
+      "split_sha": "6e0d2968a643b59638a29cf77a9a59234ad6924b"
+    },
+    {
+      "manifest_path": "packages/graphql/composer.json",
+      "manifest_sha256": "06d3c2d86ca43ef4dc669096ae11f0a82b59cdfb5b60932883d637b1390b1951",
+      "name": "waaseyaa/graphql",
+      "prefix": "packages/graphql",
+      "split_repository": "waaseyaa/graphql",
+      "split_sha": "318cf49b7842d1190d4911b44cb37d2a8fea44a3"
+    },
+    {
+      "manifest_path": "packages/groups/composer.json",
+      "manifest_sha256": "50d99f411cba90798a66e0a83b54a9efe87da814df30776f6e97c557651035cc",
+      "name": "waaseyaa/groups",
+      "prefix": "packages/groups",
+      "split_repository": "waaseyaa/groups",
+      "split_sha": "eb400adb56a78f5255efb97a6b9ca8d29f2753b3"
+    },
+    {
+      "manifest_path": "packages/http-client/composer.json",
+      "manifest_sha256": "158b2f8d55387866696ff99b8392cb3437b6cbdf61915bfb3ea74bfee0346994",
+      "name": "waaseyaa/http-client",
+      "prefix": "packages/http-client",
+      "split_repository": "waaseyaa/http-client",
+      "split_sha": "2a5cc172d2a989e7bc477ef44be750dd2627726e"
+    },
+    {
+      "manifest_path": "packages/i18n/composer.json",
+      "manifest_sha256": "83a2dfe169020d4057fb33079c201b0315fa7fa9eb8f439c8579f28fe7c2bfaf",
+      "name": "waaseyaa/i18n",
+      "prefix": "packages/i18n",
+      "split_repository": "waaseyaa/i18n",
+      "split_sha": "8a00fea6abb42f9f783eec57300f13b9fa50bf7d"
+    },
+    {
+      "manifest_path": "packages/inertia/composer.json",
+      "manifest_sha256": "01cda98ef4cd148664cb2494b259bd0c8765625d7581e778dc18451167bc1c53",
+      "name": "waaseyaa/inertia",
+      "prefix": "packages/inertia",
+      "split_repository": "waaseyaa/inertia",
+      "split_sha": "464a4cf42c4be4eba1aed52be2029f8afb4e3104"
+    },
+    {
+      "manifest_path": "packages/ingestion/composer.json",
+      "manifest_sha256": "db8b83539455b544bdec639e429c09792ea167fa55d89086f079847876df60c3",
+      "name": "waaseyaa/ingestion",
+      "prefix": "packages/ingestion",
+      "split_repository": "waaseyaa/ingestion",
+      "split_sha": "6e553d30483dccb96faf27c972745700a57480d3"
+    },
+    {
+      "manifest_path": "packages/listing/composer.json",
+      "manifest_sha256": "e9a9a0b6e3441a296ef795af0e6e6bf02d58099721849e38cbd535f5a5af314b",
+      "name": "waaseyaa/listing",
+      "prefix": "packages/listing",
+      "split_repository": "waaseyaa/listing",
+      "split_sha": "84ce35c0acd4551a297e805d20ef4bf5866741c2"
+    },
+    {
+      "manifest_path": "packages/mail/composer.json",
+      "manifest_sha256": "c6dc961a248b5bff6c48d089a84cc9a119286c6e825df79477886155feb4300a",
+      "name": "waaseyaa/mail",
+      "prefix": "packages/mail",
+      "split_repository": "waaseyaa/mail",
+      "split_sha": "317419475d7e00ebe5bbe002effed486341776e7"
+    },
+    {
+      "manifest_path": "packages/mcp/composer.json",
+      "manifest_sha256": "341ca2659ac992a0fa3f94b066178677ee3f1825b2208cf0dbcaea7c92689341",
+      "name": "waaseyaa/mcp",
+      "prefix": "packages/mcp",
+      "split_repository": "waaseyaa/mcp",
+      "split_sha": "d365bfdc9568c7c6431bb7eab606895447a4d09a"
+    },
+    {
+      "manifest_path": "packages/media/composer.json",
+      "manifest_sha256": "b3909f689c9fd0543e2c918e6bf03df3c9c5f59ec85e3e0550d97cc3d0ddb211",
+      "name": "waaseyaa/media",
+      "prefix": "packages/media",
+      "split_repository": "waaseyaa/media",
+      "split_sha": "cd285db8337a3b3a1ca5209952e10e52500fbb81"
+    },
+    {
+      "manifest_path": "packages/menu/composer.json",
+      "manifest_sha256": "dde7d3c9fbd35c1470ac8f51d105f51dc4f227edb87f1987fc82b0055a3bdfb4",
+      "name": "waaseyaa/menu",
+      "prefix": "packages/menu",
+      "split_repository": "waaseyaa/menu",
+      "split_sha": "6ab614f19bc846bc6d5e689ef21c0878e5346dc0"
+    },
+    {
+      "manifest_path": "packages/mercure/composer.json",
+      "manifest_sha256": "de58f15a6842694155d7624c01a6f3fa145352b8715f4c839506c49737ebdfeb",
+      "name": "waaseyaa/mercure",
+      "prefix": "packages/mercure",
+      "split_repository": "waaseyaa/mercure",
+      "split_sha": "56ed15a75d2eba137265a4c8903c4b2bce2685d3"
+    },
+    {
+      "manifest_path": "packages/messaging/composer.json",
+      "manifest_sha256": "d26bae54123161abcd3a3ea485e829bc43e6f76bc01fea7130f2b57cb184f5e3",
+      "name": "waaseyaa/messaging",
+      "prefix": "packages/messaging",
+      "split_repository": "waaseyaa/messaging",
+      "split_sha": "e954e981c2fa0cc671b5436ef48faf42fd2196e3"
+    },
+    {
+      "manifest_path": "packages/migration/composer.json",
+      "manifest_sha256": "70aca948b0663e969dadbec607af9084038c1133ef190458ae5b714fd2aaaed2",
+      "name": "waaseyaa/migration",
+      "prefix": "packages/migration",
+      "split_repository": "waaseyaa/migration",
+      "split_sha": "3e7dd7fa3fbc30e6622fa895f0f6a55d76cc85b7"
+    },
+    {
+      "manifest_path": "packages/node/composer.json",
+      "manifest_sha256": "303686852b267909216a1c284439b5fc5cd2da613e280bd341c12286638418c2",
+      "name": "waaseyaa/node",
+      "prefix": "packages/node",
+      "split_repository": "waaseyaa/node",
+      "split_sha": "21c0d6dc868c4702d6d3b36185520e8b03b2473e"
+    },
+    {
+      "manifest_path": "packages/note/composer.json",
+      "manifest_sha256": "f57868e196ab5907a0158377d999895d4bed1a86925fa2be157a7f1cccde0f01",
+      "name": "waaseyaa/note",
+      "prefix": "packages/note",
+      "split_repository": "waaseyaa/note",
+      "split_sha": "8716de70cf6192af93591d7d79a57a42c9e2ed87"
+    },
+    {
+      "manifest_path": "packages/notification/composer.json",
+      "manifest_sha256": "32418f08a1ea3cab514bc572ebbe0f4c2ac3372a8220dbe64ea977555bf2fa71",
+      "name": "waaseyaa/notification",
+      "prefix": "packages/notification",
+      "split_repository": "waaseyaa/notification",
+      "split_sha": "0fa334ffba4813b6b7b9427ea3eefa7b5b01c369"
+    },
+    {
+      "manifest_path": "packages/oauth-provider/composer.json",
+      "manifest_sha256": "9fb322ce594c4f9e8084c76d4b1c33614930dba84cdc5c1cf1ec44045564312a",
+      "name": "waaseyaa/oauth-provider",
+      "prefix": "packages/oauth-provider",
+      "split_repository": "waaseyaa/oauth-provider",
+      "split_sha": "6819b975b12015dc9bab6a041451c1205281701c"
+    },
+    {
+      "manifest_path": "packages/oidc/composer.json",
+      "manifest_sha256": "272ff9f6cb2273daccf87de8a689fde589d8a05ce6f82dfdf29895b0686c6801",
+      "name": "waaseyaa/oidc",
+      "prefix": "packages/oidc",
+      "split_repository": "waaseyaa/oidc",
+      "split_sha": "cdd4fcefee95db0fd24cc95cc8a5207ee9a3658c"
+    },
+    {
+      "manifest_path": "packages/page-builder/composer.json",
+      "manifest_sha256": "8cf319f4a4951cd14f471e3ce3647f21d267e1bcf23651dae6d51facd31b06c8",
+      "name": "waaseyaa/page-builder",
+      "prefix": "packages/page-builder",
+      "split_repository": "waaseyaa/page-builder",
+      "split_sha": "fd7afbc7a29dc0f2599ee9000b18b2941f88e0ce"
+    },
+    {
+      "manifest_path": "packages/path/composer.json",
+      "manifest_sha256": "c7783d01e8622251c13a1fa69c56123927ba36cce723a83748e88ffaed77bb90",
+      "name": "waaseyaa/path",
+      "prefix": "packages/path",
+      "split_repository": "waaseyaa/path",
+      "split_sha": "ad3ddec377ba215deb9a260fa5965cd495238d0d"
+    },
+    {
+      "manifest_path": "packages/plugin/composer.json",
+      "manifest_sha256": "bc584f35abb3bd4b6bbd710e451d613d30bd9f7414fc9fa8578b9369dd907070",
+      "name": "waaseyaa/plugin",
+      "prefix": "packages/plugin",
+      "split_repository": "waaseyaa/plugin",
+      "split_sha": "df0e9dc824e516915415e1b1eafa73936b97d898"
+    },
+    {
+      "manifest_path": "packages/publishing/composer.json",
+      "manifest_sha256": "59c92000faa65dcfc3b43d23b7fa62083914d6dae7839eff2ef96b050f1e8744",
+      "name": "waaseyaa/publishing",
+      "prefix": "packages/publishing",
+      "split_repository": "waaseyaa/publishing",
+      "split_sha": "5da63931f33fe83100aca6b698c252f287b211d5"
+    },
+    {
+      "manifest_path": "packages/queue/composer.json",
+      "manifest_sha256": "9fbf22eaba1c8eed50840a9e68eedfc27b21b95e0b61eaca100f15fa1fed4f7d",
+      "name": "waaseyaa/queue",
+      "prefix": "packages/queue",
+      "split_repository": "waaseyaa/queue",
+      "split_sha": "323a82bf0c8482fe2c87a483cc3418dd9b44d040"
+    },
+    {
+      "manifest_path": "packages/relationship/composer.json",
+      "manifest_sha256": "ebc7cf3893bb7dced65ae9deb269921142a06f0f432eb5a12ce5019987f29771",
+      "name": "waaseyaa/relationship",
+      "prefix": "packages/relationship",
+      "split_repository": "waaseyaa/relationship",
+      "split_sha": "d001dbae9f1a5b2c6d81071af530c9b19076062d"
+    },
+    {
+      "manifest_path": "packages/routing/composer.json",
+      "manifest_sha256": "2b43996b2bb523ed0c0abaa3df4fed1289ee894ac0953c197a5781384c6c4e4a",
+      "name": "waaseyaa/routing",
+      "prefix": "packages/routing",
+      "split_repository": "waaseyaa/routing",
+      "split_sha": "baf5e05bae0979a232d025b499882511da4b18fd"
+    },
+    {
+      "manifest_path": "packages/scheduler/composer.json",
+      "manifest_sha256": "f7a6ab4a1c0cddda827468e19fa01d34a590d2d74b843057ca73fcef1e13312b",
+      "name": "waaseyaa/scheduler",
+      "prefix": "packages/scheduler",
+      "split_repository": "waaseyaa/scheduler",
+      "split_sha": "a137f577dc25bd2b9318b20bd24dde5e1e82283c"
+    },
+    {
+      "manifest_path": "packages/search/composer.json",
+      "manifest_sha256": "fe9c5e757486930e888f4a703709edf04c6ac3e8d376d9390f6c0a72f4b3f3c1",
+      "name": "waaseyaa/search",
+      "prefix": "packages/search",
+      "split_repository": "waaseyaa/search",
+      "split_sha": "5e4f9ec257b221972d6fba7e6d0aa765977a1093"
+    },
+    {
+      "manifest_path": "packages/seo/composer.json",
+      "manifest_sha256": "c38e8dbd0fa349e55d6af964e2caaab10a5c382fa19ccbe64f2d8e157de0681e",
+      "name": "waaseyaa/seo",
+      "prefix": "packages/seo",
+      "split_repository": "waaseyaa/seo",
+      "split_sha": "806a122e3327f8e5849430b428fdd90ed9f38d41"
+    },
+    {
+      "manifest_path": "packages/site-contract/composer.json",
+      "manifest_sha256": "d40a7605fd1cff2ce56a574d8b784084ac36fd52bd6048078a08e9d872f05f2e",
+      "name": "waaseyaa/site-contract",
+      "prefix": "packages/site-contract",
+      "split_repository": "waaseyaa/site-contract",
+      "split_sha": "3a541ac7955ef6122f1676752d918f21eeac179d"
+    },
+    {
+      "manifest_path": "packages/ssr/composer.json",
+      "manifest_sha256": "ff78f440fdda3f11b8a2d67546971011f52e994dd30dc51dd267ea5e9395330c",
+      "name": "waaseyaa/ssr",
+      "prefix": "packages/ssr",
+      "split_repository": "waaseyaa/ssr",
+      "split_sha": "3ecd2b9bc68e224defa08273817adb7b9d1ff63e"
+    },
+    {
+      "manifest_path": "packages/state/composer.json",
+      "manifest_sha256": "07a8a4b0dbca951baa62c5f921d2e5242943d06f2383274b8aeb2cc6060e5635",
+      "name": "waaseyaa/state",
+      "prefix": "packages/state",
+      "split_repository": "waaseyaa/state",
+      "split_sha": "43c05fdb582fb08e515bd2baf02db98fe940ec99"
+    },
+    {
+      "manifest_path": "packages/structured-import/composer.json",
+      "manifest_sha256": "b5a455b39b0d7711077dd12ecacbf79a329c0fb927e52c3a6411ac0a08390b65",
+      "name": "waaseyaa/structured-import",
+      "prefix": "packages/structured-import",
+      "split_repository": "waaseyaa/structured-import",
+      "split_sha": "d6703e94451f3a13e53df90e77a46dc4ecf1c5be"
+    },
+    {
+      "manifest_path": "packages/taxonomy/composer.json",
+      "manifest_sha256": "0c4aba5aef2f179032f526fc5adf9cc826be9bef22d6427d64e648c83b3ca327",
+      "name": "waaseyaa/taxonomy",
+      "prefix": "packages/taxonomy",
+      "split_repository": "waaseyaa/taxonomy",
+      "split_sha": "98efc943437491ee9e8a2947bc5734e9b35e4ca3"
+    },
+    {
+      "manifest_path": "packages/telescope/composer.json",
+      "manifest_sha256": "c80e71124a37cbe03703c1333a8837b900315b065cacd64e5bc82fcd3f4def6c",
+      "name": "waaseyaa/telescope",
+      "prefix": "packages/telescope",
+      "split_repository": "waaseyaa/telescope",
+      "split_sha": "7b8d1df8ce7579b1648f05f42c0cf30799f5b67c"
+    },
+    {
+      "manifest_path": "packages/testing/composer.json",
+      "manifest_sha256": "a6b2f4eebd8ee24b16398f5984c7e8db4f633f288ac7302e80335ce955ea9bf7",
+      "name": "waaseyaa/testing",
+      "prefix": "packages/testing",
+      "split_repository": "waaseyaa/testing",
+      "split_sha": "bf7413c53ae8ac16a49632c630bbe5d1fc9adeae"
+    },
+    {
+      "manifest_path": "packages/typed-data/composer.json",
+      "manifest_sha256": "2beebf817910b7cebc22b7f540fa95dd9179e8bb80f07e20656c08e4e4bd0350",
+      "name": "waaseyaa/typed-data",
+      "prefix": "packages/typed-data",
+      "split_repository": "waaseyaa/typed-data",
+      "split_sha": "bb503ddd25b02b8488772f2e948f61fccad86700"
+    },
+    {
+      "manifest_path": "packages/user/composer.json",
+      "manifest_sha256": "c373a905b935f2d66eb69b5b4ab51f670229e1b784d1b865b4ea3e0ac6c8c15e",
+      "name": "waaseyaa/user",
+      "prefix": "packages/user",
+      "split_repository": "waaseyaa/user",
+      "split_sha": "886da0d17913858d7747372f78db655d845dbdd1"
+    },
+    {
+      "manifest_path": "packages/validation/composer.json",
+      "manifest_sha256": "391f0af91eed4099fba9cdacea8b2d9d417af3460d67cf582e3c186001e2d142",
+      "name": "waaseyaa/validation",
+      "prefix": "packages/validation",
+      "split_repository": "waaseyaa/validation",
+      "split_sha": "fe8676ea6af8c75e72e928bbe5535a132de21055"
+    },
+    {
+      "manifest_path": "packages/wayfinding/composer.json",
+      "manifest_sha256": "d059f3d742636e9916e6adc71d947618c3b0da18adf0eca97ad098b9b138a6ec",
+      "name": "waaseyaa/wayfinding",
+      "prefix": "packages/wayfinding",
+      "split_repository": "waaseyaa/wayfinding",
+      "split_sha": "2db31c587cc65012579f88c122507923d75b580c"
+    },
+    {
+      "manifest_path": "packages/workflows/composer.json",
+      "manifest_sha256": "f74a18db960a0b37fd2936525a324e982da1ac3973d52eb980537582c863e13a",
+      "name": "waaseyaa/workflows",
+      "prefix": "packages/workflows",
+      "split_repository": "waaseyaa/workflows",
+      "split_sha": "4c7f4bf95cdc8c4a1282a764637214201ae39f0c"
+    },
+    {
+      "manifest_path": "packages/workspace/composer.json",
+      "manifest_sha256": "db4f6a4651132ea6e544b7c25c0df822fbc98f81734d8e3a8d90ac5b148ede03",
+      "name": "waaseyaa/workspace",
+      "prefix": "packages/workspace",
+      "split_repository": "waaseyaa/workspace",
+      "split_sha": "edcef7a58a94cb77e8ca0ebd2f90102291495cf6"
+    }
+  ],
+  "predicate_type": "https://waaseyaa.org/provenance/framework-release/v1",
+  "release": {
+    "tag": "v0.1.0-alpha.309"
+  },
+  "schema_version": 1,
+  "source": {
+    "repository": "waaseyaa/framework",
+    "sha": "76afb3f84491476e381d9d3f17df7bf71147a131"
+  },
+  "tools": {
+    "composer": "2.11.2",
+    "node": "v24.22.2"
+  },
+  "workflow_inputs": [
+    {
+      "action": "actions/cache",
+      "revision": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+      "version": "v6.1.0"
+    },
+    {
+      "action": "actions/cache/restore",
+      "revision": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+      "version": "v6.1.0"
+    },
+    {
+      "action": "actions/cache/save",
+      "revision": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+      "version": "v6.1.0"
+    },
+    {
+      "action": "actions/checkout",
+      "revision": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "version": "v7.0.1"
+    },
+    {
+      "action": "actions/create-github-app-token",
+      "revision": "bcd2ba49218906704ab6c1aa796996da409d3eb1",
+      "version": "v3.2.0"
+    },
+    {
+      "action": "actions/download-artifact",
+      "revision": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+      "version": "v8.0.1"
+    },
+    {
+      "action": "actions/github-script",
+      "revision": "3a2844b7e9c422d3c10d287c895573f7108da1b3",
+      "version": "v9.0.0"
+    },
+    {
+      "action": "actions/setup-node",
+      "revision": "820762786026740c76f36085b0efc47a31fe5020",
+      "version": "v7.0.0"
+    },
+    {
+      "action": "actions/upload-artifact",
+      "revision": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "version": "v7.0.1"
+    },
+    {
+      "action": "shivammathur/setup-php",
+      "revision": "f3e473d116dcccaddc5834248c87452386958240",
+      "version": "v2.37.2"
+    },
+    {
+      "action": "softprops/action-gh-release",
+      "revision": "3d0d9888cb7fd7b750713d6e236d1fcb99157228",
+      "version": "v3.0.2"
+    }
+  ]
+}

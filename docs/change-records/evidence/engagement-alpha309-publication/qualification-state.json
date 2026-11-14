@@ -1,0 +1,96 @@
+{
+  "version": "v0.1.0-alpha.309",
+  "reviewed_initial_landing": "8638c51725e43957900c4fd3ea127d4296eef525",
+  "reviewed_final_landing": "a7e0ee3424f41ed617e036ade4f42eaaf3e74a14",
+  "release_candidate": "76afb3f84491476e381d9d3f17df7bf71147a131",
+  "release_cut_run": 43613483133,
+  "main_feedback": {
+    "run": 43613483287,
+    "status": "success"
+  },
+  "full_qualification": {
+    "run": 43613895881,
+    "status": "success"
+  },
+  "release_readiness": {
+    "run": 43614838555,
+    "status": "success"
+  },
+  "prior_pre_tag_failed_cuts": [
+    43609092507,
+    43609920605,
+    43611400561
+  ],
+  "current_stage": "split-publication",
+  "publication": "blocked-missing-P2-records",
+  "published_consumer_matrix": {
+    "run1": "dependency-resolution-refused",
+    "evidence": "/tmp/engagement-published-alpha309-run1",
+    "missing_required_package": "waaseyaa/publishing v0.1.0-alpha.309",
+    "app_boot_executed": false,
+    "profiles_completed": 0,
+    "profiles_remaining": 7
+  },
+  "release_cut_status": "success",
+  "tag_object": "23deb8baaa0d7631abf8e82100220946b142b45e",
+  "split_run": 43616058061,
+  "unsharded_random_order": {
+    "seed": 69177703,
+    "suites": [
+      [
+        15752,
+        252253
+      ],
+      [
+        2555,
+        14284
+      ],
+      [
+        1883,
+        46343
+      ]
+    ],
+    "total_tests": 20190,
+    "total_assertions": 312880
+  },
+  "harness_candidate": "2df1d4160f0a93716fdc953a72bad63992f95c01",
+  "cohort_fix_review": "PASS",
+  "cohort_fix_preflight": "43 passed",
+  "recovery_run": 43619389035,
+  "recovery_packages": [
+    "waaseyaa/publishing",
+    "waaseyaa/wayfinding"
+  ],
+  "publication_verification": {
+    "run": 43616058061,
+    "conclusion": "failure",
+    "missing_packages": [
+      "waaseyaa/publishing",
+      "waaseyaa/wayfinding"
+    ],
+    "verdict_utc": "2026-11-14T17:24:56Z"
+  },
+  "github_release": "withheld by publication gate",
+  "recovery_runs": [
+    {
+      "id": 43619389035,
+      "conclusion": "cancelled at 10-minute job limit",
+      "packages": [
+        "waaseyaa/publishing",
+        "waaseyaa/wayfinding"
+      ]
+    },
+    {
+      "id": 43620679676,
+      "conclusion": "failure; one bounded publishing-only recovery did not produce P2 visibility",
+      "packages": [
+        "waaseyaa/publishing"
+      ]
+    }
+  ],
+  "review_status": "PASS for faithful blocked-outcome reporting; published qualification not achieved",
+  "independent_reviews": {
+    "Parfit": "PASS: exact tag/source and all 77 manifest hashes, SBOM/provenance checksums, five release gates and blocked publication claims verified",
+    "Descartes": "PASS: Composer exit 2 before boot, no lock and zero completed profiles faithfully recorded"
+  }
+}
