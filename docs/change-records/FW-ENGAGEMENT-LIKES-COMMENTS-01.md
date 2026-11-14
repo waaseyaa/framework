@@ -388,3 +388,24 @@ cautious incident inference. Compact response evidence and the observation log
 are retained here. A local upstream report draft is prepared but has not been
 sent; no third-party message was authorized. The seven-profile matrix remains
 0/7 because its registry dependency boundary is still unavailable.
+
+## Authorized alpha.309 metadata-workaround matrix
+
+Russell authorized proceeding with the successfully solved two-package metadata
+workaround. This is a separate installed-archive consumer qualification, not
+ordinary Packagist publication. No application adoption or deployment is added.
+The explicit runner option accepts a frozen public metadata snapshot only for
+publishing and wayfinding at alpha.309. It preserves exact cohort constraints,
+official GitHub archive identities, tagged manifest semantics, every installed
+package byte check and the full seven-profile runtime matrix. Historical
+alpha.308 remains standard Packagist; default published mode still refuses
+repository overrides. The snapshot is copied into the evidence and its digest
+is checked before and after runtime probes.
+
+Focused acceptance covers permitted metadata and refusal of additional packages,
+wrong cohorts, unexpected archives, dependency changes and script injection.
+Packagist omits dependency test autoload mappings from its public metadata;
+optional test mappings are checked against tagged source when present. The
+installed package file tree, including its actual composer.json, must still
+match the immutable release export exactly. Independent runner review and the
+actual matrix results follow; no passing matrix is claimed at this checkpoint.

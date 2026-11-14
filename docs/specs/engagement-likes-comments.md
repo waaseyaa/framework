@@ -166,6 +166,17 @@ Official component references support this selection. [Symfony 7.4 validation](h
 
 Independent permission/persistence review is required before integration. Candidate source qualification, installed-consumer qualification, published package qualification and downstream adoption are distinct evidence states. Design decisions are settled in this revision. ENG-01 through ENG-11 and the boundary tests above remain runtime acceptance obligations, not planning blockers. No runtime implementation is authorized solely by this document.
 
+An explicitly selected metadata workaround may exercise immutable published
+alpha.309 archives while Packagist P2 is stale. Its snapshot is limited to
+publishing and wayfinding, with exact cohort constraints, official GitHub
+commit-addressed archives, tagged manifest checks and full installed-byte
+verification. Historical alpha.308 remains registry-only. Record this as
+`metadata-workaround` consumer evidence, including the snapshot digest and
+resolved locks. It does not satisfy ordinary Packagist publication or permit
+the guarded release announcement. The default published-consumer mode still
+refuses repository overrides. Retire the bounded workaround after standard
+P2 qualification succeeds; the Framework release maintainer owns that review.
+
 ## Installed storage selection
 
 `engagement.storage_backend` selects `sql-blob` (default) or `sql-column` for Reaction and Comment when their provider constructs canonical metadata. Invalid values refuse before registration. Both retain the mandatory invariant and generic API cutover. The setting is an install-time choice for a new database; changing it is not a blob/column conversion procedure. Follow retains its existing layout. The installed-consumer fixture uses this supported setting rather than replacing entity definitions in a booted manager.

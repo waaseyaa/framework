@@ -7,16 +7,19 @@ candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
 evidence=''
 keep=0
 published_tag=''
+metadata_workaround=''
 for argument in "$@"; do
     case "$argument" in
         --candidate=*) candidate="${argument#*=}" ;;
         --evidence-dir=*) evidence="${argument#*=}" ;;
         --keep-work) keep=1 ;;
         --published-tag=*) published_tag="${argument#*=}" ;;
+        --metadata-workaround=*) metadata_workaround="${argument#*=}" ;;
         *) echo "Unknown argument: $argument" >&2; exit 2 ;;
     esac
 done
 [[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use an exact candidate SHA.' >&2; exit 2; }
+[[ -z "$metadata_workaround" || "$published_tag" == v0.1.0-alpha.309 ]] || { echo 'Metadata workaround requires alpha.309 public tag.' >&2; exit 2; }
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-engagement-installed.XXXXXX")"
 if [[ -z "$evidence" ]]; then evidence="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-engagement-evidence.XXXXXX")"; fi
 mkdir -p "$evidence"
@@ -33,6 +36,14 @@ trap cleanup EXIT
 printf 'candidate=%s\nwork=%s\nevidence=%s\n' "$candidate" "$work" "$evidence"
 printf '%s\n' "$candidate" > "$evidence/candidate.txt"
 printf '%s\n' "$work" > "$evidence/work-directory.txt"
+if [[ -n "$metadata_workaround" ]]; then
+    cp -- "$metadata_workaround" "$work/metadata-workaround.json"
+    metadata_workaround="$work/metadata-workaround.json"
+    cp -- "$metadata_workaround" "$evidence/metadata-workaround.json"
+    printf '%s\n' 'metadata-workaround' > "$evidence/qualification-mode.txt"
+else
+    printf '%s\n' "${published_tag:+standard-packagist}" > "$evidence/qualification-mode.txt"
+fi
 composer_bin="${COMPOSER_BIN:-$(command -v composer)}"
 php --version > "$evidence/php-version.txt"
 "$composer_bin" --version > "$evidence/composer-version.txt"
@@ -69,14 +80,18 @@ if [[ -n "$published_tag" ]]; then
     [[ "$(cat "$package_source/VERSION")" == "${published_tag#v}" ]] || { echo 'Release VERSION differs from public tag.' >&2; exit 1; }
 fi
 prepare_consumer() {
-    if [[ -n "$published_tag" ]]; then
+    if [[ -n "$metadata_workaround" ]]; then
+        python3 "$fixture/workaround.py" "$metadata_workaround" prepare "$1" "$2" "$3" "$(cat "$1/VERSION")" "${4:-}"
+    elif [[ -n "$published_tag" ]]; then
         python3 "$fixture/published.py" prepare "$1" "$2" "$3" "$(cat "$1/VERSION")" "${4:-}"
     else
         python3 "$prepare" prepare "$@"
     fi
 }
 verify_consumer() {
-    if [[ -n "$published_tag" ]]; then
+    if [[ -n "$metadata_workaround" ]]; then
+        python3 "$fixture/workaround.py" "$metadata_workaround" verify "$1" "$2" "$3" "$(cat "$1/VERSION")"
+    elif [[ -n "$published_tag" ]]; then
         python3 "$fixture/published.py" verify "$1" "$2" "$3" "$(cat "$1/VERSION")"
     else
         python3 "$prepare" verify "$@"
@@ -177,4 +192,4 @@ run_bounded absent-install 180 php vendor/bin/waaseyaa install:init
 run_bounded absent-field-preflight 120 php vendor/bin/waaseyaa field-access:preflight --write-artifact --format=json
 run_bounded absent-boot 120 php absent.php
 popd >/dev/null
-printf 'Installed engagement complete matrix passed (published tag: %s). Evidence: %s\n' "${published_tag:-candidate-only}" "$evidence"
+printf 'Installed engagement complete matrix passed (tag: %s; mode: %s). Evidence: %s\n' "${published_tag:-candidate-only}" "${metadata_workaround:+metadata-workaround}" "$evidence"

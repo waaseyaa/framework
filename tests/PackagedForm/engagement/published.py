@@ -66,7 +66,7 @@ def _source_export(source, package):
     return exported
 
 
-def verify(source, target, report_path, version):
+def verify(source, target, report_path, version, *, expected_repositories=None):
     source, target = Path(source).resolve(), Path(target).resolve()
     cohort = _version(version)
     application = json.loads(Path(report_path).read_text())
@@ -85,7 +85,10 @@ def verify(source, target, report_path, version):
     manifest_bytes = manifest_path.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == application['manifest_sha256'], 'Overlay manifest changed'
     manifest = json.loads(manifest_bytes)
-    assert 'repositories' not in manifest, 'Consumer manifest must have no repositories'
+    if expected_repositories is None:
+        assert 'repositories' not in manifest, 'Consumer manifest must have no repositories'
+    else:
+        assert manifest.get('repositories') == expected_repositories, 'Workaround repository metadata changed'
     expected_cohort_constraints = {
         json.loads(path.read_text())['name']: '!=' + cohort
         for path in sorted((source / 'packages').glob('*/composer.json'))
