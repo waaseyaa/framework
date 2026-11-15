@@ -1,6 +1,6 @@
 # FW-ENGAGEMENT-QUOTA-WRITER-01
 
-Status: candidate implementation, 14 November 2026.
+Status: released in alpha.310 and qualified in an installed consumer, 15 November 2026.
 
 The S1 fixed-window quota transaction fetched its state before acquiring SQLite's
 writer. An unrelated connection could commit after that read snapshot, making
@@ -33,4 +33,30 @@ Evidence: `evidence/engagement-quota-writer/old-regression.txt` and
 findings, independently repeating 78 tests / 491 assertions. All 43 default
 preflight gates passed. The exact mirrored installed consumer passed 12
 engagement HTTP/kernel tests / 122 assertions. Published consumer adoption
-and production qualification remain pending. There is no production claim from these tests.
+and production qualification are recorded below. There is no production claim from these tests.
+
+## Released and live qualification
+
+The governed alpha.310 cut passed all five gates at source
+`09aec65694577a44925bade734f042ebca20f83b`; its split/publication workflow also
+passed, including every-package installability. The corrected limiter file
+SHA-256 is `08a6e9d94e16d18ffe603cc928cd619a10aeacef2b79b7322673e5530c113980`.
+
+The actual consumer resolved its 43-package development and 42-package runtime
+closures from normal Packagist metadata, without package-repository overrides.
+All references and installed file hashes matched the checksummed producer
+provenance; no third-party versions or source references changed. Its complete
+suite passed 379 tests / 6,382 assertions with zero failures/errors/warnings and
+one expected host-specific skip. Fresh no-dev browser checks passed the affected
+comment/reply/edit/removal and like/unlike journeys; a fixture-specific large-page
+setup skip remains explicitly separate from the passing pagination kernel tests.
+
+The same native four-client probe that failed against the prior published
+limiter passed before and after the actual traffic switch: each run admitted six
+serialized desired-state mutations alongside 18 public reads, all HTTP 200, bound
+to the corrected installed limiter bytes. Authenticated live UI likes/unlikes,
+comments and replies, anonymous author attribution and author cleanup passed.
+Application-owned records retain the exact consumer lock, candidate identities,
+independent reviews and production receipts. This closes this bounded quota race;
+it does not claim that genuine storage outages or prolonged writer contention
+cannot still produce retryable refusals.
