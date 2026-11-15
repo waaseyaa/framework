@@ -29,5 +29,8 @@ writer success after commit, exact admitted counts, injected failure rollback,
 closed transactions and subsequent admission through a new limiter instance.
 
 Evidence: `evidence/engagement-quota-writer/old-regression.txt` and
-`evidence/engagement-quota-writer/fixed-tests.txt`. Independent review and published
-consumer adoption remain pending. There is no production claim from these tests.
+`evidence/engagement-quota-writer/fixed-tests.txt`. Independent review approved the immutable runtime/test patch with no blocking
+findings, independently repeating 78 tests / 491 assertions. All 43 default
+preflight gates passed. The exact mirrored installed consumer passed 12
+engagement HTTP/kernel tests / 122 assertions. Published consumer adoption
+and production qualification remain pending. There is no production claim from these tests.

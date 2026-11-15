@@ -1,0 +1,416 @@
+{
+    "schema_version": 1,
+    "candidate": {
+        "head": "07545ce53561cba8422fa81b2edfc3bb0f639ba8",
+        "tree": "269994c001af11f807ec1d86e541f5cc49946357",
+        "worktree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "clean": true
+    },
+    "base": "origin/main",
+    "host": {
+        "id": "linux",
+        "capabilities": {
+            "php": {
+                "available": true,
+                "detail": "/usr/bin/php8.5 8.5.4"
+            },
+            "git": {
+                "available": true,
+                "detail": "/home/russell/dev/framework-worktrees/quota-writer/bin/git"
+            },
+            "bash": {
+                "available": true,
+                "detail": "/usr/bin/bash"
+            },
+            "composer": {
+                "available": true,
+                "detail": "/usr/bin/composer"
+            },
+            "node": {
+                "available": true,
+                "detail": "/usr/bin/node"
+            }
+        }
+    },
+    "profile": "default",
+    "results": [
+        {
+            "id": "check-composer-policy",
+            "status": "passed",
+            "elapsed_s": 0.066,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-composer-policy",
+            "source": "executed",
+            "evidence_key": "d14d15ca85ab39580fd45af8b8eb5abb68f962288703fd0772a22f1ed318fe34"
+        },
+        {
+            "id": "check-portable-paths",
+            "status": "passed",
+            "elapsed_s": 0.044,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-portable-paths",
+            "source": "executed",
+            "evidence_key": "9054cdd97c0fb15152b66abb0b0f2ca1f0ba897d5271c693cc1027428f81ee04"
+        },
+        {
+            "id": "check-portable-null-device",
+            "status": "passed",
+            "elapsed_s": 0.086,
+            "owning_hosted_check": "workflow:ci.yml#& 'php' 'bin/check-portable-null-device'",
+            "source": "executed",
+            "evidence_key": "4bb05bbf8ee74deb710a48cb4e1e12c9774b455116c0651da3ddc506b9dc1050"
+        },
+        {
+            "id": "check-repo-root-hygiene",
+            "status": "passed",
+            "elapsed_s": 0.024,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-repo-root-hygiene",
+            "source": "executed",
+            "evidence_key": "aabfd70d8f1b85b2bda91a217fcec001e3a3653839cd420e3a9a2aaaa34fc837"
+        },
+        {
+            "id": "check-package-layers",
+            "status": "passed",
+            "elapsed_s": 0.605,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-package-layers",
+            "source": "executed",
+            "evidence_key": "669be5ec1884515e9f259a748e7cbc969f18cf9d4a32d3d702f1ccaa51c568d5"
+        },
+        {
+            "id": "check-admin-surface-deptrac",
+            "status": "passed",
+            "elapsed_s": 0.481,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-admin-surface-deptrac",
+            "source": "executed",
+            "evidence_key": "c98d841b7566103f4efb1b319df1df80104cc9802c601c736a5ec0ffb267bf37"
+        },
+        {
+            "id": "check-package-coverage-history",
+            "status": "passed",
+            "elapsed_s": 0.13,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-package-coverage-history",
+            "source": "executed",
+            "evidence_key": "210dfedd852ecbd0a1277c1dfa89017a84444c828b10c4af6785e4576c3a5fa8"
+        },
+        {
+            "id": "check-symfony-imports",
+            "status": "passed",
+            "elapsed_s": 0.049,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-symfony-imports",
+            "source": "executed",
+            "evidence_key": "2da9685bdc40bc1d48e5be6e8fbd35424e502ed5d60c24aba6522ab160f3cb4d"
+        },
+        {
+            "id": "check-phpstan-paths",
+            "status": "passed",
+            "elapsed_s": 0.022,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-phpstan-paths",
+            "source": "executed",
+            "evidence_key": "7d58bc0c3a4ad49d23e281b71aa295be42e07e1d2d31af84cda83eb87708a402"
+        },
+        {
+            "id": "check-phpunit-paths",
+            "status": "passed",
+            "elapsed_s": 0.09,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-phpunit-paths",
+            "source": "executed",
+            "evidence_key": "c521ca066df68a541ae413da3b7598b9f31984fd2736a3476ababddc9ccaa341"
+        },
+        {
+            "id": "check-phpunit-skip-policy",
+            "status": "passed",
+            "elapsed_s": 0.09,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-phpunit-skip-policy",
+            "source": "executed",
+            "evidence_key": "573f039ce2dbf53baca6d948b277f0484c146875c3c680993f0135b2871548cb"
+        },
+        {
+            "id": "check-package-layers-pl008-self-test",
+            "status": "passed",
+            "elapsed_s": 0.137,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-package-layers-pl008-self-test",
+            "source": "executed",
+            "evidence_key": "9037c7aa8be67a408eb0894e66fc9d0b651f51770ed72f192f5b2ab223d4bacd"
+        },
+        {
+            "id": "check-distribution-extensions",
+            "status": "passed",
+            "elapsed_s": 0.021,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-distribution-extensions",
+            "source": "executed",
+            "evidence_key": "b257c5c0409b864ba66a6a30bb20bea986f71bbaca0d1d8a80b27bc509ca5b01"
+        },
+        {
+            "id": "check-distribution-exclusion",
+            "status": "passed",
+            "elapsed_s": 0.02,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-distribution-exclusion",
+            "source": "executed",
+            "evidence_key": "68e4e482030e217fbdf1d50a13ab3600e63add8affef79c6dae83c4ebcf2ea60"
+        },
+        {
+            "id": "check-local-operator-tool-profile",
+            "status": "passed",
+            "elapsed_s": 0.056,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-local-operator-tool-profile",
+            "source": "executed",
+            "evidence_key": "c710a9aebafc40fe8c5367baa75be9522d88f902ee9e97ea3fb3be1d678c0f5f"
+        },
+        {
+            "id": "check-getquery-bindings",
+            "status": "passed",
+            "elapsed_s": 0.055,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-getquery-bindings",
+            "source": "executed",
+            "evidence_key": "37eea0214d2fc7af1cbedb3f35e8516457ee9aeb6c8ce8d784c53da58411459a"
+        },
+        {
+            "id": "check-dispatcher-keys",
+            "status": "passed",
+            "elapsed_s": 0.042,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-dispatcher-keys",
+            "source": "executed",
+            "evidence_key": "8ca8292cb7a46fb02e21cfff52609c8dd75dbbc0ff357254b865fa8ceea69299"
+        },
+        {
+            "id": "check-admin-coercion-patterns",
+            "status": "passed",
+            "elapsed_s": 0.146,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-admin-coercion-patterns",
+            "source": "executed",
+            "evidence_key": "8c5bd7694f9959065de4db75f188372399d11c4bf5d6017b89940e3dbae70156"
+        },
+        {
+            "id": "check-admin-coercion-self-test",
+            "status": "passed",
+            "elapsed_s": 0.15,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-admin-coercion-self-test",
+            "source": "executed",
+            "evidence_key": "037a28c181316cb9427c07f17c76fc5e24dde265c14cc74fd15dbf1fab041c7d"
+        },
+        {
+            "id": "check-admin-dist-fresh",
+            "status": "passed",
+            "elapsed_s": 0.022,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-admin-dist-fresh",
+            "source": "executed",
+            "evidence_key": "f4775f0a0dd65e83191ceb8585dfc763c0a3a240fad1f7372c3d58d79598508d"
+        },
+        {
+            "id": "check-admin-dist-manifest",
+            "status": "passed",
+            "elapsed_s": 0.041,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-admin-dist-manifest",
+            "source": "executed",
+            "evidence_key": "8c7efd814750576b1dbbd5b9a87c05371914873d69fa0f89d963886b7e04ee74"
+        },
+        {
+            "id": "check-field-guards",
+            "status": "passed",
+            "elapsed_s": 0.034,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-field-guards",
+            "source": "executed",
+            "evidence_key": "277db2562284a5e3cf859cdcb624ac4a9a088b81b3401ee24ac03a4689d1a323"
+        },
+        {
+            "id": "check-access-hardening",
+            "status": "passed",
+            "elapsed_s": 0.094,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-access-hardening",
+            "source": "executed",
+            "evidence_key": "008d7f980baed474fa325a775d328df7187b3ca439bbc938a946992b46311d90"
+        },
+        {
+            "id": "check-openapi",
+            "status": "passed",
+            "elapsed_s": 2.937,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-openapi",
+            "source": "executed",
+            "evidence_key": "ef390fd6db6539362ed575002ef2d266664db09e99f6ae7d77c82f724e65de2a"
+        },
+        {
+            "id": "check-support-contract",
+            "status": "passed",
+            "elapsed_s": 0.368,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-support-contract --ci",
+            "source": "executed",
+            "evidence_key": "bb9d3612d8dcbfda34b0dbacce4c1e9ee09a23aef125e92e5e4436475d9ff09d"
+        },
+        {
+            "id": "check-s1-sqlite-contract",
+            "status": "passed",
+            "elapsed_s": 0.188,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-s1-sqlite-contract --ci",
+            "source": "executed",
+            "evidence_key": "4ff5362be3db108e9d7b1c64f000e3578d7259f5f822e78392782e85a95a0a46"
+        },
+        {
+            "id": "check-s1-configuration-activation",
+            "status": "passed",
+            "elapsed_s": 0.111,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-s1-configuration-activation",
+            "source": "executed",
+            "evidence_key": "b8536610f4cd3a4ec58143bc637936f1cd4b349fd0b79b90d0e3e765852ff146"
+        },
+        {
+            "id": "check-s1-configuration-authority",
+            "status": "passed",
+            "elapsed_s": 0.099,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-s1-configuration-authority",
+            "source": "executed",
+            "evidence_key": "8c09fae2bff57091ff4748ac4b35f99a154de599eff2681f55b9ea9b802373c2"
+        },
+        {
+            "id": "check-delivery-agent-events",
+            "status": "passed",
+            "elapsed_s": 0.362,
+            "owning_hosted_check": "workflow:ci.yml#check-delivery-agent-events --base",
+            "source": "executed",
+            "evidence_key": "6383bf3c344c897a6808a19d881eb07f6454352a1861f1807aee7c2dddbcc1e1"
+        },
+        {
+            "id": "check-delivery-agent-projection",
+            "status": "passed",
+            "elapsed_s": 0.042,
+            "owning_hosted_check": "workflow:ci.yml#run_gate check-delivery-agent-projection",
+            "source": "executed",
+            "evidence_key": "73bf9d8b205a6f71f69586ce471e287b8a363ee539c7751304230c7b6ea70eab"
+        },
+        {
+            "id": "check-s1-schema-authority",
+            "status": "passed",
+            "elapsed_s": 0.194,
+            "owning_hosted_check": "workflow:ci.yml#php bin/check-s1-schema-authority",
+            "source": "executed",
+            "evidence_key": "d4e5532923f407c579f3684674134fe4c8763d6512ad675e44e9ad6a84adbe3f"
+        },
+        {
+            "id": "check-governed-secret-access",
+            "status": "passed",
+            "elapsed_s": 0.029,
+            "owning_hosted_check": "architecture-test:GovernedSecretAccessContractTest.php",
+            "source": "executed",
+            "evidence_key": "7b4aad1c856673925824df0f6354f61d34a7eb035e38b4c452fb9762e16eb3e9"
+        },
+        {
+            "id": "check-runtime-policy-custody",
+            "status": "passed",
+            "elapsed_s": 0.349,
+            "owning_hosted_check": "architecture-test:RuntimePolicyCustodyContractTest.php",
+            "source": "executed",
+            "evidence_key": "f4a0704d3aa41fcb2cc2c8a872a71c1bab101075da3de002e87c155fd31ad480"
+        },
+        {
+            "id": "check-covers-nothing-companions",
+            "status": "passed",
+            "elapsed_s": 0.064,
+            "owning_hosted_check": "architecture-test:CoversNothingCompanionDiagnosticTest.php",
+            "source": "executed",
+            "evidence_key": "12e3b95d935c578ffb282661789c1ddfadb978e210830f301eb201c0aa039b1e"
+        },
+        {
+            "id": "check-changelog-shape",
+            "status": "not-applicable",
+            "reason": "no changed path matched the gate selectors",
+            "owning_hosted_check": "architecture-test:ChangelogShapeGuardTest.php",
+            "source": "not-run"
+        },
+        {
+            "id": "check-changelog-fragments",
+            "status": "passed",
+            "elapsed_s": 0.02,
+            "owning_hosted_check": "architecture-test:ChangelogFragmentsTest.php",
+            "source": "executed",
+            "evidence_key": "7d9af84573b0057bfa7dcf5fc58bc0ae96e0dc460be23046bb130ba947c995c7"
+        },
+        {
+            "id": "check-contract-suite-coverage",
+            "status": "passed",
+            "elapsed_s": 0.024,
+            "owning_hosted_check": "verify-only",
+            "source": "executed",
+            "evidence_key": "426a9899bb6b5684a3d4b873067bb2dc5a15dd9e3d3bf216c7f715192860ed64"
+        },
+        {
+            "id": "check-ingestion-defaults",
+            "status": "passed",
+            "elapsed_s": 0.079,
+            "owning_hosted_check": "workflow:ci.yml#bash bin/check-ingestion-defaults",
+            "source": "executed",
+            "evidence_key": "5764b0a09b5a8c531b02d7d535d0a7c9f225a56027537a57f144d1a870b30edb"
+        },
+        {
+            "id": "check-no-secrets",
+            "status": "passed",
+            "elapsed_s": 0.68,
+            "owning_hosted_check": "workflow:ci.yml#bash bin/check-no-secrets",
+            "source": "executed",
+            "evidence_key": "bc1a335b8d763b7342d904a848ea78c1e3070974cfebcda6a6eee9bf49835b3a"
+        },
+        {
+            "id": "check-release-publish-shape",
+            "status": "passed",
+            "elapsed_s": 0.024,
+            "owning_hosted_check": "workflow:ci.yml#bin/check-release-publish-shape",
+            "source": "executed",
+            "evidence_key": "37b2c44aefa36efcb90a407dbe1bb50ae3d75ee9e58687a9149d031200199993"
+        },
+        {
+            "id": "surface-parity",
+            "status": "passed",
+            "elapsed_s": 3.127,
+            "owning_hosted_check": "workflow:surface-parity.yml#check-surface-parity.php",
+            "source": "executed",
+            "evidence_key": "d4a0d30785761d24c248b06fd3c91e77eeb915ad57fa6f6137096c58aaa3587b"
+        },
+        {
+            "id": "spec-drift",
+            "status": "passed",
+            "elapsed_s": 0.064,
+            "owning_hosted_check": "workflow:ci.yml#drift-detector.sh",
+            "source": "executed",
+            "evidence_key": "eb98f4c6dde128b397205a74b86b78392f15ffe1c1ca8b2388e0636523701ce9"
+        },
+        {
+            "id": "changelog-discipline",
+            "status": "passed",
+            "elapsed_s": 0.073,
+            "owning_hosted_check": "workflow:changelog-discipline.yml#check-changelog-discipline.sh",
+            "source": "executed",
+            "evidence_key": "603031b86cb60727d198938a3eca2d352806eed224466cedc9bf650d26d03b24"
+        },
+        {
+            "id": "check-ci-workflow-inventory",
+            "status": "not-applicable",
+            "reason": "no changed path matched the gate selectors",
+            "owning_hosted_check": "architecture-test:CiWorkflowInventoryGeneratorTest.php",
+            "source": "not-run"
+        },
+        {
+            "id": "check-ci-roster-conformance",
+            "status": "not-applicable",
+            "reason": "no changed path matched the gate selectors",
+            "owning_hosted_check": "architecture-test:CiRosterConformanceTest.php",
+            "source": "not-run"
+        },
+        {
+            "id": "cs-check",
+            "status": "passed",
+            "elapsed_s": 0,
+            "owning_hosted_check": "workflow:ci.yml#composer cs-check",
+            "source": "reused-equivalent",
+            "evidence_key": "bfad2f3c3631e4c99f6b9f362e81822269005c24e0c18ddfa55f93c2daf49d41",
+            "tested_candidate": {
+                "head": "e59a7f1c14bcf27717189f90a4a32fb5a0dbb5b9",
+                "tree": "a1cfd1bcd123c37a89e541c7dfdac9d306d074f8",
+                "worktree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "clean": true
+            }
+        }
+    ],
+    "summary": {
+        "executed": 42,
+        "reused": 1,
+        "failed": 0,
+        "hosted_required": 0,
+        "not_applicable": 3
+    }
+}
