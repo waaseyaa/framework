@@ -55,7 +55,7 @@ jobs:
           bin/verify-exact-source-artifact build/exact-source "$EXACT_SHA"
 
       - name: Upload the immutable source artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: framework-source-${{ inputs.sha || github.sha }}
           path: build/exact-source/
@@ -112,7 +112,7 @@ jobs:
           fi
 
       - name: Upload exact environment evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: support-contract-evidence-${{ inputs.sha || github.sha }}
@@ -196,7 +196,7 @@ jobs:
         run: node tests/Architecture/release-evidence-regression.mjs
 
       - name: Retain pull-request dry-run evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-evidence-dry-run-${{ github.sha }}
           path: build/release-evidence
@@ -447,7 +447,7 @@ jobs:
           php -r '$p = json_decode(file_get_contents("build/ci/phpunit-shards.json"), true, 512, JSON_THROW_ON_ERROR); foreach ($p["include"] as $s) { printf("shard %d: %d files, %.2fs recorded, %d fallback%s", $s["id"], $s["test_files"], $s["expected_seconds"], $s["fallback_files"], PHP_EOL); }'
 
       - name: Retain exact shard plan
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: phpunit-shard-plan
           path: build/ci/phpunit-shards.json
@@ -457,7 +457,7 @@ jobs:
       # bin/verify-random-order-vendor-archive, with a locked `composer
       # install` fallback on verification failure in each consumer.
       - name: Retain the run-scoped dependency archive
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vendor-archive
           path: |
@@ -580,7 +580,7 @@ jobs:
         run: php bin/check-repo-root-hygiene
 
       - name: Upload shard evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: php-test-shard-${{ matrix.id }}
@@ -639,7 +639,7 @@ jobs:
             --seed="$seed" > build/ci/random-order-plan.json
 
       - name: Retain the exact plan
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: random-order-plan
           path: build/ci/random-order-plan.json
@@ -891,7 +891,7 @@ jobs:
         run: php bin/check-changed-php-coverage --clover=build/logs/clover.xml --base="$COVERAGE_BASE_SHA" --threshold=80
 
       - name: Upload PHP coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: php-coverage
@@ -933,7 +933,7 @@ jobs:
         run: time php bin/test-mutation-pilot
 
       - name: Upload mutation evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: mutation-pilot
@@ -1552,7 +1552,7 @@ jobs:
 
       - name: Upload native-host consumer evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-host-consumer-evidence-windows
           path: build/native-host-consumer/
@@ -1768,7 +1768,7 @@ jobs:
 
       - name: Upload native-host evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-host-evidence-${{ matrix.host }}
           path: build/native-host/
@@ -1976,7 +1976,7 @@ jobs:
 
       - name: Upload native-host consumer evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-host-consumer-evidence-linux
           path: build/native-host-consumer/
@@ -2400,7 +2400,7 @@ jobs:
 
       - name: Retain acceptance diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4.6.2
         with:
           name: studio-alpha-acceptance-diagnostics
           path: /tmp/studio-alpha-acceptance.log
@@ -2667,7 +2667,7 @@ jobs:
 
       - name: Upload Admin Surface dependency report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: admin-surface-deptrac
           path: build/architecture/admin-surface-deptrac.json
@@ -2774,7 +2774,7 @@ jobs:
         run: cd packages/admin && npm run test:e2e:summary
 
       - name: Upload Playwright artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: playwright-smoke-results
@@ -2784,7 +2784,7 @@ jobs:
           retention-days: 30
 
       - name: Upload server logs on failure
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: server-logs
@@ -2835,7 +2835,7 @@ jobs:
         run: node scripts/check-changed-coverage.mjs
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: frontend-build
@@ -2843,7 +2843,7 @@ jobs:
           retention-days: 14
 
       - name: Upload frontend coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: frontend-coverage

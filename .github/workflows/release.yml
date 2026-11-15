@@ -86,7 +86,7 @@ jobs:
         run: bin/promote-exact-source-artifact "$CANDIDATE_SHA" build/promoted-source release-readiness
 
       - name: Upload run-scoped promoted source
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-readiness-source-${{ needs.validate-readiness-request.outputs.candidate_sha }}
           path: build/promoted-source/
@@ -139,7 +139,7 @@ jobs:
         run: bash build/candidate-source/framework/scripts/build-release-candidate.sh
 
       - name: Upload candidate evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-candidate-evidence
           path: build/candidate-source/framework/build/release/
@@ -217,7 +217,7 @@ jobs:
         run: cd build/candidate-source/framework/packages/admin && npm run test:e2e:summary
 
       - name: Upload Playwright evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: release-readiness-playwright
@@ -227,7 +227,7 @@ jobs:
           retention-days: 90
 
       - name: Upload server logs on failure
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: release-readiness-server-logs
