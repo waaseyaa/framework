@@ -5894,6 +5894,20 @@
             "occurrence": 4
         },
         {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/engagement/tests/Unit/EngagementRateLimiterTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
             "path": "packages/entity-storage/migrations/2026_08_12_000001_entity_mutation_authority.php",
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
