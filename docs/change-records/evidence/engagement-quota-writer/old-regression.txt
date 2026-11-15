@@ -1,0 +1,68 @@
+PHPUnit 13.1.14 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.4
+Configuration: /home/russell/dev/framework-worktrees/quota-writer/phpunit.xml.dist
+
+E                                                                   1 / 1 (100%)
+
+Time: 00:00.009, Memory: 22.00 MB
+
+There was 1 error:
+
+1) Waaseyaa\Engagement\Tests\Unit\EngagementRateLimiterTest::test_quota_reserves_writer_before_fetch_for_new_and_existing_windows
+Waaseyaa\Engagement\EngagementException: Quota storage is temporarily unavailable.
+
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:80
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/tests/Unit/EngagementRateLimiterTest.php:141
+
+Caused by
+Doctrine\DBAL\Exception\LockWaitTimeoutException: An exception occurred while executing a query: SQLSTATE[HY000]: General error: 5 database is locked
+
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Driver/API/SQLite/ExceptionConverter.php:32
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:1460
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:1396
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:911
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:483
+/home/russell/dev/framework-worktrees/quota-writer/packages/database-legacy/src/Query/DBALUpdate.php:52
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/RateLimit/EngagementWindowStorage.php:75
+/home/russell/dev/framework-worktrees/quota-writer/vendor/symfony/rate-limiter/Policy/FixedWindowLimiter.php:102
+/home/russell/dev/framework-worktrees/quota-writer/vendor/symfony/rate-limiter/Policy/FixedWindowLimiter.php:114
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:68
+/home/russell/dev/framework-worktrees/quota-writer/packages/database-legacy/src/DBALDatabase.php:223
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:68
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/tests/Unit/EngagementRateLimiterTest.php:141
+
+Caused by
+Doctrine\DBAL\Driver\PDO\Exception: SQLSTATE[HY000]: General error: 5 database is locked
+
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Driver/PDO/Exception.php:24
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Driver/PDO/Statement.php:57
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:905
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:483
+/home/russell/dev/framework-worktrees/quota-writer/packages/database-legacy/src/Query/DBALUpdate.php:52
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/RateLimit/EngagementWindowStorage.php:75
+/home/russell/dev/framework-worktrees/quota-writer/vendor/symfony/rate-limiter/Policy/FixedWindowLimiter.php:102
+/home/russell/dev/framework-worktrees/quota-writer/vendor/symfony/rate-limiter/Policy/FixedWindowLimiter.php:114
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:68
+/home/russell/dev/framework-worktrees/quota-writer/packages/database-legacy/src/DBALDatabase.php:223
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:68
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/tests/Unit/EngagementRateLimiterTest.php:141
+
+Caused by
+PDOException: SQLSTATE[HY000]: General error: 5 database is locked
+
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/tests/Unit/EngagementRateLimiterTest.php:208
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Driver/PDO/Statement.php:55
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:905
+/home/russell/dev/framework-worktrees/quota-writer/vendor/doctrine/dbal/src/Connection.php:483
+/home/russell/dev/framework-worktrees/quota-writer/packages/database-legacy/src/Query/DBALUpdate.php:52
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/RateLimit/EngagementWindowStorage.php:75
+/home/russell/dev/framework-worktrees/quota-writer/vendor/symfony/rate-limiter/Policy/FixedWindowLimiter.php:102
+/home/russell/dev/framework-worktrees/quota-writer/vendor/symfony/rate-limiter/Policy/FixedWindowLimiter.php:114
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:68
+/home/russell/dev/framework-worktrees/quota-writer/packages/database-legacy/src/DBALDatabase.php:223
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/src/EngagementRateLimiter.php:68
+/home/russell/dev/framework-worktrees/quota-writer/packages/engagement/tests/Unit/EngagementRateLimiterTest.php:141
+
+ERRORS!
+Tests: 1, Assertions: 1, Errors: 1.

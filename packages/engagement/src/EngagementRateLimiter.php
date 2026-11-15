@@ -65,7 +65,16 @@ final class EngagementRateLimiter
                 try {
                     $limiter = new FixedWindowLimiter($id, $maximum, new \DateInterval('PT' . $seconds . 'S'), $this->storage, null);
                     // Commit canonical limiter state before releasing the external lock.
-                    $rate = $this->database->transactional(static fn() => $limiter->consume());
+                    $rate = $this->database->transactional(function () use ($id, $limiter) {
+                        // Reserve SQLite's writer before fetching the window. A deferred
+                        // read snapshot cannot be promoted after another actor or an
+                        // unrelated audited request commits to the canonical database.
+                        $this->database->getConnection()->executeStatement(
+                            'UPDATE engagement_rate_limits SET expires_at = expires_at WHERE limiter_key = ?',
+                            [$id],
+                        );
+                        return $limiter->consume();
+                    });
                     if (!$rate->isAccepted()) {
                         $retry = max(1, (int) $rate->getRetryAfter()->format('U') - time());
                         throw new EngagementException('RATE_LIMITED', 429, 'Engagement quota exceeded.', $retry);

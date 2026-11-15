@@ -1,0 +1,11 @@
+PHPUnit 13.1.14 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.4
+Configuration: /home/russell/dev/framework-worktrees/quota-writer/phpunit.xml.dist
+
+................................................................. 65 / 78 ( 83%)
+.............                                                     78 / 78 (100%)
+
+Time: 00:00.763, Memory: 34.00 MB
+
+[30;42mOK (78 tests, 491 assertions)[0m

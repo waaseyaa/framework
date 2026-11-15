@@ -108,6 +108,75 @@ final class EngagementRateLimiterTest extends TestCase
         }
     }
 
+    public function test_quota_reserves_writer_before_fetch_for_new_and_existing_windows(): void
+    {
+        foreach ([false, true] as $existing) {
+            $base = sys_get_temp_dir().'/engagement-snapshot-'.bin2hex(random_bytes(6));
+            mkdir($base, 0700);
+            $database = DBALDatabase::createSqlite($base.'/quota.sqlite');
+            $connection = $database->getConnection();
+            $connection->executeStatement('CREATE TABLE engagement_rate_limits (limiter_key VARCHAR(64) PRIMARY KEY, state_json TEXT NOT NULL, expires_at REAL NOT NULL)');
+            $connection->executeStatement('CREATE TABLE unrelated_writer (id INTEGER PRIMARY KEY, value INTEGER NOT NULL)');
+            $connection->executeStatement('INSERT INTO unrelated_writer VALUES (1, 0)');
+            $other = DBALDatabase::createSqlite($base.'/quota.sqlite')->getConnection();
+            $other->executeStatement('PRAGMA busy_timeout = 0');
+            $limiter = new EngagementRateLimiter($database, 'test-install', $base.'/locks');
+            if ($existing) { $limiter->consume('actor', 'like'); }
+            $attempts = 0;
+            $blocked = 0;
+            $injectFailure = false;
+            $hook = static function () use ($other, &$attempts, &$blocked, &$injectFailure): void {
+                if ($injectFailure) { throw new \RuntimeException('Injected quota storage failure.'); }
+                ++$attempts;
+                try {
+                    $other->executeStatement('UPDATE unrelated_writer SET value = value + 1 WHERE id = 1');
+                } catch (\Doctrine\DBAL\Exception\LockWaitTimeoutException) {
+                    ++$blocked;
+                }
+            };
+            $pdo = $connection->getNativeConnection();
+            self::assertInstanceOf(\PDO::class, $pdo);
+            $pdo->setAttribute(\PDO::ATTR_STATEMENT_CLASS, [QuotaSnapshotStatement::class, [$hook]]);
+            try {
+                $limiter->consume('actor', 'like');
+                self::assertSame(2, $attempts, 'Both quota windows must execute the competing writer after their fetch.');
+                self::assertSame(2, $blocked, 'An unrelated writer cannot invalidate an admitted quota snapshot.');
+                self::assertFalse($connection->isTransactionActive());
+                $states = $connection->fetchFirstColumn('SELECT state_json FROM engagement_rate_limits');
+                self::assertCount(2, $states);
+                foreach ($states as $state) {
+                    self::assertSame($existing ? 2 : 1, json_decode($state, true, 8, JSON_THROW_ON_ERROR)['hits']);
+                }
+                $other->executeStatement('UPDATE unrelated_writer SET value = value + 1 WHERE id = 1');
+                self::assertSame(1, (int) $other->fetchOne('SELECT value FROM unrelated_writer WHERE id = 1'));
+
+                $injectFailure = true;
+                try {
+                    $limiter->consume('actor', 'like');
+                    self::fail('A failed quota fetch must refuse admission.');
+                } catch (EngagementException $failure) {
+                    self::assertSame('TEMPORARILY_UNAVAILABLE', $failure->errorCode);
+                    self::assertInstanceOf(\RuntimeException::class, $failure->getPrevious());
+                }
+                self::assertFalse($connection->isTransactionActive());
+                self::assertSame($states, $connection->fetchFirstColumn('SELECT state_json FROM engagement_rate_limits'));
+                $injectFailure = false;
+                (new EngagementRateLimiter($database, 'test-install', $base.'/locks'))->consume('actor', 'like');
+                foreach ($connection->fetchFirstColumn('SELECT state_json FROM engagement_rate_limits') as $state) {
+                    self::assertSame($existing ? 3 : 2, json_decode($state, true, 8, JSON_THROW_ON_ERROR)['hits']);
+                }
+            } finally {
+                $pdo->setAttribute(\PDO::ATTR_STATEMENT_CLASS, [\PDOStatement::class]);
+                $connection->close();
+                $other->close();
+                foreach (glob($base.'/locks/*') ?: [] as $file) { unlink($file); }
+                if (is_dir($base.'/locks')) { rmdir($base.'/locks'); }
+                foreach (glob($base.'/*') ?: [] as $file) { unlink($file); }
+                rmdir($base);
+            }
+        }
+    }
+
     public function test_locked_symfony_window_serialization_shape_round_trips_as_json_scalars(): void
     {
         $database = DBALDatabase::createSqlite();
@@ -126,5 +195,20 @@ final class EngagementRateLimiterTest extends TestCase
         $restored = $storage->fetch('source-fit-window');
         self::assertInstanceOf(Window::class, $restored);
         self::assertSame(2, $restored->getHitCount());
+    }
+}
+
+/** Inject a competing commit immediately after the actual quota SELECT executes. */
+final class QuotaSnapshotStatement extends \PDOStatement
+{
+    protected function __construct(private readonly \Closure $afterFetch) {}
+
+    public function execute(?array $params = null): bool
+    {
+        $result = parent::execute($params);
+        if (str_starts_with($this->queryString, 'SELECT state_json, expires_at FROM engagement_rate_limits')) {
+            ($this->afterFetch)();
+        }
+        return $result;
     }
 }
