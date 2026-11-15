@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.310] - 2026-11-15
+
+### Fixed
+
+- Add an explicit, separately labelled two-package metadata workaround for testing immutable alpha.309 consumer archives during stale Packagist P2 delivery.
+
+- Keep published engagement qualification consumers on one exact Framework cohort, including historical transitive dependencies, without adding optional packages.
+
+- Reserve the canonical SQLite writer before reading fixed-window engagement quota state, preventing unrelated concurrent commits from making quota admission fail with an unpromotable read snapshot.
+
+- Clarify targeted recovery for stale Packagist P2 metadata and stop reporting a recovery resubmission after the final attempt.
 ## [0.1.0-alpha.309] - 2026-11-14
 
 ### Added

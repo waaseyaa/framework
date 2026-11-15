@@ -5,12 +5,12 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.309",
-        "waaseyaa/entity": "^0.1.0-alpha.309",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.309",
-        "waaseyaa/foundation": "^0.1.0-alpha.309",
-        "waaseyaa/media": "^0.1.0-alpha.309",
-        "waaseyaa/publishing": "^0.1.0-alpha.309"
+        "waaseyaa/access": "^0.1.0-alpha.310",
+        "waaseyaa/entity": "^0.1.0-alpha.310",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.310",
+        "waaseyaa/foundation": "^0.1.0-alpha.310",
+        "waaseyaa/media": "^0.1.0-alpha.310",
+        "waaseyaa/publishing": "^0.1.0-alpha.310"
     },
     "suggest": {
         "waaseyaa/search": "Provides principal-safe ranked CMS search tools and content resources"
@@ -20,11 +20,11 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/audit": "^0.1.0-alpha.309",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.309",
-        "waaseyaa/field": "^0.1.0-alpha.309",
-        "waaseyaa/search": "^0.1.0-alpha.309",
-        "waaseyaa/testing": "^0.1.0-alpha.309"
+        "waaseyaa/audit": "^0.1.0-alpha.310",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.310",
+        "waaseyaa/field": "^0.1.0-alpha.310",
+        "waaseyaa/search": "^0.1.0-alpha.310",
+        "waaseyaa/testing": "^0.1.0-alpha.310"
     },
     "autoload": {
         "psr-4": {
