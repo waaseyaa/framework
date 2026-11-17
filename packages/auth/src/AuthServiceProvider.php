@@ -57,6 +57,22 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         ));
         $this->singleton(AuthenticationEligibilityInterface::class, fn() => $this->resolve(Authentication\VerifiedEmailAuthenticationEligibility::class));
 
+        $this->singleton(Profile\SelfProfileUpdater::class, fn() => new Profile\SelfProfileUpdater(
+            $this->resolve(\Waaseyaa\Entity\EntityTypeManagerInterface::class),
+            $this->resolve(\Waaseyaa\Database\DatabaseInterface::class),
+            $this->resolve(Token\AuthTokenRepositoryInterface::class),
+            $this->resolve(\Waaseyaa\Access\Context\AccountFieldReadScopeInterface::class),
+            $this->resolve(\Waaseyaa\Access\EntityAccessHandler::class),
+            $this->resolve(UserInternalFieldReaderInterface::class),
+            $this->resolve(\Waaseyaa\Access\User\UserIdentityLookupInterface::class),
+            $this->resolve(AuthManager::class),
+            $this->resolve(AtomicRateLimiterInterface::class),
+            $this->resolve(Config\AuthConfig::class),
+            $this->resolve(\Waaseyaa\User\AuthMailer::class),
+            $this->resolve(AuthExtensionRegistry::class),
+            $this->config['auth']['self_profile_fields'] ?? [],
+        ));
+
         $this->singleton(AuthManager::class, fn() => new AuthManager(
             $this->resolve(UserInternalFieldReaderInterface::class),
             $this->resolve(AuthenticationEligibilityInterface::class),

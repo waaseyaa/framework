@@ -96,6 +96,21 @@ that attempt to replace canonical token variables fail closed.
 
 ## Verification
 
+### Authenticated self-profile editing
+
+`SelfProfileUpdater` composes the canonical User save transaction with current
+password reauthentication and the email-change lifecycle. It is separate from
+registration profile handlers. Consumers may explicitly list existing declared
+noncredential User extension fields in `auth.self_profile_fields`; the default
+is empty. Core privilege, credential and ownership fields are not configurable.
+The exact ambient principal, opaque mutation expectation and outermost managed
+transaction are required. Email changes invalidate prior auth tokens and session
+generation and clear email verification. Results distinguish committed saves
+from subsequent verification-delivery or completion-effect failures. Consumer
+routes retain CSRF, own-account presentation and browser identity cleanup.
+See `docs/upgrades/auth-self-profile.md` and change record
+`AUTH-SELF-PROFILE-01` for caller obligations.
+
 Unit tests pin every policy input/output, unsafe-value refusal, deterministic
 composition, and conflict diagnostic. Controller tests pin security ordering
 and prove extensions cannot receive credential/token material. A packaged
