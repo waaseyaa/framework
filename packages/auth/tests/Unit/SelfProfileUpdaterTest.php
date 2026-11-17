@@ -247,4 +247,16 @@ final class SelfProfileUpdaterTest extends TestCase
         self::assertNotNull($tokens->validateToken($token, 'password_reset'));
         self::assertSame('Updated', $db->getConnection()->fetchOne("SELECT json_extract(_data, '$.first_name') FROM user WHERE uid=1"));
     }
+
+    public function testConfigurationCannotAdmitCredentialsOrMalformedFields(): void
+    {
+        foreach ([['pass'], ['roles'], ['mail'], [123], ['name' => 'first_name']] as $fields) {
+            try {
+                $this->fixture(profileFields: $fields);
+                self::fail('Unsafe field configuration accepted.');
+            } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
+            }
+        }
+    }
 }

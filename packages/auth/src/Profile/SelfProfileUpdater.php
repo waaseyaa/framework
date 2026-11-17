@@ -31,7 +31,7 @@ final readonly class SelfProfileUpdater
         'status', 'email_verified', 'session_generation', 'created', 'identity_name_key', 'identity_mail_key',
         'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step', 'tenant_id', 'community_id'];
 
-    /** @param list<string> $profileFields Trusted application configuration, never request data. */
+    /** @param array<mixed> $profileFields Application configuration validated here, never request data. */
     public function __construct(
         private EntityTypeManagerInterface $manager,
         private DatabaseInterface $database,
@@ -47,6 +47,9 @@ final readonly class SelfProfileUpdater
         private AuthExtensionRegistry $extensions,
         private array $profileFields = [],
     ) {
+        if (!array_is_list($profileFields)) {
+            throw new \InvalidArgumentException('Self-profile fields must be a list.');
+        }
         foreach ($profileFields as $field) {
             if (!is_string($field) || !preg_match('/^[a-z][a-z0-9_]*$/D', $field)
                 || $field === 'mail' || in_array($field, self::RESERVED, true)) {
