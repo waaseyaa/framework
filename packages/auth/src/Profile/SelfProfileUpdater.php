@@ -7,8 +7,8 @@ namespace Waaseyaa\Auth\Profile;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Auth\AuthManager;
 use Waaseyaa\Auth\Config\AuthConfig;
@@ -86,7 +86,7 @@ final readonly class SelfProfileUpdater
                 throw new SelfProfileUpdateException('invalid_email', 422);
             }
         }
-        $limitKey = 'self_profile:'.hash('sha256', json_encode([$actor->tenantId(), $actor->communityId(), (string) $actor->id()], JSON_THROW_ON_ERROR));
+        $limitKey = 'self_profile:' . hash('sha256', json_encode([$actor->tenantId(), $actor->communityId(), (string) $actor->id()], JSON_THROW_ON_ERROR));
         if (!$this->limiter->consume($limitKey, 5, 60)) {
             throw new SelfProfileUpdateException('too_many_attempts', 429);
         }
