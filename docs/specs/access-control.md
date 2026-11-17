@@ -1,5 +1,18 @@
 # Access Control
 
+## Authenticated self-profile updates
+
+`Waaseyaa\Auth\Profile\SelfProfileUpdater` owns reauthenticated self-profile saves.
+It requires the exact ambient immutable principal and a matching User mutation
+token, checks canonical entity/field edit access and saves through an outermost
+shared transaction. Only mail and explicitly configured noncredential User
+extension fields are admitted. A changed email clears verification, revokes auth
+tokens and advances session generation atomically; unchanged case variants keep
+their existing identity binding. Duplicate checks include inactive/legacy owners.
+Committed completion or verification-delivery failures remain distinct from
+unsaved refusals. Consumer callers own CSRF, HTML and browser identity cleanup.
+See [the caller contract](../upgrades/auth-self-profile.md).
+
 Imported-password required-change policy and atomic credential completion are
 specified in [legacy-password-change.md](legacy-password-change.md). Pending
 accounts cannot acquire HTTP identities until they choose a new password.
