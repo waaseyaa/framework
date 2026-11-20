@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "identityDigest": "0f30bb0c9c9dc849d90996e9ade1f1a618233c81b635624253084b2e150d7608",
+    "identityDigest": "36e781926f4fb4ca48bc0db07c80bd71eb3808f13c42492e70bc7cfa5a310ceb",
     "identityExcludes": [
         "acceptance"
     ],
@@ -11,14 +11,14 @@
         "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
     },
     "source": {
-        "signature": "b238194cfccaefe6a010cb9a53acd62771c87011b7082d3ca21d965bf959c792",
-        "buildIdSignature": "d87e19f64616ea71d72abf0aab368ecc381133c15d77011af20dd15aac687f94",
-        "buildId": "waaseyaa-d87e19f64616ea71d72abf0aab368ecc"
+        "signature": "250969aee1de7cbd1d389dd58a23d062bd8548dc91b82d310d0f586348f35a26",
+        "buildIdSignature": "dc4a6d3bc533de03cf2f63b2a2ab66709d3d7f6dc88497024af44fa0cdf005e1",
+        "buildId": "waaseyaa-dc4a6d3bc533de03cf2f63b2a2ab6670"
     },
     "published": {
-        "treeDigest": "57c4679e890837465d1c70afd54fac95b9715f10da12144e3034ee0e98459925",
+        "treeDigest": "5be09f068ac3c8a6d14ac8fab3f32d0d4f8b7e8428098d967d8b7303c38e3f66",
         "fileCount": 99,
-        "byteCount": 599825
+        "byteCount": 605047
     },
     "markers": {
         "version": 1,
@@ -54,22 +54,37 @@
         "intermediate": {
             "root": "packages/admin/.output",
             "artifactCount": 100,
-            "inventoryDigest": "5539a667a15f8cfbdfb8348c49d991b251534d46e9f8f3e9719bd02392ed7a23"
+            "inventoryDigest": "b96283914a6951d0e2f67ad87285fdfb561396592227e2c940e49324dc634fc7"
         },
-        "previousPublishedTreeDigest": "c9c860403d70d7a568de9e9343eabfcbbb48c8656fe71e93ec61bf8a26ecb475",
+        "previousPublishedTreeDigest": "57c4679e890837465d1c70afd54fac95b9715f10da12144e3034ee0e98459925",
         "changed": {
             "added": [
-                "_nuxt/BEWNPoNJ.js",
-                "_nuxt/BfhB1mtY.js",
-                "_nuxt/C7LMJllA.js",
-                "_nuxt/DAUs_L7h.js",
-                "_nuxt/DRV_3KG8.js",
-                "_nuxt/Dlk0Qlj4.js",
-                "_nuxt/FFqESsbM.js",
-                "_nuxt/SchemaForm.BJNbOqHU.css",
-                "_nuxt/TransitionHistoryTimeline.BmTcqxiQ.css",
-                "_nuxt/_id_.bOzUFTit.css",
-                "_nuxt/builds/meta/waaseyaa-d87e19f64616ea71d72abf0aab368ecc.json"
+                "_nuxt/BAz0veRa.js",
+                "_nuxt/BJxW5GZW.js",
+                "_nuxt/BPKylctd.js",
+                "_nuxt/BYhwrVN4.js",
+                "_nuxt/Bava_ETO.js",
+                "_nuxt/Bb5UDZrd.js",
+                "_nuxt/BckOKDRL.js",
+                "_nuxt/BkMJ50C4.js",
+                "_nuxt/BtZ2sNPr.js",
+                "_nuxt/C6y30n-6.js",
+                "_nuxt/CfpdY92p.js",
+                "_nuxt/CoRdglnY.js",
+                "_nuxt/CvzPSZnT.js",
+                "_nuxt/D5ag_shJ.js",
+                "_nuxt/D8MAOVpL.js",
+                "_nuxt/DB1obTv9.js",
+                "_nuxt/DFgwFOMk.js",
+                "_nuxt/DHugiq-Q.js",
+                "_nuxt/DOn04srq.js",
+                "_nuxt/DRl8a62-.js",
+                "_nuxt/DqNYlJLn.js",
+                "_nuxt/EntityAutocomplete.B16rtPmJ.css",
+                "_nuxt/builds/meta/waaseyaa-dc4a6d3bc533de03cf2f63b2a2ab6670.json",
+                "_nuxt/rLsNPU4R.js",
+                "_nuxt/vvt9jQmA.js",
+                "_nuxt/xqWBLD21.js"
             ],
             "modified": [
                 "200.html",
@@ -93,23 +108,38 @@
                 "workflows/index.html"
             ],
             "removed": [
-                "_nuxt/B8JRkkaH.js",
-                "_nuxt/Bo9n5VBR.js",
-                "_nuxt/CiPHFsxw.js",
-                "_nuxt/Cwwcfsqo.js",
-                "_nuxt/DJLE9yTD.js",
-                "_nuxt/DJzERt2O.js",
-                "_nuxt/SchemaForm.Dhf1PAx_.css",
-                "_nuxt/TransitionHistoryTimeline.ozsSAvcB.css",
-                "_nuxt/UeFDnear.js",
-                "_nuxt/_id_.DTX74wdF.css",
-                "_nuxt/builds/meta/waaseyaa-bbb0044e175eeef26b424712f327003c.json"
+                "_nuxt/-BwbrsCZ.js",
+                "_nuxt/9fBqHob_.js",
+                "_nuxt/BEFX5Z0b.js",
+                "_nuxt/BEWNPoNJ.js",
+                "_nuxt/BEXnL7Qz.js",
+                "_nuxt/BODwNujw.js",
+                "_nuxt/BdGOv0qI.js",
+                "_nuxt/BfhB1mtY.js",
+                "_nuxt/BgIiOSIP.js",
+                "_nuxt/CHel_eUb.js",
+                "_nuxt/CNdHAjki.js",
+                "_nuxt/CV0rz6hj.js",
+                "_nuxt/CXK54gyB.js",
+                "_nuxt/C_Vh1NSM.js",
+                "_nuxt/D8OGFD9D.js",
+                "_nuxt/DAUs_L7h.js",
+                "_nuxt/DDtNOsGc.js",
+                "_nuxt/DRV_3KG8.js",
+                "_nuxt/Dlk0Qlj4.js",
+                "_nuxt/DzSKdy69.js",
+                "_nuxt/EntityAutocomplete.Ce60f8Ov.css",
+                "_nuxt/FFqESsbM.js",
+                "_nuxt/LscMWK08.js",
+                "_nuxt/Ss-IkJaI.js",
+                "_nuxt/builds/meta/waaseyaa-d87e19f64616ea71d72abf0aab368ecc.json",
+                "_nuxt/mETD9EIs.js"
             ]
         },
         "toolchain": {
             "nodePin": "24",
-            "nodeRuntime": "v24.22.2",
-            "npmRuntime": "11.19.1"
+            "nodeRuntime": "v24.22.3",
+            "npmRuntime": "11.21.3"
         }
     }
 }

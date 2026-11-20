@@ -34,6 +34,7 @@ const resolvedDescribedBy = computed(() => {
 const editorRef = ref<HTMLDivElement | null>(null)
 const sourceRef = ref<HTMLTextAreaElement | null>(null)
 const sourceMode = ref(false)
+const projectionOmitsMarkup = ref(false)
 const canonicalHtml = ref(props.modelValue ?? '')
 let ownEmission: string | undefined
 
@@ -117,6 +118,9 @@ function renderVisualProjection() {
   const editor = editorRef.value
   if (!editor) return
   const projection = safeVisualProjection(canonicalHtml.value)
+  const original = document.createElement('template')
+  original.innerHTML = canonicalHtml.value
+  projectionOmitsMarkup.value = projection !== original.innerHTML
   if (editor.innerHTML !== projection) editor.innerHTML = projection
 }
 
@@ -131,6 +135,8 @@ watch(
       return
     }
     ownEmission = undefined
+    resetLink()
+    savedRange = null
     canonicalHtml.value = next
     if (!sourceMode.value) {
       await nextTick()
@@ -146,9 +152,11 @@ function updateValue(value: string) {
 }
 
 function onVisualInput(event: Event) {
+  resetLink()
   const editor = event.currentTarget as HTMLDivElement
   const safeHtml = safeVisualProjection(editor.innerHTML)
   if (safeHtml !== editor.innerHTML) editor.innerHTML = safeHtml
+  projectionOmitsMarkup.value = false
   updateValue(safeHtml)
 }
 
@@ -156,12 +164,175 @@ function onSourceInput(event: Event) {
   updateValue((event.currentTarget as HTMLTextAreaElement).value)
 }
 
-function preventLinkNavigation(event: MouseEvent) {
-  if ((event.target as Element).closest('a')) event.preventDefault()
+const formats = [
+  { label: 'Paragraph', command: 'formatBlock', value: 'p' },
+  { label: 'Heading', command: 'formatBlock', value: 'h2' },
+  { label: 'Bold', command: 'bold' },
+  { label: 'Italic', command: 'italic' },
+  { label: 'Bulleted list', command: 'insertUnorderedList' },
+  { label: 'Numbered list', command: 'insertOrderedList' },
+]
+
+const activeTool = ref('Paragraph')
+const pressedTools = ref<string[]>([])
+function updatePressedTools() {
+  if (typeof document.queryCommandState !== 'function') return
+  pressedTools.value = formats.filter(item => item.value
+    ? document.queryCommandValue('formatBlock').toLowerCase() === item.value
+    : document.queryCommandState(item.command)).map(item => item.label)
+}
+
+function moveToolbarFocus(event: KeyboardEvent) {
+  const buttons = Array.from((event.currentTarget as HTMLElement).querySelectorAll('button:not(:disabled)'))
+  const index = buttons.indexOf(event.target as HTMLButtonElement)
+  if (index < 0) return
+  const names = ['Home', 'End', 'ArrowRight', 'ArrowLeft']
+  if (!names.includes(event.key)) return
+  event.preventDefault()
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+    : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
+  ;(buttons[next] as HTMLButtonElement).focus()
+}
+
+let savedRange: Range | null = null
+let linkRange: Range | null = null
+const editingLink = ref<HTMLAnchorElement | null>(null)
+const linkOpen = ref(false)
+const linkAddress = ref('')
+const linkError = ref('')
+const addressInput = ref<HTMLInputElement | null>(null)
+
+watch(() => props.disabled, (disabled) => {
+  if (disabled) {
+    resetLink()
+    savedRange = null
+  }
+})
+
+function rememberSelection() {
+  const selection = window.getSelection()
+  if (!selection?.rangeCount) return
+  const range = selection.getRangeAt(0)
+  if (editorRef.value?.contains(range.commonAncestorContainer)) {
+    savedRange = range.cloneRange()
+    updatePressedTools()
+  }
+}
+
+function restoreSelection(range = savedRange) {
+  const editor = editorRef.value
+  const selection = window.getSelection()
+  if (!editor || props.disabled || sourceMode.value || !selection) return false
+  editor.focus()
+  if (!range || !editor.contains(range.commonAncestorContainer)) {
+    range = document.createRange()
+    range.selectNodeContents(editor)
+    range.collapse(false)
+  }
+  selection.removeAllRanges()
+  selection.addRange(range)
+  return true
+}
+
+function format(command: string, value?: string) {
+  if (linkOpen.value || !restoreSelection()) return
+  runEditCommand(command, value)
+}
+
+function runEditCommand(command: string, value?: string) {
+  // Native editing commands participate in the contenteditable undo history.
+  document.execCommand(command, false, value)
+  rememberSelection()
+}
+
+async function openLink(anchor?: HTMLAnchorElement) {
+  const editor = editorRef.value
+  if (!editor || props.disabled || sourceMode.value) return
+  if (linkOpen.value) {
+    addressInput.value?.focus()
+    return
+  }
+  rememberSelection()
+  linkRange = savedRange && editor.contains(savedRange.commonAncestorContainer)
+    ? savedRange.cloneRange()
+    : document.createRange()
+  if (!editor.contains(linkRange.commonAncestorContainer)) {
+    linkRange.selectNodeContents(editor)
+    linkRange.collapse(false)
+  }
+  const node = linkRange.commonAncestorContainer
+  const element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement
+  const link = anchor ?? element?.closest('a')
+  editingLink.value = link && editor.contains(link) ? link : null
+  if (editingLink.value) {
+    linkRange.selectNodeContents(editingLink.value)
+  }
+  linkAddress.value = editingLink.value?.getAttribute('href') ?? ''
+  linkError.value = ''
+  linkOpen.value = true
+  await nextTick()
+  addressInput.value?.focus()
+}
+
+function resetLink() {
+  linkOpen.value = false
+  editingLink.value = null
+  linkRange = null
+}
+
+function closeLink() {
+  resetLink()
+  restoreSelection()
+}
+
+function removeLink() {
+  const range = linkRange
+  if (!range || !editingLink.value || !restoreSelection(range)) return
+  resetLink()
+  runEditCommand('unlink')
+}
+
+function applyLink() {
+  const href = linkAddress.value.trim()
+  let valid = false
+  try {
+    const url = new URL(href, window.location.href)
+    valid = /^(https?:|mailto:|tel:|#|\/(?!\/))/i.test(href)
+      && /^(https?:|mailto:|tel:)$/.test(url.protocol)
+      && !/[\s\\]/.test(href)
+  } catch { /* Report invalid input in the link editor. */ }
+  if (!valid) {
+    linkError.value = 'Enter a web address, site path, email link, or telephone link.'
+    addressInput.value?.focus()
+    return
+  }
+  const range = linkRange
+  if (!range || !restoreSelection(range)) return
+  resetLink()
+  if (range.collapsed) {
+    // A bare insertion uses the address as its visible label. DOM serialization
+    // escapes both the address and label before the native undoable insertion.
+    const link = document.createElement('a')
+    link.setAttribute('href', href)
+    link.textContent = href
+    runEditCommand('insertHTML', link.outerHTML)
+  } else {
+    runEditCommand('createLink', href)
+  }
+}
+
+function onEditorClick(event: MouseEvent) {
+  const anchor = (event.target as Element).closest('a')
+  if (anchor) {
+    event.preventDefault()
+    void openLink(anchor)
+  }
 }
 
 async function toggleSourceMode() {
   if (props.disabled) return
+  resetLink()
+  savedRange = null
   sourceMode.value = !sourceMode.value
   await nextTick()
   if (sourceMode.value) {
@@ -174,6 +345,11 @@ async function toggleSourceMode() {
 }
 
 function onEditorKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !sourceMode.value) {
+    event.preventDefault()
+    void openLink()
+    return
+  }
   if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 's') {
     event.preventDefault()
     void toggleSourceMode()
@@ -196,10 +372,21 @@ function onEditorKeydown(event: KeyboardEvent) {
       </template>
     </label>
 
-    <div class="richtext-toolbar" role="toolbar" aria-label="Rich text editing tools">
+    <div class="richtext-toolbar" role="toolbar" aria-label="Rich text editing tools" @keydown="moveToolbarFocus">
+      <template v-if="!sourceMode">
+        <button
+          v-for="item in formats" :key="item.label" type="button" class="touch-target"
+          :aria-controls="inputId" :disabled="disabled || linkOpen" :aria-pressed="pressedTools.includes(item.label)"
+          :tabindex="activeTool === item.label ? 0 : -1" @focus="activeTool = item.label"
+          @mousedown.prevent @click="format(item.command, item.value)"
+        >{{ item.label }}</button>
+        <button type="button" class="touch-target" :disabled="disabled" :aria-expanded="linkOpen" :tabindex="activeTool === 'Link' ? 0 : -1" @focus="activeTool = 'Link'"
+          :aria-controls="inputId + '-link'" @mousedown.prevent @click="openLink()">Link</button>
+      </template>
       <button
         type="button"
         class="richtext-source-toggle touch-target"
+        :tabindex="sourceMode || activeTool === 'source' ? 0 : -1" @focus="activeTool = 'source'"
         :aria-controls="inputId"
         :aria-pressed="sourceMode"
         :disabled="disabled"
@@ -209,6 +396,21 @@ function onEditorKeydown(event: KeyboardEvent) {
       </button>
     </div>
 
+    <div v-if="linkOpen && !sourceMode && !disabled" :id="inputId + '-link'" class="link-editor"
+      role="group" aria-label="Edit link" @keydown.esc.prevent.stop="closeLink">
+      <label :for="inputId + '-address'">Link address</label>
+      <input :id="inputId + '-address'" ref="addressInput" v-model="linkAddress" type="text"
+        :aria-invalid="!!linkError" :aria-describedby="linkError ? inputId + '-link-error' : undefined"
+        @keydown.enter.prevent.stop="applyLink">
+      <button type="button" class="touch-target" @click="applyLink">Apply</button>
+      <button v-if="editingLink" type="button" class="touch-target" @click="removeLink">Remove link</button>
+      <button type="button" class="touch-target" @click="closeLink">Cancel</button>
+      <span v-if="linkError" :id="inputId + '-link-error'" role="alert">{{ linkError }}</span>
+    </div>
+
+    <p v-if="!sourceMode && !disabled && projectionOmitsMarkup" class="field-description">
+      This field contains markup hidden in the visual editor. Use Edit HTML source to preserve it when editing.
+    </p>
     <textarea
       v-if="sourceMode"
       :id="inputId"
@@ -240,7 +442,10 @@ function onEditorKeydown(event: KeyboardEvent) {
       :contenteditable="disabled ? 'false' : 'true'"
       class="field-input field-richtext touch-target"
       :class="{ disabled }"
-      @click="preventLinkNavigation"
+      @click="onEditorClick"
+      @mouseup="rememberSelection"
+      @keyup="rememberSelection"
+      @blur="rememberSelection"
       @input="onVisualInput"
       @keydown="onEditorKeydown"
     />
@@ -256,12 +461,14 @@ function onEditorKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.richtext-toolbar {
+.richtext-toolbar, .link-editor {
+  flex-wrap: wrap;
+  gap: 0.25rem;
   display: flex;
   margin-block-end: 0.375rem;
 }
 
-.richtext-source-toggle {
+.richtext-toolbar button, .link-editor button {
   border: 1px solid currentColor;
   border-radius: 0.25rem;
   background: transparent;

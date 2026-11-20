@@ -1176,6 +1176,8 @@ required associations and visible focus treatment. Server-side rich-text
 sanitization at the read/render boundary remains authoritative for content
 delivered to clients.
 
+The shared rich-text visual toolbar supports paragraph and second-level heading blocks, bold, italic, ordered and unordered lists, and inserting, editing and removing descriptive links. Formatting applies to the selection in the owning field. Opening or canceling link entry leaves the stored HTML untouched. Disabled fields remain read-only, and source mode retains its existing round-trip behavior. A notice identifies source markup omitted from the visual editing projection.
+
 ### Field validation and date-only values
 
 `SchemaForm` renders with `novalidate` so browser bubbles are not the sole

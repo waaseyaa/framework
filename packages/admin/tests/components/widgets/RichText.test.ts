@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { nextTick } from 'vue'
 import RichText from '~/components/widgets/RichText.vue'
 import { richTextHtmlFixtures } from '../../fixtures/richTextHtml'
 
@@ -60,7 +61,7 @@ describe('RichText', () => {
   it('exposes explicit multiline textbox semantics and a documented source control', async () => {
     const wrapper = await mountRichText()
     const editor = wrapper.get('[contenteditable]')
-    const sourceToggle = wrapper.get('button')
+    const sourceToggle = wrapper.get('.richtext-source-toggle')
 
     expect(editor.attributes('role')).toBe('textbox')
     expect(editor.attributes('aria-multiline')).toBe('true')
@@ -72,7 +73,15 @@ describe('RichText', () => {
 
     await editor.trigger('keydown', { key: 's', ctrlKey: true, shiftKey: true })
     expect(wrapper.get('textarea').attributes('id')).toBe('field-body')
-    expect(wrapper.get('button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.richtext-source-toggle').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('exposes visual formatting controls only in visual mode', async () => {
+    const wrapper = await mountRichText()
+    expect(wrapper.get('[role="toolbar"]').findAll('button').map(button => button.text()))
+      .toEqual(['Paragraph', 'Heading', 'Bold', 'Italic', 'Bulleted list', 'Numbered list', 'Link', 'Edit HTML source'])
+    await wrapper.get('.richtext-source-toggle').trigger('click')
+    expect(wrapper.findAll('[role="toolbar"] button')).toHaveLength(1)
   })
 
   it('makes disabled content non-editable in both visual and source modes', async () => {
@@ -80,7 +89,32 @@ describe('RichText', () => {
     const editor = wrapper.get('[role="textbox"]')
     expect(editor.attributes('contenteditable')).toBe('false')
     expect(editor.attributes('aria-disabled')).toBe('true')
-    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.richtext-source-toggle').attributes('disabled')).toBeDefined()
+  })
+
+  it('discards an open link edit when the external value changes', async () => {
+    const wrapper = await mountRichText({ modelValue: '<p><a href="/old">Old text</a></p>' })
+    await wrapper.get('[contenteditable] a').trigger('click')
+    expect((wrapper.get('#field-body-address').element as HTMLInputElement).value).toBe('/old')
+
+    await wrapper.setProps({ modelValue: '<p>Replacement text</p>' })
+    await nextTick()
+
+    expect(wrapper.find('#field-body-link').exists()).toBe(false)
+    expect(wrapper.get('[contenteditable]').text()).toBe('Replacement text')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('discards an open link edit when the field is disabled and stays closed when reenabled', async () => {
+    const wrapper = await mountRichText({ modelValue: '<p><a href="/old">Old text</a></p>' })
+    await wrapper.get('[contenteditable] a').trigger('click')
+    expect(wrapper.find('#field-body-link').exists()).toBe(true)
+
+    await wrapper.setProps({ disabled: true })
+    await wrapper.setProps({ disabled: false })
+
+    expect(wrapper.find('#field-body-link').exists()).toBe(false)
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 
   it.each([
@@ -94,7 +128,7 @@ describe('RichText', () => {
     const wrapper = await mountRichText({ modelValue: html })
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.richtext-source-toggle').trigger('click')
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(html)
 
     await wrapper.setProps({ modelValue: `${html}\n` })
@@ -108,7 +142,7 @@ describe('RichText', () => {
       const wrapper = await mountRichText({ modelValue })
       expect(wrapper.get('[contenteditable]').element.innerHTML).toBe('')
       expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-      await wrapper.get('button').trigger('click')
+      await wrapper.get('.richtext-source-toggle').trigger('click')
       expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('')
     },
   )
@@ -121,7 +155,7 @@ describe('RichText', () => {
     expect(visualHtml).not.toContain('src="https://')
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.richtext-source-toggle').trigger('click')
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value)
       .toBe(richTextHtmlFixtures.unsafeActiveContent)
   })
@@ -139,19 +173,19 @@ describe('RichText', () => {
     expect(visualHtml).toContain('<p>safe text</p>')
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.richtext-source-toggle').trigger('click')
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(html)
   })
 
   it('emits exact source edits and deterministic visual edits only after input', async () => {
     const wrapper = await mountRichText()
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.richtext-source-toggle').trigger('click')
     const source = wrapper.get('textarea')
     const sourceHtml = '<section data-legacy="yes"><p>Edited source</p></section>'
     await source.setValue(sourceHtml)
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([sourceHtml])
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.richtext-source-toggle').trigger('click')
     const editor = wrapper.get('[contenteditable]')
     editor.element.innerHTML = '<p>Edited <em>visually</em></p>'
     await editor.trigger('input')
