@@ -296,13 +296,13 @@ function applyLink() {
   const href = linkAddress.value.trim()
   let valid = false
   try {
-    const url = new URL(href, window.location.href)
-    valid = /^(https?:|mailto:|tel:|#|\/(?!\/))/i.test(href)
+    const url = new URL(href)
+    valid = /^(https?:\/\/|mailto:|tel:)/i.test(href)
       && /^(https?:|mailto:|tel:)$/.test(url.protocol)
       && !/[\s\\]/.test(href)
   } catch { /* Report invalid input in the link editor. */ }
   if (!valid) {
-    linkError.value = 'Enter a web address, site path, email link, or telephone link.'
+    linkError.value = 'Enter a full web address starting with https:// or http://, an email link starting with mailto:, or a telephone link starting with tel:.'
     addressInput.value?.focus()
     return
   }
@@ -380,26 +380,29 @@ function onEditorKeydown(event: KeyboardEvent) {
           :tabindex="activeTool === item.label ? 0 : -1" @focus="activeTool = item.label"
           @mousedown.prevent @click="format(item.command, item.value)"
         >{{ item.label }}</button>
-        <button type="button" class="touch-target" :disabled="disabled" :aria-expanded="linkOpen" :tabindex="activeTool === 'Link' ? 0 : -1" @focus="activeTool = 'Link'"
-          :aria-controls="inputId + '-link'" @mousedown.prevent @click="openLink()">Link</button>
+        <button
+type="button" class="touch-target" :disabled="disabled" :aria-expanded="linkOpen" :tabindex="activeTool === 'Link' ? 0 : -1" :aria-controls="inputId + '-link'"
+          @focus="activeTool = 'Link'" @mousedown.prevent @click="openLink()">Link</button>
       </template>
       <button
         type="button"
         class="richtext-source-toggle touch-target"
-        :tabindex="sourceMode || activeTool === 'source' ? 0 : -1" @focus="activeTool = 'source'"
-        :aria-controls="inputId"
+        :tabindex="sourceMode || activeTool === 'source' ? 0 : -1" :aria-controls="inputId"
         :aria-pressed="sourceMode"
         :disabled="disabled"
+        @focus="activeTool = 'source'"
         @click="toggleSourceMode"
       >
         {{ sourceMode ? 'Return to visual editor' : 'Edit HTML source' }}
       </button>
     </div>
 
-    <div v-if="linkOpen && !sourceMode && !disabled" :id="inputId + '-link'" class="link-editor"
+    <div
+v-if="linkOpen && !sourceMode && !disabled" :id="inputId + '-link'" class="link-editor"
       role="group" aria-label="Edit link" @keydown.esc.prevent.stop="closeLink">
       <label :for="inputId + '-address'">Link address</label>
-      <input :id="inputId + '-address'" ref="addressInput" v-model="linkAddress" type="text"
+      <input
+:id="inputId + '-address'" ref="addressInput" v-model="linkAddress" type="text"
         :aria-invalid="!!linkError" :aria-describedby="linkError ? inputId + '-link-error' : undefined"
         @keydown.enter.prevent.stop="applyLink">
       <button type="button" class="touch-target" @click="applyLink">Apply</button>

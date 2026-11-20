@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { nextTick } from 'vue'
 import RichText from '~/components/widgets/RichText.vue'
 import { richTextHtmlFixtures } from '../../fixtures/richTextHtml'
 
-async function mountRichText(props: Record<string, unknown> = {}) {
+async function mountRichText(props: Record<string, unknown> = {}, attachTo?: HTMLElement) {
   return mountSuspended(RichText, {
+    attachTo,
     props: {
       modelValue: '<p>Body</p>',
       id: 'field-body',
@@ -14,6 +15,46 @@ async function mountRichText(props: Record<string, unknown> = {}) {
       ...props,
     },
   })
+}
+
+function selectText(node: Node, start: number, end: number) {
+  const range = document.createRange()
+  range.setStart(node, start)
+  range.setEnd(node, end)
+  const selection = window.getSelection()!
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+function mockNativeEditing() {
+  const execute = vi.fn((_command: string, _showUi: boolean, _value?: string) => {
+    return window.getSelection()?.toString()
+  })
+  const properties = {
+    execCommand: execute,
+    queryCommandState: (command: string) => command === 'bold',
+    queryCommandValue: () => 'p',
+  }
+  for (const [name, value] of Object.entries(properties)) {
+    const original = Object.getOwnPropertyDescriptor(document, name)
+    Object.defineProperty(document, name, { value, configurable: true })
+    cleanup.push(() => original
+      ? Object.defineProperty(document, name, original)
+      : Reflect.deleteProperty(document, name))
+  }
+  return execute
+}
+
+const cleanup: Array<() => void> = []
+afterEach(() => {
+  window.getSelection()?.removeAllRanges()
+  for (const release of cleanup.splice(0)) release()
+})
+
+async function mountInteractiveRichText(props: Record<string, unknown> = {}) {
+  const wrapper = await mountRichText(props, document.body)
+  cleanup.push(() => wrapper.unmount())
+  return wrapper
 }
 
 describe('RichText', () => {
@@ -115,6 +156,140 @@ describe('RichText', () => {
 
     expect(wrapper.find('#field-body-link').exists()).toBe(false)
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('identifies active formats and restores the field selection before toolbar commands', async () => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText()
+    const editor = wrapper.get('[contenteditable]')
+    const buttons = wrapper.get('[role="toolbar"]').findAll('button')
+    const paragraph = buttons[0]!
+    const bold = buttons[2]!
+    selectText(editor.get('p').element.firstChild!, 0, 4)
+    await editor.trigger('keyup')
+    expect(paragraph.attributes('aria-pressed')).toBe('true')
+    expect(bold.attributes('aria-pressed')).toBe('true')
+    expect(buttons[3]!.attributes('aria-pressed')).toBe('false')
+
+    window.getSelection()!.removeAllRanges()
+    await bold.trigger('click')
+    expect(execute).toHaveBeenLastCalledWith('bold', false, undefined)
+    expect(execute.mock.results.at(-1)?.value).toBe('Body')
+
+    await buttons[1]!.trigger('click')
+    expect(execute).toHaveBeenLastCalledWith('formatBlock', false, 'h2')
+    expect(execute.mock.results.at(-1)?.value).toBe('Body')
+  })
+
+  it('moves toolbar focus with arrows, Home and End using one tab stop', async () => {
+    const wrapper = await mountInteractiveRichText()
+    const buttons = wrapper.get('[role="toolbar"]').findAll('button')
+    const first = buttons[0]!
+    const second = buttons[1]!
+    const last = buttons.at(-1)!
+    expect(buttons.filter(button => button.attributes('tabindex') === '0')).toEqual([first])
+    first.element.focus()
+    await first.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(second.element)
+    expect(second.attributes('tabindex')).toBe('0')
+    await second.trigger('keydown', { key: 'End' })
+    expect(document.activeElement).toBe(last.element)
+    await last.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(first.element)
+    await first.trigger('keydown', { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(last.element)
+    await last.trigger('keydown', { key: 'Home' })
+    expect(document.activeElement).toBe(first.element)
+  })
+
+  it('opens link entry by keyboard and restores the selection on Escape', async () => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText()
+    const editor = wrapper.get('[contenteditable]')
+    selectText(editor.get('p').element.firstChild!, 0, 4)
+    await editor.trigger('keydown', { key: 'k', ctrlKey: true })
+    const address = wrapper.get('#field-body-address')
+    expect(document.activeElement).toBe(address.element)
+    await editor.trigger('keydown', { key: 'k', metaKey: true })
+    await address.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('#field-body-link').exists()).toBe(false)
+    expect(document.activeElement).toBe(editor.element)
+    expect(window.getSelection()?.toString()).toBe('Body')
+    expect(execute).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('uses the original selection for link insertion after another selection', async () => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText()
+    const editor = wrapper.get('[contenteditable]')
+    const node = editor.get('p').element.firstChild!
+    selectText(node, 0, 4)
+    await editor.trigger('keydown', { key: 'k', ctrlKey: true })
+    const address = wrapper.get('#field-body-address')
+    selectText(node, 0, 1)
+    await editor.trigger('mouseup')
+    await address.setValue('https://example.test/guide')
+    await address.trigger('keydown', { key: 'Enter' })
+    expect(execute).toHaveBeenCalledExactlyOnceWith('createLink', false, 'https://example.test/guide')
+    expect(execute.mock.results[0]?.value).toBe('Body')
+    expect(wrapper.find('#field-body-link').exists()).toBe(false)
+  })
+
+  it('inserts an escaped address label at the end when no text is selected', async () => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText()
+    await wrapper.get('button[aria-expanded]').trigger('click')
+    const address = wrapper.get('#field-body-address')
+    await address.setValue('https://example.test/?title=<guide>&format=pdf')
+    await address.trigger('keydown', { key: 'Enter' })
+    const [command, showUi, markup] = execute.mock.calls[0]!
+    expect(command).toBe('insertHTML')
+    expect(showUi).toBe(false)
+    const template = document.createElement('template')
+    template.innerHTML = markup!
+    const link = template.content.querySelector('a')
+    expect(link?.textContent).toBe('https://example.test/?title=<guide>&format=pdf')
+    expect(link?.getAttribute('href')).toBe(link?.textContent)
+    expect(template.content.querySelector('guide')).toBeNull()
+  })
+
+  it.each(['/guide', '#guide', '//example.test', 'unknown:guide', 'https:example.test', 'https://['])('rejects the invalid link address %s', async (value) => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText()
+    await wrapper.get('button[aria-expanded]').trigger('click')
+    const address = wrapper.get('#field-body-address')
+    await address.setValue(value)
+    await address.trigger('keydown', { key: 'Enter' })
+    expect(address.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('#field-body-link-error').attributes('role')).toBe('alert')
+    expect(document.activeElement).toBe(address.element)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('selects the text of an existing link when removing it', async () => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText({ modelValue: '<p>See <a href="/guide">the guide</a>.</p>' })
+    const editor = wrapper.get('[contenteditable]')
+    await editor.get('a').trigger('click')
+    const remove = wrapper.findAll('#field-body-link button').find(button => button.text() === 'Remove link')!
+    await remove.trigger('click')
+    expect(execute).toHaveBeenCalledExactlyOnceWith('unlink', false, undefined)
+    expect(execute.mock.results[0]?.value).toBe('the guide')
+    expect(wrapper.find('#field-body-link').exists()).toBe(false)
+  })
+
+  it('ignores editor shortcuts and link activation when the field is disabled', async () => {
+    const execute = mockNativeEditing()
+    const wrapper = await mountInteractiveRichText({ modelValue: '<p><a href="/guide">Guide</a></p>', disabled: true })
+    const editor = wrapper.get('[contenteditable]')
+    expect(wrapper.get('[role="toolbar"]').findAll('button').every(button => button.element.disabled)).toBe(true)
+    await editor.trigger('keydown', { key: 'k', metaKey: true })
+    await editor.trigger('keydown', { key: 's', ctrlKey: true, shiftKey: true })
+    await editor.get('a').trigger('click')
+    expect(wrapper.find('#field-body-link').exists()).toBe(false)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it.each([
